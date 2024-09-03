@@ -17,7 +17,7 @@ use crate::{
 
 use super::{IntoPrimitive, IntoValue, Primitive, Value, BUILTIN_STRING_MEMORY};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct Symbol(pub(crate) SymbolIndex);
 

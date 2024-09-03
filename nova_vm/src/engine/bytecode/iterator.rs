@@ -7,22 +7,25 @@ use std::collections::VecDeque;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::IteratorRecord,
-            operations_on_objects::{call, get},
+            operations_on_iterator_objects::{get_iterator_from_method, IteratorRecord},
+            operations_on_objects::{call, get, get_method},
             type_conversion::to_boolean,
         },
         builtins::Array,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
-    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
+
+use super::executable::SendableRef;
 
 #[derive(Debug)]
 pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
+    SliceIterator(SendableRef<[Value]>),
 }
 
 impl VmIterator {
@@ -68,6 +71,66 @@ impl VmIterator {
                     let value = get(agent, result, BUILTIN_STRING_MEMORY.value.into())?;
                     Ok(Some(value))
                 }
+            }
+            VmIterator::SliceIterator(slice_ref) => {
+                let slice = slice_ref.get();
+                if slice.is_empty() {
+                    Ok(None)
+                } else {
+                    let ret = slice[0];
+                    *slice_ref = SendableRef::new(&slice[1..]);
+                    Ok(Some(ret))
+                }
+            }
+        }
+    }
+
+    pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
+        match self {
+            VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
+            VmIterator::ArrayValues(iter) => {
+                Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
+            }
+            VmIterator::GenericIterator(_) => None,
+            VmIterator::SliceIterator(slice) => Some(slice.get().len()),
+        }
+    }
+
+    pub(super) fn from_value(agent: &mut Agent, value: Value) -> JsResult<Self> {
+        // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
+        let method = get_method(
+            agent,
+            value,
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+        )?;
+        let Some(method) = method else {
+            // 3. If method is undefined, throw a TypeError exception.
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator method cannot be undefined",
+            ));
+        };
+
+        // 4. Return ? GetIteratorFromMethod(obj, method).
+        match value {
+            Value::Array(array)
+                if get_method(
+                    agent,
+                    value,
+                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                )? == Some(
+                    agent
+                        .current_realm()
+                        .intrinsics()
+                        .array_prototype_values()
+                        .into(),
+                ) =>
+            {
+                Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
+            }
+            _ => {
+                let js_iterator = get_iterator_from_method(agent, value, method)?;
+                Ok(VmIterator::GenericIterator(js_iterator))
             }
         }
     }
@@ -204,6 +267,7 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),
             VmIterator::GenericIterator(iter) => iter.mark_values(queues),
+            VmIterator::SliceIterator(slice) => slice.get().mark_values(queues),
         }
     }
 
@@ -212,6 +276,7 @@ impl HeapMarkAndSweep for VmIterator {
             VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),
+            VmIterator::SliceIterator(slice) => slice.get().sweep_values(compactions),
         }
     }
 }

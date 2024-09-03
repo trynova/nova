@@ -33,7 +33,7 @@ use crate::{
             indexed_collections::{
                 array_objects::{
                     array_constructor::ArrayConstructor,
-                    array_iterator_objects::ArrayIteratorPrototype,
+                    array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
                     array_prototype::ArrayPrototype,
                 },
                 typed_array_objects::{
@@ -160,6 +160,7 @@ pub enum ProtoIntrinsics {
     AggregateError,
     Array,
     ArrayBuffer,
+    ArrayIterator,
     AsyncFunction,
     AsyncGeneratorFunction,
     BigInt,
@@ -318,6 +319,7 @@ impl Intrinsics {
         match intrinsic_default_proto {
             ProtoIntrinsics::Array => self.array_prototype().into(),
             ProtoIntrinsics::ArrayBuffer => self.array_buffer_prototype().into(),
+            ProtoIntrinsics::ArrayIterator => self.array_iterator_prototype().into(),
             ProtoIntrinsics::BigInt => self.big_int_prototype().into(),
             ProtoIntrinsics::Boolean => self.boolean_prototype().into(),
             ProtoIntrinsics::Error => self.error_prototype().into(),

@@ -4,17 +4,19 @@
 
 use std::sync::OnceLock;
 
+use ahash::AHashSet;
 use oxc_ast::ast;
 use oxc_syntax::operator::BinaryOperator;
 
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, iterator_close},
+            operations_on_iterator_objects::iterator_close,
             operations_on_objects::{
-                call, call_function, construct, create_data_property_or_throw,
-                define_property_or_throw, get_method, get_v, has_property, ordinary_has_instance,
-                set,
+                call, call_function, construct, copy_data_properties,
+                copy_data_properties_into_object, create_data_property,
+                create_data_property_or_throw, define_property_or_throw, get, get_method,
+                has_property, ordinary_has_instance, set,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -25,30 +27,35 @@ use crate::{
             },
         },
         builtins::{
-            array_create, global_object::perform_eval, make_constructor, make_method,
+            array_create, create_builtin_function, create_unmapped_arguments_object,
+            global_object::perform_eval, make_constructor, make_method,
             ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name, ArgumentsList, Array, OrdinaryFunctionCreateParams,
+            set_function_name, ArgumentsList, Array, Behaviour, BuiltinFunctionArgs,
+            ConstructorStatus, OrdinaryFunctionCreateParams,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
             get_this_environment, new_declarative_environment, Agent,
             ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
         },
+        syntax_directed_operations::class_definitions::{
+            base_class_default_constructor, derived_class_default_constructor,
+        },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, Base, BigInt, InternalMethods, IntoFunction, IntoObject,
-            IntoValue, Number, Numeric, Object, PropertyDescriptor, PropertyKey, Reference, String,
-            Value, BUILTIN_STRING_MEMORY,
+            is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
+            IntoObject, IntoValue, Number, Numeric, Object, PropertyDescriptor, PropertyKey,
+            Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 use super::{
-    executable::NamedEvaluationParameter,
+    executable::{NamedEvaluationParameter, SendableRef},
     instructions::Instr,
-    iterator::{ArrayValuesIterator, ObjectPropertiesIterator, VmIterator},
-    Executable, Instruction, InstructionIter,
+    iterator::{ObjectPropertiesIterator, VmIterator},
+    Executable, IndexType, Instruction, InstructionIter,
 };
 
 struct EmptyParametersList(ast::FormalParameters<'static>);
@@ -130,8 +137,20 @@ impl Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(agent: &mut Agent, executable: &Executable) -> ExecutionResult {
-        let vm = Vm::new();
+    pub(crate) fn execute(
+        agent: &mut Agent,
+        executable: &Executable,
+        arguments: Option<&[Value]>,
+    ) -> ExecutionResult {
+        let mut vm = Vm::new();
+
+        if let Some(arguments) = arguments {
+            // SAFETY: awaits and yields are invalid syntax inside an arguments
+            // list, so this reference shouldn't remain alive after this
+            // function returns.
+            let arguments = unsafe { SendableRef::new_as_static(arguments) };
+            vm.iterator_stack.push(VmIterator::SliceIterator(arguments));
+        }
 
         if agent.options.print_internals {
             eprintln!();
@@ -329,11 +348,22 @@ impl Vm {
             Instruction::LoadCopy => {
                 vm.stack.push(vm.result.unwrap());
             }
+            Instruction::LoadStoreSwap => {
+                let temp = vm
+                    .result
+                    .take()
+                    .expect("Expected result value to not be empty");
+                vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
+                vm.stack.push(temp);
+            }
             Instruction::Return => {
                 return Ok(ContinuationKind::Return);
             }
             Instruction::Store => {
                 vm.result = Some(vm.stack.pop().expect("Trying to pop from empty stack"));
+            }
+            Instruction::StoreCopy => {
+                vm.result = Some(*vm.stack.last().expect("Trying to get from empty stack"));
             }
             Instruction::StoreConstant => {
                 let constant = vm.fetch_constant(executable, instr.args[0].unwrap() as usize);
@@ -364,6 +394,9 @@ impl Vm {
                 vm.result =
                     Some(to_numeric(agent, vm.result.unwrap()).map(|result| result.into_value())?);
             }
+            Instruction::ToObject => {
+                vm.result = Some(to_object(agent, vm.result.unwrap())?.into_value());
+            }
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
@@ -371,18 +404,106 @@ impl Vm {
                     agent, lval, op_text, rval,
                 )?);
             }
-            Instruction::ObjectSetProperty => {
+            Instruction::ObjectDefineProperty => {
                 let value = vm.result.take().unwrap();
                 let key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
                 create_data_property_or_throw(agent, object, key, value).unwrap()
             }
-            Instruction::ObjectSetGetter => {
+            Instruction::ObjectDefineMethod => {
                 let function_expression = executable
                     .function_expressions
                     .get(instr.args[0].unwrap() as usize)
                     .unwrap();
+                let enumerable = instr.args[1].unwrap() != 0;
+                // 1. Let propKey be ? Evaluation of ClassElementName.
+                let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
+                let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+
+                // 2. Let env be the running execution context's LexicalEnvironment.
+                // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment: env,
+                    private_environment: private_env,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+                // Note: Non-constructor methods never have a function
+                // prototype.
+                // 4. If functionPrototype is present, then
+                //     a. Let prototype be functionPrototype.
+                // 5. Else,
+                //     a. Let prototype be %Function.prototype%.
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype: None,
+                    source_code: None,
+                    // 4. Let sourceText be the source text matched by MethodDefinition.
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
+                    lexical_this: false,
+                    env,
+                    private_env,
+                };
+                // 7. Let closure be OrdinaryFunctionCreate(
+                //      prototype,
+                //      sourceText,
+                //      UniqueFormalParameters,
+                //      FunctionBody,
+                //      non-lexical-this,
+                //      env,
+                //      privateEnv
+                //  ).
+                let closure = ordinary_function_create(agent, params);
+                // 8. Perform MakeMethod(closure, object).
+                make_method(agent, closure, object);
+                // 2. Perform SetFunctionName(closure, propKey).
+                set_function_name(agent, closure, prop_key, None);
+                // 3. Return ? DefineMethodProperty(
+                //      object,
+                //      methodDef.[[Key]],
+                //      methodDef.[[Closure]],
+                //      enumerable
+                // ).
+                // 2. If key is a Private Name, then
+                // a. Return PrivateElement {
+                //      [[Key]]: key,
+                //      [[Kind]]: method,
+                //      [[Value]]: closure
+                // }.
+                // 3. Else,
+                // a. Let desc be the PropertyDescriptor {
+                //      [[Value]]: closure,
+                //      [[Writable]]: true,
+                //      [[Enumerable]]: enumerable,
+                //      [[Configurable]]: true
+                // }.
+                let desc = PropertyDescriptor {
+                    value: Some(closure.into_value()),
+                    writable: Some(true),
+                    enumerable: Some(enumerable),
+                    configurable: Some(true),
+                    ..Default::default()
+                };
+                // b. Perform ? DefinePropertyOrThrow(homeObject, key, desc).
+                // c. NOTE: DefinePropertyOrThrow only returns an abrupt
+                // completion when attempting to define a class static method whose key is "prototype".
+                define_property_or_throw(agent, object, prop_key, desc)?;
+                // c. Return unused.
+            }
+            Instruction::ObjectDefineGetter => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
@@ -413,6 +534,7 @@ impl Vm {
                 });
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
                     source_text: function_expression.expression.get().span,
                     parameters_list: &empty_parameters.0,
@@ -448,18 +570,19 @@ impl Vm {
                     writable: None,
                     get: Some(closure.into_function()),
                     set: None,
-                    enumerable: Some(true),
+                    enumerable: Some(enumerable),
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
                 define_property_or_throw(agent, object, prop_key, desc)?;
                 // c. Return unused.
             }
-            Instruction::ObjectSetSetter => {
+            Instruction::ObjectDefineSetter => {
                 let function_expression = executable
                     .function_expressions
                     .get(instr.args[0].unwrap() as usize)
                     .unwrap();
+                let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
@@ -475,6 +598,7 @@ impl Vm {
                     .unwrap();
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
@@ -510,12 +634,29 @@ impl Vm {
                     writable: None,
                     get: None,
                     set: Some(closure.into_function()),
-                    enumerable: Some(true),
+                    enumerable: Some(enumerable),
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
                 define_property_or_throw(agent, object, prop_key, desc)?;
                 // c. Return unused.
+            }
+            Instruction::ObjectSetPrototype => {
+                let prop_value = vm.result.take().unwrap();
+
+                // a. If propValue is an Object or propValue is null, then
+                let prop_value = if prop_value.is_null() {
+                    None
+                } else if let Ok(prop_value) = Object::try_from(prop_value) {
+                    Some(prop_value)
+                } else {
+                    // b. Return unused.
+                    return Ok(ContinuationKind::Normal);
+                };
+                // i. Perform ! object.[[SetPrototypeOf]](propValue).
+                let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                object.internal_set_prototype_of(agent, prop_value)?;
+                // b. Return unused.
             }
             Instruction::PushReference => {
                 vm.reference_stack.push(vm.reference.take().unwrap());
@@ -563,6 +704,30 @@ impl Vm {
                 );
                 vm.stack.push(object.into())
             }
+            Instruction::CopyDataProperties => {
+                let source = vm.result.take().unwrap();
+                let Value::Object(target) = *vm.stack.last().unwrap() else {
+                    unreachable!()
+                };
+                copy_data_properties(agent, target, source)?;
+            }
+            Instruction::CopyDataPropertiesIntoObject => {
+                let from = Object::try_from(vm.result.unwrap()).unwrap();
+
+                let num_excluded_items = usize::from(instr.args[0].unwrap());
+                let mut excluded_items = AHashSet::with_capacity(num_excluded_items);
+                assert!(vm.reference.is_none());
+                for _ in 0..num_excluded_items {
+                    let reference = vm.reference_stack.pop().unwrap();
+                    assert_eq!(reference.base, Base::Value(from.into_value()));
+                    assert!(reference.this_value.is_none());
+                    excluded_items.insert(reference.referenced_name);
+                }
+
+                vm.result = Some(
+                    copy_data_properties_into_object(agent, from, &excluded_items)?.into_value(),
+                );
+            }
             Instruction::InstantiateArrowFunctionExpression => {
                 // ArrowFunction : ArrowParameters => ConciseBody
                 let function_expression = executable
@@ -587,6 +752,7 @@ impl Vm {
                 // 1. If name is not present, set name to "".
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
                     body: &function_expression.expression.get().body,
@@ -663,6 +829,7 @@ impl Vm {
                 };
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
+                    source_code: None,
                     source_text: function_expression.expression.get().span,
                     parameters_list: &function_expression.expression.get().params,
                     body: function_expression.expression.get().body.as_ref().unwrap(),
@@ -725,9 +892,145 @@ impl Vm {
                 }
                 vm.result = Some(function.into_value());
             }
+            Instruction::ClassDefineConstructor => {
+                let function_expression = executable
+                    .function_expressions
+                    .get(instr.args[0].unwrap() as usize)
+                    .unwrap();
+                let has_constructor_parent = instr.args[1].unwrap();
+                assert!(has_constructor_parent <= 1);
+                let has_constructor_parent = has_constructor_parent == 1;
+
+                let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
+                let function_prototype = if has_constructor_parent {
+                    Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
+                } else {
+                    None
+                };
+                let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+
+                let is_null_derived_class = !has_constructor_parent
+                    && proto.internal_get_prototype_of(agent).unwrap().is_none();
+
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment,
+                    private_environment,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+
+                let params = OrdinaryFunctionCreateParams {
+                    function_prototype,
+                    source_code: None,
+                    source_text: function_expression.expression.get().span,
+                    parameters_list: &function_expression.expression.get().params,
+                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    is_concise_arrow_function: false,
+                    is_async: function_expression.expression.get().r#async,
+                    is_generator: function_expression.expression.get().generator,
+                    lexical_this: false,
+                    env: lexical_environment,
+                    private_env: private_environment,
+                };
+                let function = ordinary_function_create(agent, params);
+                set_function_name(agent, function, class_name.into(), None);
+                make_constructor(agent, function, Some(false), Some(proto));
+                agent[function].ecmascript_function.home_object = Some(proto);
+                agent[function].ecmascript_function.constructor_status =
+                    if has_constructor_parent || is_null_derived_class {
+                        ConstructorStatus::DerivedClass
+                    } else {
+                        ConstructorStatus::BaseClass
+                    };
+
+                proto
+                    .internal_define_own_property(
+                        agent,
+                        BUILTIN_STRING_MEMORY.constructor.into(),
+                        PropertyDescriptor {
+                            value: Some(function.into_value()),
+                            writable: Some(true),
+                            enumerable: Some(false),
+                            configurable: Some(true),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                vm.result = Some(function.into_value());
+            }
+            Instruction::ClassDefineDefaultConstructor => {
+                let has_constructor_parent = instr.args[0].unwrap();
+                assert!(has_constructor_parent <= 1);
+                let has_constructor_parent = has_constructor_parent == 1;
+
+                let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
+                let function_prototype = if has_constructor_parent {
+                    Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
+                } else {
+                    None
+                };
+                let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+
+                let behaviour = if has_constructor_parent {
+                    Behaviour::Constructor(derived_class_default_constructor)
+                } else {
+                    Behaviour::Constructor(base_class_default_constructor)
+                };
+                let function = create_builtin_function(
+                    agent,
+                    behaviour,
+                    BuiltinFunctionArgs {
+                        length: 0,
+                        name: "",
+                        realm: None,
+                        prototype: function_prototype,
+                        prefix: None,
+                    },
+                );
+                agent[function].initial_name = Some(class_name);
+
+                proto
+                    .internal_define_own_property(
+                        agent,
+                        BUILTIN_STRING_MEMORY.constructor.into(),
+                        PropertyDescriptor {
+                            value: Some(function.into_value()),
+                            writable: Some(true),
+                            enumerable: Some(false),
+                            configurable: Some(true),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                function
+                    .internal_define_own_property(
+                        agent,
+                        BUILTIN_STRING_MEMORY.prototype.into(),
+                        PropertyDescriptor {
+                            value: Some(proto.into_value()),
+                            writable: Some(false),
+                            enumerable: Some(false),
+                            configurable: Some(false),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                vm.result = Some(function.into_value());
+            }
+            Instruction::Swap => {
+                let a = vm.stack.pop().unwrap();
+                let b = vm.stack.pop().unwrap();
+                vm.stack.push(a);
+                vm.stack.push(b);
+            }
             Instruction::DirectEvalCall => {
-                let arg_count = instr.args[0].unwrap() as usize;
-                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let args = vm.get_call_args(instr);
 
                 let func_reference = resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None)?;
                 let func = get_value(agent, &func_reference)?;
@@ -762,8 +1065,7 @@ impl Vm {
                 }
             }
             Instruction::EvaluateCall => {
-                let arg_count = instr.args[0].unwrap() as usize;
-                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let args = vm.get_call_args(instr);
                 let reference = vm.reference.take();
                 // 1. If ref is a Reference Record, then
                 let this_value = if let Some(reference) = reference {
@@ -791,8 +1093,7 @@ impl Vm {
                 vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
             }
             Instruction::EvaluateNew => {
-                let arg_count = instr.args[0].unwrap() as usize;
-                let args = vm.stack.split_off(vm.stack.len() - arg_count);
+                let args = vm.get_call_args(instr);
                 let constructor = vm.stack.pop().unwrap();
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let error_message = format!(
@@ -944,6 +1245,30 @@ impl Vm {
                 let result = val.is_null() || val.is_undefined();
                 vm.result = Some(result.into());
             }
+            Instruction::IsUndefined => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_undefined();
+                vm.result = Some(result.into());
+            }
+            Instruction::IsNull => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_null();
+                vm.result = Some(result.into());
+            }
+            Instruction::IsObject => {
+                let val = vm.result.take().unwrap();
+                let result = val.is_object();
+                vm.result = Some(result.into());
+            }
+            Instruction::IsConstructor => {
+                let val = vm.result.take().unwrap();
+                let result = if let Ok(val) = Function::try_from(val) {
+                    val.is_constructor(agent)
+                } else {
+                    false
+                };
+                vm.result = Some(result.into());
+            }
             Instruction::LogicalNot => {
                 // 2. Let oldValue be ToBoolean(? GetValue(expr)).
                 let old_value = to_boolean(agent, vm.result.take().unwrap());
@@ -956,6 +1281,56 @@ impl Vm {
                 let v = vm.reference.take().unwrap();
                 let w = vm.result.take().unwrap();
                 initialize_referenced_binding(agent, v, w)?;
+            }
+            Instruction::InitializeVariableEnvironment => {
+                let num_variables = instr.args[0].unwrap();
+                assert!(instr.args[1].unwrap() <= 1);
+                let strict = instr.args[1].unwrap() == 1;
+
+                // 10.2.11 FunctionDeclarationInstantiation
+                // 28.b. Let varEnv be NewDeclarativeEnvironment(env).
+                let env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let var_env = new_declarative_environment(agent, Some(env));
+                // c. Set the VariableEnvironment of calleeContext to varEnv.
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .variable_environment = EnvironmentIndex::Declarative(var_env);
+
+                // e. For each element n of varNames, do
+                for _ in 0..num_variables {
+                    let n = String::try_from(vm.stack.pop().unwrap()).unwrap();
+                    let initial_value = vm.stack.pop().unwrap();
+                    // 2. Perform ! varEnv.CreateMutableBinding(n, false).
+                    var_env.create_mutable_binding(agent, n, false);
+                    // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
+                    var_env.initialize_binding(agent, n, initial_value);
+                }
+
+                // 30. If strict is false, then
+                let lex_env = if !strict {
+                    // a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
+                    new_declarative_environment(agent, Some(EnvironmentIndex::Declarative(var_env)))
+                } else {
+                    // 31. Else,
+                    // a. Let lexEnv be varEnv.
+                    var_env
+                };
+
+                // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .lexical_environment = EnvironmentIndex::Declarative(lex_env);
             }
             Instruction::EnterDeclarativeEnvironment => {
                 let outer_env = agent
@@ -971,6 +1346,21 @@ impl Vm {
                     .as_mut()
                     .unwrap()
                     .lexical_environment = EnvironmentIndex::Declarative(new_env);
+            }
+            Instruction::EnterDeclarativeVariableEnvironment => {
+                let outer_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .lexical_environment;
+                let new_env = new_declarative_environment(agent, Some(outer_env));
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .variable_environment = EnvironmentIndex::Declarative(new_env);
             }
             Instruction::ExitDeclarativeEnvironment => {
                 let old_env = agent
@@ -1026,6 +1416,14 @@ impl Vm {
                 let result = vm.result.take().unwrap();
                 return Err(JsError::new(result));
             }
+            Instruction::ThrowError => {
+                let exception_type_immediate = instr.args[0].unwrap();
+                let message = String::try_from(vm.result.take().unwrap()).unwrap();
+
+                let exception_type = ExceptionType::try_from(exception_type_immediate).unwrap();
+
+                return Err(agent.throw_exception_with_message(exception_type, message));
+            }
             Instruction::PushExceptionJumpTarget => {
                 vm.exception_jump_target_stack.push(ExceptionJumpTarget {
                     ip: instr.args[0].unwrap() as usize,
@@ -1061,27 +1459,10 @@ impl Vm {
                     // Var binding, var [] = a;
                     None
                 };
-                Self::execute_simple_array_binding(agent, vm, executable, instr, env)?
+                let iterator = vm.iterator_stack.pop().unwrap();
+                Self::execute_simple_array_binding(agent, vm, executable, iterator, env)?
             }
-            Instruction::BeginArrayBindingPattern => {
-                let lexical = instr.args[0].unwrap() == 1;
-                let env = if lexical {
-                    // Lexical binding, const [] = a; or let [] = a;
-                    Some(
-                        agent
-                            .running_execution_context()
-                            .ecmascript_code
-                            .as_ref()
-                            .unwrap()
-                            .lexical_environment,
-                    )
-                } else {
-                    // Var binding, var [] = a;
-                    None
-                };
-                Self::execute_complex_array_binding(agent, vm, executable, env)?
-            }
-            Instruction::BeginObjectBindingPattern => {
+            Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
                 let env = if lexical {
                     // Lexical binding, const {} = a; or let {} = a;
@@ -1097,13 +1478,15 @@ impl Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                Self::execute_object_binding(agent, vm, executable, env)?
+                let object = to_object(agent, vm.stack.pop().unwrap())?;
+                Self::execute_simple_object_binding(agent, vm, executable, object, env)?
             }
             Instruction::BindingPatternBind
+            | Instruction::BindingPatternBindNamed
             | Instruction::BindingPatternBindRest
-            | Instruction::BindingPatternBindWithInitializer
             | Instruction::BindingPatternSkip
             | Instruction::BindingPatternGetValue
+            | Instruction::BindingPatternGetValueNamed
             | Instruction::BindingPatternGetRestValue
             | Instruction::FinishBindingPattern => {
                 unreachable!("BeginArrayBindingPattern should take care of stepping over these");
@@ -1206,46 +1589,8 @@ impl Vm {
             }
             Instruction::GetIteratorSync => {
                 let expr_value = vm.result.take().unwrap();
-                // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
-                let method = get_method(
-                    agent,
-                    expr_value,
-                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                )?;
-                let Some(method) = method else {
-                    // 3. If method is undefined, throw a TypeError exception.
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Iterator method cannot be undefined",
-                    ));
-                };
-
-                // 4. Return ? GetIteratorFromMethod(obj, method).
-                match expr_value {
-                    Value::Array(array)
-                        if get_method(
-                            agent,
-                            expr_value,
-                            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                        )? == Some(
-                            agent
-                                .current_realm()
-                                .intrinsics()
-                                .array_prototype_values()
-                                .into_function(),
-                        ) =>
-                    {
-                        // Fast path: We know what Array.prototype.values
-                        // iterates over on Arrays.
-                        vm.iterator_stack
-                            .push(VmIterator::ArrayValues(ArrayValuesIterator::new(array)));
-                    }
-                    _ => {
-                        vm.iterator_stack.push(VmIterator::GenericIterator(
-                            get_iterator_from_method(agent, expr_value, method)?,
-                        ));
-                    }
-                }
+                vm.iterator_stack
+                    .push(VmIterator::from_value(agent, expr_value)?);
             }
             Instruction::GetIteratorAsync => {
                 todo!();
@@ -1264,6 +1609,34 @@ impl Vm {
                     result?;
                 }
             }
+            Instruction::IteratorStepValueOrUndefined => {
+                let iterator = vm.iterator_stack.last_mut().unwrap();
+                let result = iterator.step_value(agent);
+                if let Ok(result) = result {
+                    vm.result = Some(result.unwrap_or(Value::Undefined));
+                    if result.is_none() {
+                        // We have exhausted the iterator; replace it with an empty VmIterator so
+                        // further instructions aren't observable.
+                        *iterator = VmIterator::SliceIterator(SendableRef::new(&[]));
+                    }
+                } else {
+                    vm.iterator_stack.pop();
+                    result?;
+                }
+            }
+            Instruction::IteratorRestIntoArray => {
+                let mut iterator = vm.iterator_stack.pop().unwrap();
+                let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
+                let array = array_create(agent, 0, capacity, None)?;
+
+                let mut idx: u32 = 0;
+                while let Some(value) = iterator.step_value(agent)? {
+                    let key = PropertyKey::Integer(idx.into());
+                    create_data_property(agent, array, key, value).unwrap();
+                    idx += 1;
+                }
+                vm.result = Some(array.into_value());
+            }
             Instruction::IteratorClose => {
                 let iterator = vm.iterator_stack.pop().unwrap();
                 if let VmIterator::GenericIterator(iterator_record) = iterator {
@@ -1275,144 +1648,208 @@ impl Vm {
                 }
             }
             Instruction::Yield => return Ok(ContinuationKind::Yield),
+            Instruction::CreateUnmappedArgumentsObject => {
+                let Some(VmIterator::SliceIterator(slice)) = vm.iterator_stack.last() else {
+                    unreachable!()
+                };
+                vm.result = Some(create_unmapped_arguments_object(agent, slice.get()).into_value());
+            }
             other => todo!("{other:?}"),
         }
 
         Ok(ContinuationKind::Normal)
     }
 
+    fn get_call_args(&mut self, instr: &Instr) -> Vec<Value> {
+        let instr_arg0 = instr.args[0].unwrap();
+        let arg_count = if instr_arg0 != IndexType::MAX {
+            instr_arg0 as usize
+        } else {
+            // We parse the result as a SmallInteger.
+            let Value::Integer(integer) = self.result.take().unwrap() else {
+                panic!("Expected the number of function arguments to be an integer")
+            };
+            usize::try_from(integer.into_i64()).unwrap()
+        };
+
+        assert!(self.stack.len() >= arg_count);
+        self.stack.split_off(self.stack.len() - arg_count)
+    }
+
     fn execute_simple_array_binding(
         agent: &mut Agent,
         vm: &mut Vm,
         executable: &Executable,
-        instr: &Instr,
+        mut iterator: VmIterator,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let obj = vm.stack.pop().unwrap();
-        // 1. Let iteratorRecord be ? GetIterator(value, sync).
-        // From GetIterator:
-        // Let method be ? GetMethod(obj, @@iterator).
-        let method = get_method(agent, obj, WellKnownSymbolIndexes::Iterator.into())?;
-        let Some(method) = method else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Value is not iterable",
-            ));
-        };
-        if Array::try_from(obj).is_ok()
-            && method
-                == agent
-                    .current_realm()
-                    .intrinsics()
-                    .array_prototype_values()
-                    .into_function()
-        {
-            // Fast path: We're iterating an array with the normal array iterator method
-            let array = Array::try_from(obj).unwrap();
-            let binding_count = instr.args[0].unwrap() as u32;
-            let elements = agent[array].elements;
-            let elements_count = elements.len();
-            // The iterator iterates for as long as there are items in the
-            // array. Once the end of the array is found, no more elements are
-            // accessed. Hence, if the array is dense and contains no getters
-            // we can be sure that the iterator stops precisely when either the
-            // bindings or the elements run out, and no JavaScript code can run
-            // while the iterator is running.
-            let iterator_length = binding_count.min(elements_count);
-            let is_dense_array_slice = !agent[elements][0..iterator_length as usize]
-                .iter()
-                .any(|el| el.is_none());
-            if !is_dense_array_slice {
-                // If the array is not dense, then we might trigger JavaScript
-                // through getters in either the array or its prototype.
-                // We need to deoptimize this.
-                return Self::execute_complex_array_binding(agent, vm, executable, environment);
-            }
-            for index in 0..binding_count {
-                let instr = executable.get_instruction(&mut vm.ip).unwrap();
-                if instr.kind == Instruction::BindingPatternSkip || index >= elements_count {
-                    continue;
-                }
-                assert_eq!(instr.kind, Instruction::BindingPatternBind);
-                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let lhs = resolve_binding(agent, binding_id, environment)?;
-                let v = agent[elements][index as usize].unwrap();
-                if environment.is_none() {
-                    put_value(agent, &lhs, v)?;
-                } else {
-                    initialize_referenced_binding(agent, lhs, v)?;
-                }
-            }
-        } else {
-            todo!();
-        }
-        Ok(())
-    }
-
-    fn execute_complex_array_binding(
-        _agent: &mut Agent,
-        _vm: &mut Vm,
-        _executable: &Executable,
-        _environment: Option<EnvironmentIndex>,
-    ) -> JsResult<()> {
-        todo!();
-    }
-
-    fn execute_object_binding(
-        agent: &mut Agent,
-        vm: &mut Vm,
-        executable: &Executable,
-        environment: Option<EnvironmentIndex>,
-    ) -> JsResult<()> {
-        let value = vm.stack.pop().unwrap();
+        let mut iterator_is_done = false;
 
         loop {
             let instr = executable.get_instruction(&mut vm.ip).unwrap();
-            if instr.kind == Instruction::BindingPatternBind {
-                // Shorthand pattern, ie. SingleNameBinding: const { b } = a;
-                let binding_id = vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let lhs = resolve_binding(agent, binding_id, environment)?;
-                let v = get_v(agent, value, binding_id.into())?;
-                if environment.is_none() {
-                    put_value(agent, &lhs, v)?;
-                } else {
-                    initialize_referenced_binding(agent, lhs, v)?;
-                }
-                continue;
-            } else if instr.kind == Instruction::EvaluatePropertyAccessWithIdentifierKey {
-                let property_name_string =
-                    vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
-                let strict = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .unwrap()
-                    .is_strict_mode;
+            let mut break_after_bind = false;
 
-                let reference = Reference {
-                    base: Base::Value(value),
-                    referenced_name: property_name_string.into(),
-                    strict,
-                    this_value: None,
-                };
+            let value = match instr.kind {
+                Instruction::BindingPatternBind
+                | Instruction::BindingPatternGetValue
+                | Instruction::BindingPatternSkip => {
+                    let result = iterator.step_value(agent)?;
+                    iterator_is_done = result.is_none();
 
-                let v = get_value(agent, &reference)?;
-                let bind_instruction = executable.get_instruction(&mut vm.ip).unwrap();
-                let binding_id =
-                    vm.fetch_identifier(executable, bind_instruction.args[0].unwrap() as usize);
-                assert_eq!(bind_instruction.kind, Instruction::BindingPatternBind);
-                if let Some(environment) = environment {
-                    environment
-                        .initialize_binding(agent, binding_id, value)
-                        .unwrap();
-                } else {
-                    let lhs = resolve_binding(agent, binding_id, None)?;
-                    put_value(agent, &lhs, v)?;
+                    if instr.kind == Instruction::BindingPatternSkip {
+                        continue;
+                    }
+                    result.unwrap_or(Value::Undefined)
                 }
-            } else if instr.kind == Instruction::FinishBindingPattern {
+                Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
+                    break_after_bind = true;
+                    if iterator_is_done {
+                        array_create(agent, 0, 0, None).unwrap().into_value()
+                    } else {
+                        let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
+                        let rest = array_create(agent, 0, capacity, None).unwrap();
+                        let mut idx = 0u32;
+                        while let Some(result) = iterator.step_value(agent)? {
+                            create_data_property_or_throw(
+                                agent,
+                                rest,
+                                PropertyKey::from(idx),
+                                result,
+                            )
+                            .unwrap();
+                            idx += 1;
+                        }
+
+                        iterator_is_done = true;
+                        rest.into_value()
+                    }
+                }
+                Instruction::FinishBindingPattern => break,
+                _ => unreachable!(),
+            };
+
+            match instr.kind {
+                Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    if environment.is_none() {
+                        put_value(agent, &lhs, value)?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, value)?;
+                    }
+                }
+                Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
+                    Self::execute_nested_simple_binding(agent, vm, executable, value, environment)?;
+                }
+                _ => unreachable!(),
+            }
+
+            if break_after_bind {
                 break;
             }
         }
+
+        // 8.6.2 Runtime Semantics: BindingInitialization
+        // BindingPattern : ArrayBindingPattern
+        // 3. If iteratorRecord.[[Done]] is false, return ? IteratorClose(iteratorRecord, result).
+        // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
+        if !iterator_is_done {
+            if let VmIterator::GenericIterator(iterator_record) = iterator {
+                iterator_close(agent, &iterator_record, Ok(Value::Undefined))?;
+            }
+        }
+
         Ok(())
+    }
+
+    fn execute_simple_object_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        object: Object,
+        environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        let mut excluded_names = AHashSet::new();
+
+        loop {
+            let instr = executable.get_instruction(&mut vm.ip).unwrap();
+            match instr.kind {
+                Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let property_key = if instr.kind == Instruction::BindingPatternBind {
+                        binding_id.into()
+                    } else {
+                        let key_value =
+                            vm.fetch_constant(executable, instr.args[1].unwrap() as usize);
+                        PropertyKey::try_from(key_value).unwrap()
+                    };
+                    excluded_names.insert(property_key);
+
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    let v = get(agent, object, property_key)?;
+                    if environment.is_none() {
+                        put_value(agent, &lhs, v)?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, v)?;
+                    }
+                }
+                Instruction::BindingPatternGetValueNamed => {
+                    let property_key = PropertyKey::from_value(
+                        agent,
+                        vm.fetch_constant(executable, instr.args[0].unwrap() as usize),
+                    )
+                    .unwrap();
+                    excluded_names.insert(property_key);
+                    let v = get(agent, object, property_key)?;
+                    Self::execute_nested_simple_binding(agent, vm, executable, v, environment)?;
+                }
+                Instruction::BindingPatternBindRest => {
+                    // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
+                    let binding_id =
+                        vm.fetch_identifier(executable, instr.args[0].unwrap() as usize);
+                    let lhs = resolve_binding(agent, binding_id, environment)?;
+                    // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
+                    // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
+                    let rest_obj =
+                        copy_data_properties_into_object(agent, object, &excluded_names)?
+                            .into_value();
+                    // 4. If environment is undefined, return ? PutValue(lhs, restObj).
+                    // 5. Return ? InitializeReferencedBinding(lhs, restObj).
+                    if environment.is_none() {
+                        put_value(agent, &lhs, rest_obj)?;
+                    } else {
+                        initialize_referenced_binding(agent, lhs, rest_obj)?;
+                    }
+                    break;
+                }
+                Instruction::FinishBindingPattern => break,
+                _ => unreachable!(),
+            }
+        }
+        Ok(())
+    }
+
+    fn execute_nested_simple_binding(
+        agent: &mut Agent,
+        vm: &mut Vm,
+        executable: &Executable,
+        value: Value,
+        environment: Option<EnvironmentIndex>,
+    ) -> JsResult<()> {
+        let instr = executable.get_instruction(&mut vm.ip).unwrap();
+        match instr.kind {
+            Instruction::BeginSimpleArrayBindingPattern => {
+                let new_iterator = VmIterator::from_value(agent, value)?;
+                Vm::execute_simple_array_binding(agent, vm, executable, new_iterator, environment)
+            }
+            Instruction::BeginSimpleObjectBindingPattern => {
+                let object = to_object(agent, value)?;
+                Vm::execute_simple_object_binding(agent, vm, executable, object, environment)
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -1599,6 +2036,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::AsyncFromSyncIterator |
         Value::AsyncIterator |
         Value::Iterator |
+        Value::ArrayIterator(_) |
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,

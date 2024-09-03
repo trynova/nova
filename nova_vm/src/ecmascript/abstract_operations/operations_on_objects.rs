@@ -4,20 +4,29 @@
 
 //! ## [7.3 Operations on Objects](https://tc39.es/ecma262/#sec-operations-on-objects)
 
+use ahash::AHashSet;
+
 use super::{
-    testing_and_comparison::{is_callable, same_value},
-    type_conversion::{to_length, to_object},
+    operations_on_iterator_objects::{get_iterator, if_abrupt_close_iterator, iterator_close},
+    testing_and_comparison::{is_callable, require_object_coercible, same_value},
+    type_conversion::{to_length, to_object, to_property_key},
 };
 use crate::{
     ecmascript::{
-        builtins::{array_create, ArgumentsList, Array},
+        abstract_operations::operations_on_iterator_objects::iterator_step_value,
+        builtins::{
+            array_create,
+            keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
+            ArgumentsList, Array,
+        },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, InternalMethods, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, IntoObject, IntoValue, Number, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::instanceof_operator,
+    heap::{Heap, ObjectEntry},
     SmallInteger,
 };
 
@@ -754,5 +763,329 @@ pub(crate) fn get_function_realm(
         // NOTE: Step 4 will only be reached if obj is a non-standard function
         // exotic object that does not have a [[Realm]] internal slot.
         _ => Ok(agent.current_realm_id()),
+    }
+}
+
+/// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
+/// The abstract operation CopyDataProperties takes arguments target (an Object), source (an
+/// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
+/// normal completion containing unused or a throw completion.
+///
+/// NOTE: This implementation of CopyDataProperties takes an existing target object and populates
+/// it, but it does not support excluded items. It can be used to implement the spread operator in
+/// object literals, but not the rest operator in object destructuring.
+pub(crate) fn copy_data_properties(
+    agent: &mut Agent,
+    target: OrdinaryObject,
+    source: Value,
+) -> JsResult<()> {
+    // 1. If source is either undefined or null, return unused.
+    if source.is_undefined() || source.is_null() {
+        return Ok(());
+    }
+    // 2. Let from be ! ToObject(source).
+    let from = to_object(agent, source).unwrap();
+
+    // 3. Let keys be ? from.[[OwnPropertyKeys]]().
+    let keys = from.internal_own_property_keys(agent)?;
+    // Reserve space in the target's vectors.
+    {
+        let new_size = agent[target]
+            .keys
+            .len()
+            .checked_add(u32::try_from(keys.len()).unwrap())
+            .unwrap();
+        let Heap {
+            elements, objects, ..
+        } = &mut agent.heap;
+        objects[target].keys.reserve(elements, new_size);
+        objects[target].values.reserve(elements, new_size);
+    }
+
+    // 4. For each element nextKey of keys, do
+    for next_key in keys {
+        // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+        // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        if let Some(dest) = from.internal_get_own_property(agent, next_key)? {
+            if dest.enumerable.unwrap() {
+                // 1. Let propValue be ? Get(from, nextKey).
+                let prop_value = get(agent, from, next_key)?;
+                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+                create_data_property(agent, target, next_key, prop_value).unwrap();
+            }
+        }
+    }
+
+    // 5. Return UNUSED.
+    Ok(())
+}
+
+/// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
+/// The abstract operation CopyDataProperties takes arguments target (an Object), source (an
+/// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
+/// normal completion containing unused or a throw completion.
+///
+/// NOTE: This implementation of CopyDataProperties also creates the target object with
+/// `OrdinaryObjectCreate(%Object.prototype%)`. This can be used to implement the rest operator in
+/// object destructuring, but not the spread operator in object literals.
+pub(crate) fn copy_data_properties_into_object(
+    agent: &mut Agent,
+    source: impl IntoObject,
+    excluded_items: &AHashSet<PropertyKey>,
+) -> JsResult<OrdinaryObject> {
+    let from = source.into_object();
+    let mut entries = Vec::new();
+
+    // 3. Let keys be ? from.[[OwnPropertyKeys]]().
+    // 4. For each element nextKey of keys, do
+    for next_key in from.internal_own_property_keys(agent)? {
+        // a. Let excluded be false.
+        // b. For each element e of excludedItems, do
+        //   i. If SameValue(e, nextKey) is true, then
+        //     1. Set excluded to true.
+        if excluded_items.contains(&next_key) {
+            continue;
+        }
+
+        // c. If excluded is false, then
+        //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+        //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        if let Some(dest) = from.internal_get_own_property(agent, next_key)? {
+            if dest.enumerable.unwrap() {
+                // 1. Let propValue be ? Get(from, nextKey).
+                let prop_value = get(agent, from, next_key)?;
+                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+                entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
+            }
+        }
+    }
+
+    Ok(agent.heap.create_object_with_prototype(
+        agent
+            .current_realm()
+            .intrinsics()
+            .object_prototype()
+            .into_object(),
+        &entries,
+    ))
+}
+
+/// ### [7.3.34 AddValueToKeyedGroup ( groups, key, value )](https://tc39.es/ecma262/#sec-add-value-to-keyed-group)
+/// The abstract operation AddValueToKeyedGroup takes arguments groups (a List of Records with fields
+/// [[Key]] (an ECMAScript language value) and [[Elements]] (a List of ECMAScript language values)),
+/// key (an ECMAScript language value), and value (an ECMAScript language value) and returns UNUSED.
+pub(crate) fn add_value_to_keyed_group<K: Copy + Into<Value>>(
+    agent: &mut Agent,
+    groups: &mut Vec<GroupByRecord<K>>,
+    key: K,
+    value: Value,
+) -> JsResult<()> {
+    // 1. For each Record { [[Key]], [[Elements]] } g of groups, do
+    for g in groups.iter_mut() {
+        // a. If SameValue(g.[[Key]], key) is true, then
+        if same_value(agent, g.key, key) {
+            // i. Assert: Exactly one element of groups meets this criterion.
+            // ii. Append value to g.[[Elements]].
+            g.elements.push(value);
+
+            // iii. Return UNUSED.
+            return Ok(());
+        }
+    }
+
+    // 2. Let group be the Record { [[Key]]: key, [[Elements]]: « value » }.
+    let group = GroupByRecord {
+        key,
+        elements: vec![value],
+    };
+
+    // 3. Append group to groups.
+    groups.push(group);
+
+    // 4. Return UNUSED.
+    Ok(())
+}
+
+#[derive(Debug)]
+pub(crate) struct GroupByRecord<K: Copy + Into<Value>> {
+    pub(crate) key: K,
+    pub(crate) elements: Vec<Value>,
+}
+
+/// ### [7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
+///
+/// The abstract operation GroupBy takes arguments items (an ECMAScript language value), callback
+/// (an ECMAScript language value), and keyCoercion (property or collection) and returns either a
+/// normal completion containing a List of Records with fields [[Key]] (an ECMAScript language
+/// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
+///
+/// Note: This version is for "property" keyCoercion.
+pub(crate) fn group_by_property(
+    agent: &mut Agent,
+    items: Value,
+    callback_fn: Value,
+) -> JsResult<Vec<GroupByRecord<PropertyKey>>> {
+    // 1. Perform ? RequireObjectCoercible(iterable).
+    require_object_coercible(agent, items)?;
+
+    // 2. If IsCallable(callback) is false, throw a TypeError exception.
+    let Some(callback_fn) = is_callable(callback_fn) else {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Callback is not callable",
+        ));
+    };
+
+    // 3. Let groups be a new empty List.
+    let mut groups: Vec<GroupByRecord<PropertyKey>> = vec![];
+
+    // 4. Let iteratorRecord be ? GetIterator(iterable).
+    let mut iterator_record = get_iterator(agent, items, false)?;
+
+    // 5. Let k be 0.
+    let mut k = 0;
+
+    // 6. Repeat,
+    loop {
+        // NOTE: The actual max size of an array is u32::MAX
+        // a. If k ≥ 2**53 - 1, then
+        if k >= u32::MAX as usize {
+            // i. Let error be ThrowCompletion(a newly created TypeError object).
+            let error = agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Maximum array size of 2**53-1 exceeded",
+            );
+
+            // ii. Return ? IteratorClose(iteratorRecord, error).
+            return iterator_close(agent, &iterator_record, Err(error));
+        }
+
+        // b. Let next be ? IteratorStepValue(iteratorRecord).
+        let next = iterator_step_value(agent, &mut iterator_record)?;
+
+        // c. If next is DONE, then
+        //   i. Return groups.
+        let Some(next) = next else {
+            return Ok(groups);
+        };
+
+        // d. Let value be next.
+        let value = next;
+
+        let sk = SmallInteger::try_from(k as u64).unwrap();
+        // 𝔽(k)
+        let fk = Number::from(sk).into_value();
+
+        // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
+        let key = call_function(
+            agent,
+            callback_fn,
+            Value::Undefined,
+            Some(ArgumentsList(&[value, fk])),
+        );
+
+        // f. IfAbruptCloseIterator(key, iteratorRecord).
+        let key = if_abrupt_close_iterator(agent, key, &iterator_record)?;
+
+        // g. If keyCoercion is property, then
+        // i. Set key to Completion(ToPropertyKey(key)).
+        let key = to_property_key(agent, key);
+
+        // ii. IfAbruptCloseIterator(key, iteratorRecord).
+        let key = if_abrupt_close_iterator(agent, key, &iterator_record)?;
+
+        // i. Perform AddValueToKeyedGroup(groups, key, value).
+        add_value_to_keyed_group(agent, &mut groups, key, value)?;
+
+        // j. Set k to k + 1.
+        k += 1;
+    }
+}
+
+/// ### [7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
+///
+/// The abstract operation GroupBy takes arguments items (an ECMAScript language value), callback
+/// (an ECMAScript language value), and keyCoercion (property or collection) and returns either a
+/// normal completion containing a List of Records with fields [[Key]] (an ECMAScript language
+/// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
+///
+/// Note: This version is for "collection" keyCoercion.
+pub(crate) fn group_by_collection(
+    agent: &mut Agent,
+    items: Value,
+    callback_fn: Value,
+) -> JsResult<Vec<GroupByRecord<Value>>> {
+    // 1. Perform ? RequireObjectCoercible(iterable).
+    require_object_coercible(agent, items)?;
+
+    // 2. If IsCallable(callback) is false, throw a TypeError exception.
+    let Some(callback_fn) = is_callable(callback_fn) else {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Callback is not callable",
+        ));
+    };
+
+    // 3. Let groups be a new empty List.
+    let mut groups: Vec<GroupByRecord<Value>> = vec![];
+
+    // 4. Let iteratorRecord be ? GetIterator(iterable).
+    let mut iterator_record = get_iterator(agent, items, false)?;
+
+    // 5. Let k be 0.
+    let mut k = 0;
+
+    // 6. Repeat,
+    loop {
+        // NOTE: The actual max size of an array is u32::MAX
+        // a. If k ≥ 2**53 - 1, then
+        if k >= u32::MAX as usize {
+            // i. Let error be ThrowCompletion(a newly created TypeError object).
+            let error = agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Maximum array size of 2**53-1 exceeded",
+            );
+
+            // ii. Return ? IteratorClose(iteratorRecord, error).
+            return iterator_close(agent, &iterator_record, Err(error));
+        }
+
+        // b. Let next be ? IteratorStepValue(iteratorRecord).
+        let next = iterator_step_value(agent, &mut iterator_record)?;
+
+        // c. If next is DONE, then
+        //   i. Return groups.
+        let Some(next) = next else {
+            return Ok(groups);
+        };
+
+        // d. Let value be next.
+        let value = next;
+
+        let sk = SmallInteger::try_from(k as u64).unwrap();
+        // 𝔽(k)
+        let fk = Number::from(sk).into_value();
+
+        // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
+        let key = call_function(
+            agent,
+            callback_fn,
+            Value::Undefined,
+            Some(ArgumentsList(&[value, fk])),
+        );
+
+        // f. IfAbruptCloseIterator(key, iteratorRecord).
+        let key = if_abrupt_close_iterator(agent, key, &iterator_record)?;
+
+        // h. Else,
+        // i. Assert: keyCoercion is collection.
+        // ii. Set key to CanonicalizeKeyedCollectionKey(key).
+        let key = canonicalize_keyed_collection_key(agent, key);
+
+        // i. Perform AddValueToKeyedGroup(groups, key, value).
+        add_value_to_keyed_group(agent, &mut groups, key, value)?;
+
+        // j. Set k to k + 1.
+        k += 1;
     }
 }

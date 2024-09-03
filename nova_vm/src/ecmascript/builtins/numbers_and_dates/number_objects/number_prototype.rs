@@ -93,7 +93,7 @@ impl NumberPrototype {
         debug_assert!(!fraction_digits.is_undefined() || f.is_pos_zero(agent));
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Number::to_string_radix_10(agent, x).map(|result| result.into_value());
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
         }
         let f = f.into_i64(agent);
         // 5. If f < 0 or f > 100, throw a RangeError exception.
@@ -143,7 +143,7 @@ impl NumberPrototype {
         }
         // 6. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Number::to_string_radix_10(agent, x).map(|result| result.into_value());
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
         }
         // 7. Set x to ℝ(x).
         let x = x.into_f64(agent);
@@ -160,8 +160,243 @@ impl NumberPrototype {
         Self::to_string(agent, this_value, arguments)
     }
 
-    fn to_precision(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [21.1.3.5 Number.prototype.toPrecision ( )](https://tc39.es/ecma262/#sec-number.prototype.toprecision)
+    /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L412
+    ///
+    /// Copyright (c) 2019 Jason Williams
+    fn to_precision(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let precision = arguments.get(0);
+
+        // 1. Let x be ? ThisNumberValue(this value).
+        let x = this_number_value(agent, this_value)?;
+
+        // 2. If precision is undefined, return ! ToString(x).
+        if precision.is_undefined() {
+            // Skip: We know ToString calls Number::toString(argument, 10).
+            // Note: That is not `Number.prototype.toString`, but the abstract
+            // operation Number::toString.
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
+        }
+
+        // 3. Let p be ? ToIntegerOrInfinity(precision).
+        let p = to_integer_or_infinity(agent, precision)?;
+
+        // 4. If x is not finite, return Number::toString(x, 10).
+        if !x.is_finite(agent) {
+            return Ok(Number::to_string_radix_10(agent, x).into_value());
+        }
+
+        // 5. If p < 1 or p > 100, throw a RangeError exception.
+        let precision = p.into_i64(agent) as i32;
+        if !(1..=100).contains(&precision) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Precision out of range",
+            ));
+        }
+
+        // 6. Set x to ℝ(x).
+        let mut x_f64 = x.into_f64(agent);
+
+        // 7. Let s be the empty String.
+        let mut s = std::string::String::new();
+        let mut m: std::string::String;
+        let mut e: i32;
+
+        // 8. If x < 0, then
+        if x_f64 < 0. {
+            // a. Set s to the code unit 0x002D (HYPHEN-MINUS).
+            s.push('-');
+            // b. Set x to -x.
+            x_f64 = -x_f64;
+        }
+
+        // 9. If x = 0, then
+        if x_f64 == 0. {
+            // a. Let m be the String value consisting of p occurrences of the
+            // code unit 0x0030 (DIGIT ZERO).
+            m = "0".repeat(precision as usize);
+            // b. Let e be 0.
+            e = 0;
+        } else {
+            // 10. Else,
+
+            // Due to f64 limitations, this part differs a bit from the spec,
+            // but has the same effect. It manipulates the string constructed
+            // by `format`: digits with an optional dot between two of them.
+            m = format!("{x_f64:.100}");
+
+            // a: getting an exponent
+            e = Self::flt_str_to_exp(&m);
+
+            // b: getting relevant digits only
+            if e < 0 {
+                m = m.split_off((1 - e) as usize);
+            } else if let Some(n) = m.find('.') {
+                m.remove(n);
+            }
+
+            // impl: having exactly `precision` digits in `suffix`
+            if Self::round_to_precision(&mut m, precision as usize) {
+                e += 1;
+            }
+
+            // c. If e < -6 or e ≥ p, then
+            // Note: This is switching to scientific notation.
+            if e < -6 || e >= precision {
+                // i. Assert: e ≠ 0.
+                assert_ne!(e, 0);
+
+                // ii. If p ≠ 1, then
+                //     1. Let a be the first code unit of m.
+                //     2. Let b be the other p - 1 code units of m.
+                //     3. Set m to the string-concatenation of a, ".", and b.
+                if precision > 1 {
+                    m.insert(1, '.');
+                }
+
+                // vi. Return the string-concatenation of s, m, the code unit
+                // 0x0065 (LATIN SMALL LETTER E), c, and d.
+                m.push('e');
+
+                // iii. If e > 0, then
+                if e >= precision {
+                    // 1. Let c be the code unit 0x002B (PLUS SIGN).
+                    m.push('+');
+                }
+
+                // iv. Else,
+                //     1. Assert: e < 0.
+                //     2. Let c be the code unit 0x002D (HYPHEN-MINUS).
+                //     3. Set e to -e.
+                // v. Let d be the String value consisting of the digits of
+                // the decimal representation of e (in order, with no leading
+                // zeroes).
+                m.push_str(&e.to_string());
+
+                return Ok(Value::from_string(agent, s + &m));
+            }
+        }
+
+        // 11. If e = p - 1, return the string-concatenation of s and m.
+        let e_inc = e + 1;
+        if e_inc == precision as i32 {
+            return Ok(String::from_string(agent, s + &m).into_value());
+        }
+
+        // 12. If e ≥ 0, then
+        if e >= 0 {
+            // a. Set m to the string-concatenation of the first e + 1 code
+            // units of m, the code unit 0x002E (FULL STOP), and the remaining
+            // p - (e + 1) code units of m.
+            m.insert(e_inc as usize, '.');
+        } else {
+            // 13. Else,
+            // a. Set m to the string-concatenation of the code unit 0x0030
+            // (DIGIT ZERO), the code unit 0x002E (FULL STOP), -(e + 1)
+            // occurrences of the code unit 0x0030 (DIGIT ZERO), and the String
+            // m.
+            s.push('0');
+            s.push('.');
+            s.push_str(&"0".repeat(-e_inc as usize));
+        }
+
+        // 14. Return the string-concatenation of s and m.
+        Ok(String::from_string(agent, s + &m).into_value())
+    }
+
+    /// round_to_precision - used in to_precision
+    ///
+    /// This procedure has two roles:
+    /// - If there are enough or more than enough digits in the
+    ///   string to show the required precision, the number
+    ///   represented by these digits is rounded using string
+    ///   manipulation.
+    /// - Else, zeroes are appended to the string.
+    /// - Additionally, sometimes the exponent was wrongly computed and
+    ///   while up-rounding we find that we need an extra digit. When this
+    ///   happens, we return true so that the calling context can adjust
+    ///   the exponent. The string is kept at an exact length of precision.
+    ///
+    /// When this procedure returns, digits is exactly precision long.
+    ///
+    /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L351
+    ///
+    /// Copyright (c) 2019 Jason Williams
+    fn round_to_precision(digits: &mut std::string::String, precision: usize) -> bool {
+        if digits.len() > precision {
+            let to_round = digits.split_off(precision);
+            let mut digit = digits
+                .pop()
+                .expect("already checked that length is bigger than precision")
+                as u8;
+            if let Some(first) = to_round.chars().next() {
+                if first > '4' {
+                    digit += 1;
+                }
+            }
+
+            if digit as char == ':' {
+                // ':' is '9' + 1
+                // need to propagate the increment backward
+                let mut replacement = std::string::String::from("0");
+                let mut propagated = false;
+                for c in digits.chars().rev() {
+                    let d = match (c, propagated) {
+                        ('0'..='8', false) => (c as u8 + 1) as char,
+                        (_, false) => '0',
+                        (_, true) => c,
+                    };
+                    replacement.push(d);
+                    if d != '0' {
+                        propagated = true;
+                    }
+                }
+                digits.clear();
+                let replacement = if propagated {
+                    replacement.as_str()
+                } else {
+                    digits.push('1');
+                    &replacement.as_str()[1..]
+                };
+                for c in replacement.chars().rev() {
+                    digits.push(c);
+                }
+                !propagated
+            } else {
+                digits.push(digit as char);
+                false
+            }
+        } else {
+            digits.push_str(&"0".repeat(precision - digits.len()));
+            false
+        }
+    }
+
+    /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L318
+    ///
+    /// Copyright (c) 2019 Jason Williams
+    fn flt_str_to_exp(flt: &str) -> i32 {
+        let mut non_zero_encountered = false;
+        let mut dot_encountered = false;
+        for (i, c) in flt.chars().enumerate() {
+            if c == '.' {
+                if non_zero_encountered {
+                    return (i as i32) - 1;
+                }
+                dot_encountered = true;
+            } else if c != '0' {
+                if dot_encountered {
+                    return 1 - (i as i32);
+                }
+                non_zero_encountered = true;
+            }
+        }
+        (flt.len() as i32) - 1
     }
 
     fn to_string(
@@ -172,7 +407,7 @@ impl NumberPrototype {
         let x = this_number_value(agent, this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Number::to_string_radix_10(agent, x).map(|result| result.into_value())
+            Ok(Number::to_string_radix_10(agent, x).into_value())
         } else {
             todo!();
         }

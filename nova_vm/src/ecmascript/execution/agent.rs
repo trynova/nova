@@ -19,7 +19,7 @@ use crate::{
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
     },
-    heap::{heap_gc::heap_gc, CreateHeapData},
+    heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable},
     Heap,
 };
 use std::any::Any;
@@ -380,6 +380,18 @@ impl Agent {
         )
     }
 
+    pub fn throw_exception_with_message(
+        &mut self,
+        kind: ExceptionType,
+        message: String,
+    ) -> JsError {
+        JsError(
+            self.heap
+                .create(ErrorHeapData::new(kind, Some(message), None))
+                .into_value(),
+        )
+    }
+
     pub(crate) fn running_execution_context(&self) -> &ExecutionContext {
         self.execution_context_stack.last().unwrap()
     }
@@ -462,3 +474,23 @@ pub enum ExceptionType {
     TypeError,
     UriError,
 }
+
+impl TryFrom<u16> for ExceptionType {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, ()> {
+        match value {
+            0 => Ok(Self::Error),
+            1 => Ok(Self::AggregateError),
+            2 => Ok(Self::EvalError),
+            3 => Ok(Self::RangeError),
+            4 => Ok(Self::ReferenceError),
+            5 => Ok(Self::SyntaxError),
+            6 => Ok(Self::TypeError),
+            7 => Ok(Self::UriError),
+            _ => Err(()),
+        }
+    }
+}
+
+impl PrimitiveHeapIndexable for Agent {}

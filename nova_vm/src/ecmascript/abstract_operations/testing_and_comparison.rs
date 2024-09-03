@@ -4,10 +4,15 @@
 
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
-use crate::ecmascript::{
-    abstract_operations::type_conversion::to_numeric,
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value},
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::to_numeric,
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{
+            bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value,
+        },
+    },
+    heap::PrimitiveHeapIndexable,
 };
 
 use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
@@ -144,7 +149,7 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
 pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
-    agent: &Agent,
+    agent: &impl PrimitiveHeapIndexable,
     x: V1,
     y: V2,
 ) -> bool {
@@ -173,7 +178,7 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
 /// the difference between +0𝔽 and -0𝔽). It performs the following steps when
 /// called:
 pub(crate) fn same_value_zero(
-    agent: &Agent,
+    agent: &impl PrimitiveHeapIndexable,
     x: impl Copy + Into<Value>,
     y: impl Copy + Into<Value>,
 ) -> bool {
@@ -197,7 +202,11 @@ pub(crate) fn same_value_zero(
 }
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
-pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(agent: &Agent, x: T, y: T) -> bool {
+pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(
+    agent: &impl PrimitiveHeapIndexable,
+    x: T,
+    y: T,
+) -> bool {
     let x: Value = x.into();
     let y: Value = y.into();
 

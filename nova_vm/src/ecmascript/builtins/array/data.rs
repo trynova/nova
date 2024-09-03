@@ -3,10 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::{
-        execution::Agent,
-        types::{OrdinaryObject, Value},
-    },
+    ecmascript::types::{OrdinaryObject, Value},
     heap::{
         element_array::{ElementArrayKey, ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ElementIndex,
@@ -46,18 +43,18 @@ impl SealableElementsVector {
     }
 
     /// A sealable elements vector is simple if it contains no accessor descriptors.
-    pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_simple(&self, agent: &impl AsRef<ElementArrays>) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_simple(agent)
     }
 
     /// A sealable elements vector is trivial if it contains no descriptors.
-    pub(crate) fn is_trivial(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_trivial(&self, agent: &impl AsRef<ElementArrays>) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_trivial(agent)
     }
 
-    pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
+    pub(crate) fn is_dense(&self, agent: &impl AsRef<ElementArrays>) -> bool {
         let elements_vector: ElementsVector = (*self).into();
         elements_vector.is_dense(agent)
     }

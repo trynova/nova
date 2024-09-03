@@ -17,11 +17,13 @@ use crate::{
                     promise_prototype::inner_promise_then,
                 },
             },
-            function_declaration_instantiation, make_constructor,
+            generator_objects::VmOrArguments,
+            make_constructor,
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ordinary_function_create,
             promise::Promise,
             set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
+            ThisMode,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
@@ -36,6 +38,54 @@ use crate::{
     heap::CreateHeapData,
 };
 use oxc_ast::ast::{self};
+
+/// ### [15.1.2 Static Semantics: ContainsExpression](https://tc39.es/ecma262/#sec-static-semantics-containsexpression)
+/// The syntax-directed operation ContainsExpression takes no arguments and returns a Boolean.
+pub(crate) trait ContainsExpression {
+    fn contains_expression(&self) -> bool;
+}
+
+impl ContainsExpression for ast::BindingPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        match &self.kind {
+            ast::BindingPatternKind::BindingIdentifier(_) => false,
+            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPatternKind::AssignmentPattern(_) => true,
+        }
+    }
+}
+
+impl ContainsExpression for ast::ObjectPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        for property in &self.properties {
+            if property.computed || property.value.contains_expression() {
+                return true;
+            }
+        }
+
+        if let Some(rest) = &self.rest {
+            debug_assert!(!rest.argument.contains_expression());
+        }
+
+        false
+    }
+}
+
+impl ContainsExpression for ast::ArrayPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        for pattern in self.elements.iter().flatten() {
+            if pattern.contains_expression() {
+                return true;
+            }
+        }
+        if let Some(rest) = &self.rest {
+            rest.argument.contains_expression()
+        } else {
+            false
+        }
+    }
+}
 
 /// ### [15.2.4 Runtime Semantics: InstantiateOrdinaryFunctionObject](https://tc39.es/ecma262/#sec-runtime-semantics-instantiateordinaryfunctionobject)
 ///
@@ -64,6 +114,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
     let params = OrdinaryFunctionCreateParams {
         function_prototype: None,
+        source_code: None,
         source_text,
         parameters_list: &function.params,
         body: function.body.as_deref().unwrap(),
@@ -151,6 +202,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
+            source_code: None,
             source_text,
             parameters_list: &function.expression.get().params,
             body: function.expression.get().body.as_ref().unwrap(),
@@ -174,6 +226,34 @@ pub(crate) fn instantiate_ordinary_function_expression(
     }
 }
 
+pub(crate) struct CompileFunctionBodyData<'a> {
+    pub(crate) params: &'a oxc_ast::ast::FormalParameters<'static>,
+    pub(crate) body: &'a oxc_ast::ast::FunctionBody<'static>,
+    pub(crate) is_strict: bool,
+    pub(crate) is_lexical: bool,
+    pub(crate) is_concise_body: bool,
+}
+
+impl CompileFunctionBodyData<'static> {
+    fn new(agent: &mut Agent, function: ECMAScriptFunction) -> Self {
+        let ecmascript_function = &agent[function].ecmascript_function;
+        // SAFETY: We're alive so SourceCode must be too.
+        let (params, body) = unsafe {
+            (
+                ecmascript_function.formal_parameters.as_ref(),
+                ecmascript_function.ecmascript_code.as_ref(),
+            )
+        };
+        CompileFunctionBodyData {
+            params,
+            body,
+            is_strict: ecmascript_function.strict,
+            is_lexical: ecmascript_function.this_mode == ThisMode::Lexical,
+            is_concise_body: ecmascript_function.is_concise_arrow_function,
+        }
+    }
+}
+
 /// ### [15.2.3 Runtime Semantics: EvaluateFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluatefunctionbody)
 /// The syntax-directed operation EvaluateFunctionBody takes arguments
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
@@ -185,20 +265,11 @@ pub(crate) fn evaluate_function_body(
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    function_declaration_instantiation(agent, function_object, arguments_list)?;
+    //function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
-    // SAFETY: We're alive so SourceCode must be too.
-    let body = unsafe {
-        agent[function_object]
-            .ecmascript_function
-            .ecmascript_code
-            .as_ref()
-    };
-    let is_concise_arrow_function = agent[function_object]
-        .ecmascript_function
-        .is_concise_arrow_function;
-    let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
-    Vm::execute(agent, &exe).into_js_result()
+    let data = CompileFunctionBodyData::new(agent, function_object);
+    let exe = Executable::compile_function_body(agent, data);
+    Vm::execute(agent, &exe, Some(arguments_list.0)).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
@@ -211,61 +282,53 @@ pub(crate) fn evaluate_async_function_body(
     let promise_capability = PromiseCapability::new(agent);
     // 2. Let declResult be Completion(FunctionDeclarationInstantiation(functionObject, argumentsList)).
     // 3. If declResult is an abrupt completion, then
-    if let Err(err) = function_declaration_instantiation(agent, function_object, arguments_list) {
-        // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « declResult.[[Value]] »).
-        promise_capability.reject(agent, err.value());
-    } else {
-        // 4. Else,
-        // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
-        let body = unsafe {
-            agent[function_object]
-                .ecmascript_function
-                .ecmascript_code
-                .as_ref()
-        };
-        let is_concise_arrow_function = agent[function_object]
-            .ecmascript_function
-            .is_concise_arrow_function;
-        let exe = Executable::compile_function_body(agent, body, is_concise_arrow_function);
+    //if let Err(err) = function_declaration_instantiation(agent, function_object, arguments_list) {
+    //    // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « declResult.[[Value]] »).
+    //    promise_capability.reject(agent, err.value());
+    //} else {
+    // 4. Else,
+    // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
+    let data = CompileFunctionBodyData::new(agent, function_object);
+    let exe = Executable::compile_function_body(agent, data);
 
-        // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
-        // an await.
-        match Vm::execute(agent, &exe) {
-            ExecutionResult::Return(result) => {
-                // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
-                // 2. e. If result is a normal completion, then
-                //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
-                //    f. Else if result is a return completion, then
-                //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-                promise_capability.resolve(agent, result);
-            }
-            ExecutionResult::Throw(err) => {
-                // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
-                // 2. g. i. Assert: result is a throw completion.
-                //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
-                promise_capability.reject(agent, err.value());
-            }
-            ExecutionResult::Await { vm, awaited_value } => {
-                // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
-                // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
-                // which resume execution of the function.
-                // NOTE: the execution context has to be cloned because it will be popped when we
-                // return to `ECMAScriptFunction::internal_call`. Popping it here rather than
-                // cloning it would mess up the execution context stack.
-                let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
-                    vm: Some(vm),
-                    executable: Some(exe),
-                    execution_context: Some(agent.running_execution_context().clone()),
-                    return_promise_capability: promise_capability,
-                }));
-                // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise = Promise::resolve(agent, awaited_value);
-                // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-                inner_promise_then(agent, promise, handler, handler, None);
-            }
-            ExecutionResult::Yield { .. } => unreachable!(),
+    // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
+    // an await.
+    match Vm::execute(agent, &exe, Some(arguments_list.0)) {
+        ExecutionResult::Return(result) => {
+            // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
+            // 2. e. If result is a normal completion, then
+            //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
+            //    f. Else if result is a return completion, then
+            //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
+            promise_capability.resolve(agent, result);
         }
+        ExecutionResult::Throw(err) => {
+            // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
+            // 2. g. i. Assert: result is a throw completion.
+            //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
+            promise_capability.reject(agent, err.value());
+        }
+        ExecutionResult::Await { vm, awaited_value } => {
+            // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
+            // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
+            // which resume execution of the function.
+            // NOTE: the execution context has to be cloned because it will be popped when we
+            // return to `ECMAScriptFunction::internal_call`. Popping it here rather than
+            // cloning it would mess up the execution context stack.
+            let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
+                vm: Some(vm),
+                executable: Some(exe),
+                execution_context: Some(agent.running_execution_context().clone()),
+                return_promise_capability: promise_capability,
+            }));
+            // 2. Let promise be ? PromiseResolve(%Promise%, value).
+            let promise = Promise::resolve(agent, awaited_value);
+            // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
+            inner_promise_then(agent, promise, handler, handler, None);
+        }
+        ExecutionResult::Yield { .. } => unreachable!(),
     }
+    //}
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
     promise_capability.promise()
@@ -282,7 +345,7 @@ pub(crate) fn evaluate_generator_body(
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
-    function_declaration_instantiation(agent, function_object, arguments_list)?;
+    //function_declaration_instantiation(agent, function_object, arguments_list)?;
 
     // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
     // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
@@ -299,21 +362,10 @@ pub(crate) fn evaluate_generator_body(
 
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
-    let body = unsafe {
-        agent[function_object]
-            .ecmascript_function
-            .ecmascript_code
-            .as_ref()
-    };
-    // Arrow functions cannot be generators.
-    assert!(
-        !agent[function_object]
-            .ecmascript_function
-            .is_concise_arrow_function
-    );
-    let executable = Executable::compile_function_body(agent, body, false);
+    let data = CompileFunctionBodyData::new(agent, function_object);
+    let executable = Executable::compile_function_body(agent, data);
     agent[generator].generator_state = Some(GeneratorState::Suspended {
-        vm: None,
+        vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,
         execution_context: agent.running_execution_context().clone(),
     });

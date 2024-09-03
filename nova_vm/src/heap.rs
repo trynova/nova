@@ -9,6 +9,8 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
+use std::ops::Index;
+
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
@@ -42,6 +44,7 @@ use crate::ecmascript::{
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
+        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
         map::data::MapHeapData,
         module::data::ModuleHeapData,
         primitive_objects::PrimitiveObjectHeapData,
@@ -56,7 +59,7 @@ use crate::ecmascript::{
         weak_set::data::WeakSetHeapData,
     },
     scripts_and_modules::source_code::SourceCodeHeapData,
-    types::{HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
+    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
@@ -76,6 +79,7 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 pub struct Heap {
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub arrays: Vec<Option<ArrayHeapData>>,
+    pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
@@ -153,6 +157,7 @@ impl Heap {
         let mut heap = Heap {
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
+            array_iterators: Vec::with_capacity(256),
             await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),
@@ -340,6 +345,38 @@ impl Default for Heap {
         Self::new()
     }
 }
+
+/// A partial view to the Agent's heap that allows accessing primitive value
+/// heap data.
+pub(crate) struct PrimitiveHeap<'a> {
+    pub(crate) bigints: &'a Vec<Option<BigIntHeapData>>,
+    pub(crate) numbers: &'a Vec<Option<NumberHeapData>>,
+    pub(crate) strings: &'a Vec<Option<StringHeapData>>,
+}
+
+impl PrimitiveHeap<'_> {
+    pub(crate) fn new<'a>(
+        bigints: &'a Vec<Option<BigIntHeapData>>,
+        numbers: &'a Vec<Option<NumberHeapData>>,
+        strings: &'a Vec<Option<StringHeapData>>,
+    ) -> PrimitiveHeap<'a> {
+        PrimitiveHeap {
+            bigints,
+            numbers,
+            strings,
+        }
+    }
+}
+
+/// Helper trait for primitive heap data indexing.
+pub(crate) trait PrimitiveHeapIndexable:
+    Index<HeapNumber, Output = f64>
+    + Index<HeapString, Output = StringHeapData>
+    + Index<HeapBigInt, Output = BigIntHeapData>
+{
+}
+
+impl PrimitiveHeapIndexable for PrimitiveHeap<'_> {}
 
 #[test]
 fn init_heap() {

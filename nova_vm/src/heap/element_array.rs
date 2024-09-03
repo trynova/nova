@@ -130,8 +130,8 @@ impl ElementsVector {
     }
 
     /// An elements vector is simple if it contains no accessor descriptors.
-    pub(crate) fn is_simple(&self, agent: &Agent) -> bool {
-        let backing_store = agent.heap.elements.get_descriptors_and_slice(*self);
+    pub(crate) fn is_simple(&self, arena: &impl AsRef<ElementArrays>) -> bool {
+        let backing_store = arena.as_ref().get_descriptors_and_slice(*self);
         backing_store.0.map_or(true, |hashmap| {
             !hashmap
                 .iter()
@@ -140,13 +140,13 @@ impl ElementsVector {
     }
 
     /// An elements vector is trivial if it contains no descriptors.
-    pub(crate) fn is_trivial(&self, agent: &Agent) -> bool {
-        let backing_store = agent.heap.elements.get_descriptors_and_slice(*self);
+    pub(crate) fn is_trivial(&self, arena: &impl AsRef<ElementArrays>) -> bool {
+        let backing_store = arena.as_ref().get_descriptors_and_slice(*self);
         backing_store.0.is_none()
     }
 
-    pub(crate) fn is_dense(&self, agent: &Agent) -> bool {
-        let (descriptors, elements) = agent.heap.elements.get_descriptors_and_slice(*self);
+    pub(crate) fn is_dense(&self, arena: &impl AsRef<ElementArrays>) -> bool {
+        let (descriptors, elements) = arena.as_ref().get_descriptors_and_slice(*self);
         if let Some(descriptors) = descriptors {
             for (index, ele) in elements.iter().enumerate() {
                 let index = index as u32;
@@ -967,7 +967,7 @@ impl ElementDescriptor {
     }
 
     pub fn is_data_descriptor(&self) -> bool {
-        self.is_accessor_descriptor()
+        !self.is_accessor_descriptor()
     }
 }
 
@@ -2369,5 +2369,11 @@ impl HeapMarkAndSweep for ElementDescriptor {
                 set.sweep_values(compactions);
             }
         }
+    }
+}
+
+impl AsRef<ElementArrays> for Agent {
+    fn as_ref(&self) -> &ElementArrays {
+        &self.heap.elements
     }
 }

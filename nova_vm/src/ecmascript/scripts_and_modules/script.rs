@@ -282,7 +282,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe).into_js_result()
+        Vm::execute(agent, &exe, None).into_js_result()
     } else {
         Err(result.err().unwrap())
     };

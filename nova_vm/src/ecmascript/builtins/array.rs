@@ -24,7 +24,7 @@ use crate::{
         },
     },
     heap::{
-        element_array::{ElementDescriptor, ElementsVector},
+        element_array::{ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ArrayIndex,
         CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -35,7 +35,7 @@ pub use data::{ArrayHeapData, SealableElementsVector};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Array(ArrayIndex);
 
-static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
+pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl Array {
     /// # Do not use this
@@ -48,25 +48,25 @@ impl Array {
         self.0.into_index()
     }
 
-    pub fn len(&self, agent: &Agent) -> u32 {
+    pub fn len(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> u32 {
         agent[*self].elements.len()
     }
 
-    pub fn is_empty(&self, agent: &Agent) -> bool {
+    pub fn is_empty(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
         agent[*self].elements.len() == 0
     }
 
-    pub fn is_dense(self, agent: &Agent) -> bool {
+    pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable) -> bool {
         agent[self].elements.is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
-    pub(crate) fn is_simple(self, agent: &Agent) -> bool {
+    pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable) -> bool {
         agent[self].elements.is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
-    pub(crate) fn is_trivial(self, agent: &Agent) -> bool {
+    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable) -> bool {
         agent[self].elements.is_trivial(agent)
     }
 
@@ -90,9 +90,9 @@ impl Array {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, agent: &Agent) -> &[Option<Value>] {
-        let elements = agent[self].elements;
-        &agent[elements]
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable) -> &[Option<Value>] {
+        let elements = arena[self].elements;
+        &arena.as_ref()[elements]
     }
 
     #[inline]
@@ -530,17 +530,21 @@ fn ordinary_define_own_property_for_array(
     index: u32,
     descriptor: PropertyDescriptor,
 ) -> bool {
+    let descriptor_value = descriptor.value;
+
     let (descriptors, slice) = agent
         .heap
         .elements
         .get_descriptors_and_slice(elements.into());
-    let current_descriptor = if let Some(descriptors) = descriptors {
-        descriptors.get(&index).copied()
-    } else {
-        None
-    };
     let current_value = slice[index as usize];
-    let descriptor_value = descriptor.value;
+    let current_descriptor = {
+        let descriptor = descriptors.and_then(|descriptors| descriptors.get(&index).copied());
+        if current_value.is_some() && descriptor.is_none() {
+            Some(ElementDescriptor::WritableEnumerableConfigurableData)
+        } else {
+            descriptor
+        }
+    };
 
     // 2. If current is undefined, then
     if current_descriptor.is_none() && current_value.is_none() {
@@ -702,8 +706,16 @@ fn ordinary_define_own_property_for_array(
             .heap
             .elements
             .get_descriptors_and_slice_mut(elements.into());
-        descriptors.unwrap().insert(index, new_descriptor);
         slice[index as usize] = None;
+        if let Some(descriptors) = descriptors {
+            descriptors.insert(index, new_descriptor);
+        } else {
+            agent.heap.elements.set_descriptor(
+                elements.into(),
+                index as usize,
+                Some(new_descriptor),
+            )
+        }
     }
     // b. Else if IsAccessorDescriptor(current) is true and IsDataDescriptor(Desc) is true, then
     else if current_is_accessor_descriptor && descriptor.is_data_descriptor() {
@@ -774,3 +786,40 @@ fn ordinary_define_own_property_for_array(
 
     true
 }
+
+/// A partial view to the Agent's Heap that allows accessing array heap data.
+pub(crate) struct ArrayHeap<'a> {
+    elements: &'a ElementArrays,
+    arrays: &'a Vec<Option<ArrayHeapData>>,
+}
+
+impl ArrayHeap<'_> {
+    pub(crate) fn new<'a>(
+        elements: &'a ElementArrays,
+        arrays: &'a Vec<Option<ArrayHeapData>>,
+    ) -> ArrayHeap<'a> {
+        ArrayHeap { elements, arrays }
+    }
+}
+
+impl Index<Array> for ArrayHeap<'_> {
+    type Output = ArrayHeapData;
+
+    fn index(&self, index: Array) -> &ArrayHeapData {
+        self.arrays.index(index)
+    }
+}
+
+impl AsRef<ElementArrays> for ArrayHeap<'_> {
+    fn as_ref(&self) -> &ElementArrays {
+        self.elements
+    }
+}
+
+/// Helper trait for array indexing.
+pub(crate) trait ArrayHeapIndexable:
+    Index<Array, Output = ArrayHeapData> + AsRef<ElementArrays>
+{
+}
+impl ArrayHeapIndexable for ArrayHeap<'_> {}
+impl ArrayHeapIndexable for Agent {}

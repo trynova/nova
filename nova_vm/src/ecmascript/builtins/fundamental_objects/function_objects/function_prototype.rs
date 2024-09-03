@@ -16,7 +16,6 @@ use crate::{
             BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        scripts_and_modules::ScriptOrModule,
         types::{
             Function, InternalSlots, IntoFunction, IntoObject, ObjectHeapData, OrdinaryObject,
             PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
@@ -161,16 +160,10 @@ impl FunctionPrototype {
                 // a. Return CodePointsToString(func.[[SourceText]]).
                 let data = &agent[idx].ecmascript_function;
                 let span = data.source_text;
-                let source = data.script_or_module;
-                match source {
-                    ScriptOrModule::Script(script) => {
-                        let source_text = agent[script].source_code.get_source_text(agent)
-                            [(span.start as usize)..(span.end as usize)]
-                            .to_string();
-                        Ok(Value::from_string(agent, source_text))
-                    }
-                    ScriptOrModule::Module(_) => todo!(),
-                }
+                let source_text = data.source_code.get_source_text(agent)
+                    [(span.start as usize)..(span.end as usize)]
+                    .to_string();
+                Ok(Value::from_string(agent, source_text))
             }
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.

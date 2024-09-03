@@ -31,6 +31,7 @@ use crate::ecmascript::{
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
+        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
         map::Map,
         module::Module,
         primitive_objects::PrimitiveObject,
@@ -99,6 +100,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         let Heap {
             array_buffers,
             arrays,
+            array_iterators,
             await_reactions,
             bigints,
             bound_functions,
@@ -273,6 +275,20 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 array_buffers.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut array_iterator_marks: Box<[ArrayIterator]> =
+            queues.array_iterators.drain(..).collect();
+        array_iterator_marks.sort();
+        array_iterator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.array_iterators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                array_iterators.get(index).mark_values(&mut queues);
             }
         });
         let mut await_reaction_marks: Box<[AwaitReactionIdentifier]> =
@@ -848,6 +864,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
     let Heap {
         array_buffers,
         arrays,
+        array_iterators,
         await_reactions,
         bigints,
         bound_functions,
@@ -1024,6 +1041,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !arrays.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(arrays, &compactions, &bits.arrays);
+            });
+        }
+        if !array_iterators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(array_iterators, &compactions, &bits.array_iterators);
             });
         }
         if !await_reactions.is_empty() {

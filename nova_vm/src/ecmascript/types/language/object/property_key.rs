@@ -21,7 +21,7 @@ use crate::{
     SmallInteger, SmallString,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
@@ -50,6 +50,15 @@ impl PropertyKey {
 
     pub fn into_value(self) -> Value {
         self.into()
+    }
+
+    pub fn from_value(agent: &Agent, value: Value) -> Option<Self> {
+        if let Ok(string) = String::try_from(value) {
+            if let Some(pk) = parse_string_to_integer_property_key(string.as_str(agent)) {
+                return Some(pk);
+            }
+        }
+        Self::try_from(value).ok()
     }
 
     pub fn is_array_index(self) -> bool {
@@ -157,13 +166,8 @@ impl From<SmallInteger> for PropertyKey {
 
 impl From<SmallString> for PropertyKey {
     fn from(value: SmallString) -> Self {
-        PropertyKey::SmallString(value)
-    }
-}
-
-impl From<HeapString> for PropertyKey {
-    fn from(value: HeapString) -> Self {
-        PropertyKey::String(value)
+        parse_string_to_integer_property_key(value.as_str())
+            .unwrap_or(PropertyKey::SmallString(value))
     }
 }
 

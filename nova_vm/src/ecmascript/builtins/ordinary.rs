@@ -27,9 +27,10 @@ use crate::{
 use super::{
     control_abstraction_objects::generator_objects::GeneratorHeapData,
     data_view::data::DataViewHeapData, date::data::DateHeapData, error::ErrorHeapData,
-    finalization_registry::data::FinalizationRegistryHeapData, map::data::MapHeapData,
-    primitive_objects::PrimitiveObjectHeapData, promise::data::PromiseHeapData,
-    regexp::RegExpHeapData, set::data::SetHeapData,
+    finalization_registry::data::FinalizationRegistryHeapData,
+    indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+    map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
+    promise::data::PromiseHeapData, regexp::RegExpHeapData, set::data::SetHeapData,
     shared_array_buffer::data::SharedArrayBufferHeapData, typed_array::data::TypedArrayHeapData,
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData, ArrayBufferHeapData, ArrayHeapData,
@@ -791,6 +792,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(ArrayBufferHeapData::default())
             .into_object(),
+        ProtoIntrinsics::ArrayIterator => agent
+            .heap
+            .create(ArrayIteratorHeapData::default())
+            .into_object(),
         ProtoIntrinsics::BigInt => agent
             .heap
             .create(PrimitiveObjectHeapData::new_big_int_object(0.into()))
@@ -1005,6 +1010,7 @@ pub(crate) fn get_prototype_from_constructor(
         let intrinsic_constructor = match intrinsic_default_proto {
             ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
             ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
+            ProtoIntrinsics::ArrayIterator => None,
             ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
             ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
             ProtoIntrinsics::AsyncGeneratorFunction => {
