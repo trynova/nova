@@ -11,7 +11,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             array::ARRAY_INDEX_RANGE,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorKind,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             ArgumentsList, Builtin,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
@@ -83,12 +83,12 @@ impl ArrayIteratorPrototype {
 
         let result = match agent[iterator].kind {
             // v. If kind is key, then
-            ArrayIteratorKind::Key => {
+            CollectionIteratorKind::Key => {
                 // 1. Let result be indexNumber.
                 Value::Integer(index)
             }
             // 3. If kind is value, then
-            ArrayIteratorKind::Value => {
+            CollectionIteratorKind::Value => {
                 // 1. Let elementKey be ! ToString(indexNumber).
                 // 2. Let elementValue be ? Get(array, elementKey).
                 // a. Let result be elementValue.
@@ -106,7 +106,7 @@ impl ArrayIteratorPrototype {
                 }
             }
             // 4. Else,
-            ArrayIteratorKind::KeyAndValue => {
+            CollectionIteratorKind::KeyAndValue => {
                 // 1. Let elementKey be ! ToString(indexNumber).
                 // 2. Let elementValue be ? Get(array, elementKey).
                 let fast_path_result = match array {

@@ -45,11 +45,13 @@ use crate::{
             },
             keyed_collections::{
                 map_objects::{
-                    map_constructor::MapConstructor, map_iterator_objects::MapIteratorPrototype,
+                    map_constructor::MapConstructor,
+                    map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
                     map_prototype::MapPrototype,
                 },
                 set_objects::{
-                    set_constructor::SetConstructor, set_iterator_objects::SetIteratorPrototype,
+                    set_constructor::SetConstructor,
+                    set_iterator_objects::set_iterator_prototype::SetIteratorPrototype,
                     set_prototype::SetPrototype,
                 },
                 weak_map_objects::{
@@ -181,6 +183,7 @@ pub enum ProtoIntrinsics {
     Int32Array,
     Int8Array,
     Map,
+    MapIterator,
     Number,
     Object,
     Promise,
@@ -188,6 +191,7 @@ pub enum ProtoIntrinsics {
     ReferenceError,
     RegExp,
     Set,
+    SetIterator,
     SharedArrayBuffer,
     String,
     Symbol,
@@ -352,9 +356,11 @@ impl Intrinsics {
             ProtoIntrinsics::Int32Array => self.int32_array_prototype().into(),
             ProtoIntrinsics::Int8Array => self.int8_array_prototype().into(),
             ProtoIntrinsics::Map => self.map_prototype().into(),
+            ProtoIntrinsics::MapIterator => self.map_iterator_prototype().into(),
             ProtoIntrinsics::Promise => self.promise_prototype().into(),
             ProtoIntrinsics::RegExp => self.reg_exp_prototype().into(),
             ProtoIntrinsics::Set => self.set_prototype().into(),
+            ProtoIntrinsics::SetIterator => self.set_iterator_prototype().into(),
             ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer_prototype().into(),
             ProtoIntrinsics::Uint16Array => self.uint16_array_prototype().into(),
             ProtoIntrinsics::Uint32Array => self.uint32_array_prototype().into(),

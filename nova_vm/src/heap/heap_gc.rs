@@ -32,6 +32,10 @@ use crate::ecmascript::{
         error::Error,
         finalization_registry::FinalizationRegistry,
         indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+        keyed_collections::{
+            map_objects::map_iterator_objects::map_iterator::MapIterator,
+            set_objects::set_iterator_objects::set_iterator::SetIterator,
+        },
         map::Map,
         module::Module,
         primitive_objects::PrimitiveObject,
@@ -117,6 +121,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             generators,
             globals: _,
             maps,
+            map_iterators,
             modules,
             numbers,
             objects,
@@ -129,6 +134,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             regexps,
             scripts,
             sets,
+            set_iterators,
             shared_array_buffers,
             strings,
             symbols,
@@ -535,6 +541,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 maps.get(index).mark_values(&mut queues);
             }
         });
+        let mut map_iterator_marks: Box<[MapIterator]> = queues.map_iterators.drain(..).collect();
+        map_iterator_marks.sort();
+        map_iterator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.map_iterators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                map_iterators.get(index).mark_values(&mut queues);
+            }
+        });
         let mut number_marks: Box<[HeapNumber]> = queues.numbers.drain(..).collect();
         number_marks.sort();
         number_marks.iter().for_each(|&idx| {
@@ -586,6 +605,20 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 sets.get(index).mark_values(&mut queues);
+            }
+        });
+
+        let mut set_iterator_marks: Box<[SetIterator]> = queues.set_iterators.drain(..).collect();
+        set_iterator_marks.sort();
+        set_iterator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.set_iterators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                set_iterators.get(index).mark_values(&mut queues);
             }
         });
         let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
@@ -881,6 +914,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         generators,
         globals,
         maps,
+        map_iterators,
         modules,
         numbers,
         objects,
@@ -893,6 +927,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         regexps,
         scripts,
         sets,
+        set_iterators,
         shared_array_buffers,
         strings,
         symbols,
@@ -1131,6 +1166,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(maps, &compactions, &bits.maps);
             });
         }
+        if !map_iterators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(map_iterators, &compactions, &bits.map_iterators);
+            });
+        }
         if !modules.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(modules, &compactions, &bits.modules);
@@ -1202,6 +1242,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !sets.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(sets, &compactions, &bits.sets);
+            });
+        }
+        if !set_iterators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(set_iterators, &compactions, &bits.set_iterators);
             });
         }
         if !shared_array_buffers.is_empty() {

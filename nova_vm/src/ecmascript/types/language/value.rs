@@ -26,6 +26,10 @@ use crate::{
             error::Error,
             finalization_registry::FinalizationRegistry,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIterator,
+                set_objects::set_iterator_objects::set_iterator::SetIterator,
+            },
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
@@ -170,6 +174,8 @@ pub enum Value {
     AsyncIterator,
     Iterator,
     ArrayIterator(ArrayIterator),
+    SetIterator(SetIterator),
+    MapIterator(MapIterator),
     Generator(Generator),
 
     // ECMAScript Module
@@ -282,6 +288,10 @@ pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Asy
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
+pub(crate) const SET_ITERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::SetIterator(SetIterator::_def()));
+pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::MapIterator(MapIterator::_def()));
 pub(crate) const GENERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::Generator(Generator::_def()));
 pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Module::_def()));
@@ -651,6 +661,14 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            Value::SetIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            Value::MapIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::Generator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -842,6 +860,14 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            Value::SetIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
+            Value::MapIterator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::Generator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1003,6 +1029,8 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.mark_values(queues),
+            Value::SetIterator(data) => data.mark_values(queues),
+            Value::MapIterator(data) => data.mark_values(queues),
             Value::Generator(data) => data.mark_values(queues),
             Value::Module(data) => data.mark_values(queues),
             Value::EmbedderObject(data) => data.mark_values(queues),
@@ -1065,6 +1093,8 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.sweep_values(compactions),
+            Value::SetIterator(data) => data.sweep_values(compactions),
+            Value::MapIterator(data) => data.sweep_values(compactions),
             Value::Generator(data) => data.sweep_values(compactions),
             Value::Module(data) => data.sweep_values(compactions),
             Value::EmbedderObject(data) => data.sweep_values(compactions),

@@ -25,6 +25,10 @@ use crate::ecmascript::{
         error::Error,
         finalization_registry::FinalizationRegistry,
         indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+        keyed_collections::{
+            map_objects::map_iterator_objects::map_iterator::MapIterator,
+            set_objects::set_iterator_objects::set_iterator::SetIterator,
+        },
         map::Map,
         module::Module,
         primitive_objects::PrimitiveObject,
@@ -78,6 +82,7 @@ pub struct HeapBits {
     pub generators: Box<[bool]>,
     pub global_environments: Box<[bool]>,
     pub maps: Box<[bool]>,
+    pub map_iterators: Box<[bool]>,
     pub modules: Box<[bool]>,
     pub numbers: Box<[bool]>,
     pub object_environments: Box<[bool]>,
@@ -91,6 +96,7 @@ pub struct HeapBits {
     pub regexps: Box<[bool]>,
     pub scripts: Box<[bool]>,
     pub sets: Box<[bool]>,
+    pub set_iterators: Box<[bool]>,
     pub shared_array_buffers: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
@@ -129,6 +135,7 @@ pub(crate) struct WorkQueues {
     pub generators: Vec<Generator>,
     pub global_environments: Vec<GlobalEnvironmentIndex>,
     pub maps: Vec<Map>,
+    pub map_iterators: Vec<MapIterator>,
     pub modules: Vec<Module>,
     pub numbers: Vec<HeapNumber>,
     pub object_environments: Vec<ObjectEnvironmentIndex>,
@@ -142,6 +149,7 @@ pub(crate) struct WorkQueues {
     pub regexps: Vec<RegExp>,
     pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<Set>,
+    pub set_iterators: Vec<SetIterator>,
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString>,
     pub symbols: Vec<Symbol>,
@@ -180,6 +188,7 @@ impl HeapBits {
         let generators = vec![false; heap.generators.len()];
         let global_environments = vec![false; heap.environments.global.len()];
         let maps = vec![false; heap.maps.len()];
+        let map_iterators = vec![false; heap.map_iterators.len()];
         let modules = vec![false; heap.modules.len()];
         let numbers = vec![false; heap.numbers.len()];
         let object_environments = vec![false; heap.environments.object.len()];
@@ -193,6 +202,7 @@ impl HeapBits {
         let regexps = vec![false; heap.regexps.len()];
         let scripts = vec![false; heap.scripts.len()];
         let sets = vec![false; heap.sets.len()];
+        let set_iterators = vec![false; heap.set_iterators.len()];
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
@@ -228,6 +238,7 @@ impl HeapBits {
             generators: generators.into_boxed_slice(),
             global_environments: global_environments.into_boxed_slice(),
             maps: maps.into_boxed_slice(),
+            map_iterators: map_iterators.into_boxed_slice(),
             modules: modules.into_boxed_slice(),
             numbers: numbers.into_boxed_slice(),
             object_environments: object_environments.into_boxed_slice(),
@@ -241,6 +252,7 @@ impl HeapBits {
             regexps: regexps.into_boxed_slice(),
             scripts: scripts.into_boxed_slice(),
             sets: sets.into_boxed_slice(),
+            set_iterators: set_iterators.into_boxed_slice(),
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
@@ -282,6 +294,7 @@ impl WorkQueues {
             generators: Vec::with_capacity(heap.generators.len() / 4),
             global_environments: Vec::with_capacity(heap.environments.global.len() / 4),
             maps: Vec::with_capacity(heap.maps.len() / 4),
+            map_iterators: Vec::with_capacity(heap.map_iterators.len() / 4),
             modules: Vec::with_capacity(heap.modules.len() / 4),
             numbers: Vec::with_capacity(heap.numbers.len() / 4),
             object_environments: Vec::with_capacity(heap.environments.object.len() / 4),
@@ -297,6 +310,7 @@ impl WorkQueues {
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             sets: Vec::with_capacity(heap.sets.len() / 4),
+            set_iterators: Vec::with_capacity(heap.set_iterators.len() / 4),
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
             strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
@@ -359,6 +373,7 @@ impl WorkQueues {
             generators,
             global_environments,
             maps,
+            map_iterators,
             modules,
             numbers,
             object_environments,
@@ -372,6 +387,7 @@ impl WorkQueues {
             regexps,
             scripts,
             sets,
+            set_iterators,
             shared_array_buffers,
             strings,
             symbols,
@@ -407,6 +423,7 @@ impl WorkQueues {
             && generators.is_empty()
             && global_environments.is_empty()
             && maps.is_empty()
+            && map_iterators.is_empty()
             && modules.is_empty()
             && numbers.is_empty()
             && object_environments.is_empty()
@@ -420,6 +437,7 @@ impl WorkQueues {
             && regexps.is_empty()
             && scripts.is_empty()
             && sets.is_empty()
+            && set_iterators.is_empty()
             && shared_array_buffers.is_empty()
             && strings.is_empty()
             && symbols.is_empty()
@@ -596,6 +614,7 @@ pub(crate) struct CompactionLists {
     pub generators: CompactionList,
     pub global_environments: CompactionList,
     pub maps: CompactionList,
+    pub map_iterators: CompactionList,
     pub modules: CompactionList,
     pub numbers: CompactionList,
     pub object_environments: CompactionList,
@@ -609,6 +628,7 @@ pub(crate) struct CompactionLists {
     pub regexps: CompactionList,
     pub scripts: CompactionList,
     pub sets: CompactionList,
+    pub set_iterators: CompactionList,
     pub shared_array_buffers: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
@@ -661,6 +681,7 @@ impl CompactionLists {
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
             maps: CompactionList::from_mark_bits(&bits.maps),
+            map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
             objects: CompactionList::from_mark_bits(&bits.objects),
             promise_reaction_records: CompactionList::from_mark_bits(
@@ -673,6 +694,7 @@ impl CompactionLists {
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             sets: CompactionList::from_mark_bits(&bits.sets),
+            set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),
             strings: CompactionList::from_mark_bits(&bits.strings),
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
             symbols: CompactionList::from_mark_bits(&bits.symbols),

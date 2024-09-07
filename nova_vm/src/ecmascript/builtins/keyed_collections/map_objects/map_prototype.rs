@@ -12,11 +12,10 @@ use crate::{
             operations_on_objects::call_function,
             testing_and_comparison::{is_callable, same_value},
         },
-        builders::{
-            builtin_function_builder::BuiltinFunctionBuilder,
-            ordinary_object_builder::OrdinaryObjectBuilder,
-        },
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::{data::MapData, Map},
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
         },
@@ -169,8 +168,14 @@ impl MapPrototype {
         }
     }
 
-    fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn entries(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let M be the this value.
+        // 2. Return ? CreateMapIterator(M, KEY+VALUE).
+
+        // 24.1.5.1 CreateMapIterator ( map, kind )
+        // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
+        let m = require_map_data_internal_slot(agent, this_value)?;
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
     /// ### [24.1.3.5 Map.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-map.prototype.foreach)
@@ -326,8 +331,14 @@ impl MapPrototype {
         Ok(found.into())
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn keys(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let M be the this value.
+        // 2. Return ? CreateMapIterator(M, KEY).
+
+        // 24.1.5.1 CreateMapIterator ( map, kind )
+        // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
+        let m = require_map_data_internal_slot(agent, this_value)?;
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
@@ -400,8 +411,14 @@ impl MapPrototype {
         Ok(count.into())
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn values(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let M be the this value.
+        // 2. Return ? CreateMapIterator(M, VALUE).
+
+        // 24.1.5.1 CreateMapIterator ( map, kind )
+        // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
+        let m = require_map_data_internal_slot(agent, this_value)?;
+        Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -409,8 +426,7 @@ impl MapPrototype {
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
         let map_constructor = intrinsics.map();
-
-        let mut map_prototype_values: Option<Value> = None;
+        let map_prototype_entries = intrinsics.map_prototype_entries();
 
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
             .with_property_capacity(13)
@@ -425,24 +441,11 @@ impl MapPrototype {
             .with_builtin_function_property::<MapPrototypeKeys>()
             .with_builtin_function_property::<MapPrototypeSet>()
             .with_builtin_function_getter_property::<MapPrototypeGetSize>()
-            .with_property(|builder| {
-                builder
-                    .with_key(MapPrototypeValues::NAME.into())
-                    .with_value_creator(|agent| {
-                        let value = BuiltinFunctionBuilder::new::<MapPrototypeValues>(agent, realm)
-                            .build()
-                            .into_value();
-                        map_prototype_values = Some(value);
-                        value
-                    })
-                    .with_enumerable(MapPrototypeValues::ENUMERABLE)
-                    .with_configurable(MapPrototypeValues::CONFIGURABLE)
-                    .build()
-            })
+            .with_builtin_function_property::<MapPrototypeValues>()
             .with_property(|builder| {
                 builder
                     .with_key(WellKnownSymbolIndexes::Iterator.into())
-                    .with_value(map_prototype_values.unwrap())
+                    .with_value(map_prototype_entries.into_value())
                     .with_enumerable(MapPrototypeValues::ENUMERABLE)
                     .with_configurable(MapPrototypeValues::CONFIGURABLE)
                     .build()
