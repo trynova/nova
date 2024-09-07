@@ -265,12 +265,22 @@ pub(crate) fn function_body_lexically_scoped_declarations<'body>(
     lexically_scoped_declarations
 }
 
-pub(crate) fn class_static_block_lexically_scoped_declarations() {
+pub(crate) fn class_static_block_lexically_scoped_declarations<'body>(
+    static_block: &'body StaticBlock<'body>,
+) -> Vec<LexicallyScopedDeclaration<'body>> {
+    let mut lexically_scoped_declarations = vec![];
     // ClassStaticBlockStatementList : [empty]
     // 1. Return a new empty List.
 
     // ClassStaticBlockStatementList : StatementList
     // 1. Return the TopLevelLexicallyScopedDeclarations of StatementList.
+    static_block
+        .body
+        .top_level_lexically_scoped_declarations(&mut |decl| {
+            lexically_scoped_declarations.push(decl);
+        });
+
+    lexically_scoped_declarations
 }
 
 pub(crate) fn script_lexically_scoped_declarations<'body>(
@@ -810,6 +820,22 @@ pub(crate) fn function_body_var_scoped_declarations<'a>(
 // 1. Return a new empty List.
 // AsyncConciseBody : ExpressionBody
 // 1. Return a new empty List.
+
+pub(crate) fn class_static_block_var_scoped_declarations<'a>(
+    static_block: &'a StaticBlock<'a>,
+) -> Vec<VarScopedDeclaration<'a>> {
+    let mut var_scoped_declarations = vec![];
+    //  ClassStaticBlockStatementList : [empty]
+    //     1. Return a new empty List.
+    // ClassStaticBlockStatementList : StatementList
+    //     1. Return the TopLevelVarScopedDeclarations of StatementList.
+    static_block
+        .body
+        .top_level_var_scoped_declarations(&mut |declarator| {
+            var_scoped_declarations.push(declarator);
+        });
+    var_scoped_declarations
+}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum VarScopedDeclaration<'a> {
