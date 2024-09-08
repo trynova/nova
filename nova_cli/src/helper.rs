@@ -1,7 +1,7 @@
 use nova_vm::ecmascript::{
     builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
-    execution::{Agent, JsResult},
-    types::{InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, Value},
+    execution::{agent::ExceptionType, Agent, JsResult},
+    types::{InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value},
 };
 use oxc_diagnostics::OxcDiagnostic;
 
@@ -16,12 +16,49 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object) {
         }
         Ok(Value::Undefined)
     }
+    // 'readTextFile' function
+    fn read_text_file(agent: &mut Agent, _: Value, args: ArgumentsList) -> JsResult<Value> {
+        if args.len() != 1 {
+            return Err(agent
+                .throw_exception_with_static_message(ExceptionType::Error, "Expected 1 argument"));
+        }
+        let Ok(path) = String::try_from(args.get(0)) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::Error,
+                "Expected a string argument",
+            ));
+        };
+
+        let file = std::fs::read_to_string(path.as_str(agent))
+            .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string()))?;
+        Ok(String::from_string(agent, file).into_value())
+    }
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
     );
     let property_key = PropertyKey::from_static_str(agent, "print");
+    global
+        .internal_define_own_property(
+            agent,
+            property_key,
+            PropertyDescriptor {
+                value: Some(function.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let function = create_builtin_function(
+        agent,
+        Behaviour::Regular(read_text_file),
+        BuiltinFunctionArgs::new(1, "readTextFile", agent.current_realm_id()),
+    );
+    let property_key = PropertyKey::from_static_str(agent, "readTextFile");
     global
         .internal_define_own_property(
             agent,

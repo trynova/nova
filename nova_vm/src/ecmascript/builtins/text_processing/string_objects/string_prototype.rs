@@ -481,21 +481,44 @@ impl StringPrototype {
         Ok(Value::Boolean(true))
     }
 
+    /// ### [22.1.3.11 String.prototype.lastIndexOf ( searchString \[ , position \] )]()
+    ///
+    /// > #### Note 1
+    /// >
+    /// > If _searchString_ appears as a substring of the result of converting
+    /// > this object to a String at one or more indices that are smaller than
+    /// > or equal to _position_, then the greatest such index is returned;
+    /// > otherwise, **`-1𝔽`** is returned. If position is **undefined**, the
+    /// > length of the String value is assumed, so as to search all of the
+    /// > String.
     fn last_index_of(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        let search_string = args.get(0);
+        let position = args.get(1);
+
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
         // 3. Let searchStr be ? ToString(searchString).
-        let search_str = to_string(agent, args.get(0))?;
-        // 4. Let numPos be ? ToNumber(position).
-        let num_pos = to_number(agent, args.get(1))?;
-        // 5. Assert: If position is undefined, then numPos is NaN.
-        // 6. If numPos is NaN, let pos be +∞; otherwise, let pos be ! ToIntegerOrInfinity(numPos).
-        let pos = if num_pos.is_nan(agent) {
-            Number::pos_inf()
+        let search_str = to_string(agent, search_string)?;
+        let pos = if position.is_undefined() {
+            // 5. Assert: If position is undefined, then numPos is NaN.
+            // 6. If numPos is NaN, let pos be +∞;
+            usize::MAX
+        } else if let Value::Integer(position) = position {
+            position.into_i64().max(0) as usize
         } else {
-            to_integer_or_infinity(agent, num_pos.into_value()).unwrap()
+            // 4. Let numPos be ? ToNumber(position).
+            let num_pos = to_number(agent, args.get(1))?;
+            if num_pos.is_nan(agent) {
+                // 6. If numPos is NaN, let pos be +∞;
+                usize::MAX
+            } else {
+                // otherwise, let pos be! ToIntegerOrInfinity(numPos).
+                to_integer_or_infinity(agent, num_pos.into_value())
+                    .unwrap()
+                    .into_usize(agent)
+            }
         };
 
         // 7. Let len be the length of S.
@@ -505,29 +528,20 @@ impl StringPrototype {
         // NOTE: If start >= (len - searchLen), there is a last index if and
         // only if start.endsWith(searchLen).
         let haystack_str = {
-            let pos = pos.into_usize(agent);
-            if pos == 0 {
+            if pos == usize::MAX {
                 s.as_str(agent)
             } else {
-                let utf16_len = s.utf16_len(agent);
-                if pos >= utf16_len {
-                    ""
-                } else {
-                    let utf8_pos = s.utf8_index(agent, pos).unwrap();
-                    &s.as_str(agent)[utf8_pos..]
-                }
+                // When starting from a position, the position may mark the
+                // start of the search string, so we need to include the search
+                // string length in the haystack.
+                let utf8_pos = s.utf8_index(agent, pos).unwrap();
+                let utf8_len = s.len(agent);
+                let search_str_len = search_str.len(agent);
+                &s.as_str(agent)[..utf8_len.min(utf8_pos + search_str_len)]
             }
         };
         let search_str = search_str.as_str(agent);
-        let utf8_result = if haystack_str.len() <= search_str.len() {
-            if haystack_str.ends_with(search_str) {
-                Some(haystack_str.len() - search_str.len())
-            } else {
-                None
-            }
-        } else {
-            haystack_str.rfind(search_str)
-        };
+        let utf8_result = haystack_str.rfind(search_str);
 
         // 11. If result is not-found, return -1𝔽.
         // 12. Return 𝔽(result).

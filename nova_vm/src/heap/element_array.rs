@@ -967,7 +967,7 @@ impl ElementDescriptor {
     }
 
     pub fn is_data_descriptor(&self) -> bool {
-        self.is_accessor_descriptor()
+        !self.is_accessor_descriptor()
     }
 }
 

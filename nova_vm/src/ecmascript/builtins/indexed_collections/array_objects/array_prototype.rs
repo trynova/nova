@@ -29,7 +29,7 @@ use crate::{
     SmallInteger,
 };
 
-use super::array_iterator_objects::array_iterator::{ArrayIterator, ArrayIteratorKind};
+use super::array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind};
 
 pub(crate) struct ArrayPrototype;
 
@@ -584,7 +584,7 @@ impl ArrayPrototype {
             ));
         };
         // 2. Return CreateArrayIterator(O, key+value).
-        Ok(ArrayIterator::from_object(agent, o, ArrayIteratorKind::KeyAndValue).into_value())
+        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
     /// ### [23.1.3.6 Array.prototype.every ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.every)
@@ -1439,7 +1439,7 @@ impl ArrayPrototype {
             ));
         };
         // 2. Return CreateArrayIterator(O, key).
-        Ok(ArrayIterator::from_object(agent, o, ArrayIteratorKind::Key).into_value())
+        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Key).into_value())
     }
 
     /// ### [23.1.3.20 Array.prototype.lastIndexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/#sec-array.prototype.lastindexof)
@@ -2521,7 +2521,7 @@ impl ArrayPrototype {
             ));
         };
         // 2. Return CreateArrayIterator(O, value).
-        Ok(ArrayIterator::from_object(agent, o, ArrayIteratorKind::Value).into_value())
+        Ok(ArrayIterator::from_object(agent, o, CollectionIteratorKind::Value).into_value())
     }
 
     fn with(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {

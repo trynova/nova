@@ -39,6 +39,54 @@ use crate::{
 };
 use oxc_ast::ast::{self};
 
+/// ### [15.1.2 Static Semantics: ContainsExpression](https://tc39.es/ecma262/#sec-static-semantics-containsexpression)
+/// The syntax-directed operation ContainsExpression takes no arguments and returns a Boolean.
+pub(crate) trait ContainsExpression {
+    fn contains_expression(&self) -> bool;
+}
+
+impl ContainsExpression for ast::BindingPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        match &self.kind {
+            ast::BindingPatternKind::BindingIdentifier(_) => false,
+            ast::BindingPatternKind::ObjectPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPatternKind::ArrayPattern(pattern) => pattern.contains_expression(),
+            ast::BindingPatternKind::AssignmentPattern(_) => true,
+        }
+    }
+}
+
+impl ContainsExpression for ast::ObjectPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        for property in &self.properties {
+            if property.computed || property.value.contains_expression() {
+                return true;
+            }
+        }
+
+        if let Some(rest) = &self.rest {
+            debug_assert!(!rest.argument.contains_expression());
+        }
+
+        false
+    }
+}
+
+impl ContainsExpression for ast::ArrayPattern<'_> {
+    fn contains_expression(&self) -> bool {
+        for pattern in self.elements.iter().flatten() {
+            if pattern.contains_expression() {
+                return true;
+            }
+        }
+        if let Some(rest) = &self.rest {
+            rest.argument.contains_expression()
+        } else {
+            false
+        }
+    }
+}
+
 /// ### [15.2.4 Runtime Semantics: InstantiateOrdinaryFunctionObject](https://tc39.es/ecma262/#sec-runtime-semantics-instantiateordinaryfunctionobject)
 ///
 /// The syntax-directed operation InstantiateOrdinaryFunctionObject takes
@@ -66,6 +114,7 @@ pub(crate) fn instantiate_ordinary_function_object(
     // 3. Let F be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
     let params = OrdinaryFunctionCreateParams {
         function_prototype: None,
+        source_code: None,
         source_text,
         parameters_list: &function.params,
         body: function.body.as_deref().unwrap(),
@@ -153,6 +202,7 @@ pub(crate) fn instantiate_ordinary_function_expression(
         // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, FormalParameters, FunctionBody, NON-LEXICAL-THIS, env, privateEnv).
         let params = OrdinaryFunctionCreateParams {
             function_prototype: None,
+            source_code: None,
             source_text,
             parameters_list: &function.expression.get().params,
             body: function.expression.get().body.as_ref().unwrap(),

@@ -102,16 +102,35 @@ pub enum Instruction {
     InstantiateArrowFunctionExpression,
     /// Store InstantiateOrdinaryFunctionExpression() as the result value.
     InstantiateOrdinaryFunctionExpression,
+    /// Create a class constructor and store it as the result value.
+    ///
+    /// The class name should be found at the top of the stack.
+    /// If the class is a derived class, then the parent constructor should
+    /// also be on the stack after the class name.
+    ClassDefineConstructor,
+    /// Store CreateBuiltinFunction(defaultConstructor, 0, className) as the
+    /// result value.
+    ClassDefineDefaultConstructor,
     /// Store IsLooselyEqual() as the result value.
     IsLooselyEqual,
-    /// Store IsStrictlyEqual() as the result value.
+    /// Take the result value and the top stack value, compare them using
+    /// IsStrictlyEqual() and store the result as the result value.
     IsStrictlyEqual,
     /// Store true as the result value if the current result value is null or
     /// undefined, false otherwise.
     IsNullOrUndefined,
+    /// Store true as the result value if the current result value is null,
+    /// false otherwise.
+    IsNull,
     /// Store true as the result value if the current result value is undefined,
     /// false otherwise.
     IsUndefined,
+    /// Store true as the result value if the current result value is an
+    /// object.
+    IsObject,
+    /// Call IsConstructor() on the current result value and store the result
+    /// as the result value.
+    IsConstructor,
     /// Jump to another instruction by setting the instruction pointer.
     Jump,
     /// Jump to another instruction by setting the instruction pointer
@@ -131,18 +150,27 @@ pub enum Instruction {
     LoadCopy,
     /// Load a constant and add it to the stack.
     LoadConstant,
+    /// Swaps the last value in the stack and the result value.
+    LoadStoreSwap,
     /// Determine the this value for an upcoming evaluate_call instruction and
     /// add it to the stack.
     LoadThisValue,
+    /// Swap the last two values on the stack.
+    Swap,
     /// Performs steps 2-4 from the [UnaryExpression ! Runtime Semantics](https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation).
     LogicalNot,
     /// Store OrdinaryObjectCreate(%Object.prototype%) on the stack.
     ObjectCreate,
-    /// Set an object's property to the key/value pair from the last two values
-    /// on the stack.
-    ObjectSetProperty,
-    ObjectSetGetter,
-    ObjectSetSetter,
+    /// Call CreateDataPropertyOrThrow(object, key, value) with value being the
+    /// result value, key being the top stack value and object being the second
+    /// stack value. The object is not popped from the stack.
+    ObjectDefineProperty,
+    /// Create and define a method on an object.
+    ///
+    /// The key is at the top stack value, the object is second on the stack.
+    ObjectDefineMethod,
+    ObjectDefineGetter,
+    ObjectDefineSetter,
     /// Call `object[[SetPrototypeOf]](value)` on the object on the stack using
     /// the current result value as the parameter.
     ObjectSetPrototype,
@@ -167,12 +195,19 @@ pub enum Instruction {
     Return,
     /// Store the last value from the stack as the result value.
     Store,
+    /// Store a copy of the last value from the stack as the result value.
+    StoreCopy,
     /// Store a constant as the result value.
     StoreConstant,
     /// Take N items from the stack and string-concatenate them together.
     StringConcat,
     /// Throw the result value as an exception.
     Throw,
+    /// Throw a new Error object as an exception with the result value as the
+    /// message.
+    ///
+    /// The error subtype is determined by an immediate value.
+    ThrowError,
     /// Store ToNumber() as the result value.
     ToNumber,
     /// Store ToNumeric() as the result value.
@@ -215,13 +250,14 @@ pub enum Instruction {
     /// spec requires that creation of bindings in the environment is done
     /// first. This is immaterial because creating the bindings cannot fail.
     EnterDeclarativeEnvironment,
-    /// Perform NewDeclarativeEnvironment with the running execution context's
-    /// LexicalEnvironment as the only parameter, and set it as the running
-    /// execution context's VariableEnvironment.
-    EnterDeclarativeVariableEnvironment,
+    /// Enter a new FunctionEnvironment with the top of the stack as the this
+    /// binding and \[\[FunctionObject]]. This is used for class static
+    /// initializers.
+    EnterClassStaticElementEnvironment,
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
+    ExitVariableEnvironment,
     /// Begin binding values using destructuring
     BeginSimpleObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
@@ -322,13 +358,18 @@ impl Instruction {
             // Number of repetitions and lexical status
             Self::BeginSimpleArrayBindingPattern
             | Self::BindingPatternBindNamed
-            | Self::InitializeVariableEnvironment => 2,
+            | Self::ClassDefineConstructor
+            | Self::InitializeVariableEnvironment
+            | Self::ObjectDefineGetter
+            | Self::ObjectDefineMethod
+            | Self::ObjectDefineSetter => 2,
             Self::ArrayCreate
             | Self::ArraySetValue
             | Self::BeginSimpleObjectBindingPattern
             | Self::BindingPatternBind
-            | Self::BindingPatternGetValueNamed
             | Self::BindingPatternBindRest
+            | Self::BindingPatternGetValueNamed
+            | Self::ClassDefineDefaultConstructor
             | Self::CopyDataPropertiesIntoObject
             | Self::CreateCatchBinding
             | Self::CreateImmutableBinding
@@ -344,12 +385,11 @@ impl Instruction {
             | Self::JumpIfNot
             | Self::JumpIfTrue
             | Self::LoadConstant
-            | Self::ObjectSetGetter
-            | Self::ObjectSetSetter
             | Self::PushExceptionJumpTarget
             | Self::ResolveBinding
             | Self::StoreConstant
-            | Self::StringConcat => 1,
+            | Self::StringConcat
+            | Self::ThrowError => 1,
             _ => 0,
         }
     }
@@ -381,10 +421,12 @@ impl Instruction {
     pub fn has_function_expression_index(self) -> bool {
         matches!(
             self,
-            Self::ObjectSetGetter
-                | Self::ObjectSetSetter
+            |Self::ClassDefineConstructor| Self::ClassDefineDefaultConstructor
                 | Self::InstantiateArrowFunctionExpression
                 | Self::InstantiateOrdinaryFunctionExpression
+                | Self::ObjectDefineGetter
+                | Self::ObjectDefineMethod
+                | Self::ObjectDefineSetter
         )
     }
 

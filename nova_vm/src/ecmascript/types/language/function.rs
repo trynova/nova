@@ -72,6 +72,13 @@ impl IntoObject for Function {
     }
 }
 
+impl IntoFunction for Function {
+    #[inline(always)]
+    fn into_function(self) -> Function {
+        self
+    }
+}
+
 impl From<BoundFunction> for Function {
     fn from(value: BoundFunction) -> Self {
         Function::BoundFunction(value)

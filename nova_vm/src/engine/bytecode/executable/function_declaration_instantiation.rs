@@ -11,17 +11,20 @@ use oxc_span::Atom;
 
 use crate::{
     ecmascript::{
-        syntax_directed_operations::scope_analysis::{
-            function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
-            function_body_var_declared_names, function_body_var_scoped_declarations,
-            LexicallyScopedDeclaration, VarScopedDeclaration,
+        syntax_directed_operations::{
+            function_definitions::ContainsExpression,
+            scope_analysis::{
+                function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
+                function_body_var_declared_names, function_body_var_scoped_declarations,
+                LexicallyScopedDeclaration, VarScopedDeclaration,
+            },
         },
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{bytecode::executable::CompileContext, Instruction},
 };
 
-use super::{complex_array_pattern, simple_array_pattern, CompileEvaluation, ContainsExpression};
+use super::{complex_array_pattern, simple_array_pattern, CompileEvaluation};
 
 pub(crate) fn instantiation(
     ctx: &mut CompileContext,

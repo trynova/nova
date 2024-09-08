@@ -26,14 +26,26 @@ use crate::{
 
 use super::{
     control_abstraction_objects::generator_objects::GeneratorHeapData,
-    data_view::data::DataViewHeapData, date::data::DateHeapData, error::ErrorHeapData,
+    data_view::data::DataViewHeapData,
+    date::data::DateHeapData,
+    error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-    map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
-    promise::data::PromiseHeapData, regexp::RegExpHeapData, set::data::SetHeapData,
-    shared_array_buffer::data::SharedArrayBufferHeapData, typed_array::data::TypedArrayHeapData,
-    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
-    weak_set::data::WeakSetHeapData, ArrayBufferHeapData, ArrayHeapData,
+    keyed_collections::{
+        map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+        set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+    },
+    map::data::MapHeapData,
+    primitive_objects::PrimitiveObjectHeapData,
+    promise::data::PromiseHeapData,
+    regexp::RegExpHeapData,
+    set::data::SetHeapData,
+    shared_array_buffer::data::SharedArrayBufferHeapData,
+    typed_array::data::TypedArrayHeapData,
+    weak_map::data::WeakMapHeapData,
+    weak_ref::data::WeakRefHeapData,
+    weak_set::data::WeakSetHeapData,
+    ArrayBufferHeapData, ArrayHeapData,
 };
 
 impl Index<OrdinaryObject> for Agent {
@@ -914,9 +926,17 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .create(TypedArrayHeapData::default())
             .into_object(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
+        ProtoIntrinsics::MapIterator => agent
+            .heap
+            .create(MapIteratorHeapData::default())
+            .into_object(),
         ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
         ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
         ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
+        ProtoIntrinsics::SetIterator => agent
+            .heap
+            .create(SetIteratorHeapData::default())
+            .into_object(),
         ProtoIntrinsics::SharedArrayBuffer => agent
             .heap
             .create(SharedArrayBufferHeapData::default())
@@ -1038,6 +1058,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
             ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
             ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
+            ProtoIntrinsics::MapIterator => None,
             ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),
             ProtoIntrinsics::Object => Some(intrinsics.object().into_function()),
             ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
@@ -1045,6 +1066,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
             ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
             ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
+            ProtoIntrinsics::SetIterator => None,
             ProtoIntrinsics::SharedArrayBuffer => {
                 Some(intrinsics.shared_array_buffer().into_function())
             }
