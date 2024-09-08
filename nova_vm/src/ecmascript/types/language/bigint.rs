@@ -445,7 +445,7 @@ impl BigInt {
         match (x, y) {
             (BigInt::BigInt(_), BigInt::SmallBigInt(_)) => false,
             (BigInt::SmallBigInt(_), BigInt::BigInt(_)) => true,
-            (BigInt::BigInt(b1), BigInt::BigInt(b2)) => &agent[b1].data < &agent[b2].data,
+            (BigInt::BigInt(b1), BigInt::BigInt(b2)) => agent[b1].data < agent[b2].data,
             (BigInt::SmallBigInt(b1), BigInt::SmallBigInt(b2)) => b1.into_i64() < b2.into_i64(),
         }
     }
