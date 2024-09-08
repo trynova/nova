@@ -5,16 +5,28 @@
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::generator_objects::GeneratorHeapData,
-        data_view::data::DataViewHeapData, date::data::DateHeapData,
-        embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
+        data_view::data::DataViewHeapData,
+        date::data::DateHeapData,
+        embedder_object::data::EmbedderObjectHeapData,
+        error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
         indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-        map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData, proxy::data::ProxyHeapData, regexp::RegExpHeapData,
-        set::data::SetHeapData, shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::data::TypedArrayHeapData, weak_map::data::WeakMapHeapData,
-        weak_ref::data::WeakRefHeapData, weak_set::data::WeakSetHeapData, ArrayBufferHeapData,
-        ArrayHeapData,
+        keyed_collections::{
+            map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+            set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+        },
+        map::data::MapHeapData,
+        primitive_objects::PrimitiveObjectHeapData,
+        promise::data::PromiseHeapData,
+        proxy::data::ProxyHeapData,
+        regexp::RegExpHeapData,
+        set::data::SetHeapData,
+        shared_array_buffer::data::SharedArrayBufferHeapData,
+        typed_array::data::TypedArrayHeapData,
+        weak_map::data::WeakMapHeapData,
+        weak_ref::data::WeakRefHeapData,
+        weak_set::data::WeakSetHeapData,
+        ArrayBufferHeapData, ArrayHeapData,
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
@@ -159,6 +171,7 @@ pub type ErrorIndex = BaseIndex<ErrorHeapData>;
 pub type FinalizationRegistryIndex = BaseIndex<FinalizationRegistryHeapData>;
 pub type GeneratorIndex = BaseIndex<GeneratorHeapData>;
 pub type MapIndex = BaseIndex<MapHeapData>;
+pub type MapIteratorIndex = BaseIndex<MapIteratorHeapData>;
 pub type NumberIndex = BaseIndex<NumberHeapData>;
 pub type ObjectIndex = BaseIndex<ObjectHeapData>;
 pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
@@ -166,6 +179,7 @@ pub type PromiseIndex = BaseIndex<PromiseHeapData>;
 pub type ProxyIndex = BaseIndex<ProxyHeapData>;
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
 pub type SetIndex = BaseIndex<SetHeapData>;
+pub type SetIteratorIndex = BaseIndex<SetIteratorHeapData>;
 pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
 pub type StringIndex = BaseIndex<StringHeapData>;
 pub type SymbolIndex = BaseIndex<SymbolHeapData>;

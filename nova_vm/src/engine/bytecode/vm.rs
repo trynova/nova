@@ -2037,6 +2037,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::AsyncIterator |
         Value::Iterator |
         Value::ArrayIterator(_) |
+        Value::SetIterator(_) |
+        Value::MapIterator(_) |
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,

@@ -32,7 +32,11 @@ impl ArrayIterator {
         self.0.into_index()
     }
 
-    pub(crate) fn from_object(agent: &mut Agent, array: Object, kind: ArrayIteratorKind) -> Self {
+    pub(crate) fn from_object(
+        agent: &mut Agent,
+        array: Object,
+        kind: CollectionIteratorKind,
+    ) -> Self {
         agent.heap.create(ArrayIteratorHeapData {
             object_index: None,
             array: Some(array),
@@ -171,7 +175,7 @@ impl HeapMarkAndSweep for ArrayIterator {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) enum ArrayIteratorKind {
+pub(crate) enum CollectionIteratorKind {
     #[default]
     Key,
     Value,
@@ -183,7 +187,7 @@ pub struct ArrayIteratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) array: Option<Object>,
     pub(crate) next_index: i64,
-    pub(crate) kind: ArrayIteratorKind,
+    pub(crate) kind: CollectionIteratorKind,
 }
 
 impl HeapMarkAndSweep for ArrayIteratorHeapData {

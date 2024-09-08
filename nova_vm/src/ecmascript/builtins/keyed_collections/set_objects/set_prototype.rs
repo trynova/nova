@@ -14,7 +14,9 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
+            keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator,
             set::{
                 data::{SetData, SetHeapData},
                 Set,
@@ -64,12 +66,6 @@ impl Builtin for SetPrototypeHas {
     const NAME: String = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::has);
-}
-struct SetPrototypeKeys;
-impl Builtin for SetPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
-    const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::keys);
 }
 struct SetPrototypeGetSize;
 impl Builtin for SetPrototypeGetSize {
@@ -211,8 +207,14 @@ impl SetPrototype {
         }
     }
 
-    fn entries(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn entries(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateSetIterator(S, KEY+VALUE).
+
+        // 24.2.6.1 CreateSetIterator ( set, kind )
+        // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
     /// ### [24.2.4.7 Set.prototype.forEach ( callbackfn \[ , thisArg \] )](https://tc39.es/ecma262/#sec-set.prototype.foreach)
@@ -331,10 +333,6 @@ impl SetPrototype {
         Ok(found.into())
     }
 
-    fn keys(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
     /// ### [24.2.4.14 get Set.prototype.size](https://tc39.es/ecma262/#sec-get-set.prototype.size)
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
@@ -349,8 +347,14 @@ impl SetPrototype {
         Ok(Number::from(size).into_value())
     }
 
-    fn values(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn values(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateSetIterator(S, VALUE).
+
+        // 24.2.6.1 CreateSetIterator ( set, kind )
+        // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
+        let s = require_set_data_internal_slot(agent, this_value)?;
+        Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -370,7 +374,14 @@ impl SetPrototype {
             .with_builtin_function_property::<SetPrototypeEntries>()
             .with_builtin_function_property::<SetPrototypeForEach>()
             .with_builtin_function_property::<SetPrototypeHas>()
-            .with_builtin_function_property::<SetPrototypeKeys>()
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.keys.to_property_key())
+                    .with_value(set_prototype_values.into_value())
+                    .with_enumerable(SetPrototypeValues::ENUMERABLE)
+                    .with_configurable(SetPrototypeValues::CONFIGURABLE)
+                    .build()
+            })
             .with_builtin_function_getter_property::<SetPrototypeGetSize>()
             .with_builtin_intrinsic_function_property::<SetPrototypeValues>()
             .with_property(|builder| {
