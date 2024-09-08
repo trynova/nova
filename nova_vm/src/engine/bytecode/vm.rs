@@ -1926,9 +1926,13 @@ fn apply_string_or_numeric_binary_operator(
                 BigInt::exponentiate(agent, lnum, rnum).map(|bigint| bigint.into_value())?
             }
             // b. If opText is /, return ? BigInt::divide(lnum, rnum).
-            BinaryOperator::Division => todo!(),
+            BinaryOperator::Division => {
+                BigInt::divide(agent, lnum, rnum).map(|bigint| bigint.into_value())?
+            }
             // c. If opText is %, return ? BigInt::remainder(lnum, rnum).
-            BinaryOperator::Remainder => todo!(),
+            BinaryOperator::Remainder => {
+                BigInt::remainder(agent, lnum, rnum).map(|bigint| bigint.into_value())?
+            }
             // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
             BinaryOperator::ShiftRightZeroFill => todo!(),
             // <<	BigInt	BigInt::leftShift
@@ -1936,11 +1940,11 @@ fn apply_string_or_numeric_binary_operator(
             // >>	BigInt	BigInt::signedRightShift
             BinaryOperator::ShiftRight => todo!(),
             // +	BigInt	BigInt::add
-            BinaryOperator::Addition => todo!(),
+            BinaryOperator::Addition => BigInt::add(agent, lnum, rnum).into_value(),
             // -	BigInt	BigInt::subtract
-            BinaryOperator::Subtraction => todo!(),
+            BinaryOperator::Subtraction => BigInt::subtract(agent, lnum, rnum).into_value(),
             // *	BigInt	BigInt::multiply
-            BinaryOperator::Multiplication => todo!(),
+            BinaryOperator::Multiplication => BigInt::multiply(agent, lnum, rnum).into_value(),
             // |	BigInt	BigInt::bitwiseOR
             BinaryOperator::BitwiseOR => todo!(),
             // ^	BigInt	BigInt::bitwiseXOR

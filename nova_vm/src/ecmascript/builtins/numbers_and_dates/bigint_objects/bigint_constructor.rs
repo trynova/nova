@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use num_bigint::ToBigInt;
+use num_traits::Pow;
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_big_int;
@@ -53,7 +54,7 @@ impl Builtin for BigIntAsIntN {
 struct BigIntAsUintN;
 impl Builtin for BigIntAsUintN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_uint_n);
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
     const NAME: String = BUILTIN_STRING_MEMORY.asUintN;
 }
 
@@ -92,16 +93,64 @@ impl BigIntConstructor {
             ));
         };
         let bigint = to_big_int(agent, arguments.get(1))?;
-        match bigint {
-            BigInt::BigInt(_) => todo!(),
-            BigInt::SmallBigInt(int) => {
-                let int = int.into_i64();
-                let modulo = int % 2i64.pow(bits);
-                if modulo >= 2i64.pow(bits - 1) {
-                    let result = modulo - 2i64.pow(bits);
-                    Ok(BigInt::from(SmallBigInt::try_from(result).unwrap()).into_value())
-                } else {
-                    Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
+        if bits == 0 {
+            return Ok(BigInt::zero().into_value());
+        }
+
+        match 2i64.checked_pow(bits) {
+            Some(divisor) => {
+                match bigint {
+                    BigInt::BigInt(bigint) => {
+                        let modulo = &agent[bigint].data % divisor;
+                        // SAFETY: This cannot overflow since 2^bits didn't.
+                        let divisor_half = divisor >> 1;
+                        if let Ok(modulo) = i64::try_from(&modulo) {
+                            let modulo = if modulo >= divisor_half {
+                                modulo - divisor
+                            } else {
+                                modulo
+                            };
+                            Ok(BigInt::from_i64(agent, modulo).into_value())
+                        } else {
+                            Ok(BigInt::from_num_bigint(agent, modulo - divisor).into_value())
+                        }
+                    }
+                    BigInt::SmallBigInt(bigint) => {
+                        let bigint = bigint.into_i64();
+                        let modulo = bigint % divisor;
+                        let modulo = if modulo >= 2i64.pow(bits - 1) {
+                            modulo - divisor
+                        } else {
+                            modulo
+                        };
+                        Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
+                    }
+                }
+            }
+            _ => {
+                let divisor =
+                    num_bigint::BigInt::from_bytes_le(num_bigint::Sign::Plus, &[2]).pow(bits);
+                match bigint {
+                    BigInt::BigInt(bigint) => {
+                        let modulo = &agent[bigint].data % &divisor;
+                        let divisor_half = &divisor >> 1;
+                        if let Ok(modulo) = i64::try_from(&modulo) {
+                            // Maybe safe? Maybe not.
+                            Ok(BigInt::from_i64(agent, modulo).into_value())
+                        } else {
+                            let modulo = if modulo >= divisor_half {
+                                modulo - divisor
+                            } else {
+                                modulo
+                            };
+                            Ok(BigInt::from_num_bigint(agent, modulo).into_value())
+                        }
+                    }
+                    BigInt::SmallBigInt(_) => {
+                        // Probably safe: The divisor is bigger than i64 but
+                        // value is i54.
+                        Ok(bigint.into_value())
+                    }
                 }
             }
         }
