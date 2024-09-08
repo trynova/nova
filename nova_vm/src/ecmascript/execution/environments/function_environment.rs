@@ -7,7 +7,7 @@ use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{Function, InternalMethods, IntoFunction, Object, String, Value},
+        types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -117,6 +117,48 @@ pub(crate) fn new_function_environment(
 
         // 5. Set env.[[NewTarget]] to newTarget.
         new_target,
+
+        // 6. Set env.[[OuterEnv]] to F.[[Environment]].
+        declarative_environment,
+    };
+    // 7. Return env.
+    agent.heap.environments.push_function_environment(env)
+}
+
+/// ### NewClassStaticElementEnvironment ( classConstructor )
+///
+/// This is a non-standard abstract operation that performs the same steps as
+/// NewFunctionEnvironment, but for a class static element's evaluation
+/// function. These functions are never visible to ECMAScript code and thus we
+/// avoid creating them entirely. The only parameter is the class constructor,
+/// which is used as both the this value and the \[\[FunctionObject]] of the
+/// new function environment.
+pub(crate) fn new_class_static_element_environment(
+    agent: &mut Agent,
+    class_constructor: Function,
+) -> FunctionEnvironmentIndex {
+    // 1. Let env be a new Function Environment Record containing no bindings.
+    let dcl_env = DeclarativeEnvironment::new(Some(
+        agent
+            .running_execution_context()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment,
+    ));
+    agent.heap.environments.declarative.push(Some(dcl_env));
+    let declarative_environment =
+        DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+
+    let env = FunctionEnvironment {
+        this_value: Some(class_constructor.into_value()),
+
+        function_object: class_constructor,
+
+        this_binding_status: ThisBindingStatus::Initialized,
+
+        // 5. Set env.[[NewTarget]] to newTarget.
+        new_target: None,
 
         // 6. Set env.[[OuterEnv]] to F.[[Environment]].
         declarative_environment,

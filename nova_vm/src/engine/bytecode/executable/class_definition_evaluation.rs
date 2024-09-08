@@ -5,6 +5,11 @@
 use crate::{
     ecmascript::{
         execution::agent::ExceptionType,
+        syntax_directed_operations::scope_analysis::{
+            class_static_block_lexically_scoped_declarations,
+            class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
+            LexicallyScopedDeclaration, VarScopedDeclaration,
+        },
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
     engine::{
@@ -12,9 +17,10 @@ use crate::{
         NamedEvaluationParameter, SendableRef,
     },
 };
+use ahash::{AHashMap, AHashSet};
 use oxc_ast::{
     ast::{self, MethodDefinitionKind},
-    syntax_directed_operations::{PrivateBoundIdentifiers, PropName},
+    syntax_directed_operations::{BoundNames, PrivateBoundIdentifiers, PropName},
 };
 
 impl CompileEvaluation for ast::Class<'_> {
@@ -393,8 +399,13 @@ impl CompileEvaluation for ast::Class<'_> {
         // stack: [constructor]
 
         // 26. Set the running execution context's LexicalEnvironment to env.
-        // 27. If classBinding is not undefined, then
+        // Note: We do not exit classEnv here. First, classBinding is
+        // initialized in classEnv. Second, the static elements are "functions"
+        // that were "created" in the classEnv, and they are "evaluated" below.
+        // The evaluation is done inline so we need the classEnv to be active,
+        // and the "function environments" to be created in it.
 
+        // 27. If classBinding is not undefined, then
         // Note: The classBinding needs to be initialized in classEnv, as any
         // class method calls access the classBinding through the classEnv.
         if let Some(class_binding) = class_identifier {
@@ -406,30 +417,33 @@ impl CompileEvaluation for ast::Class<'_> {
                 .add_instruction(Instruction::InitializeReferencedBinding);
         }
 
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
         // 28. Set F.[[PrivateMethods]] to instancePrivateMethods.
         // 29. Set F.[[Fields]] to instanceFields.
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).
         // 31. For each element elementRecord of staticElements, do
-        for _element_record in static_elements.iter() {
+        for element_record in static_elements.iter() {
             // a. If elementRecord is a ClassFieldDefinition Record, then
             //     i. Let result be Completion(DefineField(F, elementRecord)).
             // b. Else,
             //     i. Assert: elementRecord is a ClassStaticBlockDefinition Record.
             //     ii. Let result be Completion(Call(elementRecord.[[BodyFunction]], F)).
+            element_record.compile(ctx);
             // c. If result is an abrupt completion, then
             //     i. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
             //     ii. Return ? result.
-            todo!();
         }
+        // Note: We finally leave classEnv here. See step 26.
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
 
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
-        if let Some(class_identifier) = class_identifier {
+        if self.is_declaration() {
+            let class_identifier = class_identifier.unwrap();
             // 4. Let env be the running execution context's LexicalEnvironment.
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
@@ -555,4 +569,120 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
     // stack: [object]
 
     // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+}
+
+impl CompileEvaluation for ast::StaticBlock<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 12. Let functionNames be a new empty List.
+        // 13. Let functionsToInitialize be a new empty List.
+        // NOTE: the keys of `functions` will be `functionNames`, its values will be
+        // `functionsToInitialize`.
+        let mut functions = AHashMap::new();
+        for d in class_static_block_var_scoped_declarations(self) {
+            // a. If d is neither a VariableDeclaration nor a ForBinding nor a BindingIdentifier, then
+            if let VarScopedDeclaration::Function(d) = d {
+                // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
+                // ii. Let fn be the sole element of the BoundNames of d.
+                let f_name = d.id.as_ref().unwrap().name.clone();
+                // iii. If functionNames does not contain fn, then
+                //   1. Insert fn as the first element of functionNames.
+                //   2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
+                //   3. Insert d as the first element of functionsToInitialize.
+                functions.insert(f_name, d);
+            }
+        }
+
+        // 27. If hasParameterExpressions is false, then
+        // a. NOTE: Only a single Environment Record is needed for the parameters and top-level vars.
+        // b. Let instantiatedVarNames be a copy of the List parameterBindings.
+        let mut instantiated_var_names = AHashSet::new();
+        // c. For each element n of varNames, do
+        ctx.exe
+            .add_instruction(Instruction::EnterClassStaticElementEnvironment);
+        for n in class_static_block_var_declared_names(self) {
+            // i. If instantiatedVarNames does not contain n, then
+            if instantiated_var_names.contains(&n) {
+                continue;
+            }
+            // 1. Append n to instantiatedVarNames.
+            let n_string = String::from_str(ctx.agent, &n);
+            instantiated_var_names.insert(n);
+            // 2. Perform ! env.CreateMutableBinding(n, false).
+            ctx.exe
+                .add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
+            // 3. Perform ! env.InitializeBinding(n, undefined).
+            ctx.exe
+                .add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+            ctx.exe
+                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.exe
+                .add_instruction(Instruction::InitializeReferencedBinding);
+        }
+
+        // 34. For each element d of lexDeclarations, do
+        for d in class_static_block_lexically_scoped_declarations(self) {
+            // a. NOTE: A lexically declared name cannot be the same as a function/generator declaration, formal parameter, or a var name. Lexically declared names are only instantiated here but not initialized.
+            // b. For each element dn of the BoundNames of d, do
+            match d {
+                // i. If IsConstantDeclaration of d is true, then
+                LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
+                    {
+                        decl.id.bound_names(&mut |identifier| {
+                            let dn = String::from_str(ctx.agent, &identifier.name);
+                            // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
+                            ctx.exe.add_instruction_with_identifier(
+                                Instruction::CreateImmutableBinding,
+                                dn,
+                            );
+                        })
+                    }
+                }
+                // ii. Else,
+                //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
+                LexicallyScopedDeclaration::Variable(decl) => {
+                    decl.id.bound_names(&mut |identifier| {
+                        let dn = String::from_str(ctx.agent, &identifier.name);
+                        ctx.exe
+                            .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    })
+                }
+                LexicallyScopedDeclaration::Function(decl) => {
+                    let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
+                    ctx.exe
+                        .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                }
+                LexicallyScopedDeclaration::Class(decl) => {
+                    let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
+                    ctx.exe
+                        .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                }
+                LexicallyScopedDeclaration::DefaultExport => {
+                    let dn = BUILTIN_STRING_MEMORY._default_;
+                    ctx.exe
+                        .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                }
+            }
+        }
+
+        // 36. For each Parse Node f of functionsToInitialize, do
+        for f in functions.values() {
+            // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
+            f.compile(ctx);
+            // a. Let fn be the sole element of the BoundNames of f.
+            let f_name = String::from_str(ctx.agent, &f.id.as_ref().unwrap().name);
+            // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
+            // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
+            ctx.exe
+                .add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
+            ctx.exe.add_instruction(Instruction::PutValue);
+        }
+
+        for statement in self.body.iter() {
+            statement.compile(ctx);
+        }
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.exe
+            .add_instruction(Instruction::ExitVariableEnvironment);
+    }
 }

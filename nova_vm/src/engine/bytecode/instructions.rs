@@ -250,13 +250,14 @@ pub enum Instruction {
     /// spec requires that creation of bindings in the environment is done
     /// first. This is immaterial because creating the bindings cannot fail.
     EnterDeclarativeEnvironment,
-    /// Perform NewDeclarativeEnvironment with the running execution context's
-    /// LexicalEnvironment as the only parameter, and set it as the running
-    /// execution context's VariableEnvironment.
-    EnterDeclarativeVariableEnvironment,
+    /// Enter a new FunctionEnvironment with the top of the stack as the this
+    /// binding and \[\[FunctionObject]]. This is used for class static
+    /// initializers.
+    EnterClassStaticElementEnvironment,
     /// Reset the running execution context's LexicalEnvironment to its current
     /// value's \[\[OuterEnv]].
     ExitDeclarativeEnvironment,
+    ExitVariableEnvironment,
     /// Begin binding values using destructuring
     BeginSimpleObjectBindingPattern,
     /// Begin binding values using a sync iterator for known repetitions
