@@ -1203,8 +1203,6 @@
   "built-ins/BigInt/asIntN/bigint-tobigint-toprimitive.js": "CRASH",
   "built-ins/BigInt/asIntN/bigint-tobigint-wrapped-values.js": "FAIL",
   "built-ins/BigInt/asIntN/bigint-tobigint.js": "CRASH",
-  "built-ins/BigInt/asIntN/bits-toindex-wrapped-values.js": "CRASH",
-  "built-ins/BigInt/asIntN/bits-toindex.js": "CRASH",
   "built-ins/BigInt/asUintN/arithmetic.js": "CRASH",
   "built-ins/BigInt/asUintN/bigint-tobigint-errors.js": "CRASH",
   "built-ins/BigInt/asUintN/bigint-tobigint-toprimitive.js": "CRASH",

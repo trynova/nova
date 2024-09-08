@@ -190,6 +190,10 @@ pub enum BigInt {
 }
 
 impl BigInt {
+    pub const fn zero() -> Self {
+        Self::SmallBigInt(SmallBigInt::zero())
+    }
+
     #[inline]
     pub fn from_i64(agent: &mut Agent, value: i64) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
