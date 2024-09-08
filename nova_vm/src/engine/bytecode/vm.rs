@@ -1940,17 +1940,11 @@ fn apply_string_or_numeric_binary_operator(
             // >>	BigInt	BigInt::signedRightShift
             BinaryOperator::ShiftRight => todo!(),
             // +	BigInt	BigInt::add
-            BinaryOperator::Addition => {
-                BigInt::add(agent, lnum, rnum).map(|bigint| bigint.into_value())?
-            }
+            BinaryOperator::Addition => BigInt::add(agent, lnum, rnum).into_value(),
             // -	BigInt	BigInt::subtract
-            BinaryOperator::Subtraction => {
-                BigInt::subtract(agent, lnum, rnum).map(|bigint| bigint.into_value())?
-            }
+            BinaryOperator::Subtraction => BigInt::subtract(agent, lnum, rnum).into_value(),
             // *	BigInt	BigInt::multiply
-            BinaryOperator::Multiplication => {
-                BigInt::multiply(agent, lnum, rnum).map(|bigint| bigint.into_value())?
-            }
+            BinaryOperator::Multiplication => BigInt::multiply(agent, lnum, rnum).into_value(),
             // |	BigInt	BigInt::bitwiseOR
             BinaryOperator::BitwiseOR => todo!(),
             // ^	BigInt	BigInt::bitwiseXOR

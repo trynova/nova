@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
+        builtins::{primitive_objects::PrimitiveObjectData, ArgumentsList, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{BigInt, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -97,11 +97,27 @@ impl BigIntPrototype {
     }
 }
 
+/// ### [21.2.3.4.1 ThisBigIntValue ( value )](https://tc39.es/ecma262/#sec-thisbigintvalue)
+///
+/// The abstract operation ThisBigIntValue takes argument value (an ECMAScript
+/// language value) and returns either a normal completion containing a BigInt
+/// or a throw completion.
 fn this_big_int_value(agent: &mut Agent, value: Value) -> JsResult<BigInt> {
     match value {
-        Value::BigInt(idx) => Ok(idx.into()),
-        Value::SmallBigInt(data) => Ok(data.into()),
-        // TODO: Primitive objects
+        // 1. If value is a BigInt, return value.
+        Value::BigInt(value) => Ok(value.into()),
+        Value::SmallBigInt(value) => Ok(value.into()),
+        // 2. If value is an Object and value has a [[BigIntData]] internal slot, then
+        Value::PrimitiveObject(value) if value.is_bigint_object(agent) => {
+            match agent[value].data {
+                // b. Return value.[[BigIntData]].
+                PrimitiveObjectData::BigInt(value) => Ok(value.into()),
+                PrimitiveObjectData::SmallBigInt(value) => Ok(value.into()),
+                // a. Assert: value.[[BigIntData]] is a BigInt.
+                _ => unreachable!(),
+            }
+        }
+        // 3. Throw a TypeError exception.
         _ => {
             Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a BigInt"))
         }

@@ -17,13 +17,11 @@ use crate::{
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
         types::{
-            BigIntHeapData, IntoValue, Number, PropertyKey, Reference, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BigInt, IntoValue, Number, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
-use num_bigint::BigInt;
 use num_traits::Num;
 use oxc_ast::{
     ast::{self, BindingPattern, BindingRestElement, CallExpression, NewExpression, Statement},
@@ -520,19 +518,18 @@ impl CompileEvaluation for ast::BooleanLiteral {
 
 impl CompileEvaluation for ast::BigIntLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let radix = match self.base {
-            oxc_syntax::number::BigintBase::Decimal => 10,
-            oxc_syntax::number::BigintBase::Binary => 2,
-            oxc_syntax::number::BigintBase::Octal => 8,
-            oxc_syntax::number::BigintBase::Hex => 16,
-        };
         // Drop out the trailing 'n' from BigInt literals.
         let last_index = self.raw.len() - 1;
-        let big_int_str = &self.raw.as_str()[..last_index];
-        let constant = ctx.agent.heap.create(BigIntHeapData {
-            // Drop out the trailing 'n' from BigInt literals.
-            data: BigInt::from_str_radix(big_int_str, radix).unwrap(),
-        });
+        let (big_int_str, radix) = match self.base {
+            oxc_syntax::number::BigintBase::Decimal => (&self.raw.as_str()[..last_index], 10),
+            oxc_syntax::number::BigintBase::Binary => (&self.raw.as_str()[2..last_index], 2),
+            oxc_syntax::number::BigintBase::Octal => (&self.raw.as_str()[2..last_index], 8),
+            oxc_syntax::number::BigintBase::Hex => (&self.raw.as_str()[2..last_index], 16),
+        };
+        let constant = BigInt::from_num_bigint(
+            ctx.agent,
+            num_bigint::BigInt::from_str_radix(big_int_str, radix).unwrap(),
+        );
         ctx.exe
             .add_instruction_with_constant(Instruction::StoreConstant, constant);
     }

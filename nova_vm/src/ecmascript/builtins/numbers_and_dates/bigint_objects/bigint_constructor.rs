@@ -53,7 +53,7 @@ impl Builtin for BigIntAsIntN {
 struct BigIntAsUintN;
 impl Builtin for BigIntAsUintN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_uint_n);
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
     const NAME: String = BUILTIN_STRING_MEMORY.asUintN;
 }
 
