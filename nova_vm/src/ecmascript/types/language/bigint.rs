@@ -475,7 +475,13 @@ impl BigInt {
                         "Division by zero",
                     ));
                 }
-                Ok(Self::from_num_bigint(agent, &agent[n].data % d.into_i64()))
+                Ok(Self::SmallBigInt(
+                    SmallBigInt::try_from(
+                        // Remainder can never be bigger than the divisor.
+                        i64::try_from(&agent[n].data % d.into_i64()).unwrap(),
+                    )
+                    .unwrap(),
+                ))
             }
             (BigInt::BigInt(n), BigInt::BigInt(d)) => Ok(Self::from_num_bigint(
                 agent,
