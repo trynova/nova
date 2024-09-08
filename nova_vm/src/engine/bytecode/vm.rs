@@ -35,8 +35,9 @@ use crate::{
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
-            get_this_environment, new_declarative_environment, Agent,
-            ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
+            get_this_environment, new_class_static_element_environment,
+            new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
+            JsResult, ProtoIntrinsics,
         },
         syntax_directed_operations::class_definitions::{
             base_class_default_constructor, derived_class_default_constructor,
@@ -1347,20 +1348,18 @@ impl Vm {
                     .unwrap()
                     .lexical_environment = EnvironmentIndex::Declarative(new_env);
             }
-            Instruction::EnterDeclarativeVariableEnvironment => {
-                let outer_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment;
-                let new_env = new_declarative_environment(agent, Some(outer_env));
-                agent
+            Instruction::EnterClassStaticElementEnvironment => {
+                let class_constructor = Function::try_from(*vm.stack.last().unwrap()).unwrap();
+                let local_env = new_class_static_element_environment(agent, class_constructor);
+                let local_env = EnvironmentIndex::Function(local_env);
+
+                let current_context = agent
                     .running_execution_context_mut()
                     .ecmascript_code
                     .as_mut()
-                    .unwrap()
-                    .variable_environment = EnvironmentIndex::Declarative(new_env);
+                    .unwrap();
+                current_context.lexical_environment = local_env;
+                current_context.variable_environment = local_env;
             }
             Instruction::ExitDeclarativeEnvironment => {
                 let old_env = agent
@@ -1377,6 +1376,22 @@ impl Vm {
                     .as_mut()
                     .unwrap()
                     .lexical_environment = old_env;
+            }
+            Instruction::ExitVariableEnvironment => {
+                let old_env = agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap()
+                    .variable_environment
+                    .get_outer_env(agent)
+                    .unwrap();
+                agent
+                    .running_execution_context_mut()
+                    .ecmascript_code
+                    .as_mut()
+                    .unwrap()
+                    .variable_environment = old_env;
             }
             Instruction::CreateMutableBinding => {
                 let lex_env = agent

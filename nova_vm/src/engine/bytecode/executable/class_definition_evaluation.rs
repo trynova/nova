@@ -399,8 +399,13 @@ impl CompileEvaluation for ast::Class<'_> {
         // stack: [constructor]
 
         // 26. Set the running execution context's LexicalEnvironment to env.
-        // 27. If classBinding is not undefined, then
+        // Note: We do not exit classEnv here. First, classBinding is
+        // initialized in classEnv. Second, the static elements are "functions"
+        // that were "created" in the classEnv, and they are "evaluated" below.
+        // The evaluation is done inline so we need the classEnv to be active,
+        // and the "function environments" to be created in it.
 
+        // 27. If classBinding is not undefined, then
         // Note: The classBinding needs to be initialized in classEnv, as any
         // class method calls access the classBinding through the classEnv.
         if let Some(class_binding) = class_identifier {
@@ -412,8 +417,6 @@ impl CompileEvaluation for ast::Class<'_> {
                 .add_instruction(Instruction::InitializeReferencedBinding);
         }
 
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
         // 28. Set F.[[PrivateMethods]] to instancePrivateMethods.
         // 29. Set F.[[Fields]] to instanceFields.
         // 30. For each PrivateElement method of staticPrivateMethods, do
@@ -430,12 +433,17 @@ impl CompileEvaluation for ast::Class<'_> {
             //     i. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
             //     ii. Return ? result.
         }
+        // Note: We finally leave classEnv here. See step 26.
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
 
         // 15.7.15 Runtime Semantics: BindingClassDeclarationEvaluation
         // ClassDeclaration: class BindingIdentifier ClassTail
-        if let Some(class_identifier) = class_identifier {
+        if self.is_declaration() {
+            let class_identifier = class_identifier.unwrap();
             // 4. Let env be the running execution context's LexicalEnvironment.
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
@@ -589,6 +597,8 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
         // c. For each element n of varNames, do
+        ctx.exe
+            .add_instruction(Instruction::EnterClassStaticElementEnvironment);
         for n in class_static_block_var_declared_names(self) {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
@@ -670,5 +680,9 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
         for statement in self.body.iter() {
             statement.compile(ctx);
         }
+        ctx.exe
+            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.exe
+            .add_instruction(Instruction::ExitVariableEnvironment);
     }
 }
