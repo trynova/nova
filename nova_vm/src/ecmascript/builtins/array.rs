@@ -15,7 +15,8 @@ use super::{array_set_length, ordinary::ordinary_define_own_property};
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::call_function, testing_and_comparison::same_value,
+            operations_on_objects::{call_function, create_array_from_list},
+            testing_and_comparison::same_value,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
@@ -42,6 +43,15 @@ impl Array {
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
         Self(ArrayIndex::from_u32_index(0))
+    }
+
+    /// Creates a new array with the given elements.
+    ///
+    /// This is equal to the [CreateArrayFromList](https://tc39.es/ecma262/#sec-createarrayfromlist)
+    /// abstract operation.
+    #[inline]
+    pub fn from_slice(agent: &mut Agent, elements: &[Value]) -> Self {
+        create_array_from_list(agent, elements)
     }
 
     pub(crate) fn get_index(self) -> usize {
