@@ -13,14 +13,22 @@ use crate::{
                 call_function, create_data_property_or_throw, delete_property_or_throw, get,
                 has_property, length_of_array_like, set,
             },
-            testing_and_comparison::{is_array, is_callable, is_less_than, is_strictly_equal, same_value_zero},
-            type_conversion::{to_boolean, to_integer_or_infinity, to_number, to_object, to_string},
+            testing_and_comparison::{
+                is_array, is_callable, is_less_than, is_strictly_equal, same_value_zero,
+            },
+            type_conversion::{
+                to_boolean, to_integer_or_infinity, to_number, to_object, to_string,
+            },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin, BuiltinIntrinsic
+            array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
+            BuiltinIntrinsic,
         },
-        execution::{agent::{ExceptionType, JsError}, Agent, JsResult, RealmIdentifier},
+        execution::{
+            agent::{ExceptionType, JsError},
+            Agent, JsResult, RealmIdentifier,
+        },
         types::{
             Function, IntoFunction, IntoObject, IntoValue, Number, Object, PropertyKey, String,
             Value, BUILTIN_STRING_MEMORY,
@@ -2464,13 +2472,13 @@ impl ArrayPrototype {
     }
 
     /// ### [23.1.3.30 Array.prototype.sort ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.sort)
-    /// 
+    ///
     /// This method sorts the elements of this array. The sort must be stable
     /// (that is, elements that compare equal must remain in their original
     /// order). If comparator is not undefined, it should be a function that
     /// accepts two arguments x and y and returns a negative Number if x < y, a
     /// positive Number if x > y, or a zero otherwise.
-    /// 
+    ///
     /// > #### Note 1
     /// > Because non-existent property values always compare greater than
     /// > undefined property values, and undefined always compares greater than
@@ -2495,7 +2503,7 @@ impl ArrayPrototype {
         } else if let Some(comparator) = is_callable(comparator) {
             Some(comparator)
         } else {
-            return Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, ""))
+            return Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, ""));
         };
         // 2. Let obj be ? ToObject(this value).
         let obj = to_object(agent, this_value)?;
@@ -2507,7 +2515,8 @@ impl ArrayPrototype {
         //       a. Return ? CompareArrayElements(x, y, comparator).
         // 5. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare,
         //     skip-holes).
-        let sorted_list: Vec<Value> = sort_indexed_properties::<true, false>(agent, obj, len, comparator)?;
+        let sorted_list: Vec<Value> =
+            sort_indexed_properties::<true, false>(agent, obj, len, comparator)?;
         // 6. Let itemCount be the number of elements in sortedList.
         let item_count = sorted_list.len();
         // 7. Let j be 0.
@@ -2947,13 +2956,13 @@ fn flatten_into_array(
 }
 
 /// ### [23.1.3.30.1 SortIndexedProperties ( obj, len, SortCompare, holes )](https://tc39.es/ecma262/#sec-sortindexedproperties)
-/// 
+///
 /// The abstract operation SortIndexedProperties takes arguments obj (an
 /// Object), len (a non-negative integer), SortCompare (an Abstract Closure
 /// with two parameters), and holes (skip-holes or read-through-holes) and
 /// returns either a normal completion containing a List of ECMAScript language
 /// values or a throw completion.
-/// 
+///
 /// The sort order is the ordering of items after completion of step 4 of the
 /// algorithm. The sort order is implementation-defined if SortCompare is not a
 /// consistent comparator for the elements of items. When SortIndexedProperties
@@ -2971,7 +2980,7 @@ fn flatten_into_array(
 /// * Then for all non-negative integers `j` and `k`, each less than
 /// itemCount, if `ℝ(SortCompare(old[j], old[k])) < 0`, then
 /// `π(j) < π(k)`.
-/// 
+///
 /// Here the notation `old[j]` is used to refer to `items[j]` before step 4 is
 /// executed, and the notation `new[j]` to refer to `items[j]` after step 4 has
 /// been executed.
@@ -2992,12 +3001,17 @@ fn flatten_into_array(
 /// * If `a =C b` and `b =C c`, then `a =C c` (transitivity of `=C`)
 /// * If `a <C b` and `b <C c`, then `a <C c` (transitivity of `<C`)
 /// * If `a >C b` and `b >C c`, then `a >C c` (transitivity of `>C`)
-/// 
+///
 /// > #### Note
 /// > The above conditions are necessary and sufficient to ensure that
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
-fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(agent: &mut Agent, obj: Object, len: usize, comparator: Option<Function>) -> JsResult<Vec<Value>> {
+fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
+    agent: &mut Agent,
+    obj: Object,
+    len: usize,
+    comparator: Option<Function>,
+) -> JsResult<Vec<Value>> {
     // 1. Let items be a new empty List.
     let mut items = Vec::with_capacity(len);
     // 2. Let k be 0.
@@ -3059,7 +3073,12 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(agen
 /// ECMAScript language value), y (an ECMAScript language value), and
 /// comparator (a function object or undefined) and returns either a normal
 /// completion containing a Number or an abrupt completion.
-fn compare_array_elements(agent: &mut Agent, x: Value, y: Value, comparator: Option<Function>) -> JsResult<Ordering> {
+fn compare_array_elements(
+    agent: &mut Agent,
+    x: Value,
+    y: Value,
+    comparator: Option<Function>,
+) -> JsResult<Ordering> {
     // 1. If x and y are both undefined, return +0𝔽.
     if x.is_undefined() && y.is_undefined() {
         return Ok(Ordering::Equal);
@@ -3073,7 +3092,12 @@ fn compare_array_elements(agent: &mut Agent, x: Value, y: Value, comparator: Opt
     // 4. If comparator is not undefined, then
     if let Some(comparator) = comparator {
         // a. Let v be ? ToNumber(? Call(comparator, undefined, « x, y »)).
-        let v = call_function(agent, comparator, Value::Undefined, Some(ArgumentsList(&[x, y])))?;
+        let v = call_function(
+            agent,
+            comparator,
+            Value::Undefined,
+            Some(ArgumentsList(&[x, y])),
+        )?;
         let v = to_number(agent, v)?;
         // b. If v is NaN, return +0𝔽.
         // c. Return v.
