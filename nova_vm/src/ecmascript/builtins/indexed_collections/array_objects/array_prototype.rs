@@ -3081,14 +3081,14 @@ fn compare_array_elements(
 ) -> JsResult<Ordering> {
     // 1. If x and y are both undefined, return +0𝔽.
     if x.is_undefined() && y.is_undefined() {
-        return Ok(Ordering::Equal);
+        Ok(Ordering::Equal)
     } else if x.is_undefined() {
         // 2. If x is undefined, return 1𝔽.
-        return Ok(Ordering::Greater);
+        Ok(Ordering::Greater)
     } else if y.is_undefined() {
         // 3. If y is undefined, return -1𝔽.
-        return Ok(Ordering::Less);
-    }
+        Ok(Ordering::Less)
+    } else
     // 4. If comparator is not undefined, then
     if let Some(comparator) = comparator {
         // a. Let v be ? ToNumber(? Call(comparator, undefined, « x, y »)).
@@ -3102,40 +3102,39 @@ fn compare_array_elements(
         // b. If v is NaN, return +0𝔽.
         // c. Return v.
         if v.is_nan(agent) {
-            return Ok(Ordering::Equal);
+            Ok(Ordering::Equal)
         } else if v.is_sign_positive(agent) {
-            return Ok(Ordering::Greater);
+            Ok(Ordering::Greater)
         } else if v.is_sign_negative(agent) {
-            return Ok(Ordering::Less);
+            Ok(Ordering::Less)
         } else {
-            return Ok(Ordering::Equal);
+            Ok(Ordering::Equal)
         }
     } else if let (Value::Integer(x), Value::Integer(y)) = (x, y) {
         // Fast path: Avoid string conversions for numbers
-        return Ok(x.into_i64().cmp(&y.into_i64()));
+        Ok(x.into_i64().cmp(&y.into_i64()))
     } else if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // Fast path: Avoid string conversions for numbers.
         // Note: This is probably not correct for NaN's.
-        return Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)));
+        Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
         let x = to_string(agent, x)?;
         // 6. Let yString be ? ToString(y).
         let y = to_string(agent, y)?;
         // 7. Let xSmaller be ! IsLessThan(xString, yString, true).
-        let x_smaller = is_less_than::<true>(agent, x, y).unwrap();
         // 8. If xSmaller is true, return -1𝔽.
-        if x_smaller == Some(true) {
-            return Ok(Ordering::Less);
-        }
-        let y_smaller = is_less_than::<true>(agent, y, x).unwrap();
+        if is_less_than::<true>(agent, x, y).unwrap() == Some(true) {
+            Ok(Ordering::Less)
+        } else
         // 9. Let ySmaller be ! IsLessThan(yString, xString, true).
-        if y_smaller == Some(true) {
-            return Ok(Ordering::Greater);
-        }
         // 10. If ySmaller is true, return 1𝔽.
-        // 11. Return +0𝔽.
-        return Ok(Ordering::Equal);
+        if is_less_than::<true>(agent, y, x).unwrap() == Some(true) {
+            Ok(Ordering::Greater)
+        } else {
+            // 11. Return +0𝔽.
+            Ok(Ordering::Equal)
+        }
     }
 }
 
