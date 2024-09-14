@@ -2,6 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use core::str;
+
+use small_string::SmallString;
+
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
@@ -112,12 +116,35 @@ impl StringConstructor {
         Ok(s.into_value())
     }
 
+    /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
+    ///
+    /// > This function may be called with any number of arguments which form
+    /// the rest parameter `codeUnits`.
     fn from_char_code(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        code_units: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // 1. Let result be the empty String.
+        if code_units.is_empty() {
+            return Ok(String::EMPTY_STRING.into_value());
+        }
+        let mut result: Vec<u8> = Vec::with_capacity(code_units.len() * 2);
+
+        // 2. For each element next of codeUnits, do
+        //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
+        //   b. Set result to the string-concatenation of result and nextCU.
+        for next in code_units.iter() {
+            let code_unit = next.to_uint16(agent)?;
+            result.extend_from_slice(&code_unit.to_ne_bytes());
+        }
+
+        // 3. Return result.
+        let result_str = str::from_utf8(result.as_slice()).unwrap();
+        let result = SmallString::try_from(result_str)
+            .map_or_else(|_| String::from_str(agent, result_str), String::SmallString);
+        Ok(result.into())
+        // The "length" property of this function is 1𝔽.
     }
 
     fn from_code_point(
