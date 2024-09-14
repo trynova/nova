@@ -43,7 +43,7 @@ impl BuiltinIntrinsicConstructor for StringConstructor {
 struct StringFromCharCode;
 impl Builtin for StringFromCharCode {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_char_code);
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.fromCharCode;
 }
 struct StringFromCodePoint;
