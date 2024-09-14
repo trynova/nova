@@ -147,12 +147,25 @@ impl StringConstructor {
         // The "length" property of this function is 1𝔽.
     }
 
+    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
+    ///
+    /// > This function may be called with any number of arguments which form
+    /// > the rest parameter `codePoints`.
     fn from_code_point(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // 1. Let result be the empty String.
+        // 2. For each element next of codePoints, do
+        //     a. Let nextCP be ? ToNumber(next).
+        //     b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
+        //     c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+        //     d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+        // 3. Assert: If codePoints is empty, then result is the empty String.
+        // 4. Return result.
+
+        todo!()
     }
 
     fn raw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
