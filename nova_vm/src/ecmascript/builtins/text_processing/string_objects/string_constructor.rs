@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::str;
-
-use small_string::SmallString;
+use std::char;
 
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
@@ -16,6 +14,7 @@ use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
+use crate::ecmascript::execution::agent::JsError;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
@@ -129,22 +128,23 @@ impl StringConstructor {
         if code_units.is_empty() {
             return Ok(String::EMPTY_STRING.into_value());
         }
-        let mut result: Vec<u8> = Vec::with_capacity(code_units.len() * 2);
+        // let mut result: Vec<char> = Vec::with_capacity(code_units.len());
+        let mut result: std::string::String = std::string::String::with_capacity(code_units.len());
 
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
         //   b. Set result to the string-concatenation of result and nextCU.
         for next in code_units.iter() {
             let code_unit = next.to_uint16(agent)?;
-            result.extend_from_slice(&code_unit.to_ne_bytes());
+            let Some(code_unit) = char::from_u32(code_unit as u32) else {
+                let msg = format!("Error decoding UTF-16: {code_unit}");
+                return Err(JsError::new(String::from_string(agent, msg).into()));
+            };
+            result.push(code_unit);
         }
 
         // 3. Return result.
-        let result_str = str::from_utf8(result.as_slice()).unwrap();
-        let result = SmallString::try_from(result_str)
-            .map_or_else(|_| String::from_str(agent, result_str), String::SmallString);
-        Ok(result.into())
-        // The "length" property of this function is 1𝔽.
+        Ok(String::from_string(agent, result).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
