@@ -129,19 +129,18 @@ impl StringConstructor {
             return Ok(String::EMPTY_STRING.into_value());
         }
         // let mut result: Vec<char> = Vec::with_capacity(code_units.len());
-        let mut result: std::string::String = std::string::String::with_capacity(code_units.len());
+        // let mut result: std::string::String =
+        // std::string::String::with_capacity(code_units.len());
+        let mut buf = Vec::with_capacity(code_units.len());
 
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
         //   b. Set result to the string-concatenation of result and nextCU.
         for next in code_units.iter() {
             let code_unit = next.to_uint16(agent)?;
-            let Some(code_unit) = char::from_u32(code_unit as u32) else {
-                let msg = format!("Error decoding UTF-16: {code_unit}");
-                return Err(JsError::new(String::from_string(agent, msg).into()));
-            };
-            result.push(code_unit);
+            buf.push(code_unit);
         }
+        let result = std::string::String::from_utf16_lossy(&buf);
 
         // 3. Return result.
         Ok(String::from_string(agent, result).into())
