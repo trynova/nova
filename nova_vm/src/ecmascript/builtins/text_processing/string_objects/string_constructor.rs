@@ -117,7 +117,7 @@ impl StringConstructor {
 
     /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
     ///
-    /// > This function may be called with any number of arguments which form
+    /// This function may be called with any number of arguments which form
     /// the rest parameter `codeUnits`.
     fn from_char_code(
         agent: &mut Agent,
@@ -148,8 +148,8 @@ impl StringConstructor {
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
     ///
-    /// > This function may be called with any number of arguments which form
-    /// > the rest parameter `codePoints`.
+    /// This function may be called with any number of arguments which form
+    /// the rest parameter `codePoints`.
     fn from_code_point(
         _agent: &mut Agent,
         _this_value: Value,
