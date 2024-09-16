@@ -24,6 +24,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::IntrinsicConstructorIndexes;
+use crate::SmallString;
 
 pub struct StringConstructor;
 
@@ -122,24 +123,31 @@ impl StringConstructor {
         code_units: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
-        if code_units.is_empty() {
-            return Ok(String::EMPTY_STRING.into_value());
-        }
-        // let mut result: Vec<char> = Vec::with_capacity(code_units.len());
-        // let mut result: std::string::String =
-        // std::string::String::with_capacity(code_units.len());
-        let mut buf = Vec::with_capacity(code_units.len());
-
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
         //   b. Set result to the string-concatenation of result and nextCU.
+        // 3. Return result.
+
+        if code_units.is_empty() {
+            return Ok(String::EMPTY_STRING.into_value());
+        }
+
+        // fast path: only a single valid code unit
+        if code_units.len() == 1 {
+            let cu = code_units.get(0).to_uint16(agent)?;
+            if let Some(cu) = char::from_u32(cu as u32) {
+                return Ok(SmallString::from(cu).into());
+            }
+        }
+
+        let mut buf = Vec::with_capacity(code_units.len());
+
         for next in code_units.iter() {
             let code_unit = next.to_uint16(agent)?;
             buf.push(code_unit);
         }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        // 3. Return result.
         Ok(String::from_string(agent, result).into())
     }
 

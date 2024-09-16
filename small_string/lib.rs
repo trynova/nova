@@ -200,6 +200,12 @@ impl TryFrom<&str> for SmallString {
     }
 }
 
+impl From<char> for SmallString {
+    fn from(ch: char) -> Self {
+        Self::from_code_point(ch)
+    }
+}
+
 #[test]
 fn valid_stack_strings() {
     assert!(SmallString::try_from("").is_ok());
