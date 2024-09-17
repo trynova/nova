@@ -756,9 +756,11 @@ impl StringPrototype {
         }
 
         // 8. Split the string
-        let split = s.as_str(agent).split(separator_str.as_str(agent));
+        let subject = s.as_str(agent).to_owned();
+        let separator = separator_str.as_str(agent).to_owned();
+        let split = subject.split(&separator);
 
-        // 9. The limit must be postive integer or 0
+        // 9. The limit must be positive integer or 0
         let limit = if limit.is_sign_negative(agent) || !limit.is_finite(agent) {
             0 as usize
         } else {
@@ -777,9 +779,7 @@ impl StringPrototype {
 
         let results = Array::from_slice(agent, results.as_slice());
 
-        // TODO
-
-        todo!()
+        Ok(results.into_value())
     }
 
     fn starts_with(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
