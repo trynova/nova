@@ -20,6 +20,7 @@ use crate::{
     },
 };
 
+pub(crate) use abstract_operations::allocate_array_buffer;
 pub use data::ArrayBufferHeapData;
 use std::ops::{Index, IndexMut};
 
