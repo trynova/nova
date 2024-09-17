@@ -762,7 +762,7 @@ impl StringPrototype {
         let limit = if limit.is_sign_negative(agent) || !limit.is_finite(agent) {
             0 as usize
         } else {
-            limit.into_f32(agent) as usize
+            limit.into_i64(agent) as usize
         };
 
         // 10 Collect the results
