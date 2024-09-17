@@ -5,8 +5,8 @@
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 use std::{
-    alloc::{alloc_zeroed, dealloc, handle_alloc_error, Layout},
-    ptr::{read_unaligned, write_bytes, write_unaligned, NonNull},
+    alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc, Layout},
+    ptr::{read_unaligned, write_unaligned, NonNull},
 };
 
 use crate::ecmascript::execution::{agent::ExceptionType, Agent, JsResult};
@@ -26,14 +26,13 @@ use crate::ecmascript::execution::{agent::ExceptionType, Agent, JsResult};
 #[derive(Debug, Clone)]
 pub(crate) struct DataBlock {
     ptr: Option<NonNull<u8>>,
-    cap: usize,
     byte_length: usize,
 }
 
 impl Drop for DataBlock {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
-            let layout = Layout::from_size_align(self.cap, 8).unwrap();
+            let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
             unsafe { dealloc(ptr.as_ptr(), layout) }
         }
     }
@@ -83,52 +82,13 @@ impl DataBlock {
         };
         Self {
             ptr,
-            cap: len,
             byte_length: len,
         }
     }
 
-    pub fn new_with_capacity(len: usize, cap: usize) -> Self {
-        debug_assert!(cap >= len);
-        let ptr = if cap == 0 {
-            None
-        } else {
-            let layout = Layout::from_size_align(cap, 8).unwrap();
-            // SAFETY: Size of allocation is non-zero.
-            let data = unsafe { alloc_zeroed(layout) };
-            if data.is_null() {
-                handle_alloc_error(layout);
-            }
-            debug_assert_eq!(data.align_offset(8), 0);
-            NonNull::new(data)
-        };
-        Self {
-            ptr,
-            cap,
-            byte_length: len,
-        }
-    }
-
+    #[inline]
     pub fn len(&self) -> usize {
         self.byte_length
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.cap
-    }
-
-    pub fn resize(&mut self, size: usize) {
-        debug_assert!(size <= self.cap);
-        let len = self.byte_length;
-        self.byte_length = size;
-        if size < len {
-            // Zero out the "dropped" bytes.
-            if let Some(data) = self.ptr {
-                // SAFETY: The data is properly initialized, and the T being written is
-                // checked to be fully within the length of the data allocation.
-                unsafe { write_bytes(data.as_ptr().add(size), 0, len - size) }
-            }
-        }
     }
 
     pub fn view_len<T: Viewable>(&self, byte_offset: usize) -> usize {
@@ -303,9 +263,9 @@ impl DataBlock {
             to_block.ptr.is_none()
                 || from_block.ptr.is_none()
                 || unsafe {
-                    to_block.ptr.unwrap().as_ptr().add(to_block.capacity())
+                    to_block.ptr.unwrap().as_ptr().add(to_block.len())
                         <= from_block.ptr.unwrap().as_ptr()
-                        || from_block.ptr.unwrap().as_ptr().add(from_block.capacity())
+                        || from_block.ptr.unwrap().as_ptr().add(from_block.len())
                             <= to_block.ptr.unwrap().as_ptr()
                 }
         );
@@ -350,40 +310,42 @@ impl DataBlock {
         unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
         // 7. Return UNUSED.
     }
+
+    pub fn realloc(&mut self, new_byte_length: usize) {
+        // Max byte length should be within safe integer length.
+        debug_assert!(new_byte_length < 2usize.pow(53));
+        let ptr = self
+            .as_mut_ptr(0)
+            .expect("Tried to realloc a detached DataBlock");
+        let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
+        if new_byte_length == 0 {
+            // When resizing to zero, we just drop the data instead.
+            if let Some(ptr) = self.ptr {
+                unsafe { dealloc(ptr.as_ptr(), layout) };
+            }
+            self.ptr = None;
+            self.byte_length = 0;
+            return;
+        }
+        // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
+        // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
+        // size is non-zero, and cannot overflow isize (on a 64-bit machine).
+        let ptr = unsafe { realloc(ptr, layout, new_byte_length) };
+        self.ptr = NonNull::new(ptr);
+        self.byte_length = new_byte_length;
+    }
 }
 
 #[test]
 fn new_data_block() {
     let db = DataBlock::new(0);
     assert_eq!(db.len(), 0);
-    assert_eq!(db.capacity(), 0);
     assert_eq!(db.get::<u8>(0), None);
 
     let db = DataBlock::new(8);
     assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 8);
     for i in 0..8 {
         assert_eq!(db.get::<u8>(i), Some(0));
-    }
-}
-
-#[test]
-fn new_data_block_with_capacity() {
-    let db = DataBlock::new_with_capacity(0, 8);
-    assert_eq!(db.len(), 0);
-    assert_eq!(db.capacity(), 8);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i), None);
-    }
-
-    let db = DataBlock::new_with_capacity(8, 16);
-    assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 16);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i), Some(0));
-    }
-    for i in 8..16 {
-        assert_eq!(db.get::<u8>(i), None);
     }
 }
 
@@ -391,7 +353,6 @@ fn new_data_block_with_capacity() {
 fn data_block_set() {
     let mut db = DataBlock::new(8);
     assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 8);
     for i in 0..8 {
         assert_eq!(db.get::<u8>(i), Some(0));
     }
@@ -402,34 +363,6 @@ fn data_block_set() {
 
     for i in 0..8 {
         assert_eq!(db.get::<u8>(i as usize), Some(i + 1));
-    }
-}
-
-#[test]
-fn data_block_resize() {
-    let mut db = DataBlock::new_with_capacity(0, 8);
-    db.resize(8);
-    assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 8);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), Some(0));
-    }
-
-    for i in 0..8 {
-        db.set::<u8>(i as usize, i + 1);
-    }
-
-    let ptr = db.as_ptr(0).unwrap();
-    db.resize(0);
-
-    // SAFETY: Backing store is not deallocated: Zero index pointer is still valid
-    // and is not read beyond its allocated capacity. The only usual safety requirement
-    // broken is to read beyond the buffer length, which is safe as the outside is still
-    // properly initialized u8s.
-    unsafe {
-        for i in 0..8 {
-            assert_eq!(ptr.add(i).read(), 0);
-        }
     }
 }
 

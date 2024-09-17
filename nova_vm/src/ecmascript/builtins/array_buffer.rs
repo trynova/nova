@@ -20,7 +20,9 @@ use crate::{
     },
 };
 
-pub(crate) use abstract_operations::allocate_array_buffer;
+pub(crate) use abstract_operations::{
+    allocate_array_buffer, is_detached_buffer, is_fixed_length_array_buffer,
+};
 pub use data::ArrayBufferHeapData;
 use std::ops::{Index, IndexMut};
 
@@ -29,6 +31,80 @@ use std::ops::{Index, IndexMut};
 pub struct ArrayBuffer(ArrayBufferIndex);
 
 impl ArrayBuffer {
+    pub fn is_resizable(self, agent: &Agent) -> bool {
+        matches!(&agent[self].buffer, data::InternalBuffer::Resizable(_))
+    }
+
+    pub fn byte_length(self, agent: &Agent) -> usize {
+        match &agent[self].buffer {
+            data::InternalBuffer::Detached => 0,
+            data::InternalBuffer::FixedLength(data_block)
+            | data::InternalBuffer::Resizable((data_block, _)) => data_block.len(),
+            data::InternalBuffer::SharedFixedLength(_) => todo!(),
+            data::InternalBuffer::SharedResizableLength(_) => todo!(),
+        }
+    }
+
+    #[inline]
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        match &agent[self].buffer {
+            data::InternalBuffer::Detached => 0,
+            data::InternalBuffer::FixedLength(data_block) => data_block.len(),
+            data::InternalBuffer::Resizable((_, capacity)) => *capacity,
+            data::InternalBuffer::SharedFixedLength(_) => todo!(),
+            data::InternalBuffer::SharedResizableLength(_) => todo!(),
+        }
+    }
+
+    /// Resize a Resizable ArrayBuffer.
+    ///
+    /// `new_byte_length` must be a safe integer.
+    pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
+        if let data::InternalBuffer::Resizable((data_block, _)) = &mut agent[self].buffer {
+            data_block.realloc(new_byte_length);
+        } else {
+            unreachable!();
+        }
+    }
+
+    /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
+    ///
+    /// `self` and `source` must be different ArrayBuffers.
+    pub(crate) fn copy_array_buffer_data(
+        self,
+        agent: &mut Agent,
+        source: ArrayBuffer,
+        first: usize,
+        count: usize,
+    ) {
+        debug_assert_ne!(self, source);
+        let array_buffers = &mut *agent.heap.array_buffers;
+        let (source_data, target_data) = if self.get_index() > source.get_index() {
+            let (before, after) = array_buffers.split_at_mut(self.get_index());
+            (
+                before[source.get_index()].as_ref().unwrap(),
+                after[0].as_mut().unwrap(),
+            )
+        } else {
+            let (before, after) = array_buffers.split_at_mut(source.get_index());
+            (
+                after[0].as_ref().unwrap(),
+                before[self.get_index()].as_mut().unwrap(),
+            )
+        };
+        let source_data = match &source_data.buffer {
+            data::InternalBuffer::FixedLength(block)
+            | data::InternalBuffer::Resizable((block, _)) => block,
+            _ => unreachable!(),
+        };
+        let target_data = match &mut target_data.buffer {
+            data::InternalBuffer::FixedLength(block)
+            | data::InternalBuffer::Resizable((block, _)) => block,
+            _ => unreachable!(),
+        };
+        target_data.copy_data_block_bytes(0, source_data, first, count);
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(ArrayBufferIndex::from_u32_index(0))
     }

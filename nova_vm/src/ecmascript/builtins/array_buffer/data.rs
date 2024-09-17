@@ -13,7 +13,7 @@ use crate::{
 pub(crate) enum InternalBuffer {
     Detached,
     FixedLength(ManuallyDrop<DataBlock>),
-    Resizable(ManuallyDrop<DataBlock>),
+    Resizable((ManuallyDrop<DataBlock>, usize)),
     // TODO: Implement SharedDataBlock
     SharedFixedLength(()),
     SharedResizableLength(()),
@@ -39,10 +39,10 @@ impl Default for ArrayBufferHeapData {
 unsafe impl Send for ArrayBufferHeapData {}
 
 impl ArrayBufferHeapData {
-    pub(crate) fn new_resizable(db: DataBlock) -> Self {
+    pub(crate) fn new_resizable(db: DataBlock, cap: usize) -> Self {
         Self {
             object_index: None,
-            buffer: InternalBuffer::Resizable(ManuallyDrop::new(db)),
+            buffer: InternalBuffer::Resizable((ManuallyDrop::new(db), cap)),
         }
     }
 
@@ -53,6 +53,7 @@ impl ArrayBufferHeapData {
         }
     }
 
+    #[inline]
     pub(crate) fn is_detached_buffer(&self) -> bool {
         matches!(self.buffer, InternalBuffer::Detached)
     }

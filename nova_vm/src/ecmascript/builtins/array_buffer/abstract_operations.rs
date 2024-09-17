@@ -62,15 +62,11 @@ pub(crate) fn allocate_array_buffer(
     //      a. If it is not possible to create a Data Block block consisting of maxByteLength bytes, throw a RangeError exception.
     //      b. NOTE: Resizable ArrayBuffers are designed to be implementable with in-place growth. Implementations may throw if, for example, virtual memory cannot be reserved up front.
     //      c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
-    let mut block =
-        DataBlock::create_byte_data_block(agent, max_byte_length.unwrap_or(byte_length))?;
-    if allocating_resizable_buffer {
-        block.resize(byte_length as usize);
-    }
+    let block = DataBlock::create_byte_data_block(agent, byte_length)?;
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
     let obj = if allocating_resizable_buffer {
-        ArrayBufferHeapData::new_resizable(block)
+        ArrayBufferHeapData::new_resizable(block, max_byte_length.unwrap() as usize)
     } else {
         ArrayBufferHeapData::new_fixed_length(block)
     };
@@ -104,8 +100,9 @@ pub(crate) fn array_buffer_byte_length(
     // 3. Return arrayBuffer.[[ArrayBufferByteLength]].
     match &array_buffer.buffer {
         InternalBuffer::Detached => unreachable!(),
-        InternalBuffer::FixedLength(block) => block.len() as i64,
-        InternalBuffer::Resizable(block) => block.len() as i64,
+        InternalBuffer::FixedLength(block) | InternalBuffer::Resizable((block, _)) => {
+            block.len() as i64
+        }
         InternalBuffer::SharedFixedLength(_) => todo!(),
         InternalBuffer::SharedResizableLength(_) => todo!(),
     }
@@ -115,6 +112,7 @@ pub(crate) fn array_buffer_byte_length(
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer or a SharedArrayBuffer) and returns a Boolean.
+#[inline]
 pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
@@ -186,16 +184,14 @@ pub(crate) fn clone_array_buffer(
     // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
     let src_block = match &src_buffer.buffer {
         InternalBuffer::Detached => unreachable!(),
-        InternalBuffer::FixedLength(block) => block,
-        InternalBuffer::Resizable(block) => block,
+        InternalBuffer::FixedLength(block) | InternalBuffer::Resizable((block, _)) => block,
         InternalBuffer::SharedFixedLength(_) => todo!(),
         InternalBuffer::SharedResizableLength(_) => todo!(),
     };
     // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
     let target_block = match &mut target_buffer_data.buffer {
         InternalBuffer::Detached => unreachable!(),
-        InternalBuffer::FixedLength(block) => block,
-        InternalBuffer::Resizable(block) => block,
+        InternalBuffer::FixedLength(block) | InternalBuffer::Resizable((block, _)) => block,
         InternalBuffer::SharedFixedLength(_) => todo!(),
         InternalBuffer::SharedResizableLength(_) => todo!(),
     };
@@ -276,8 +272,8 @@ pub(crate) fn host_resize_array_buffer(
     match &mut buffer.buffer {
         InternalBuffer::Detached => false,
         InternalBuffer::FixedLength(_) => false,
-        InternalBuffer::Resizable(block) => {
-            block.resize(new_byte_length as usize);
+        InternalBuffer::Resizable((block, _)) => {
+            block.realloc(new_byte_length as usize);
             true
         }
         InternalBuffer::SharedFixedLength(_) => false,
