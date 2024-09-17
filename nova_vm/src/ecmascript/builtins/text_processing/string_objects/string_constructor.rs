@@ -24,6 +24,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::heap::IntrinsicConstructorIndexes;
+use crate::SmallString;
 
 pub struct StringConstructor;
 
@@ -39,7 +40,7 @@ impl BuiltinIntrinsicConstructor for StringConstructor {
 struct StringFromCharCode;
 impl Builtin for StringFromCharCode {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_char_code);
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const NAME: String = BUILTIN_STRING_MEMORY.fromCharCode;
 }
 struct StringFromCodePoint;
@@ -112,20 +113,63 @@ impl StringConstructor {
         Ok(s.into_value())
     }
 
+    /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
+    ///
+    /// This function may be called with any number of arguments which form
+    /// the rest parameter `codeUnits`.
     fn from_char_code(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        code_units: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // 1. Let result be the empty String.
+        // 2. For each element next of codeUnits, do
+        //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
+        //   b. Set result to the string-concatenation of result and nextCU.
+        // 3. Return result.
+
+        if code_units.is_empty() {
+            return Ok(String::EMPTY_STRING.into_value());
+        }
+
+        // fast path: only a single valid code unit
+        if code_units.len() == 1 {
+            let cu = code_units.get(0).to_uint16(agent)?;
+            if let Some(cu) = char::from_u32(cu as u32) {
+                return Ok(SmallString::from(cu).into());
+            }
+        }
+
+        let mut buf = Vec::with_capacity(code_units.len());
+
+        for next in code_units.iter() {
+            let code_unit = next.to_uint16(agent)?;
+            buf.push(code_unit);
+        }
+        let result = std::string::String::from_utf16_lossy(&buf);
+
+        Ok(String::from_string(agent, result).into())
     }
 
+    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
+    ///
+    /// This function may be called with any number of arguments which form
+    /// the rest parameter `codePoints`.
     fn from_code_point(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // 1. Let result be the empty String.
+        // 2. For each element next of codePoints, do
+        //     a. Let nextCP be ? ToNumber(next).
+        //     b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
+        //     c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+        //     d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+        // 3. Assert: If codePoints is empty, then result is the empty String.
+        // 4. Return result.
+
+        todo!()
     }
 
     fn raw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {

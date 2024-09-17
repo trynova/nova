@@ -12,7 +12,7 @@ use super::{
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
-            to_big_int, to_int32, to_number, to_numeric, to_string, to_uint32,
+            to_big_int, to_int16, to_int32, to_number, to_numeric, to_string, to_uint16, to_uint32,
         },
         builtins::{
             bound_function::BoundFunction,
@@ -441,6 +441,14 @@ impl Value {
 
     pub fn to_uint32(self, agent: &mut Agent) -> JsResult<u32> {
         to_uint32(agent, self)
+    }
+
+    pub fn to_int16(self, agent: &mut Agent) -> JsResult<i16> {
+        to_int16(agent, self)
+    }
+
+    pub fn to_uint16(self, agent: &mut Agent) -> JsResult<u16> {
+        to_uint16(agent, self)
     }
 
     pub fn to_string(self, agent: &mut Agent) -> JsResult<String> {
