@@ -16,6 +16,7 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            array_create,
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
         },
@@ -732,7 +733,31 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring).into_value())
     }
 
-    fn split(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn split(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+        // 2. Let S be ? ToString(O).
+        let _s = to_string(agent, o)?;
+
+        // 3. Let isRegExp be ? IsRegExp(searchString).
+        // 4. If isRegExp is true, throw a TypeError exception.
+        // TODO
+
+        // 5. Let separatorStr be ? ToString(separatorString).
+        let _separator_str = to_string(agent, args.get(0))?;
+
+        // 6. Let limit be ? ToIntegerOrInfinity(limit).
+        let limit = to_integer_or_infinity(agent, args.get(1))?;
+
+        // 7. If the limit is 0, return empty array
+        if !limit.is_nonzero(agent) {
+            let a = array_create(agent, 0, 0, None)?;
+            return Ok(a.into_value());
+        }
+
+        // 8. If the limit is positive and not infinite, limit
+        // TODO
+
         todo!()
     }
 
