@@ -18,7 +18,7 @@ use crate::{
         builtins::{
             array_create,
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
+            ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
@@ -737,14 +737,14 @@ impl StringPrototype {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
         // 2. Let S be ? ToString(O).
-        let _s = to_string(agent, o)?;
+        let s = to_string(agent, o)?;
 
         // 3. Let isRegExp be ? IsRegExp(searchString).
         // 4. If isRegExp is true, throw a TypeError exception.
         // TODO
 
         // 5. Let separatorStr be ? ToString(separatorString).
-        let _separator_str = to_string(agent, args.get(0))?;
+        let separator_str = to_string(agent, args.get(0))?;
 
         // 6. Let limit be ? ToIntegerOrInfinity(limit).
         let limit = to_integer_or_infinity(agent, args.get(1))?;
@@ -755,7 +755,28 @@ impl StringPrototype {
             return Ok(a.into_value());
         }
 
-        // 8. If the limit is positive and not infinite, limit
+        // 8. Split the string
+        let split = s.as_str(agent).split(separator_str.as_str(agent));
+
+        // 9. The limit must be postive integer or 0
+        let limit = if limit.is_sign_negative(agent) || !limit.is_finite(agent) {
+            0 as usize
+        } else {
+            limit.into_f32(agent) as usize
+        };
+
+        // 10 Collect the results
+        let mut results: Vec<Value> = Vec::new();
+
+        for (i, part) in split.enumerate() {
+            if limit != 0 && limit >= i {
+                break;
+            }
+            results.push(Value::from_str(agent, part));
+        }
+
+        let results = Array::from_slice(agent, results.as_slice());
+
         // TODO
 
         todo!()
