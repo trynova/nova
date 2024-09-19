@@ -762,7 +762,7 @@ impl StringPrototype {
 
         // 9. The limit must be positive integer or 0
         let limit = if limit.is_sign_negative(agent) || !limit.is_finite(agent) {
-            0 as usize
+            0
         } else {
             limit.into_i64(agent) as usize
         };
