@@ -744,39 +744,59 @@ impl StringPrototype {
         // TODO
 
         // 5. Let separatorStr be ? ToString(separatorString).
-        let separator_str = to_string(agent, args.get(0))?;
+        let separator_value = args.get(0);
 
-        // 6. Let limit be ? ToIntegerOrInfinity(limit).
-        let limit = to_integer_or_infinity(agent, args.get(1))?;
+        // 6. If separator is undefined, return an array with this.
+        if let Value::Undefined = separator_value {
+            let slice: [Value; 1] = [this_value];
+            let results = Array::from_slice(agent, &slice);
 
-        // 7. If the limit is 0, return empty array
-        if !limit.is_nonzero(agent) {
+            return Ok(results.into_value());
+        }
+
+        let separator_str = to_string(agent, separator_value)?;
+
+        // 7. Let limit to be a number
+        let limit = to_number(agent, args.get(1))?;
+
+        // 8. If the limit is zero, returns an empty array
+        if limit.is_pos_zero(agent) || limit.is_neg_zero(agent) {
             let a = array_create(agent, 0, 0, None)?;
             return Ok(a.into_value());
         }
 
-        // 8. Split the string
+        // 9. Split the string
         let subject = s.as_str(agent).to_owned();
         let separator = separator_str.as_str(agent).to_owned();
         let split = subject.split(&separator);
 
-        // 9. The limit must be positive integer or 0
-        let limit = if limit.is_sign_negative(agent) || !limit.is_finite(agent) {
-            0
-        } else {
+        // 10. The limit must be positive integer or 0
+        let limit = if limit.is_sign_positive(agent) {
             limit.into_i64(agent) as usize
+        } else {
+            0
         };
 
-        // 10 Collect the results
+        // 11 Collect the results
         let mut results: Vec<Value> = Vec::new();
-
         for (i, part) in split.enumerate() {
-            if limit != 0 && limit >= i {
+            if limit != 0 && limit <= i {
                 break;
             }
             results.push(Value::from_str(agent, part));
         }
 
+        // 12. If separator is empty, Rust's split inserts an empty string in the beginning and end of the array
+        if separator.is_empty() {
+            if results.len() > 1 {
+                results.remove(0);
+            }
+            if results.len() > 1 {
+                results.pop();
+            }
+        }
+
+        // 13. Create an array and return it
         let results = Array::from_slice(agent, results.as_slice());
 
         Ok(results.into_value())
