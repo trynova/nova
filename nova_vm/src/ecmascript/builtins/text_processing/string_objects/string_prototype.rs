@@ -749,10 +749,11 @@ impl StringPrototype {
         // 3. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
 
-        // 4. If limit is undefined, lim is u32::MAX - 1.
+        // 4. If limit is undefined, lim is 2**32 - 1.
         let limit = args.get(0);
         let lim = match limit {
-            Value::Undefined => u32::MAX,
+            Value::Undefined => u32::MAX -1,
+            Value::Integer(value) => value.into_i64() as u32,
             _ => to_uint32(agent, limit)?,
         };
 
@@ -766,7 +767,7 @@ impl StringPrototype {
         }
 
         // 7. If separator is undefined, return an array with the whole string
-        if let Value::Undefined = separator {
+        if separator.is_undefined() {
             let list: [Value; 1] = [s.into_value()];
             return Ok(create_array_from_list(agent, &list).into_value());
         }
@@ -781,7 +782,6 @@ impl StringPrototype {
             let mut results: Vec<Value> = Vec::new();
 
             for (i, part) in head.enumerate() {
-                println!("--->{}-{}", i, part);
                 if lim as usize == i {
                     break;
                 }
