@@ -749,10 +749,12 @@ impl StringPrototype {
         // 3. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
 
-        // 4. If limit is undefined, lim is 2**32 - 1.
         let limit = args.get(0);
         let lim = match limit {
+            // 4. If limit is undefined, lim is 2**32 - 1.
             Value::Undefined => u32::MAX,
+            // else let lim be ℝ(? ToUint32(limit)).
+            // Note: Fast path for integer parameter.
             Value::Integer(value) => value.into_i64() as u32,
             _ => to_uint32(agent, limit)?,
         };
