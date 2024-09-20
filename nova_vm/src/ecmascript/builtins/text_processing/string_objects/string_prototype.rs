@@ -752,7 +752,7 @@ impl StringPrototype {
         // 4. If limit is undefined, lim is 2**32 - 1.
         let limit = args.get(0);
         let lim = match limit {
-            Value::Undefined => u32::MAX -1,
+            Value::Undefined => u32::MAX,
             Value::Integer(value) => value.into_i64() as u32,
             _ => to_uint32(agent, limit)?,
         };
