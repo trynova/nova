@@ -883,6 +883,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         object_index: None,
         length: 0,
         ecmascript_function,
+        compiled_bytecode: None,
         name: None,
     };
     if let Some(function_prototype) = params.function_prototype {

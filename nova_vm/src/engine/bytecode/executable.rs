@@ -16,9 +16,7 @@ use crate::{
             function_definitions::{CompileFunctionBodyData, ContainsExpression},
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
-        types::{
-            BigInt, IntoValue, Number, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
-        },
+        types::{BigInt, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
@@ -72,7 +70,6 @@ impl CompileContext<'_> {
                 instructions: Vec::new(),
                 constants: Vec::new(),
                 identifiers: Vec::new(),
-                references: Vec::new(),
                 function_expressions: Vec::new(),
                 arrow_function_expressions: Vec::new(),
             },
@@ -159,7 +156,6 @@ pub(crate) struct Executable {
     pub instructions: Vec<u8>,
     pub(crate) constants: Vec<Value>,
     pub(crate) identifiers: Vec<String>,
-    pub(crate) references: Vec<Reference>,
     pub(crate) function_expressions: Vec<FunctionExpression>,
     pub(crate) arrow_function_expressions: Vec<ArrowFunctionExpression>,
 }
@@ -3045,12 +3041,10 @@ impl HeapMarkAndSweep for Executable {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.constants.as_slice().mark_values(queues);
         self.identifiers.as_slice().mark_values(queues);
-        self.references.as_slice().mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.constants.as_mut_slice().sweep_values(compactions);
         self.identifiers.as_mut_slice().sweep_values(compactions);
-        self.references.as_mut_slice().sweep_values(compactions);
     }
 }
