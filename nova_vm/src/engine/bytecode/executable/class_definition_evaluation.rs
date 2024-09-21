@@ -562,7 +562,6 @@ fn define_constructor_method(
     //     a. Let prototype be %Function.prototype%.
     // 6. Let sourceText be the source text matched by MethodDefinition.
     // 7. Let closure be OrdinaryFunctionCreate(prototype, sourceText, UniqueFormalParameters, FunctionBody, non-lexical-this, env, privateEnv).
-    
 
     // result: method
     // stack: [proto]
@@ -624,7 +623,6 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
     };
     // CompileContext holds a name identifier for us if this is NamedEvaluation.
     let identifier = ctx.name_identifier.take();
-    
 
     // 8. Perform MakeMethod(closure, object).
     // Note: MakeMethod is performed as part of ObjectDefineMethod.
