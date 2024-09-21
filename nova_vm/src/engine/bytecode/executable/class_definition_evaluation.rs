@@ -5,10 +5,13 @@
 use crate::{
     ecmascript::{
         execution::agent::ExceptionType,
-        syntax_directed_operations::scope_analysis::{
-            class_static_block_lexically_scoped_declarations,
-            class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
-            LexicallyScopedDeclaration, VarScopedDeclaration,
+        syntax_directed_operations::{
+            function_definitions::CompileFunctionBodyData,
+            scope_analysis::{
+                class_static_block_lexically_scoped_declarations,
+                class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
+                LexicallyScopedDeclaration, VarScopedDeclaration,
+            },
         },
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -22,6 +25,8 @@ use oxc_ast::{
     ast::{self, MethodDefinitionKind},
     syntax_directed_operations::{BoundNames, PrivateBoundIdentifiers, PropName},
 };
+
+use super::IndexType;
 
 impl CompileEvaluation for ast::Class<'_> {
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
@@ -266,9 +271,13 @@ impl CompileEvaluation for ast::Class<'_> {
         }
 
         // 14. If constructor is not empty, then
-        if let Some(constructor) = constructor {
+        let constructor_expression_index = if let Some(constructor) = constructor {
             // a. Let constructorInfo be ! DefineMethod of constructor with arguments proto and constructorParent.
-            define_constructor_method(ctx, constructor, has_constructor_parent);
+            Some(define_constructor_method(
+                ctx,
+                constructor,
+                has_constructor_parent,
+            ))
             // b. Let F be constructorInfo.[[Closure]].
             // c. Perform MakeClassConstructor(F).
             // d. Perform SetFunctionName(F, className).
@@ -282,7 +291,8 @@ impl CompileEvaluation for ast::Class<'_> {
                 Instruction::ClassDefineDefaultConstructor,
                 has_constructor_parent.into(),
             );
-        }
+            None
+        };
 
         // result: F
         // stack: [proto]
@@ -319,7 +329,7 @@ impl CompileEvaluation for ast::Class<'_> {
         // 22. Let staticPrivateMethods be a new empty List.
         // let mut static_private_methods = vec![];
         // 23. Let instanceFields be a new empty List.
-        // let mut instance_fields = vec![];
+        let mut instance_fields = vec![];
         // 24. Let staticElements be a new empty List.
         let mut static_elements = vec![];
         // 25. For each ClassElement e of elements, do
@@ -349,7 +359,21 @@ impl CompileEvaluation for ast::Class<'_> {
                     }
                     define_method(method_definition, ctx);
                 }
-                ast::ClassElement::PropertyDefinition(_) => todo!(),
+                ast::ClassElement::PropertyDefinition(property_definition) => {
+                    if property_definition.computed {
+                        compile_computed_field_name(
+                            ctx,
+                            &mut instance_fields,
+                            &property_definition.key,
+                            &property_definition.value,
+                        );
+                    } else {
+                        instance_fields.push(PropertyInitializerField::Static((
+                            &property_definition.key,
+                            &property_definition.value,
+                        )));
+                    }
+                }
                 ast::ClassElement::AccessorProperty(_) => todo!(),
                 #[cfg(feature = "typescript")]
                 ast::ClassElement::TSIndexSignature(_) => {}
@@ -405,6 +429,45 @@ impl CompileEvaluation for ast::Class<'_> {
 
         // 28. Set F.[[PrivateMethods]] to instancePrivateMethods.
         // 29. Set F.[[Fields]] to instanceFields.
+        if !instance_fields.is_empty() {
+            let mut constructor_ctx = CompileContext::new(ctx.agent);
+            for ele in instance_fields {
+                match ele {
+                    PropertyInitializerField::Static((property_key, value)) => {
+                        constructor_ctx.compile_class_static_field(property_key, value);
+                    }
+                    PropertyInitializerField::Computed((key_id, value)) => {
+                        constructor_ctx.compile_class_computed_field(key_id, value);
+                    }
+                }
+            }
+            let constructor =
+                constructor.expect("Class fields with default constructor not supported yet");
+            let constructor_expression_index = constructor_expression_index.unwrap();
+            let constructor_data = CompileFunctionBodyData {
+                // SAFETY: The SourceCode that contains this code cannot be garbage collected
+                // as long as the constructor function we produce here lives.
+                body: unsafe {
+                    std::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
+                        constructor.value.body.as_ref().unwrap(),
+                    )
+                },
+                // SAFETY: The SourceCode that contains this code cannot be garbage collected
+                // as long as the constructor function we produce here lives.
+                params: unsafe {
+                    std::mem::transmute::<&ast::FormalParameters<'_>, &ast::FormalParameters<'static>>(
+                        &constructor.value.params,
+                    )
+                },
+                is_concise_body: false,
+                is_lexical: false,
+                is_strict: false,
+            };
+            constructor_ctx.compile_function_body(constructor_data);
+            let executable = constructor_ctx.finish();
+            ctx.function_expressions[constructor_expression_index as usize].compiled_bytecode =
+                Some(executable);
+        }
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).
         // 31. For each element elementRecord of staticElements, do
@@ -442,6 +505,35 @@ impl CompileEvaluation for ast::Class<'_> {
     }
 }
 
+#[derive(Debug)]
+enum PropertyInitializerField<'a> {
+    Static((&'a ast::PropertyKey<'a>, &'a Option<ast::Expression<'a>>)),
+    Computed((String, &'a Option<ast::Expression<'a>>)),
+}
+
+fn compile_computed_field_name<'a>(
+    ctx: &mut CompileContext,
+    property_fields: &mut Vec<PropertyInitializerField<'a>>,
+    key: &ast::PropertyKey<'_>,
+    value: &'a Option<ast::Expression<'a>>,
+) {
+    let computed_key_id = String::from_string(ctx.agent, format!("^{}", property_fields.len()));
+    let key = match key {
+        // These should not show up as computed
+        ast::PropertyKey::StaticMemberExpression(_)
+        | ast::PropertyKey::PrivateFieldExpression(_) => unreachable!(),
+        _ => key.as_expression().unwrap(),
+    };
+    ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, computed_key_id);
+    key.compile(ctx);
+    if is_reference(key) {
+        ctx.add_instruction(Instruction::GetValue);
+    }
+    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, computed_key_id);
+    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+    property_fields.push(PropertyInitializerField::Computed((computed_key_id, value)));
+}
+
 /// Creates an ECMAScript constructor for a class.
 ///
 /// The class name should be at the top of the stack, followed by the
@@ -450,11 +542,13 @@ impl CompileEvaluation for ast::Class<'_> {
 ///
 /// After this call, the constructor will be in the result slot and the class
 /// prototype will be at the top of the stack.
+///
+/// Returns the index of the constructor FunctionExpression
 fn define_constructor_method(
     ctx: &mut CompileContext,
     class_element: &ast::MethodDefinition,
     has_constructor_parent: bool,
-) {
+) -> IndexType {
     // stack: [class_name, proto] or [class_name, constructor_parent, proto]
 
     // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -468,6 +562,14 @@ fn define_constructor_method(
     //     a. Let prototype be %Function.prototype%.
     // 6. Let sourceText be the source text matched by MethodDefinition.
     // 7. Let closure be OrdinaryFunctionCreate(prototype, sourceText, UniqueFormalParameters, FunctionBody, non-lexical-this, env, privateEnv).
+    
+
+    // result: method
+    // stack: [proto]
+
+    // 8. Perform MakeMethod(closure, proto).
+    // Note: MakeMethod is performed as part of ClassDefineConstructor.
+    // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
     ctx.add_instruction_with_function_expression_and_immediate(
         Instruction::ClassDefineConstructor,
         FunctionExpression {
@@ -478,16 +580,10 @@ fn define_constructor_method(
             }),
             // CompileContext holds a name identifier for us if this is NamedEvaluation.
             identifier: None,
+            compiled_bytecode: None,
         },
         has_constructor_parent.into(),
-    );
-
-    // result: method
-    // stack: [proto]
-
-    // 8. Perform MakeMethod(closure, proto).
-    // Note: MakeMethod is performed as part of ClassDefineConstructor.
-    // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+    )
 }
 
 /// Creates a method for an object.
@@ -496,7 +592,7 @@ fn define_constructor_method(
 ///
 /// After this call, the method will be in the result slot and its key will be
 /// at the top of the stack. The object is second on the stack.
-fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) {
+fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) -> IndexType {
     // 1. Let propKey be ? Evaluation of ClassElementName.
     if let Some(prop_name) = class_element.prop_name() {
         let prop_name = String::from_str(ctx.agent, prop_name.0);
@@ -528,6 +624,15 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
     };
     // CompileContext holds a name identifier for us if this is NamedEvaluation.
     let identifier = ctx.name_identifier.take();
+    
+
+    // 8. Perform MakeMethod(closure, object).
+    // Note: MakeMethod is performed as part of ObjectDefineMethod.
+
+    // result: None
+    // stack: [object]
+
+    // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
     ctx.add_instruction_with_function_expression_and_immediate(
         instruction,
         FunctionExpression {
@@ -537,18 +642,11 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
                 )
             }),
             identifier,
+            compiled_bytecode: None,
         },
         // enumerable: false,
         false.into(),
-    );
-
-    // 8. Perform MakeMethod(closure, object).
-    // Note: MakeMethod is performed as part of ObjectDefineMethod.
-
-    // result: None
-    // stack: [object]
-
-    // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+    )
 }
 
 impl CompileEvaluation for ast::StaticBlock<'_> {

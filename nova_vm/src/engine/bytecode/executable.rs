@@ -86,6 +86,142 @@ impl CompileContext<'_> {
         }
     }
 
+    /// Compile a class static field with an optional initializer into the
+    /// current context.
+    pub(crate) fn compile_class_static_field(
+        &mut self,
+        property_key: &ast::PropertyKey<'_>,
+        value: &Option<ast::Expression<'_>>,
+    ) {
+        let identifier = match property_key {
+            ast::PropertyKey::StaticIdentifier(identifier_name) => {
+                String::from_str(self.agent, identifier_name.name.as_str())
+            }
+            ast::PropertyKey::PrivateIdentifier(_private_identifier) => todo!(),
+            ast::PropertyKey::BooleanLiteral(_boolean_literal) => todo!(),
+            ast::PropertyKey::NullLiteral(_null_literal) => todo!(),
+            ast::PropertyKey::NumericLiteral(_numeric_literal) => todo!(),
+            ast::PropertyKey::BigIntLiteral(_big_int_literal) => todo!(),
+            ast::PropertyKey::RegExpLiteral(_reg_exp_literal) => todo!(),
+            ast::PropertyKey::StringLiteral(_string_literal) => todo!(),
+            ast::PropertyKey::TemplateLiteral(_template_literal) => todo!(),
+            _ => unreachable!(),
+        };
+        // Turn the static name to a 'this' property access.
+        self.add_instruction(Instruction::ResolveThisBinding);
+        self.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            identifier,
+        );
+        if let Some(value) = value {
+            // Minor optimisation: We do not need to push and pop the
+            // reference if we know we're not using the reference stack.
+            let is_literal = value.is_literal();
+            if !is_literal {
+                self.add_instruction(Instruction::PushReference);
+            }
+            value.compile(self);
+            if is_reference(value) {
+                self.add_instruction(Instruction::GetValue);
+            }
+            if !is_literal {
+                self.add_instruction(Instruction::PopReference);
+            }
+        } else {
+            // Same optimisation is unconditionally valid here.
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
+        self.add_instruction(Instruction::PutValue);
+    }
+
+    /// Compile a class computed field with an optional initializer into the
+    /// current context.
+    pub(crate) fn compile_class_computed_field(
+        &mut self,
+        property_key_id: String,
+        value: &Option<ast::Expression<'_>>,
+    ) {
+        // Resolve 'this' into the stack.
+        self.add_instruction(Instruction::ResolveThisBinding);
+        self.add_instruction(Instruction::Load);
+        // Resolve the static computed key ID to the actual computed key value.
+        self.add_instruction_with_identifier(Instruction::ResolveBinding, property_key_id);
+        // Store the computed key value as the result.
+        self.add_instruction(Instruction::GetValue);
+        // Evaluate access to 'this' with the computed key.
+        self.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+        if let Some(value) = value {
+            // Minor optimisation: We do not need to push and pop the
+            // reference if we know we're not using the reference stack.
+            let is_literal = value.is_literal();
+            if !is_literal {
+                self.add_instruction(Instruction::PushReference);
+            }
+            value.compile(self);
+            if is_reference(value) {
+                self.add_instruction(Instruction::GetValue);
+            }
+            if !is_literal {
+                self.add_instruction(Instruction::PopReference);
+            }
+        } else {
+            // Same optimisation is unconditionally valid here.
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
+        self.add_instruction(Instruction::PutValue);
+    }
+
+    /// Compile a function body into the current context.
+    ///
+    /// This is useful when the function body is part of a larger whole, namely
+    /// with class constructors.
+    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'_>) {
+        if self.agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Function ===");
+            eprintln!();
+        }
+
+        function_declaration_instantiation::instantiation(
+            self,
+            data.params,
+            data.body,
+            data.is_strict,
+            data.is_lexical,
+        );
+
+        // SAFETY: Script referred by the Function uniquely owns the Program
+        // and the body buffer does not move under any circumstances during
+        // heap operations.
+        let body: &[Statement] = unsafe { std::mem::transmute(data.body.statements.as_slice()) };
+
+        self.compile_statements(body);
+    }
+
+    fn compile_statements(&mut self, body: &[Statement]) {
+        let iter = body.iter();
+
+        for stmt in iter {
+            stmt.compile(self);
+        }
+    }
+
+    fn do_implicit_return(&mut self) {
+        if self.instructions.last() != Some(&Instruction::Return.as_u8()) {
+            // If code did not end with a return statement, add it manually
+            self.add_instruction(Instruction::Return);
+        }
+    }
+
+    fn finish(self) -> Executable {
+        Executable {
+            instructions: self.instructions.into_boxed_slice(),
+            constants: self.constants.into_boxed_slice(),
+            function_expressions: self.function_expressions.into_boxed_slice(),
+            arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
+        }
+    }
+
     pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
         let existing = self.constants.iter().find_map(|constant| {
             if let Ok(existing_identifier) = String::try_from(*constant) {
@@ -253,12 +389,16 @@ impl CompileContext<'_> {
         self.add_index(index);
     }
 
+    /// Add an Instruction that takes a function expression and an immediate
+    /// as its bytecode parameters.
+    ///
+    /// Returns the function expression's index.
     fn add_instruction_with_function_expression_and_immediate(
         &mut self,
         instruction: Instruction,
         function_expression: FunctionExpression,
         immediate: usize,
-    ) {
+    ) -> IndexType {
         debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_function_expression_index());
         self._push_instruction(instruction);
@@ -266,6 +406,9 @@ impl CompileContext<'_> {
         let index = self.function_expressions.len() - 1;
         self.add_index(index);
         self.add_index(immediate);
+        // Note: add_index would have panicked if this was not a lossless
+        // conversion.
+        index as IndexType
     }
 
     fn add_arrow_function_expression(
@@ -315,6 +458,15 @@ pub(crate) struct SendableRef<T: ?Sized + 'static> {
     thread_id: std::thread::ThreadId,
 }
 
+impl<T: ?Sized + 'static> Clone for SendableRef<T> {
+    fn clone(&self) -> Self {
+        Self {
+            reference: self.reference,
+            thread_id: self.thread_id,
+        }
+    }
+}
+
 impl<T: ?Sized> SendableRef<T> {
     /// Creates a new [`SendableRef`] from a reference with a static lifetime.
     pub(crate) fn new(reference: &'static T) -> Self {
@@ -345,13 +497,15 @@ impl<T: ?Sized> SendableRef<T> {
 unsafe impl<T: ?Sized> Send for SendableRef<T> {}
 unsafe impl<T: ?Sized> Sync for SendableRef<T> {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct FunctionExpression {
     pub(crate) expression: SendableRef<ast::Function<'static>>,
     pub(crate) identifier: Option<NamedEvaluationParameter>,
+    /// Optionally eagerly compile the FunctionExpression into bytecode.
+    pub(crate) compiled_bytecode: Option<Executable>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ArrowFunctionExpression {
     pub(crate) expression: SendableRef<ast::ArrowFunctionExpression<'static>>,
     pub(crate) identifier: Option<NamedEvaluationParameter>,
@@ -361,7 +515,7 @@ pub(crate) struct ArrowFunctionExpression {
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Executable {
     pub instructions: Box<[u8]>,
     pub(crate) constants: Box<[Value]>,
@@ -410,36 +564,28 @@ impl Executable {
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
             unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
+        let mut ctx = CompileContext::new(agent);
 
-        Self::_compile_statements(CompileContext::new(agent), body, true)
+        ctx.compile_statements(body);
+        ctx.do_implicit_return();
+        ctx.finish()
     }
 
     pub(crate) fn compile_function_body(
         agent: &mut Agent,
         data: CompileFunctionBodyData<'_>,
     ) -> Executable {
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Compiling Function ===");
-            eprintln!();
-        }
-
         let mut ctx = CompileContext::new(agent);
 
-        function_declaration_instantiation::instantiation(
-            &mut ctx,
-            data.params,
-            data.body,
-            data.is_strict,
-            data.is_lexical,
-        );
+        let is_concise = data.is_concise_body;
 
-        // SAFETY: Script referred by the Function uniquely owns the Program
-        // and the body buffer does not move under any circumstances during
-        // heap operations.
-        let body: &[Statement] = unsafe { std::mem::transmute(data.body.statements.as_slice()) };
+        ctx.compile_function_body(data);
 
-        Self::_compile_statements(ctx, body, data.is_concise_body)
+        if is_concise {
+            ctx.do_implicit_return();
+        }
+
+        ctx.finish()
     }
 
     pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
@@ -448,32 +594,11 @@ impl Executable {
             eprintln!("=== Compiling Eval Body ===");
             eprintln!();
         }
+        let mut ctx = CompileContext::new(agent);
 
-        Self::_compile_statements(CompileContext::new(agent), body, true)
-    }
-
-    fn _compile_statements(
-        mut ctx: CompileContext,
-        body: &[Statement],
-        implicit_return: bool,
-    ) -> Executable {
-        let iter = body.iter();
-
-        for stmt in iter {
-            stmt.compile(&mut ctx);
-        }
-
-        if implicit_return && ctx.instructions.last() != Some(&Instruction::Return.as_u8()) {
-            // If code did not end with a return statement, add it manually
-            ctx.add_instruction(Instruction::Return);
-        }
-
-        Executable {
-            instructions: ctx.instructions.into_boxed_slice(),
-            constants: ctx.constants.into_boxed_slice(),
-            function_expressions: ctx.function_expressions.into_boxed_slice(),
-            arrow_function_expressions: ctx.arrow_function_expressions.into_boxed_slice(),
-        }
+        ctx.compile_statements(body);
+        ctx.do_implicit_return();
+        ctx.finish()
     }
 }
 
@@ -964,6 +1089,7 @@ impl CompileEvaluation for ast::Function<'_> {
                     std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
                 }),
                 identifier,
+                compiled_bytecode: None,
             },
         );
     }
@@ -1101,6 +1227,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                         )
                                     }),
                                     identifier: None,
+                                    compiled_bytecode: None,
                                 },
                                 // enumerable: true,
                                 true.into(),
