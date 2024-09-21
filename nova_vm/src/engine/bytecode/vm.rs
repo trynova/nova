@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::sync::OnceLock;
+use std::{ptr::NonNull, sync::OnceLock};
 
 use ahash::AHashSet;
 use oxc_ast::ast;
@@ -842,6 +842,11 @@ impl Vm {
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
+                if let Some(compiled_bytecode) = &function_expression.compiled_bytecode {
+                    agent[function].compiled_bytecode = Some(NonNull::from(Box::leak(Box::new(
+                        compiled_bytecode.clone(),
+                    ))));
+                }
                 set_function_name(agent, function, name, None);
                 if !function_expression.expression.get().r#async
                     && !function_expression.expression.get().generator
@@ -937,6 +942,11 @@ impl Vm {
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
+                if let Some(compiled_bytecode) = &function_expression.compiled_bytecode {
+                    agent[function].compiled_bytecode = Some(NonNull::from(Box::leak(Box::new(
+                        compiled_bytecode.clone(),
+                    ))));
+                }
                 set_function_name(agent, function, class_name.into(), None);
                 make_constructor(agent, function, Some(false), Some(proto));
                 agent[function].ecmascript_function.home_object = Some(proto);
