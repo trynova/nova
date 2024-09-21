@@ -2912,6 +2912,21 @@ impl CompileEvaluation for ast::TryStatement<'_> {
         ctx.set_jump_target_here(jump_to_end);
     }
 }
+#[cfg(feature = "typescript")]
+impl CompileEvaluation for ast::TSEnumDeclaration<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        // TODO: implement enum declaration
+        // NOTE: remember not to forget to treat const enums differently
+
+        // content of the enum is not evaluated, it is just a declaration
+        ctx.exe.add_instruction(Instruction::ObjectCreate);
+        for _prop in self.members.iter() {
+            todo!("enum member");
+        }
+        // 3. Return enumObj.
+        ctx.exe.add_instruction(Instruction::Store);
+    }
+}
 
 impl CompileEvaluation for ast::WhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
@@ -3020,6 +3035,8 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ForStatement(x) => x.compile(ctx),
             ast::Statement::ThrowStatement(x) => x.compile(ctx),
             ast::Statement::TryStatement(x) => x.compile(ctx),
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(statement) => statement.compile(ctx),
             Statement::BreakStatement(statement) => statement.compile(ctx),
             Statement::ContinueStatement(statement) => statement.compile(ctx),
             Statement::DebuggerStatement(_) => todo!(),
@@ -3039,11 +3056,12 @@ impl CompileEvaluation for ast::Statement<'_> {
             #[cfg(feature = "typescript")]
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
-            Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
+            Statement::TSTypeAliasDeclaration(_)
+            | Statement::TSInterfaceDeclaration(_)
+            | Statement::TSEnumDeclaration(_) => {
                 unreachable!()
             }
-            Statement::TSEnumDeclaration(_)
-            | Statement::TSExportAssignment(_)
+            Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
