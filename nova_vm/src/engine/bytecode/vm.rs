@@ -130,7 +130,8 @@ impl Vm {
     }
 
     fn fetch_identifier(&self, exe: &Executable, index: usize) -> String {
-        exe.identifiers[index]
+        String::try_from(exe.constants[index])
+            .expect("Invalid identifier index: Value was not a String")
     }
 
     fn fetch_constant(&self, exe: &Executable, index: usize) -> Value {
@@ -157,7 +158,6 @@ impl Vm {
             eprintln!();
             eprintln!("=== Executing Executable ===");
             eprintln!("Constants: {:?}", executable.constants);
-            eprintln!("Identifiers: {:?}", executable.identifiers);
             eprintln!();
 
             eprintln!("Instructions:");

@@ -95,8 +95,7 @@ pub(crate) fn instantiation(
     //   d. Assert: The VariableEnvironment of calleeContext and calleeEnv are the same Environment Record.
     //   e. Set the LexicalEnvironment of calleeContext to env.
     if !strict && has_parameter_expressions {
-        ctx.exe
-            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
     }
 
     // 21. For each String paramName of parameterNames, do
@@ -110,17 +109,13 @@ pub(crate) fn instantiation(
 
         // i. Perform ! env.CreateMutableBinding(paramName, false).
         let param_name = String::from_str(ctx.agent, param_name);
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::CreateMutableBinding, param_name);
+        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, param_name);
         // ii. If hasDuplicates is true, then
         if has_duplicates {
             // 1. Perform ! env.InitializeBinding(paramName, undefined).
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, param_name);
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.exe
-                .add_instruction(Instruction::InitializeReferencedBinding);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, param_name);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
     }
 
@@ -133,33 +128,31 @@ pub(crate) fn instantiation(
         //     ii. Let ao be CreateMappedArgumentsObject(func, formals, argumentsList, env).
         // TODO: Currently, we always create an unmapped arguments object, even
         // in non-strict mode.
-        ctx.exe
-            .add_instruction(Instruction::CreateUnmappedArgumentsObject);
+        ctx.add_instruction(Instruction::CreateUnmappedArgumentsObject);
 
         // c. If strict is true, then
         if strict {
             // i. Perform ! env.CreateImmutableBinding("arguments", false).
             // ii. NOTE: In strict mode code early errors prevent attempting to assign to this binding, so its mutability is not observable.
-            ctx.exe.add_instruction_with_identifier(
+            ctx.add_instruction_with_identifier(
                 Instruction::CreateImmutableBinding,
                 BUILTIN_STRING_MEMORY.arguments,
             );
         } else {
             // d. Else,
             //   i. Perform ! env.CreateMutableBinding("arguments", false).
-            ctx.exe.add_instruction_with_identifier(
+            ctx.add_instruction_with_identifier(
                 Instruction::CreateMutableBinding,
                 BUILTIN_STRING_MEMORY.arguments,
             );
         }
 
         // e. Perform ! env.InitializeBinding("arguments", ao).
-        ctx.exe.add_instruction_with_identifier(
+        ctx.add_instruction_with_identifier(
             Instruction::ResolveBinding,
             BUILTIN_STRING_MEMORY.arguments,
         );
-        ctx.exe
-            .add_instruction(Instruction::InitializeReferencedBinding);
+        ctx.add_instruction(Instruction::InitializeReferencedBinding);
 
         // f. Let parameterBindings be the list-concatenation of parameterNames and « "arguments" ».
         // NOTE: reusing `parameter_names` for `parameterBindings`.
@@ -173,7 +166,7 @@ pub(crate) fn instantiation(
     //   a. Perform ? IteratorBindingInitialization of formals with arguments iteratorRecord and env.
     if !formals.has_parameter() {
         // Remove the arguments iterator from the iterator stack.
-        ctx.exe.add_instruction(Instruction::IteratorClose)
+        ctx.add_instruction(Instruction::IteratorClose)
     } else if has_parameter_expressions {
         complex_array_pattern(
             ctx,
@@ -206,15 +199,11 @@ pub(crate) fn instantiation(
             let n_string = String::from_str(ctx.agent, &n);
             instantiated_var_names.insert(n);
             // 2. Perform ! env.CreateMutableBinding(n, false).
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
+            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
             // 3. Perform ! env.InitializeBinding(n, undefined).
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.exe
-                .add_instruction(Instruction::InitializeReferencedBinding);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
         // d. Let varEnv be env.
@@ -224,8 +213,7 @@ pub(crate) fn instantiation(
         //   a. Let lexEnv be varEnv.
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
         if !strict {
-            ctx.exe
-                .add_instruction(Instruction::EnterDeclarativeEnvironment);
+            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         }
     } else {
         // 28. Else,
@@ -252,22 +240,19 @@ pub(crate) fn instantiation(
             let n_string = String::from_str(ctx.agent, &n);
             if !parameter_names.contains(&n) || functions.contains_key(&n) {
                 // a. Let initialValue be undefined.
-                ctx.exe
-                    .add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
+                ctx.add_instruction_with_constant(Instruction::LoadConstant, Value::Undefined);
             } else {
                 // 4. Else,
                 // a. Let initialValue be ! env.GetBindingValue(n, false).
-                ctx.exe
-                    .add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
-                ctx.exe.add_instruction(Instruction::GetValue);
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+                ctx.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::Load);
             }
 
             // 2. Perform ! varEnv.CreateMutableBinding(n, false).
             // 5. Perform ! varEnv.InitializeBinding(n, initialValue).
             // 6. NOTE: A var with the same name as a formal parameter initially has the same value as the corresponding initialized parameter.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::LoadConstant, n_string);
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, n_string);
         }
 
         // 30. If strict is false, then
@@ -280,7 +265,7 @@ pub(crate) fn instantiation(
         // 31. Else,
         //   a. Let lexEnv be varEnv.
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
-        ctx.exe.add_instruction_with_immediate_and_immediate(
+        ctx.add_instruction_with_immediate_and_immediate(
             Instruction::InitializeVariableEnvironment,
             instantiated_var_names.len(),
             strict.into(),
@@ -298,31 +283,26 @@ pub(crate) fn instantiation(
                 decl.id.bound_names(&mut |identifier| {
                     let dn = String::from_str(ctx.agent, &identifier.name);
                     // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::CreateImmutableBinding, dn);
+                    ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, dn);
                 })
             }
             // ii. Else,
             //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
             LexicallyScopedDeclaration::Variable(decl) => decl.id.bound_names(&mut |identifier| {
                 let dn = String::from_str(ctx.agent, &identifier.name);
-                ctx.exe
-                    .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }),
             LexicallyScopedDeclaration::Function(decl) => {
                 let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
-                ctx.exe
-                    .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
             LexicallyScopedDeclaration::Class(decl) => {
                 let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
-                ctx.exe
-                    .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
             LexicallyScopedDeclaration::DefaultExport => {
                 let dn = BUILTIN_STRING_MEMORY._default_;
-                ctx.exe
-                    .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             }
         }
     }
@@ -335,8 +315,7 @@ pub(crate) fn instantiation(
         let f_name = String::from_str(ctx.agent, &f.id.as_ref().unwrap().name);
         // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
         // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
-        ctx.exe.add_instruction(Instruction::PutValue);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
+        ctx.add_instruction(Instruction::PutValue);
     }
 }
