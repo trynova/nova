@@ -63,3 +63,13 @@ pub struct ECMAScriptFunctionHeapData {
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData {}
+
+impl Drop for ECMAScriptFunctionHeapData {
+    fn drop(&mut self) {
+        if let Some(exe) = self.compiled_bytecode.take() {
+            // SAFETY: No references to this compiled bytecode should exist as
+            // otherwise we should not have been garbage collected.
+            drop(unsafe { Box::from_raw(exe.as_ptr()) });
+        }
+    }
+}
