@@ -1116,6 +1116,11 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
             .script_or_module
             .mark_values(queues);
         self.ecmascript_function.home_object.mark_values(queues);
+        if let Some(exe) = &self.compiled_bytecode {
+            // SAFETY: This is a valid, non-null pointer to an owned Executable
+            // that cannot have any live mutable references to it.
+            unsafe { exe.as_ref() }.mark_values(queues);
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -1134,5 +1139,16 @@ impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
         self.ecmascript_function
             .home_object
             .sweep_values(compactions);
+        if let Some(exe) = &mut self.compiled_bytecode {
+            // SAFETY: This is a valid, non-null pointer to an owned Executable
+            // that cannot have any live references to it.
+            // References to this Executable are only created above for marking
+            // and in function_definition for running the function. Both of the
+            // references only live for the duration of a synchronous call and
+            // no longer. Sweeping cannot run concurrently with marking or with
+            // ECMAScript code execution. Hence we can be sure that this is not
+            // an aliasing violation.
+            unsafe { exe.as_mut() }.sweep_values(compactions);
+        }
     }
 }
