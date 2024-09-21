@@ -757,6 +757,20 @@ where
     }
 }
 
+impl<T> HeapMarkAndSweep for Box<[T]>
+where
+    T: HeapMarkAndSweep,
+{
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        self.iter().for_each(|entry| entry.mark_values(queues));
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        self.iter_mut()
+            .for_each(|entry| entry.sweep_values(compactions))
+    }
+}
+
 impl<T> HeapMarkAndSweep for &[T]
 where
     T: HeapMarkAndSweep,
