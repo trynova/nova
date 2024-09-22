@@ -764,14 +764,12 @@ impl StringPrototype {
 
         // 6. If lim is zero, return an empty array
         if lim == 0 {
-            let list: [Value; 0] = [];
-            return Ok(create_array_from_list(agent, &list).into_value());
+            return Ok(create_array_from_list(agent, &[]).into_value());
         }
 
         // 7. If separator is undefined, return an array with the whole string
         if separator.is_undefined() {
-            let list: [Value; 1] = [s.into_value()];
-            return Ok(create_array_from_list(agent, &list).into_value());
+            return Ok(create_array_from_list(agent, &[s.into_value()]).into_value());
         }
 
         // 8. Let separatorLength be the length of R.
@@ -779,22 +777,18 @@ impl StringPrototype {
 
         // 9. If separatorLength = 0, the split by characters
         if separator_length == 0 {
-            let subject = s.as_str(agent).to_owned();
+            let subject = s.as_str(agent);
             let head = subject.split("");
-            let mut results: Vec<Value> = Vec::new();
 
-            for (i, part) in head.enumerate() {
-                if lim as usize == i {
-                    break;
-                }
-                results.push(Value::from_str(agent, part));
-            }
+            let mut results: Vec<Value> = head
+                .enumerate()
+                .skip(1) // Rust's split inserts an empty string in the beginning.
+                .take_while(|(i, _)| *i < lim as usize)
+                .map(|(_, part)| Value::from(SmallString::try_from(part).unwrap()))
+                .collect();
 
-            // Note: Rust's split inserts an empty string in the beginning and end of the array. We remove them
-            if results.len() > 1 {
-                results.remove(0);
-                results.pop();
-            }
+            // Remove the latest empty string if exists
+            results.pop();
 
             let results = Array::from_slice(agent, results.as_slice());
             return Ok(results.into_value());
