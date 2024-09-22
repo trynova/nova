@@ -5,10 +5,13 @@
 use crate::{
     ecmascript::{
         execution::agent::ExceptionType,
-        syntax_directed_operations::scope_analysis::{
-            class_static_block_lexically_scoped_declarations,
-            class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
-            LexicallyScopedDeclaration, VarScopedDeclaration,
+        syntax_directed_operations::{
+            function_definitions::CompileFunctionBodyData,
+            scope_analysis::{
+                class_static_block_lexically_scoped_declarations,
+                class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
+                LexicallyScopedDeclaration, VarScopedDeclaration,
+            },
         },
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -23,6 +26,8 @@ use oxc_ast::{
     syntax_directed_operations::{BoundNames, PrivateBoundIdentifiers, PropName},
 };
 
+use super::IndexType;
+
 impl CompileEvaluation for ast::Class<'_> {
     /// ClassTail : ClassHeritage_opt { ClassBody_opt }
     fn compile(&self, ctx: &mut CompileContext) {
@@ -32,8 +37,7 @@ impl CompileEvaluation for ast::Class<'_> {
         // 2. Let classEnv be NewDeclarativeEnvironment(env).
         // Note: The specification doesn't enter the declaration here, but
         // no user code is run between here and first enter.
-        ctx.exe
-            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
 
         // 3. If classBinding is not undefined, then
         let mut has_class_name_on_stack = false;
@@ -42,23 +46,22 @@ impl CompileEvaluation for ast::Class<'_> {
             // a. Perform ! classEnv.CreateImmutableBinding(classBinding, true).
             let identifier = String::from_str(ctx.agent, class_binding.name.as_str());
             class_identifier = Some(identifier);
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::CreateImmutableBinding, identifier);
+            ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, identifier);
         } else if let Some(anonymous_class_name) = anonymous_class_name {
             has_class_name_on_stack = true;
             match anonymous_class_name {
                 NamedEvaluationParameter::Result => {
-                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.add_instruction(Instruction::Load);
                 }
                 NamedEvaluationParameter::Stack => {}
                 NamedEvaluationParameter::Reference => {
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::Load);
                 }
                 NamedEvaluationParameter::ReferenceStack => {
-                    ctx.exe.add_instruction(Instruction::PopReference);
-                    ctx.exe.add_instruction(Instruction::GetValue);
-                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.add_instruction(Instruction::PopReference);
+                    ctx.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::Load);
                 }
             }
         }
@@ -92,10 +95,9 @@ impl CompileEvaluation for ast::Class<'_> {
                 // Hence we do not need to set has_constructor_parent true.
                 // But we do need to remember that this is still a derived
                 // class.
-                ctx.exe.add_instruction(Instruction::ObjectCreate);
-                ctx.exe
-                    .add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
-                ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
+                ctx.add_instruction(Instruction::ObjectCreate);
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
+                ctx.add_instruction(Instruction::ObjectSetPrototype);
             } else {
                 // Constructor parent is known only at runtime, so we must
                 // consider it.
@@ -111,116 +113,107 @@ impl CompileEvaluation for ast::Class<'_> {
                 // them in classEnv. Whether there's a difference I don't know.
                 if is_reference(super_class) {
                     // e. Let superclass be ? GetValue(? superclassRef).
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
                 // f. If superclass is null, then
-                ctx.exe.add_instruction(Instruction::LoadCopy);
-                ctx.exe.add_instruction(Instruction::IsNull);
-                let jump_to_else = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::IsNull);
+                let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
                 // i. Let protoParent be null.
                 // Note: We already have null on the stack.
                 // 9. Let proto be OrdinaryObjectCreate(protoParent).
-                ctx.exe.add_instruction(Instruction::ObjectCreate);
+                ctx.add_instruction(Instruction::ObjectCreate);
                 // Now we have proto on the stack followed be null (protoParent).
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 // Now we have null (protoParent) followed by proto.
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 // Now null is in the result register and proto is at the top of
                 // the stack.
-                ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
+                ctx.add_instruction(Instruction::ObjectSetPrototype);
                 // ii. Let constructorParent be %Function.prototype%.
-                ctx.exe.add_instruction_with_constant(
+                ctx.add_instruction_with_constant(
                     Instruction::LoadConstant,
                     ctx.agent.current_realm().intrinsics().function_prototype(),
                 );
 
                 // Note: constructorParent is now at the top of the stack, and
                 // proto is after it. We can jump to the end.
-                let jump_over_else = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+                let jump_over_else = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
-                ctx.exe.set_jump_target_here(jump_to_else);
+                ctx.set_jump_target_here(jump_to_else);
                 // g. Else if IsConstructor(superclass) is false, then
-                ctx.exe.add_instruction(Instruction::StoreCopy);
-                ctx.exe.add_instruction(Instruction::IsConstructor);
-                let jump_over_throw = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+                ctx.add_instruction(Instruction::StoreCopy);
+                ctx.add_instruction(Instruction::IsConstructor);
+                let jump_over_throw = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
                 // Pop the superclass from the stack.
-                ctx.exe.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::Store);
                 // i. Throw a TypeError exception.
-                ctx.exe.add_instruction_with_constant(
-                    Instruction::StoreConstant,
-                    String::from_static_str(ctx.agent, "class heritage is not a constructor"),
-                );
-                ctx.exe.add_instruction_with_immediate(
+                let error_message =
+                    String::from_static_str(ctx.agent, "class heritage is not a constructor");
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, error_message);
+                ctx.add_instruction_with_immediate(
                     Instruction::ThrowError,
                     ExceptionType::TypeError as usize,
                 );
 
                 // h. Else,
-                ctx.exe.set_jump_target_here(jump_over_throw);
+                ctx.set_jump_target_here(jump_over_throw);
                 // i. Let protoParent be ? Get(superclass, "prototype").
-                ctx.exe.add_instruction(Instruction::StoreCopy);
-                ctx.exe.add_instruction_with_identifier(
+                ctx.add_instruction(Instruction::StoreCopy);
+                ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     BUILTIN_STRING_MEMORY.prototype,
                 );
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
 
                 // Note: superclass is now at the top of the stack, and protoParent
                 // in the result register.
 
                 // ii. If protoParent is not an Object and protoParent is not null,
-                ctx.exe.add_instruction(Instruction::LoadCopy);
-                ctx.exe.add_instruction(Instruction::IsObject);
-                let jump_over_null_check_and_throw = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::IsObject);
+                let jump_over_null_check_and_throw =
+                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
 
-                ctx.exe.add_instruction(Instruction::StoreCopy);
-                ctx.exe.add_instruction(Instruction::IsNull);
-                let jump_over_throw = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+                ctx.add_instruction(Instruction::StoreCopy);
+                ctx.add_instruction(Instruction::IsNull);
+                let jump_over_throw = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
 
                 // ... throw a TypeError exception.
-                ctx.exe.add_instruction_with_constant(
-                    Instruction::StoreConstant,
-                    String::from_static_str(ctx.agent, "class heritage is not an object or null"),
-                );
-                ctx.exe.add_instruction_with_immediate(
+                let error_message =
+                    String::from_static_str(ctx.agent, "class heritage is not an object or null");
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, error_message);
+                ctx.add_instruction_with_immediate(
                     Instruction::ThrowError,
                     ExceptionType::TypeError as usize,
                 );
-                ctx.exe.set_jump_target_here(jump_over_throw);
-                ctx.exe.set_jump_target_here(jump_over_null_check_and_throw);
+                ctx.set_jump_target_here(jump_over_throw);
+                ctx.set_jump_target_here(jump_over_null_check_and_throw);
 
                 // Note: protoParent is now at the top of the stack, and superclass
                 // is after it.
 
                 // 9. Let proto be OrdinaryObjectCreate(protoParent)
-                ctx.exe.add_instruction(Instruction::ObjectCreate);
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::ObjectCreate);
+                ctx.add_instruction(Instruction::Swap);
                 // Now protoParent is at the top of the stack, proto is second, and
                 // superclass is third.
-                ctx.exe.add_instruction(Instruction::Store);
-                ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
+                ctx.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::ObjectSetPrototype);
 
                 // Now proto is first and superclass second.
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 // Now superclass is first and proto is second.
 
                 // iii. Let constructorParent be superclass.
-                ctx.exe.set_jump_target_here(jump_over_else);
+                ctx.set_jump_target_here(jump_over_else);
                 // Now constructorParent is at the top of the stack, and
                 // proto is after it.
             }
         } else {
             // a. Let protoParent be %Object.prototype%.
             // 9. Let proto be OrdinaryObjectCreate(protoParent).
-            ctx.exe.add_instruction(Instruction::ObjectCreate);
+            ctx.add_instruction(Instruction::ObjectCreate);
             // b. Let constructorParent be %Function.prototype%.
             // We omit constructor parent as we statically know it is
             // uninteresting.
@@ -254,23 +247,23 @@ impl CompileEvaluation for ast::Class<'_> {
         if has_class_name_on_stack {
             if has_constructor_parent {
                 // stack: [constructor_parent, proto, class_name]
-                ctx.exe.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::Store);
                 // stack: [proto, class_name]
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 // stack: [class_name, proto]
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 // stack: [constructor_parent, class_name, proto]
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 // stack: [class_name, constructor_parent, proto]
             } else {
                 // stack: [proto, class_name]
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 // stack: [class_name, proto]
             }
         } else {
             // We don't have the class name on the stack, so we can just
             // push it there.
-            ctx.exe.add_instruction_with_constant(
+            ctx.add_instruction_with_constant(
                 Instruction::LoadConstant,
                 class_identifier.unwrap_or(String::EMPTY_STRING),
             );
@@ -278,9 +271,13 @@ impl CompileEvaluation for ast::Class<'_> {
         }
 
         // 14. If constructor is not empty, then
-        if let Some(constructor) = constructor {
+        let constructor_expression_index = if let Some(constructor) = constructor {
             // a. Let constructorInfo be ! DefineMethod of constructor with arguments proto and constructorParent.
-            define_constructor_method(ctx, constructor, has_constructor_parent);
+            Some(define_constructor_method(
+                ctx,
+                constructor,
+                has_constructor_parent,
+            ))
             // b. Let F be constructorInfo.[[Closure]].
             // c. Perform MakeClassConstructor(F).
             // d. Perform SetFunctionName(F, className).
@@ -290,15 +287,16 @@ impl CompileEvaluation for ast::Class<'_> {
             // ...
             // b. Let F be CreateBuiltinFunction(defaultConstructor, 0, className, « [[ConstructorKind]], [[SourceText]] », the current Realm Record, constructorParent).
 
-            ctx.exe.add_instruction_with_immediate(
+            ctx.add_instruction_with_immediate(
                 Instruction::ClassDefineDefaultConstructor,
                 has_constructor_parent.into(),
             );
-        }
+            None
+        };
 
         // result: F
         // stack: [proto]
-        ctx.exe.add_instruction(Instruction::Load);
+        ctx.add_instruction(Instruction::Load);
         // stack: [constructor, proto]
 
         // Note: These steps have been performed by ClassDefineConstructor or
@@ -313,13 +311,13 @@ impl CompileEvaluation for ast::Class<'_> {
         let mut proto_is_on_top = false;
         let swap_to_proto = |ctx: &mut CompileContext, proto_is_on_top: &mut bool| {
             if !*proto_is_on_top {
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 *proto_is_on_top = true;
             }
         };
         let swap_to_constructor = |ctx: &mut CompileContext, proto_is_on_top: &mut bool| {
             if *proto_is_on_top {
-                ctx.exe.add_instruction(Instruction::Swap);
+                ctx.add_instruction(Instruction::Swap);
                 *proto_is_on_top = false;
             }
         };
@@ -331,7 +329,7 @@ impl CompileEvaluation for ast::Class<'_> {
         // 22. Let staticPrivateMethods be a new empty List.
         // let mut static_private_methods = vec![];
         // 23. Let instanceFields be a new empty List.
-        // let mut instance_fields = vec![];
+        let mut instance_fields = vec![];
         // 24. Let staticElements be a new empty List.
         let mut static_elements = vec![];
         // 25. For each ClassElement e of elements, do
@@ -361,7 +359,21 @@ impl CompileEvaluation for ast::Class<'_> {
                     }
                     define_method(method_definition, ctx);
                 }
-                ast::ClassElement::PropertyDefinition(_) => todo!(),
+                ast::ClassElement::PropertyDefinition(property_definition) => {
+                    if property_definition.computed {
+                        compile_computed_field_name(
+                            ctx,
+                            &mut instance_fields,
+                            &property_definition.key,
+                            &property_definition.value,
+                        );
+                    } else {
+                        instance_fields.push(PropertyInitializerField::Static((
+                            &property_definition.key,
+                            &property_definition.value,
+                        )));
+                    }
+                }
                 ast::ClassElement::AccessorProperty(_) => todo!(),
                 #[cfg(feature = "typescript")]
                 ast::ClassElement::TSIndexSignature(_) => {}
@@ -394,7 +406,7 @@ impl CompileEvaluation for ast::Class<'_> {
         }
         // Drop proto from stack: It is no longer needed.
         swap_to_proto(ctx, &mut proto_is_on_top);
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
 
         // stack: [constructor]
 
@@ -410,15 +422,52 @@ impl CompileEvaluation for ast::Class<'_> {
         // class method calls access the classBinding through the classEnv.
         if let Some(class_binding) = class_identifier {
             // a. Perform ! classEnv.InitializeBinding(classBinding, F).
-            ctx.exe.add_instruction(Instruction::StoreCopy);
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, class_binding);
-            ctx.exe
-                .add_instruction(Instruction::InitializeReferencedBinding);
+            ctx.add_instruction(Instruction::StoreCopy);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_binding);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
         // 28. Set F.[[PrivateMethods]] to instancePrivateMethods.
         // 29. Set F.[[Fields]] to instanceFields.
+        if !instance_fields.is_empty() {
+            let mut constructor_ctx = CompileContext::new(ctx.agent);
+            for ele in instance_fields {
+                match ele {
+                    PropertyInitializerField::Static((property_key, value)) => {
+                        constructor_ctx.compile_class_static_field(property_key, value);
+                    }
+                    PropertyInitializerField::Computed((key_id, value)) => {
+                        constructor_ctx.compile_class_computed_field(key_id, value);
+                    }
+                }
+            }
+            let constructor =
+                constructor.expect("Class fields with default constructor not supported yet");
+            let constructor_expression_index = constructor_expression_index.unwrap();
+            let constructor_data = CompileFunctionBodyData {
+                // SAFETY: The SourceCode that contains this code cannot be garbage collected
+                // as long as the constructor function we produce here lives.
+                body: unsafe {
+                    std::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
+                        constructor.value.body.as_ref().unwrap(),
+                    )
+                },
+                // SAFETY: The SourceCode that contains this code cannot be garbage collected
+                // as long as the constructor function we produce here lives.
+                params: unsafe {
+                    std::mem::transmute::<&ast::FormalParameters<'_>, &ast::FormalParameters<'static>>(
+                        &constructor.value.params,
+                    )
+                },
+                is_concise_body: false,
+                is_lexical: false,
+                is_strict: false,
+            };
+            constructor_ctx.compile_function_body(constructor_data);
+            let executable = constructor_ctx.finish();
+            ctx.function_expressions[constructor_expression_index as usize].compiled_bytecode =
+                Some(executable);
+        }
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).
         // 31. For each element elementRecord of staticElements, do
@@ -434,8 +483,7 @@ impl CompileEvaluation for ast::Class<'_> {
             //     ii. Return ? result.
         }
         // Note: We finally leave classEnv here. See step 26.
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
 
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
@@ -447,16 +495,43 @@ impl CompileEvaluation for ast::Class<'_> {
             // 4. Let env be the running execution context's LexicalEnvironment.
             // 5. Perform ? InitializeBoundName(className, value, env).
             // => a. Perform ! environment.InitializeBinding(name, value).
-            ctx.exe.add_instruction(Instruction::StoreCopy);
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
-            ctx.exe
-                .add_instruction(Instruction::InitializeReferencedBinding);
+            ctx.add_instruction(Instruction::StoreCopy);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, class_identifier);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
         // result: constructor
     }
+}
+
+#[derive(Debug)]
+enum PropertyInitializerField<'a> {
+    Static((&'a ast::PropertyKey<'a>, &'a Option<ast::Expression<'a>>)),
+    Computed((String, &'a Option<ast::Expression<'a>>)),
+}
+
+fn compile_computed_field_name<'a>(
+    ctx: &mut CompileContext,
+    property_fields: &mut Vec<PropertyInitializerField<'a>>,
+    key: &ast::PropertyKey<'_>,
+    value: &'a Option<ast::Expression<'a>>,
+) {
+    let computed_key_id = String::from_string(ctx.agent, format!("^{}", property_fields.len()));
+    let key = match key {
+        // These should not show up as computed
+        ast::PropertyKey::StaticMemberExpression(_)
+        | ast::PropertyKey::PrivateFieldExpression(_) => unreachable!(),
+        _ => key.as_expression().unwrap(),
+    };
+    ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, computed_key_id);
+    key.compile(ctx);
+    if is_reference(key) {
+        ctx.add_instruction(Instruction::GetValue);
+    }
+    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, computed_key_id);
+    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+    property_fields.push(PropertyInitializerField::Computed((computed_key_id, value)));
 }
 
 /// Creates an ECMAScript constructor for a class.
@@ -467,11 +542,13 @@ impl CompileEvaluation for ast::Class<'_> {
 ///
 /// After this call, the constructor will be in the result slot and the class
 /// prototype will be at the top of the stack.
+///
+/// Returns the index of the constructor FunctionExpression
 fn define_constructor_method(
     ctx: &mut CompileContext,
     class_element: &ast::MethodDefinition,
     has_constructor_parent: bool,
-) {
+) -> IndexType {
     // stack: [class_name, proto] or [class_name, constructor_parent, proto]
 
     // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -485,20 +562,6 @@ fn define_constructor_method(
     //     a. Let prototype be %Function.prototype%.
     // 6. Let sourceText be the source text matched by MethodDefinition.
     // 7. Let closure be OrdinaryFunctionCreate(prototype, sourceText, UniqueFormalParameters, FunctionBody, non-lexical-this, env, privateEnv).
-    ctx.exe
-        .add_instruction_with_function_expression_and_immediate(
-            Instruction::ClassDefineConstructor,
-            FunctionExpression {
-                expression: SendableRef::new(unsafe {
-                    std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
-                        &class_element.value,
-                    )
-                }),
-                // CompileContext holds a name identifier for us if this is NamedEvaluation.
-                identifier: None,
-            },
-            has_constructor_parent.into(),
-        );
 
     // result: method
     // stack: [proto]
@@ -506,6 +569,20 @@ fn define_constructor_method(
     // 8. Perform MakeMethod(closure, proto).
     // Note: MakeMethod is performed as part of ClassDefineConstructor.
     // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+    ctx.add_instruction_with_function_expression_and_immediate(
+        Instruction::ClassDefineConstructor,
+        FunctionExpression {
+            expression: SendableRef::new(unsafe {
+                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                    &class_element.value,
+                )
+            }),
+            // CompileContext holds a name identifier for us if this is NamedEvaluation.
+            identifier: None,
+            compiled_bytecode: None,
+        },
+        has_constructor_parent.into(),
+    )
 }
 
 /// Creates a method for an object.
@@ -514,21 +591,19 @@ fn define_constructor_method(
 ///
 /// After this call, the method will be in the result slot and its key will be
 /// at the top of the stack. The object is second on the stack.
-fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) {
+fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) -> IndexType {
     // 1. Let propKey be ? Evaluation of ClassElementName.
     if let Some(prop_name) = class_element.prop_name() {
-        ctx.exe.add_instruction_with_constant(
-            Instruction::LoadConstant,
-            String::from_str(ctx.agent, prop_name.0),
-        );
+        let prop_name = String::from_str(ctx.agent, prop_name.0);
+        ctx.add_instruction_with_constant(Instruction::LoadConstant, prop_name);
     } else {
         // Computed method name.
         let key = class_element.key.as_expression().unwrap();
         key.compile(ctx);
         if is_reference(key) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
+        ctx.add_instruction(Instruction::Load);
     };
     // stack: [key, object]
 
@@ -546,21 +621,8 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
         MethodDefinitionKind::Get => Instruction::ObjectDefineGetter,
         MethodDefinitionKind::Set => Instruction::ObjectDefineSetter,
     };
-    ctx.exe
-        .add_instruction_with_function_expression_and_immediate(
-            instruction,
-            FunctionExpression {
-                expression: SendableRef::new(unsafe {
-                    std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
-                        &class_element.value,
-                    )
-                }),
-                // CompileContext holds a name identifier for us if this is NamedEvaluation.
-                identifier: ctx.name_identifier.take(),
-            },
-            // enumerable: false,
-            false.into(),
-        );
+    // CompileContext holds a name identifier for us if this is NamedEvaluation.
+    let identifier = ctx.name_identifier.take();
 
     // 8. Perform MakeMethod(closure, object).
     // Note: MakeMethod is performed as part of ObjectDefineMethod.
@@ -569,6 +631,20 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
     // stack: [object]
 
     // 9. Return the Record { [[Key]]: propKey, [[Closure]]: closure }.
+    ctx.add_instruction_with_function_expression_and_immediate(
+        instruction,
+        FunctionExpression {
+            expression: SendableRef::new(unsafe {
+                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                    &class_element.value,
+                )
+            }),
+            identifier,
+            compiled_bytecode: None,
+        },
+        // enumerable: false,
+        false.into(),
+    )
 }
 
 impl CompileEvaluation for ast::StaticBlock<'_> {
@@ -597,8 +673,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
         // b. Let instantiatedVarNames be a copy of the List parameterBindings.
         let mut instantiated_var_names = AHashSet::new();
         // c. For each element n of varNames, do
-        ctx.exe
-            .add_instruction(Instruction::EnterClassStaticElementEnvironment);
+        ctx.add_instruction(Instruction::EnterClassStaticElementEnvironment);
         for n in class_static_block_var_declared_names(self) {
             // i. If instantiatedVarNames does not contain n, then
             if instantiated_var_names.contains(&n) {
@@ -608,15 +683,11 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             let n_string = String::from_str(ctx.agent, &n);
             instantiated_var_names.insert(n);
             // 2. Perform ! env.CreateMutableBinding(n, false).
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
+            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
             // 3. Perform ! env.InitializeBinding(n, undefined).
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.exe
-                .add_instruction(Instruction::InitializeReferencedBinding);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, n_string);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
 
         // 34. For each element d of lexDeclarations, do
@@ -630,7 +701,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
                         decl.id.bound_names(&mut |identifier| {
                             let dn = String::from_str(ctx.agent, &identifier.name);
                             // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
-                            ctx.exe.add_instruction_with_identifier(
+                            ctx.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
                                 dn,
                             );
@@ -642,24 +713,20 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
                 LexicallyScopedDeclaration::Variable(decl) => {
                     decl.id.bound_names(&mut |identifier| {
                         let dn = String::from_str(ctx.agent, &identifier.name);
-                        ctx.exe
-                            .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                     })
                 }
                 LexicallyScopedDeclaration::Function(decl) => {
                     let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
                     let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                 }
                 LexicallyScopedDeclaration::DefaultExport => {
                     let dn = BUILTIN_STRING_MEMORY._default_;
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
+                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                 }
             }
         }
@@ -672,17 +739,14 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             let f_name = String::from_str(ctx.agent, &f.id.as_ref().unwrap().name);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
-            ctx.exe.add_instruction(Instruction::PutValue);
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name);
+            ctx.add_instruction(Instruction::PutValue);
         }
 
         for statement in self.body.iter() {
             statement.compile(ctx);
         }
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
-        ctx.exe
-            .add_instruction(Instruction::ExitVariableEnvironment);
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::ExitVariableEnvironment);
     }
 }

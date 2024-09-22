@@ -37,13 +37,11 @@ fn for_in_of_head_evaluation(
     if !uninitialized_bound_names.is_empty() {
         // a. Assert: uninitializedBoundNames has no duplicate entries.
         // b. Let newEnv be NewDeclarativeEnvironment(oldEnv).
-        ctx.exe
-            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         // c. For each String name of uninitializedBoundNames, do
         for name in uninitialized_bound_names.iter() {
             // i. Perform ! newEnv.CreateMutableBinding(name, false).
-            ctx.exe
-                .add_instruction_with_identifier(Instruction::CreateMutableBinding, *name);
+            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, *name);
         }
         // d. Set the running execution context's LexicalEnvironment to newEnv.
     }
@@ -51,40 +49,36 @@ fn for_in_of_head_evaluation(
     expr.compile(ctx);
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
     if !uninitialized_bound_names.is_empty() {
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
     if is_reference(expr) {
-        ctx.exe.add_instruction(Instruction::GetValue);
+        ctx.add_instruction(Instruction::GetValue);
     }
     // 6. If iterationKind is ENUMERATE, then
     match iteration_kind {
         IterationKind::Enumerate => {
             // a. If exprValue is either undefined or null, then
             // Add a copy to stack.
-            ctx.exe.add_instruction(Instruction::LoadCopy);
-            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
-            let jump_over_undefined_or_null = ctx
-                .exe
-                .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            ctx.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::IsNullOrUndefined);
+            let jump_over_undefined_or_null =
+                ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
             // i. Return Completion Record { [[Type]]: BREAK, [[Value]]: EMPTY, [[Target]]: EMPTY }.
             // Remove the copy added above.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
             // And override with undefined.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             let return_break_completion_record =
-                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
-            ctx.exe.set_jump_target_here(jump_over_undefined_or_null);
+                ctx.add_instruction_with_jump_slot(Instruction::Jump);
+            ctx.set_jump_target_here(jump_over_undefined_or_null);
             // Load back the copy from above.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
             // b. Let obj be ! ToObject(exprValue).
             // c. Let iterator be EnumerateObjectProperties(obj).
             // d. Let nextMethod be ! GetV(iterator, "next").
             // e. Return the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
-            ctx.exe
-                .add_instruction(Instruction::EnumerateObjectProperties);
+            ctx.add_instruction(Instruction::EnumerateObjectProperties);
             // Note: iteratorKind is SYNC
             Some(return_break_completion_record)
         }
@@ -93,13 +87,13 @@ fn for_in_of_head_evaluation(
         IterationKind::AsyncIterate => {
             // b. If iterationKind is ASYNC-ITERATE, let iteratorKind be ASYNC.
             // d. Return ? GetIterator(exprValue, iteratorKind).
-            ctx.exe.add_instruction(Instruction::GetIteratorAsync);
+            ctx.add_instruction(Instruction::GetIteratorAsync);
             None
         }
         IterationKind::Iterate => {
             // c. Else, let iteratorKind be SYNC.
             // d. Return ? GetIterator(exprValue, iteratorKind).
-            ctx.exe.add_instruction(Instruction::GetIteratorSync);
+            ctx.add_instruction(Instruction::GetIteratorSync);
             None
         }
     }
@@ -157,16 +151,14 @@ fn for_in_of_body_evaluation(
     let previous_break = ctx.current_break.replace(vec![]);
 
     // 6. Repeat,
-    let repeat_jump = ctx.exe.get_jump_index_to_here();
+    let repeat_jump = ctx.get_jump_index_to_here();
     // a. Let nextResult be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
     // b. If iteratorKind is ASYNC, set nextResult to ? Await(nextResult).
     // c. If nextResult is not an Object, throw a TypeError exception.
     // d. Let done be ? IteratorComplete(nextResult).
     // e. If done is true, return V.
     // f. Let nextValue be ? IteratorValue(nextResult).
-    let jump_to_end = ctx
-        .exe
-        .add_instruction_with_jump_slot(Instruction::IteratorStepValue);
+    let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
     let mut entered_declarative_environment = false;
     // g. If lhsKind is either ASSIGNMENT or VAR-BINDING, then
     match lhs_kind {
@@ -195,7 +187,7 @@ fn for_in_of_body_evaluation(
                             ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
                                 let identifier =
                                     String::from_str(ctx.agent, binding_identifier.name.as_str());
-                                ctx.exe.add_instruction_with_identifier(
+                                ctx.add_instruction_with_identifier(
                                     Instruction::ResolveBinding,
                                     identifier,
                                 );
@@ -208,7 +200,7 @@ fn for_in_of_body_evaluation(
                     ast::ForStatementLeft::AssignmentTargetIdentifier(identifier_reference) => {
                         let identifier =
                             String::from_str(ctx.agent, identifier_reference.name.as_str());
-                        ctx.exe.add_instruction_with_identifier(
+                        ctx.add_instruction_with_identifier(
                             Instruction::ResolveBinding,
                             identifier,
                         );
@@ -220,7 +212,7 @@ fn for_in_of_body_evaluation(
                 // a. Let status be lhsRef.
                 // 3. Else,
                 // a. Let status be Completion(PutValue(lhsRef.[[Value]], nextValue)).
-                ctx.exe.add_instruction(Instruction::PutValue);
+                ctx.add_instruction(Instruction::PutValue);
             }
         }
         LeftHandSideKind::LexicalBinding => {
@@ -237,12 +229,11 @@ fn for_in_of_body_evaluation(
                 if !entered_declarative_environment {
                     // Optimization: Only enter declarative environment if
                     // bound names exist.
-                    ctx.exe
-                        .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                    ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     entered_declarative_environment = true;
                 }
                 let identifier = String::from_str(ctx.agent, binding_identifier.name.as_str());
-                ctx.exe.add_instruction_with_identifier(
+                ctx.add_instruction_with_identifier(
                     if lhs.kind.is_const() {
                         Instruction::CreateImmutableBinding
                     } else {
@@ -266,11 +257,9 @@ fn for_in_of_body_evaluation(
                     // 2. Let lhsName be the sole element of the BoundNames of lhs.
                     let lhs_name = String::from_str(ctx.agent, binding_identifier.name.as_str());
                     // 3. Let lhsRef be ! ResolveBinding(lhsName).
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::ResolveBinding, lhs_name);
+                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, lhs_name);
                     // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
-                    ctx.exe
-                        .add_instruction(Instruction::InitializeReferencedBinding)
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding)
                 });
             }
         }
@@ -297,26 +286,24 @@ fn for_in_of_body_evaluation(
     if entered_declarative_environment {
         // Note: If we've entered a declarative environment then we have to
         // exit it before we continue back to repeat_jump.
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         for continue_entry in own_continues {
-            ctx.exe.set_jump_target_here(continue_entry);
+            ctx.set_jump_target_here(continue_entry);
         }
     } else {
         for continue_entry in own_continues {
-            ctx.exe.set_jump_target(continue_entry, repeat_jump.clone());
+            ctx.set_jump_target(continue_entry, repeat_jump.clone());
         }
     }
 
     // TODO: Load V back from stack and compare with result, store.
-    ctx.exe
-        .add_jump_instruction_to_index(Instruction::Jump, repeat_jump);
+    ctx.add_jump_instruction_to_index(Instruction::Jump, repeat_jump);
 
     // l. If LoopContinues(result, labelSet) is false, then
     let own_breaks = ctx.current_break.take().unwrap();
     ctx.current_break = previous_break;
     for break_entry in own_breaks {
-        ctx.exe.set_jump_target_here(break_entry);
+        ctx.set_jump_target_here(break_entry);
     }
     // i. If iterationKind is ENUMERATE, then
     if iteration_kind == IterationKind::Enumerate {
@@ -330,16 +317,16 @@ fn for_in_of_body_evaluation(
         // TODO: This is probably a no-op.
         // 3. If iteratorKind is ASYNC, return ? AsyncIteratorClose(iteratorRecord, status).
         if iterator_kind == IteratorKind::Async {
-            ctx.exe.add_instruction(Instruction::AsyncIteratorClose);
+            ctx.add_instruction(Instruction::AsyncIteratorClose);
         } else {
             // 4. Return ? IteratorClose(iteratorRecord, status).
-            ctx.exe.add_instruction(Instruction::IteratorClose);
+            ctx.add_instruction(Instruction::IteratorClose);
         }
     }
     // m. If result.[[Value]] is not EMPTY, set V to result.[[Value]].
-    ctx.exe.set_jump_target_here(jump_to_end);
+    ctx.set_jump_target_here(jump_to_end);
     if let Some(key_result) = key_result {
-        ctx.exe.set_jump_target_here(key_result)
+        ctx.set_jump_target_here(key_result)
     }
 }
 

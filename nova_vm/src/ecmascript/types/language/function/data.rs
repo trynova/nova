@@ -2,12 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ptr::NonNull;
+
 use crate::{
     ecmascript::{
         builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
         execution::RealmIdentifier,
         types::{OrdinaryObject, String, Value},
     },
+    engine::Executable,
     heap::element_array::ElementsVector,
 };
 
@@ -54,7 +57,19 @@ pub struct ECMAScriptFunctionHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
+    /// Stores the compiled bytecode of an ECMAScript function.
+    pub(crate) compiled_bytecode: Option<NonNull<Executable>>,
     pub(crate) name: Option<String>,
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData {}
+
+impl Drop for ECMAScriptFunctionHeapData {
+    fn drop(&mut self) {
+        if let Some(exe) = self.compiled_bytecode.take() {
+            // SAFETY: No references to this compiled bytecode should exist as
+            // otherwise we should not have been garbage collected.
+            drop(unsafe { Box::from_raw(exe.as_ptr()) });
+        }
+    }
+}

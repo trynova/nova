@@ -16,9 +16,7 @@ use crate::{
             function_definitions::{CompileFunctionBodyData, ContainsExpression},
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
-        types::{
-            BigInt, IntoValue, Number, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
-        },
+        types::{BigInt, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };
@@ -46,7 +44,14 @@ pub(crate) enum NamedEvaluationParameter {
 
 pub(crate) struct CompileContext<'agent> {
     pub(crate) agent: &'agent mut Agent,
-    pub(crate) exe: Executable,
+    /// Instructions being built
+    instructions: Vec<u8>,
+    /// Constants being built
+    constants: Vec<Value>,
+    /// Function expressions being built
+    function_expressions: Vec<FunctionExpression>,
+    /// Arrow function expressions being built
+    arrow_function_expressions: Vec<ArrowFunctionExpression>,
     /// NamedEvaluation name parameter
     name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -68,14 +73,10 @@ impl CompileContext<'_> {
     fn new(agent: &'_ mut Agent) -> CompileContext<'_> {
         CompileContext {
             agent,
-            exe: Executable {
-                instructions: Vec::new(),
-                constants: Vec::new(),
-                identifiers: Vec::new(),
-                references: Vec::new(),
-                function_expressions: Vec::new(),
-                arrow_function_expressions: Vec::new(),
-            },
+            instructions: Vec::new(),
+            constants: Vec::new(),
+            function_expressions: Vec::new(),
+            arrow_function_expressions: Vec::new(),
             name_identifier: None,
             lexical_binding_state: false,
             current_continue: None,
@@ -85,155 +86,104 @@ impl CompileContext<'_> {
         }
     }
 
-    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
-        let existing =
-            self.exe.identifiers.iter().find(|existing_identifier| {
-                existing_identifier.as_str(self.agent) == atom.as_str()
-            });
-        if let Some(&existing) = existing {
-            existing
+    /// Compile a class static field with an optional initializer into the
+    /// current context.
+    pub(crate) fn compile_class_static_field(
+        &mut self,
+        property_key: &ast::PropertyKey<'_>,
+        value: &Option<ast::Expression<'_>>,
+    ) {
+        let identifier = match property_key {
+            ast::PropertyKey::StaticIdentifier(identifier_name) => {
+                String::from_str(self.agent, identifier_name.name.as_str())
+            }
+            ast::PropertyKey::PrivateIdentifier(_private_identifier) => todo!(),
+            ast::PropertyKey::BooleanLiteral(_boolean_literal) => todo!(),
+            ast::PropertyKey::NullLiteral(_null_literal) => todo!(),
+            ast::PropertyKey::NumericLiteral(_numeric_literal) => todo!(),
+            ast::PropertyKey::BigIntLiteral(_big_int_literal) => todo!(),
+            ast::PropertyKey::RegExpLiteral(_reg_exp_literal) => todo!(),
+            ast::PropertyKey::StringLiteral(_string_literal) => todo!(),
+            ast::PropertyKey::TemplateLiteral(_template_literal) => todo!(),
+            _ => unreachable!(),
+        };
+        // Turn the static name to a 'this' property access.
+        self.add_instruction(Instruction::ResolveThisBinding);
+        self.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            identifier,
+        );
+        if let Some(value) = value {
+            // Minor optimisation: We do not need to push and pop the
+            // reference if we know we're not using the reference stack.
+            let is_literal = value.is_literal();
+            if !is_literal {
+                self.add_instruction(Instruction::PushReference);
+            }
+            value.compile(self);
+            if is_reference(value) {
+                self.add_instruction(Instruction::GetValue);
+            }
+            if !is_literal {
+                self.add_instruction(Instruction::PopReference);
+            }
         } else {
-            String::from_str(self.agent, atom.as_str())
+            // Same optimisation is unconditionally valid here.
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-    }
-}
-
-#[derive(Debug)]
-/// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
-/// be `Sync`. This is safe because the reference can only be obtained from the
-/// same thread in which the `SendableRef` was created.
-pub(crate) struct SendableRef<T: ?Sized + 'static> {
-    reference: &'static T,
-    thread_id: std::thread::ThreadId,
-}
-
-impl<T: ?Sized> SendableRef<T> {
-    /// Creates a new [`SendableRef`] from a reference with a static lifetime.
-    pub(crate) fn new(reference: &'static T) -> Self {
-        Self {
-            reference,
-            thread_id: std::thread::current().id(),
-        }
+        self.add_instruction(Instruction::PutValue);
     }
 
-    /// Unsafely creates a new [`SendableRef`] from a non-static reference.
-    ///
-    /// # Safety
-    ///
-    /// The safety conditions for this constructor are the same as for
-    /// transmuting `reference` into a static lifetime.
-    pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
-        Self::new(unsafe { std::mem::transmute::<&T, &'static T>(reference) })
-    }
-
-    pub(crate) fn get(&self) -> &'static T {
-        assert_eq!(std::thread::current().id(), self.thread_id);
-        self.reference
-    }
-}
-
-// SAFETY: The reference will only be dereferenced in a thread in which the
-// reference is valid, so it's fine to send or use this type from other threads.
-unsafe impl<T: ?Sized> Send for SendableRef<T> {}
-unsafe impl<T: ?Sized> Sync for SendableRef<T> {}
-
-#[derive(Debug)]
-pub(crate) struct FunctionExpression {
-    pub(crate) expression: SendableRef<ast::Function<'static>>,
-    pub(crate) identifier: Option<NamedEvaluationParameter>,
-}
-
-#[derive(Debug)]
-pub(crate) struct ArrowFunctionExpression {
-    pub(crate) expression: SendableRef<ast::ArrowFunctionExpression<'static>>,
-    pub(crate) identifier: Option<NamedEvaluationParameter>,
-    pub(crate) home_object: Option<usize>,
-}
-
-/// ## Notes
-///
-/// - This is inspired by and/or copied from Kiesel engine:
-///   Copyright (c) 2023-2024 Linus Groh
-#[derive(Debug)]
-pub(crate) struct Executable {
-    pub instructions: Vec<u8>,
-    pub(crate) constants: Vec<Value>,
-    pub(crate) identifiers: Vec<String>,
-    pub(crate) references: Vec<Reference>,
-    pub(crate) function_expressions: Vec<FunctionExpression>,
-    pub(crate) arrow_function_expressions: Vec<ArrowFunctionExpression>,
-}
-
-impl Executable {
-    pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
-        if *ip >= self.instructions.len() {
-            return None;
-        }
-
-        let kind: Instruction =
-            unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[*ip]) };
-        *ip += 1;
-
-        let mut args: [Option<IndexType>; 2] = [None, None];
-
-        for item in args.iter_mut().take(kind.argument_count() as usize) {
-            let length = self.instructions[*ip..].len();
-            if length >= 2 {
-                let bytes = IndexType::from_ne_bytes(unsafe {
-                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
-                        self.instructions[*ip..].as_ptr(),
-                    )
-                });
-                *ip += 2;
-                *item = Some(bytes);
-            } else {
-                *ip += 1;
-                *item = None;
+    /// Compile a class computed field with an optional initializer into the
+    /// current context.
+    pub(crate) fn compile_class_computed_field(
+        &mut self,
+        property_key_id: String,
+        value: &Option<ast::Expression<'_>>,
+    ) {
+        // Resolve 'this' into the stack.
+        self.add_instruction(Instruction::ResolveThisBinding);
+        self.add_instruction(Instruction::Load);
+        // Resolve the static computed key ID to the actual computed key value.
+        self.add_instruction_with_identifier(Instruction::ResolveBinding, property_key_id);
+        // Store the computed key value as the result.
+        self.add_instruction(Instruction::GetValue);
+        // Evaluate access to 'this' with the computed key.
+        self.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+        if let Some(value) = value {
+            // Minor optimisation: We do not need to push and pop the
+            // reference if we know we're not using the reference stack.
+            let is_literal = value.is_literal();
+            if !is_literal {
+                self.add_instruction(Instruction::PushReference);
             }
-        }
-
-        Some(Instr { kind, args })
-    }
-
-    fn peek_last_instruction(&self) -> Option<u8> {
-        for ele in self.instructions.iter().rev() {
-            if *ele == Instruction::ExitDeclarativeEnvironment.as_u8() {
-                // Not a "real" instruction
-                continue;
+            value.compile(self);
+            if is_reference(value) {
+                self.add_instruction(Instruction::GetValue);
             }
-            return Some(*ele);
+            if !is_literal {
+                self.add_instruction(Instruction::PopReference);
+            }
+        } else {
+            // Same optimisation is unconditionally valid here.
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        None
+        self.add_instruction(Instruction::PutValue);
     }
 
-    pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Compiling Script ===");
-            eprintln!();
-        }
-        // SAFETY: Script uniquely owns the Program and the body buffer does
-        // not move under any circumstances during heap operations.
-        let body: &[Statement] =
-            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
-
-        Self::_compile_statements(CompileContext::new(agent), body, true)
-    }
-
-    pub(crate) fn compile_function_body(
-        agent: &mut Agent,
-        data: CompileFunctionBodyData<'_>,
-    ) -> Executable {
-        if agent.options.print_internals {
+    /// Compile a function body into the current context.
+    ///
+    /// This is useful when the function body is part of a larger whole, namely
+    /// with class constructors.
+    pub(crate) fn compile_function_body(&mut self, data: CompileFunctionBodyData<'_>) {
+        if self.agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Function ===");
             eprintln!();
         }
 
-        let mut ctx = CompileContext::new(agent);
-
         function_declaration_instantiation::instantiation(
-            &mut ctx,
+            self,
             data.params,
             data.body,
             data.is_strict,
@@ -245,36 +195,61 @@ impl Executable {
         // heap operations.
         let body: &[Statement] = unsafe { std::mem::transmute(data.body.statements.as_slice()) };
 
-        Self::_compile_statements(ctx, body, data.is_concise_body)
+        self.compile_statements(body);
     }
 
-    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Compiling Eval Body ===");
-            eprintln!();
-        }
-
-        Self::_compile_statements(CompileContext::new(agent), body, true)
-    }
-
-    fn _compile_statements(
-        mut ctx: CompileContext,
-        body: &[Statement],
-        implicit_return: bool,
-    ) -> Executable {
+    fn compile_statements(&mut self, body: &[Statement]) {
         let iter = body.iter();
 
         for stmt in iter {
-            stmt.compile(&mut ctx);
+            stmt.compile(self);
         }
+    }
 
-        if implicit_return && ctx.exe.instructions.last() != Some(&Instruction::Return.as_u8()) {
+    fn do_implicit_return(&mut self) {
+        if self.instructions.last() != Some(&Instruction::Return.as_u8()) {
             // If code did not end with a return statement, add it manually
-            ctx.exe.add_instruction(Instruction::Return);
+            self.add_instruction(Instruction::Return);
         }
+    }
 
-        ctx.exe
+    fn finish(self) -> Executable {
+        Executable {
+            instructions: self.instructions.into_boxed_slice(),
+            constants: self.constants.into_boxed_slice(),
+            function_expressions: self.function_expressions.into_boxed_slice(),
+            arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
+        }
+    }
+
+    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
+        let existing = self.constants.iter().find_map(|constant| {
+            if let Ok(existing_identifier) = String::try_from(*constant) {
+                if existing_identifier.as_str(self.agent) == atom.as_str() {
+                    Some(existing_identifier)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+        if let Some(existing) = existing {
+            existing
+        } else {
+            String::from_str(self.agent, atom.as_str())
+        }
+    }
+
+    fn peek_last_instruction(&self) -> Option<u8> {
+        for ele in self.instructions.iter().rev() {
+            if *ele == Instruction::ExitDeclarativeEnvironment.as_u8() {
+                // Not a "real" instruction
+                continue;
+            }
+            return Some(*ele);
+        }
+        None
     }
 
     fn _push_instruction(&mut self, instruction: Instruction) {
@@ -329,15 +304,15 @@ impl Executable {
 
     fn add_identifier(&mut self, identifier: String) -> usize {
         let duplicate = self
-            .identifiers
+            .constants
             .iter()
             .enumerate()
-            .find(|item| *item.1 == identifier)
+            .find(|item| String::try_from(*item.1) == Ok(identifier))
             .map(|(idx, _)| idx);
 
         duplicate.unwrap_or_else(|| {
-            let index = self.identifiers.len();
-            self.identifiers.push(identifier);
+            let index = self.constants.len();
+            self.constants.push(identifier.into_value());
             index
         })
     }
@@ -414,12 +389,16 @@ impl Executable {
         self.add_index(index);
     }
 
+    /// Add an Instruction that takes a function expression and an immediate
+    /// as its bytecode parameters.
+    ///
+    /// Returns the function expression's index.
     fn add_instruction_with_function_expression_and_immediate(
         &mut self,
         instruction: Instruction,
         function_expression: FunctionExpression,
         immediate: usize,
-    ) {
+    ) -> IndexType {
         debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_function_expression_index());
         self._push_instruction(instruction);
@@ -427,6 +406,9 @@ impl Executable {
         let index = self.function_expressions.len() - 1;
         self.add_index(index);
         self.add_index(immediate);
+        // Note: add_index would have panicked if this was not a lossless
+        // conversion.
+        index as IndexType
     }
 
     fn add_arrow_function_expression(
@@ -467,6 +449,159 @@ impl Executable {
     }
 }
 
+#[derive(Debug)]
+/// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
+/// be `Sync`. This is safe because the reference can only be obtained from the
+/// same thread in which the `SendableRef` was created.
+pub(crate) struct SendableRef<T: ?Sized + 'static> {
+    reference: &'static T,
+    thread_id: std::thread::ThreadId,
+}
+
+impl<T: ?Sized + 'static> Clone for SendableRef<T> {
+    fn clone(&self) -> Self {
+        Self {
+            reference: self.reference,
+            thread_id: self.thread_id,
+        }
+    }
+}
+
+impl<T: ?Sized> SendableRef<T> {
+    /// Creates a new [`SendableRef`] from a reference with a static lifetime.
+    pub(crate) fn new(reference: &'static T) -> Self {
+        Self {
+            reference,
+            thread_id: std::thread::current().id(),
+        }
+    }
+
+    /// Unsafely creates a new [`SendableRef`] from a non-static reference.
+    ///
+    /// # Safety
+    ///
+    /// The safety conditions for this constructor are the same as for
+    /// transmuting `reference` into a static lifetime.
+    pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
+        Self::new(unsafe { std::mem::transmute::<&T, &'static T>(reference) })
+    }
+
+    pub(crate) fn get(&self) -> &'static T {
+        assert_eq!(std::thread::current().id(), self.thread_id);
+        self.reference
+    }
+}
+
+// SAFETY: The reference will only be dereferenced in a thread in which the
+// reference is valid, so it's fine to send or use this type from other threads.
+unsafe impl<T: ?Sized> Send for SendableRef<T> {}
+unsafe impl<T: ?Sized> Sync for SendableRef<T> {}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FunctionExpression {
+    pub(crate) expression: SendableRef<ast::Function<'static>>,
+    pub(crate) identifier: Option<NamedEvaluationParameter>,
+    /// Optionally eagerly compile the FunctionExpression into bytecode.
+    pub(crate) compiled_bytecode: Option<Executable>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ArrowFunctionExpression {
+    pub(crate) expression: SendableRef<ast::ArrowFunctionExpression<'static>>,
+    pub(crate) identifier: Option<NamedEvaluationParameter>,
+}
+
+/// ## Notes
+///
+/// - This is inspired by and/or copied from Kiesel engine:
+///   Copyright (c) 2023-2024 Linus Groh
+#[derive(Debug, Clone)]
+pub(crate) struct Executable {
+    pub instructions: Box<[u8]>,
+    pub(crate) constants: Box<[Value]>,
+    pub(crate) function_expressions: Box<[FunctionExpression]>,
+    pub(crate) arrow_function_expressions: Box<[ArrowFunctionExpression]>,
+}
+
+impl Executable {
+    pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
+        if *ip >= self.instructions.len() {
+            return None;
+        }
+
+        let kind: Instruction =
+            unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[*ip]) };
+        *ip += 1;
+
+        let mut args: [Option<IndexType>; 2] = [None, None];
+
+        for item in args.iter_mut().take(kind.argument_count() as usize) {
+            let length = self.instructions[*ip..].len();
+            if length >= 2 {
+                let bytes = IndexType::from_ne_bytes(unsafe {
+                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
+                        self.instructions[*ip..].as_ptr(),
+                    )
+                });
+                *ip += 2;
+                *item = Some(bytes);
+            } else {
+                *ip += 1;
+                *item = None;
+            }
+        }
+
+        Some(Instr { kind, args })
+    }
+
+    pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Script ===");
+            eprintln!();
+        }
+        // SAFETY: Script uniquely owns the Program and the body buffer does
+        // not move under any circumstances during heap operations.
+        let body: &[Statement] =
+            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
+        let mut ctx = CompileContext::new(agent);
+
+        ctx.compile_statements(body);
+        ctx.do_implicit_return();
+        ctx.finish()
+    }
+
+    pub(crate) fn compile_function_body(
+        agent: &mut Agent,
+        data: CompileFunctionBodyData<'_>,
+    ) -> Executable {
+        let mut ctx = CompileContext::new(agent);
+
+        let is_concise = data.is_concise_body;
+
+        ctx.compile_function_body(data);
+
+        if is_concise {
+            ctx.do_implicit_return();
+        }
+
+        ctx.finish()
+    }
+
+    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
+        if agent.options.print_internals {
+            eprintln!();
+            eprintln!("=== Compiling Eval Body ===");
+            eprintln!();
+        }
+        let mut ctx = CompileContext::new(agent);
+
+        ctx.compile_statements(body);
+        ctx.do_implicit_return();
+        ctx.finish()
+    }
+}
+
 #[derive(Debug, Clone)]
 #[repr(transparent)]
 pub(crate) struct JumpIndex {
@@ -504,15 +639,13 @@ fn is_chain_expression(expression: &ast::Expression) -> bool {
 impl CompileEvaluation for ast::NumericLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(self.value);
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, constant);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
 impl CompileEvaluation for ast::BooleanLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, self.value);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, self.value);
     }
 }
 
@@ -530,39 +663,34 @@ impl CompileEvaluation for ast::BigIntLiteral<'_> {
             ctx.agent,
             num_bigint::BigInt::from_str_radix(big_int_str, radix).unwrap(),
         );
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, constant);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
 impl CompileEvaluation for ast::NullLiteral {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Null);
     }
 }
 
 impl CompileEvaluation for ast::StringLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = String::from_str(ctx.agent, self.value.as_str());
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, constant);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
 impl CompileEvaluation for ast::IdentifierReference<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let identifier = String::from_str(ctx.agent, self.name.as_str());
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
 impl CompileEvaluation for ast::BindingIdentifier<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let identifier = String::from_str(ctx.agent, self.name.as_str());
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
@@ -579,16 +707,16 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
 
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
                 if is_reference(&self.argument) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
-                ctx.exe.add_instruction(Instruction::ToNumeric);
+                ctx.add_instruction(Instruction::ToNumeric);
 
                 // 3. If oldValue is a Number, then
                 //    a. Return Number::unaryMinus(oldValue).
                 // 4. Else,
                 //    a. Assert: oldValue is a BigInt.
                 //    b. Return BigInt::unaryMinus(oldValue).
-                ctx.exe.add_instruction(Instruction::UnaryMinus);
+                ctx.add_instruction(Instruction::UnaryMinus);
             }
             // 13.5.4 Unary + Operator
             // https://tc39.es/ecma262/#sec-unary-plus-operator
@@ -599,9 +727,9 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
 
                 // 2. Return ? ToNumber(? GetValue(expr)).
                 if is_reference(&self.argument) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
-                ctx.exe.add_instruction(Instruction::ToNumber);
+                ctx.add_instruction(Instruction::ToNumber);
             }
             // 13.5.6 Unary ! Operator
             // https://tc39.es/ecma262/#sec-logical-not-operator-runtime-semantics-evaluation
@@ -614,9 +742,9 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 // 3. If oldValue is true, return false.
                 // 4. Return true.
                 if is_reference(&self.argument) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
-                ctx.exe.add_instruction(Instruction::LogicalNot);
+                ctx.add_instruction(Instruction::LogicalNot);
             }
             // 13.5.7 Unary ~ Operator
             // https://tc39.es/ecma262/#sec-bitwise-not-operator-runtime-semantics-evaluation
@@ -632,9 +760,9 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 //    a. Assert: oldValue is a BigInt.
                 //    b. Return BigInt::bitwiseNOT(oldValue).
                 if is_reference(&self.argument) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
-                ctx.exe.add_instruction(Instruction::BitwiseNot);
+                ctx.add_instruction(Instruction::BitwiseNot);
             }
             // 13.5.3 The typeof Operator
             // UnaryExpression : typeof UnaryExpression
@@ -642,7 +770,7 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 // 1. Let val be ? Evaluation of UnaryExpression.
                 self.argument.compile(ctx);
                 // 3. Set val to ? GetValue(val).
-                ctx.exe.add_instruction(Instruction::Typeof);
+                ctx.add_instruction(Instruction::Typeof);
             }
             // 13.5.2 The void operator
             // UnaryExpression : void UnaryExpression
@@ -652,11 +780,10 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 // NOTE: GetValue must be called even though its value is not used because it may have observable side-effects.
                 // 2. Perform ? GetValue(expr).
                 if is_reference(&self.argument) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
                 // 3. Return undefined.
-                ctx.exe
-                    .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
             }
             // 13.5.1 The delete operator
             // https://tc39.es/ecma262/#sec-delete-operator-runtime-semantics-evaluation
@@ -666,11 +793,10 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 self.argument.compile(ctx);
                 // 2. If ref is not a Reference Record, return true.
                 if !is_reference(&self.argument) {
-                    ctx.exe
-                        .add_instruction_with_constant(Instruction::StoreConstant, true);
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, true);
                     return;
                 }
-                ctx.exe.add_instruction(Instruction::Delete);
+                ctx.add_instruction(Instruction::Delete);
             }
         }
     }
@@ -683,57 +809,56 @@ impl CompileEvaluation for ast::BinaryExpression<'_> {
 
         // 2. Let lval be ? GetValue(lref).
         if is_reference(&self.left) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
+        ctx.add_instruction(Instruction::Load);
 
         // 3. Let rref be ? Evaluation of rightOperand.
         self.right.compile(ctx);
 
         // 4. Let rval be ? GetValue(rref).
         if is_reference(&self.right) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
 
         match self.operator {
             BinaryOperator::LessThan => {
-                ctx.exe.add_instruction(Instruction::LessThan);
+                ctx.add_instruction(Instruction::LessThan);
             }
             BinaryOperator::LessEqualThan => {
-                ctx.exe.add_instruction(Instruction::LessThanEquals);
+                ctx.add_instruction(Instruction::LessThanEquals);
             }
             BinaryOperator::GreaterThan => {
-                ctx.exe.add_instruction(Instruction::GreaterThan);
+                ctx.add_instruction(Instruction::GreaterThan);
             }
             BinaryOperator::GreaterEqualThan => {
-                ctx.exe.add_instruction(Instruction::GreaterThanEquals);
+                ctx.add_instruction(Instruction::GreaterThanEquals);
             }
             BinaryOperator::StrictEquality => {
-                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+                ctx.add_instruction(Instruction::IsStrictlyEqual);
             }
             BinaryOperator::StrictInequality => {
-                ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
-                ctx.exe.add_instruction(Instruction::LogicalNot);
+                ctx.add_instruction(Instruction::IsStrictlyEqual);
+                ctx.add_instruction(Instruction::LogicalNot);
             }
             BinaryOperator::Equality => {
-                ctx.exe.add_instruction(Instruction::IsLooselyEqual);
+                ctx.add_instruction(Instruction::IsLooselyEqual);
             }
             BinaryOperator::Inequality => {
-                ctx.exe.add_instruction(Instruction::IsLooselyEqual);
-                ctx.exe.add_instruction(Instruction::LogicalNot);
+                ctx.add_instruction(Instruction::IsLooselyEqual);
+                ctx.add_instruction(Instruction::LogicalNot);
             }
             BinaryOperator::In => {
-                ctx.exe.add_instruction(Instruction::HasProperty);
+                ctx.add_instruction(Instruction::HasProperty);
             }
             BinaryOperator::Instanceof => {
-                ctx.exe.add_instruction(Instruction::InstanceofOperator);
+                ctx.add_instruction(Instruction::InstanceofOperator);
             }
             _ => {
                 // 5. Return ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
-                ctx.exe
-                    .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
-                        self.operator,
-                    ));
+                ctx.add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(
+                    self.operator,
+                ));
             }
         }
     }
@@ -743,39 +868,37 @@ impl CompileEvaluation for ast::LogicalExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.left.compile(ctx);
         if is_reference(&self.left) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // We store the left value on the stack, because we'll need to restore
         // it later.
-        ctx.exe.add_instruction(Instruction::LoadCopy);
+        ctx.add_instruction(Instruction::LoadCopy);
 
         match self.operator {
             oxc_syntax::operator::LogicalOperator::Or => {
-                ctx.exe.add_instruction(Instruction::LogicalNot);
+                ctx.add_instruction(Instruction::LogicalNot);
             }
             oxc_syntax::operator::LogicalOperator::And => {}
             oxc_syntax::operator::LogicalOperator::Coalesce => {
-                ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+                ctx.add_instruction(Instruction::IsNullOrUndefined);
             }
         }
-        let jump_to_return_left = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        let jump_to_return_left = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
 
         // We're returning the right expression, so we discard the left value
         // at the top of the stack.
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
 
         self.right.compile(ctx);
         if is_reference(&self.right) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
-        ctx.exe.set_jump_target_here(jump_to_return_left);
+        ctx.set_jump_target_here(jump_to_return_left);
         // Return the result of the left expression.
-        ctx.exe.add_instruction(Instruction::Store);
-        ctx.exe.set_jump_target_here(jump_to_end);
+        ctx.add_instruction(Instruction::Store);
+        ctx.set_jump_target_here(jump_to_end);
     }
 }
 
@@ -806,19 +929,19 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
         };
 
         if self.operator == oxc_syntax::operator::AssignmentOperator::Assign {
-            ctx.exe.add_instruction(Instruction::PushReference);
+            ctx.add_instruction(Instruction::PushReference);
             self.right.compile(ctx);
 
             if is_reference(&self.right) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
 
-            ctx.exe.add_instruction(Instruction::LoadCopy);
-            ctx.exe.add_instruction(Instruction::PopReference);
-            ctx.exe.add_instruction(Instruction::PutValue);
+            ctx.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::PopReference);
+            ctx.add_instruction(Instruction::PutValue);
 
             // ... Return rval.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
         } else if matches!(
             self.operator,
             oxc_syntax::operator::AssignmentOperator::LogicalAnd
@@ -826,11 +949,11 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 | oxc_syntax::operator::AssignmentOperator::LogicalOr
         ) {
             // 2. Let lval be ? GetValue(lref).
-            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-            ctx.exe.add_instruction(Instruction::PushReference);
+            ctx.add_instruction(Instruction::GetValueKeepReference);
+            ctx.add_instruction(Instruction::PushReference);
             // We store the left value on the stack, because we'll need to
             // restore it later.
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::LoadCopy);
 
             match self.operator {
                 oxc_syntax::operator::AssignmentOperator::LogicalAnd => {
@@ -842,22 +965,20 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is true, return lval.
-                    ctx.exe.add_instruction(Instruction::LogicalNot);
+                    ctx.add_instruction(Instruction::LogicalNot);
                 }
                 oxc_syntax::operator::AssignmentOperator::LogicalNullish => {
                     // 3. If lval is neither undefined nor null, return lval.
-                    ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+                    ctx.add_instruction(Instruction::IsNullOrUndefined);
                 }
                 _ => unreachable!(),
             }
 
-            let jump_to_end = ctx
-                .exe
-                .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
 
             // We're returning the right expression, so we discard the left
             // value at the top of the stack.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
 
             // 5. If IsAnonymousFunctionDefinition(AssignmentExpression)
             // is true and IsIdentifierRef of LeftHandSideExpression is true,
@@ -873,29 +994,29 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 self.right.compile(ctx);
                 // b. Let rval be ? GetValue(rref).
                 if is_reference(&self.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
             }
 
             // 7. Perform ? PutValue(lref, rval).
-            ctx.exe.add_instruction(Instruction::LoadCopy);
-            ctx.exe.add_instruction(Instruction::PopReference);
-            ctx.exe.add_instruction(Instruction::PutValue);
+            ctx.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::PopReference);
+            ctx.add_instruction(Instruction::PutValue);
 
             // 4. ... return lval.
-            ctx.exe.set_jump_target_here(jump_to_end);
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.set_jump_target_here(jump_to_end);
+            ctx.add_instruction(Instruction::Store);
         } else {
             // 2. let lval be ? GetValue(lref).
-            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-            ctx.exe.add_instruction(Instruction::Load);
-            ctx.exe.add_instruction(Instruction::PushReference);
+            ctx.add_instruction(Instruction::GetValueKeepReference);
+            ctx.add_instruction(Instruction::Load);
+            ctx.add_instruction(Instruction::PushReference);
             // 3. Let rref be ? Evaluation of AssignmentExpression.
             self.right.compile(ctx);
 
             // 4. Let rval be ? GetValue(rref).
             if is_reference(&self.right) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
 
             // 5. Let assignmentOpText be the source text matched by AssignmentOperator.
@@ -924,14 +1045,13 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 _ => unreachable!(),
             };
             // 7. Let r be ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
-            ctx.exe
-                .add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(op_text));
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(op_text));
+            ctx.add_instruction(Instruction::LoadCopy);
             // 8. Perform ? PutValue(lref, r).
-            ctx.exe.add_instruction(Instruction::PopReference);
-            ctx.exe.add_instruction(Instruction::PutValue);
+            ctx.add_instruction(Instruction::PopReference);
+            ctx.add_instruction(Instruction::PutValue);
             // 9. Return r.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
         }
     }
 }
@@ -944,31 +1064,32 @@ impl CompileEvaluation for ast::ParenthesizedExpression<'_> {
 
 impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe
-            .add_arrow_function_expression(ArrowFunctionExpression {
-                expression: SendableRef::new(unsafe {
-                    std::mem::transmute::<
-                        &ast::ArrowFunctionExpression<'_>,
-                        &'static ast::ArrowFunctionExpression<'static>,
-                    >(self)
-                }),
-                // CompileContext holds a name identifier for us if this is NamedEvaluation.
-                identifier: ctx.name_identifier.take(),
-                home_object: None,
-            });
+        // CompileContext holds a name identifier for us if this is NamedEvaluation.
+        let identifier = ctx.name_identifier.take();
+        ctx.add_arrow_function_expression(ArrowFunctionExpression {
+            expression: SendableRef::new(unsafe {
+                std::mem::transmute::<
+                    &ast::ArrowFunctionExpression<'_>,
+                    &'static ast::ArrowFunctionExpression<'static>,
+                >(self)
+            }),
+            identifier,
+        });
     }
 }
 
 impl CompileEvaluation for ast::Function<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe.add_instruction_with_function_expression(
+        // CompileContext holds a name identifier for us if this is NamedEvaluation.
+        let identifier = ctx.name_identifier.take();
+        ctx.add_instruction_with_function_expression(
             Instruction::InstantiateOrdinaryFunctionExpression,
             FunctionExpression {
                 expression: SendableRef::new(unsafe {
                     std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
                 }),
-                // CompileContext holds a name identifier for us if this is NamedEvaluation.
-                identifier: ctx.name_identifier.take(),
+                identifier,
+                compiled_bytecode: None,
             },
         );
     }
@@ -978,7 +1099,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         // TODO: Consider preparing the properties onto the stack and creating
         // the object with a known size.
-        ctx.exe.add_instruction(Instruction::ObjectCreate);
+        ctx.add_instruction(Instruction::ObjectCreate);
         for property in self.properties.iter() {
             match property {
                 ast::ObjectPropertyKind::ObjectProperty(prop) => {
@@ -1018,14 +1139,14 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     // should dispatch a SetPrototype instruction.
                                     is_proto_setter = true;
                                 } else {
-                                    ctx.exe.add_instruction_with_constant(
+                                    ctx.add_instruction_with_constant(
                                         Instruction::StoreConstant,
                                         BUILTIN_STRING_MEMORY.__proto__,
                                     );
                                 }
                             } else {
                                 let identifier = PropertyKey::from_str(ctx.agent, &id.name);
-                                ctx.exe.add_instruction_with_constant(
+                                ctx.add_instruction_with_constant(
                                     Instruction::StoreConstant,
                                     identifier,
                                 );
@@ -1034,7 +1155,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
                         ast::PropertyKey::StringLiteral(init) => {
                             let identifier = PropertyKey::from_str(ctx.agent, &init.value);
-                            ctx.exe.add_instruction_with_constant(
+                            ctx.add_instruction_with_constant(
                                 Instruction::StoreConstant,
                                 identifier,
                             );
@@ -1057,12 +1178,12 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                     if let Some(prop_key_expression) = prop.key.as_expression() {
                         if is_reference(prop_key_expression) {
                             assert!(!is_proto_setter);
-                            ctx.exe.add_instruction(Instruction::GetValue);
+                            ctx.add_instruction(Instruction::GetValue);
                         }
                     }
                     if !is_proto_setter {
                         // Prototype setter doesn't need the key.
-                        ctx.exe.add_instruction(Instruction::Load);
+                        ctx.add_instruction(Instruction::Load);
                     }
                     match prop.kind {
                         ast::PropertyKind::Init => {
@@ -1071,16 +1192,16 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                             }
                             prop.value.compile(ctx);
                             if is_reference(&prop.value) {
-                                ctx.exe.add_instruction(Instruction::GetValue);
+                                ctx.add_instruction(Instruction::GetValue);
                             }
                             // 7. If isProtoSetter is true, then
                             if is_proto_setter {
                                 // a. If propValue is an Object or propValue is null, then
                                 //     i. Perform ! object.[[SetPrototypeOf]](propValue).
                                 // b. Return unused.
-                                ctx.exe.add_instruction(Instruction::ObjectSetPrototype);
+                                ctx.add_instruction(Instruction::ObjectSetPrototype);
                             } else {
-                                ctx.exe.add_instruction(Instruction::ObjectDefineProperty);
+                                ctx.add_instruction(Instruction::ObjectDefineProperty);
                             }
                         }
                         ast::PropertyKind::Get | ast::PropertyKind::Set => {
@@ -1090,81 +1211,78 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                             else {
                                 unreachable!()
                             };
-                            ctx.exe
-                                .add_instruction_with_function_expression_and_immediate(
-                                    if is_get {
-                                        Instruction::ObjectDefineGetter
-                                    } else {
-                                        Instruction::ObjectDefineSetter
-                                    },
-                                    FunctionExpression {
-                                        expression: SendableRef::new(unsafe {
-                                            std::mem::transmute::<
-                                                &ast::Function<'_>,
-                                                &'static ast::Function<'static>,
-                                            >(
-                                                function_expression
-                                            )
-                                        }),
-                                        identifier: None,
-                                    },
-                                    // enumerable: true,
-                                    true.into(),
-                                );
+                            ctx.add_instruction_with_function_expression_and_immediate(
+                                if is_get {
+                                    Instruction::ObjectDefineGetter
+                                } else {
+                                    Instruction::ObjectDefineSetter
+                                },
+                                FunctionExpression {
+                                    expression: SendableRef::new(unsafe {
+                                        std::mem::transmute::<
+                                            &ast::Function<'_>,
+                                            &'static ast::Function<'static>,
+                                        >(
+                                            function_expression
+                                        )
+                                    }),
+                                    identifier: None,
+                                    compiled_bytecode: None,
+                                },
+                                // enumerable: true,
+                                true.into(),
+                            );
                         }
                     }
                 }
                 ast::ObjectPropertyKind::SpreadProperty(spread) => {
                     spread.argument.compile(ctx);
                     if is_reference(&spread.argument) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
+                        ctx.add_instruction(Instruction::GetValue);
                     }
-                    ctx.exe.add_instruction(Instruction::CopyDataProperties);
+                    ctx.add_instruction(Instruction::CopyDataProperties);
                 }
             }
         }
         // 3. Return obj
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
     }
 }
 
 impl CompileEvaluation for ast::ArrayExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let elements_min_count = self.elements.len();
-        ctx.exe
-            .add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
+        ctx.add_instruction_with_immediate(Instruction::ArrayCreate, elements_min_count);
         for ele in &self.elements {
             match ele {
                 ast::ArrayExpressionElement::SpreadElement(spread) => {
                     spread.argument.compile(ctx);
                     if is_reference(&spread.argument) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
+                        ctx.add_instruction(Instruction::GetValue);
                     }
-                    ctx.exe.add_instruction(Instruction::GetIteratorSync);
+                    ctx.add_instruction(Instruction::GetIteratorSync);
 
-                    let iteration_start = ctx.exe.get_jump_index_to_here();
-                    let iteration_end = ctx
-                        .exe
-                        .add_instruction_with_jump_slot(Instruction::IteratorStepValue);
-                    ctx.exe.add_instruction(Instruction::ArrayPush);
-                    ctx.exe
-                        .add_jump_instruction_to_index(Instruction::Jump, iteration_start);
-                    ctx.exe.set_jump_target_here(iteration_end);
+                    let iteration_start = ctx.get_jump_index_to_here();
+                    let iteration_end =
+                        ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
+                    ctx.add_instruction(Instruction::ArrayPush);
+                    ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
+                    ctx.set_jump_target_here(iteration_end);
                 }
                 ast::ArrayExpressionElement::Elision(_) => {
-                    ctx.exe.add_instruction(Instruction::ArrayElision);
+                    ctx.add_instruction(Instruction::ArrayElision);
                 }
                 _ => {
                     let expression = ele.to_expression();
                     expression.compile(ctx);
                     if is_reference(expression) {
-                        ctx.exe.add_instruction(Instruction::GetValue);
+                        ctx.add_instruction(Instruction::GetValue);
                     }
-                    ctx.exe.add_instruction(Instruction::ArrayPush);
+                    ctx.add_instruction(Instruction::ArrayPush);
                 }
             }
         }
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
     }
 }
 
@@ -1182,38 +1300,34 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
         // arguments, followed by the arguments.
         if let ast::Argument::SpreadElement(spread) = argument {
             if let Some(num_arguments) = known_num_arguments.take() {
-                ctx.exe
-                    .add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
+                ctx.add_instruction_with_constant(Instruction::LoadConstant, num_arguments);
             }
 
             spread.argument.compile(ctx);
             if is_reference(&spread.argument) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
-            ctx.exe.add_instruction(Instruction::GetIteratorSync);
+            ctx.add_instruction(Instruction::GetIteratorSync);
 
-            let iteration_start = ctx.exe.get_jump_index_to_here();
-            let iteration_end = ctx
-                .exe
-                .add_instruction_with_jump_slot(Instruction::IteratorStepValue);
+            let iteration_start = ctx.get_jump_index_to_here();
+            let iteration_end = ctx.add_instruction_with_jump_slot(Instruction::IteratorStepValue);
             // result: value; stack: [num, ...args]
-            ctx.exe.add_instruction(Instruction::LoadStoreSwap);
+            ctx.add_instruction(Instruction::LoadStoreSwap);
             // result: num; stack: [value, ...args]
-            ctx.exe.add_instruction(Instruction::Increment);
+            ctx.add_instruction(Instruction::Increment);
             // result: num + 1; stack: [value, ...args]
-            ctx.exe.add_instruction(Instruction::Load);
+            ctx.add_instruction(Instruction::Load);
             // stack: [num + 1, value, ...args]
-            ctx.exe
-                .add_jump_instruction_to_index(Instruction::Jump, iteration_start);
-            ctx.exe.set_jump_target_here(iteration_end);
+            ctx.add_jump_instruction_to_index(Instruction::Jump, iteration_start);
+            ctx.set_jump_target_here(iteration_end);
         } else {
             let expression = argument.to_expression();
             expression.compile(ctx);
             if is_reference(expression) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
             if let Some(num_arguments) = known_num_arguments.as_mut() {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 // stack: [value, ...args]
 
                 if *num_arguments < IndexType::MAX - 1 {
@@ -1223,7 +1337,7 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
                     // result value.
                     debug_assert_eq!(*num_arguments, IndexType::MAX - 1);
                     known_num_arguments = None;
-                    ctx.exe.add_instruction_with_constant(
+                    ctx.add_instruction_with_constant(
                         Instruction::LoadConstant,
                         Value::from(IndexType::MAX),
                     );
@@ -1231,11 +1345,11 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
                 }
             } else {
                 // result: value; stack: [num, ...args]
-                ctx.exe.add_instruction(Instruction::LoadStoreSwap);
+                ctx.add_instruction(Instruction::LoadStoreSwap);
                 // result: num; stack: [value, ...args]
-                ctx.exe.add_instruction(Instruction::Increment);
+                ctx.add_instruction(Instruction::Increment);
                 // result: num + 1; stack: [value, ...args]
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 // stack: [num + 1, value, ...args]
             }
         }
@@ -1246,7 +1360,7 @@ fn compile_arguments(arguments: &[ast::Argument], ctx: &mut CompileContext) -> u
         num_arguments as usize
     } else {
         // stack: [num, ...args]
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
         // result: num; stack: [...args]
         IndexType::MAX as usize
     }
@@ -1259,8 +1373,7 @@ impl CompileEvaluation for CallExpression<'_> {
             if let ast::Expression::Identifier(ident) = &self.callee {
                 if ident.name == "eval" {
                     let num_arguments = compile_arguments(&self.arguments, ctx);
-                    ctx.exe
-                        .add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
+                    ctx.add_instruction_with_immediate(Instruction::DirectEvalCall, num_arguments);
                     return;
                 }
             }
@@ -1271,12 +1384,12 @@ impl CompileEvaluation for CallExpression<'_> {
         self.callee.compile(ctx);
         // 2. Let func be ? GetValue(ref).
         let need_pop_reference = if is_reference(&self.callee) {
-            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+            ctx.add_instruction(Instruction::GetValueKeepReference);
             // Optimization: If we know arguments is empty, we don't need to
             // worry about arguments evaluation clobbering our function's this
             // reference.
             if !self.arguments.is_empty() {
-                ctx.exe.add_instruction(Instruction::PushReference);
+                ctx.add_instruction(Instruction::PushReference);
                 true
             } else {
                 false
@@ -1289,9 +1402,9 @@ impl CompileEvaluation for CallExpression<'_> {
             // Optional Chains
 
             // Load copy of func to stack.
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::LoadCopy);
             // 3. If func is either undefined or null, then
-            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            ctx.add_instruction(Instruction::IsNullOrUndefined);
             // a. Return undefined
 
             // To return undefined we jump over the rest of the call handling.
@@ -1299,25 +1412,22 @@ impl CompileEvaluation for CallExpression<'_> {
                 // If we need to pop the reference stack, then we must do it
                 // here before we go to the nullish case handling.
                 // Note the inverted jump condition here!
-                let jump_to_call = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                let jump_to_call = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
                 // Now we're in our local nullish case handling.
                 // First we pop our reference.
-                ctx.exe.add_instruction(Instruction::PopReference);
+                ctx.add_instruction(Instruction::PopReference);
                 // And now we're ready to jump over the call.
-                let jump_over_call = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+                let jump_over_call = ctx.add_instruction_with_jump_slot(Instruction::Jump);
                 // But if we're jumping to call then we need to land here.
-                ctx.exe.set_jump_target_here(jump_to_call);
+                ctx.set_jump_target_here(jump_to_call);
                 jump_over_call
             } else {
-                ctx.exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue)
+                ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue)
             };
             // Register our jump slot to the chain nullish case handling.
             ctx.optional_chains.as_mut().unwrap().push(jump_over_call);
         } else {
-            ctx.exe.add_instruction(Instruction::Load);
+            ctx.add_instruction(Instruction::Load);
         }
         // If we're in an optional chain, we need to pluck it out while we're
         // compiling the parameters: They do not join our chain.
@@ -1329,10 +1439,9 @@ impl CompileEvaluation for CallExpression<'_> {
         }
 
         if need_pop_reference {
-            ctx.exe.add_instruction(Instruction::PopReference);
+            ctx.add_instruction(Instruction::PopReference);
         }
-        ctx.exe
-            .add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
+        ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
     }
 }
 
@@ -1340,13 +1449,12 @@ impl CompileEvaluation for NewExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.callee.compile(ctx);
         if is_reference(&self.callee) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
+        ctx.add_instruction(Instruction::Load);
 
         let num_arguments = compile_arguments(&self.arguments, ctx);
-        ctx.exe
-            .add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments);
+        ctx.add_instruction_with_immediate(Instruction::EvaluateNew, num_arguments);
     }
 }
 
@@ -1368,22 +1476,21 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
 
         // 2. Let baseValue be ? GetValue(baseReference).
         if is_reference(&self.object) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
 
         if self.optional {
             // Optional Chains
 
             // Load copy of baseValue to stack.
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::LoadCopy);
             // 3. If baseValue is either undefined or null, then
-            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            ctx.add_instruction(Instruction::IsNullOrUndefined);
             // a. Return undefined
 
             // To return undefined we jump over the property access.
-            let jump_over_property_access = ctx
-                .exe
-                .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+            let jump_over_property_access =
+                ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
 
             // Register our jump slot to the chain nullish case handling.
             ctx.optional_chains
@@ -1391,7 +1498,7 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
                 .unwrap()
                 .push(jump_over_property_access);
         } else {
-            ctx.exe.add_instruction(Instruction::Load);
+            ctx.add_instruction(Instruction::Load);
         }
 
         // If we're in an optional chain, we need to pluck it out while we're
@@ -1400,7 +1507,7 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
         // 4. Return ? EvaluatePropertyAccessWithExpressionKey(baseValue, Expression, strict).
         self.expression.compile(ctx);
         if is_reference(&self.expression) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // After we're done with compiling the member expression we go back
         // into the chain.
@@ -1408,8 +1515,7 @@ impl CompileEvaluation for ast::ComputedMemberExpression<'_> {
             ctx.optional_chains.replace(optional_chain);
         }
 
-        ctx.exe
-            .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+        ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
     }
 }
 
@@ -1420,22 +1526,21 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
 
         // 2. Let baseValue be ? GetValue(baseReference).
         if is_reference(&self.object) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
 
         if self.optional {
             // Optional Chains
 
             // Load copy of baseValue to stack.
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::LoadCopy);
             // 3. If baseValue is either undefined or null, then
-            ctx.exe.add_instruction(Instruction::IsNullOrUndefined);
+            ctx.add_instruction(Instruction::IsNullOrUndefined);
             // a. Return undefined
 
             // To return undefined we jump over the property access.
-            let jump_over_property_access = ctx
-                .exe
-                .add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+            let jump_over_property_access =
+                ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
 
             // Register our jump slot to the chain nullish case handling.
             ctx.optional_chains
@@ -1444,12 +1549,12 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
                 .push(jump_over_property_access);
 
             // Return copy of baseValue from stack if it is not.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
         let identifier = String::from_str(ctx.agent, self.property.name.as_str());
-        ctx.exe.add_instruction_with_identifier(
+        ctx.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             identifier,
         );
@@ -1468,10 +1573,10 @@ impl CompileEvaluation for ast::AwaitExpression<'_> {
         self.argument.compile(ctx);
         // 2. Let value be ? GetValue(exprRef).
         if is_reference(&self.argument) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // 3. Return ? Await(value).
-        ctx.exe.add_instruction(Instruction::Await);
+        ctx.add_instruction(Instruction::Await);
     }
 }
 
@@ -1516,25 +1621,23 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
             // both its value and its reference.
             if ctx.is_call_optional_chain_this {
                 ctx.is_call_optional_chain_this = false;
-                ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+                ctx.add_instruction(Instruction::GetValueKeepReference);
             } else {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
         }
         if installed_own_chains {
-            let jump_over_return_undefined =
-                ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+            let jump_over_return_undefined = ctx.add_instruction_with_jump_slot(Instruction::Jump);
             let own_chains = ctx.optional_chains.take().unwrap();
             for jump_to_return_undefined in own_chains {
-                ctx.exe.set_jump_target_here(jump_to_return_undefined);
+                ctx.set_jump_target_here(jump_to_return_undefined);
             }
             // All optional chains come here with a copy of their null or
             // undefined baseValue on the stack. Pop it off.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
             // Replace any possible null with undefined.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-            ctx.exe.set_jump_target_here(jump_over_return_undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.set_jump_target_here(jump_over_return_undefined);
         }
     }
 }
@@ -1547,31 +1650,29 @@ impl CompileEvaluation for ast::ConditionalExpression<'_> {
         self.test.compile(ctx);
         // 2. Let lval be ToBoolean(? GetValue(lref)).
         if is_reference(&self.test) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // Jump over first AssignmentExpression (consequent) if test fails.
         // Note: JumpIfNot performs ToBoolean from above step.
-        let jump_to_second = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        let jump_to_second = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         // 3. If lval is true, then
         // a. Let trueRef be ? Evaluation of the first AssignmentExpression.
         self.consequent.compile(ctx);
         // b. Return ? GetValue(trueRef).
         if is_reference(&self.consequent) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // Jump over second AssignmentExpression (alternate).
-        let jump_over_second = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        let jump_over_second = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         // 4. Else,
-        ctx.exe.set_jump_target_here(jump_to_second);
+        ctx.set_jump_target_here(jump_to_second);
         // a. Let falseRef be ? Evaluation of the second AssignmentExpression.
         self.alternate.compile(ctx);
         // b. Return ? GetValue(falseRef).
         if is_reference(&self.alternate) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.set_jump_target_here(jump_over_second);
+        ctx.set_jump_target_here(jump_over_second);
     }
 }
 
@@ -1598,8 +1699,7 @@ impl CompileEvaluation for ast::RegExpLiteral<'_> {
         let pattern = String::from_str(ctx.agent, self.regex.pattern.as_str());
         let regexp =
             reg_exp_create(ctx.agent, pattern.into_value(), Some(self.regex.flags)).unwrap();
-        ctx.exe
-            .add_instruction_with_constant(Instruction::StoreConstant, regexp);
+        ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }
 }
 
@@ -1633,8 +1733,7 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
                     .expect("Invalid escape sequence in template literal")
                     .as_str(),
             );
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, constant);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
         } else {
             let mut count = 0;
             let mut quasis = self.quasis.as_slice();
@@ -1644,8 +1743,7 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
                 // 1. Let head be the TV of TemplateHead as defined in 12.9.6.
                 let head =
                     String::from_str(ctx.agent, head.value.cooked.as_ref().unwrap().as_str());
-                ctx.exe
-                    .add_instruction_with_constant(Instruction::LoadConstant, head);
+                ctx.add_instruction_with_constant(Instruction::LoadConstant, head);
                 count += 1;
                 if let Some((expression, rest)) = expressions.split_first() {
                     expressions = rest;
@@ -1653,25 +1751,24 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
                     expression.compile(ctx);
                     if is_reference(expression) {
                         // 3. Let sub be ? GetValue(subRef).
-                        ctx.exe.add_instruction(Instruction::GetValue);
+                        ctx.add_instruction(Instruction::GetValue);
                     }
                     // 4. Let middle be ? ToString(sub).
                     // Note: This is done by StringConcat.
-                    ctx.exe.add_instruction(Instruction::Load);
+                    ctx.add_instruction(Instruction::Load);
                     count += 1;
                 }
                 // 5. Let tail be ? Evaluation of TemplateSpans.
             }
             // 6. Return the string-concatenation of head, middle, and tail.
-            ctx.exe
-                .add_instruction_with_immediate(Instruction::StringConcat, count);
+            ctx.add_instruction_with_immediate(Instruction::StringConcat, count);
         }
     }
 }
 
 impl CompileEvaluation for ast::ThisExpression {
     fn compile(&self, ctx: &mut CompileContext) {
-        ctx.exe.add_instruction(Instruction::ResolveThisBinding);
+        ctx.add_instruction(Instruction::ResolveThisBinding);
     }
 }
 
@@ -1692,16 +1789,15 @@ impl CompileEvaluation for ast::YieldExpression<'_> {
             arg.compile(ctx);
             // 2. Let value be ? GetValue(exprRef).
             if is_reference(arg) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
         } else {
             // YieldExpression : yield
             // 1. Return ? Yield(undefined).
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
         // 3. Return ? Yield(value).
-        ctx.exe.add_instruction(Instruction::Yield);
+        ctx.add_instruction(Instruction::Yield);
     }
 }
 
@@ -1767,26 +1863,26 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
             | ast::SimpleAssignmentTarget::TSSatisfiesExpression(_)
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
-        ctx.exe.add_instruction(Instruction::GetValueKeepReference);
+        ctx.add_instruction(Instruction::GetValueKeepReference);
         if !self.prefix {
             // The return value of postfix increment/decrement is the value
             // after ToNumeric.
-            ctx.exe.add_instruction(Instruction::ToNumeric);
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::ToNumeric);
+            ctx.add_instruction(Instruction::LoadCopy);
         }
         match self.operator {
             oxc_syntax::operator::UpdateOperator::Increment => {
-                ctx.exe.add_instruction(Instruction::Increment);
+                ctx.add_instruction(Instruction::Increment);
             }
             oxc_syntax::operator::UpdateOperator::Decrement => {
-                ctx.exe.add_instruction(Instruction::Decrement);
+                ctx.add_instruction(Instruction::Decrement);
             }
         }
         if self.prefix {
-            ctx.exe.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::LoadCopy);
         }
-        ctx.exe.add_instruction(Instruction::PutValue);
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::PutValue);
+        ctx.add_instruction(Instruction::Store);
     }
 }
 
@@ -1798,7 +1894,7 @@ impl CompileEvaluation for ast::ExpressionStatement<'_> {
         self.expression.compile(ctx);
         if is_reference(&self.expression) {
             // 2. Return ? GetValue(exprRef).
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
     }
 }
@@ -1808,13 +1904,12 @@ impl CompileEvaluation for ast::ReturnStatement<'_> {
         if let Some(expr) = &self.argument {
             expr.compile(ctx);
             if is_reference(expr) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
         } else {
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        ctx.exe.add_instruction(Instruction::Return);
+        ctx.add_instruction(Instruction::Return);
     }
 }
 
@@ -1823,34 +1918,32 @@ impl CompileEvaluation for ast::IfStatement<'_> {
         // if (test) consequent
         self.test.compile(ctx);
         if is_reference(&self.test) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // jump over consequent if test fails
-        let jump_to_else = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        let jump_to_else = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         self.consequent.compile(ctx);
         let mut jump_over_else: Option<JumpIndex> = None;
         if let Some(alternate) = &self.alternate {
             // Optimisation: If the an else branch exists, the consequent
             // branch needs to end in a jump over it. But if the consequent
             // branch ends in a return statement that jump becomes unnecessary.
-            if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
-                jump_over_else = Some(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump));
+            if ctx.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
+                jump_over_else = Some(ctx.add_instruction_with_jump_slot(Instruction::Jump));
             }
 
             // Jump to else-branch when if test fails.
-            ctx.exe.set_jump_target_here(jump_to_else);
+            ctx.set_jump_target_here(jump_to_else);
             alternate.compile(ctx);
         } else {
             // Jump over if-branch when if test fails.
-            ctx.exe.set_jump_target_here(jump_to_else);
+            ctx.set_jump_target_here(jump_to_else);
         }
 
         // Jump over else-branch at the end of if-branch if necessary.
         // (See optimisation above for when it is not needed.)
         if let Some(jump_over_else) = jump_over_else {
-            ctx.exe.set_jump_target_here(jump_over_else);
+            ctx.set_jump_target_here(jump_over_else);
         }
     }
 }
@@ -1861,8 +1954,8 @@ impl CompileEvaluation for ast::ArrayPattern<'_> {
             return;
         }
 
-        ctx.exe.add_instruction(Instruction::Store);
-        ctx.exe.add_instruction(Instruction::GetIteratorSync);
+        ctx.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::GetIteratorSync);
 
         if !self.contains_expression() {
             simple_array_pattern(
@@ -1893,7 +1986,7 @@ fn simple_array_pattern<'a, 'b, I>(
     'b: 'a,
     I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
 {
-    ctx.exe.add_instruction_with_immediate_and_immediate(
+    ctx.add_instruction_with_immediate_and_immediate(
         Instruction::BeginSimpleArrayBindingPattern,
         num_elements,
         has_environment.into(),
@@ -1901,23 +1994,23 @@ fn simple_array_pattern<'a, 'b, I>(
 
     for ele in elements {
         let Some(ele) = ele else {
-            ctx.exe.add_instruction(Instruction::BindingPatternSkip);
+            ctx.add_instruction(Instruction::BindingPatternSkip);
             continue;
         };
         match &ele.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
+                ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBind,
                     identifier_string,
                 )
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                ctx.add_instruction(Instruction::BindingPatternGetValue);
                 simple_object_pattern(pattern, ctx, has_environment);
             }
             ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::BindingPatternGetValue);
+                ctx.add_instruction(Instruction::BindingPatternGetValue);
                 simple_array_pattern(
                     ctx,
                     pattern.elements.iter().map(Option::as_ref),
@@ -1934,19 +2027,17 @@ fn simple_array_pattern<'a, 'b, I>(
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
+                ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
                     identifier_string,
                 );
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.exe
-                    .add_instruction(Instruction::BindingPatternGetRestValue);
+                ctx.add_instruction(Instruction::BindingPatternGetRestValue);
                 simple_object_pattern(pattern, ctx, has_environment);
             }
             ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.exe
-                    .add_instruction(Instruction::BindingPatternGetRestValue);
+                ctx.add_instruction(Instruction::BindingPatternGetRestValue);
                 simple_array_pattern(
                     ctx,
                     pattern.elements.iter().map(Option::as_ref),
@@ -1958,7 +2049,7 @@ fn simple_array_pattern<'a, 'b, I>(
             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
     } else {
-        ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+        ctx.add_instruction(Instruction::FinishBindingPattern);
     }
 }
 
@@ -1972,8 +2063,7 @@ fn complex_array_pattern<'a, 'b, I>(
     I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
 {
     for ele in elements {
-        ctx.exe
-            .add_instruction(Instruction::IteratorStepValueOrUndefined);
+        ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
 
         let Some(ele) = ele else {
             continue;
@@ -1982,18 +2072,16 @@ fn complex_array_pattern<'a, 'b, I>(
         let binding_pattern = match &ele.kind {
             ast::BindingPatternKind::AssignmentPattern(pattern) => {
                 // Run the initializer if the result value is undefined.
-                ctx.exe.add_instruction(Instruction::LoadCopy);
-                ctx.exe.add_instruction(Instruction::IsUndefined);
-                let jump_slot = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
-                ctx.exe.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::IsUndefined);
+                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.add_instruction(Instruction::Store);
                 if is_anonymous_function_definition(&pattern.right) {
                     if let ast::BindingPatternKind::BindingIdentifier(identifier) =
                         &pattern.left.kind
                     {
                         let identifier_string = ctx.create_identifier(&identifier.name);
-                        ctx.exe.add_instruction_with_constant(
+                        ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,
                         );
@@ -2003,11 +2091,11 @@ fn complex_array_pattern<'a, 'b, I>(
                 pattern.right.compile(ctx);
                 ctx.name_identifier = None;
                 if is_reference(&pattern.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
-                ctx.exe.add_instruction(Instruction::Load);
-                ctx.exe.set_jump_target_here(jump_slot);
-                ctx.exe.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::Load);
+                ctx.set_jump_target_here(jump_slot);
+                ctx.add_instruction(Instruction::Store);
 
                 &pattern.left.kind
             }
@@ -2017,23 +2105,19 @@ fn complex_array_pattern<'a, 'b, I>(
         match binding_pattern {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
-                    Instruction::ResolveBinding,
-                    identifier_string,
-                );
+                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
-                    ctx.exe.add_instruction(Instruction::PutValue);
+                    ctx.add_instruction(Instruction::PutValue);
                 } else {
-                    ctx.exe
-                        .add_instruction(Instruction::InitializeReferencedBinding);
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 }
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 pattern.compile(ctx);
             }
             ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 pattern.compile(ctx);
             }
             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
@@ -2041,33 +2125,29 @@ fn complex_array_pattern<'a, 'b, I>(
     }
 
     if let Some(rest) = rest {
-        ctx.exe.add_instruction(Instruction::IteratorRestIntoArray);
+        ctx.add_instruction(Instruction::IteratorRestIntoArray);
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
-                    Instruction::ResolveBinding,
-                    identifier_string,
-                );
+                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
-                    ctx.exe.add_instruction(Instruction::PutValue);
+                    ctx.add_instruction(Instruction::PutValue);
                 } else {
-                    ctx.exe
-                        .add_instruction(Instruction::InitializeReferencedBinding);
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 }
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 pattern.compile(ctx);
             }
             ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 pattern.compile(ctx);
             }
             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
         }
     } else {
-        ctx.exe.add_instruction(Instruction::IteratorClose);
+        ctx.add_instruction(Instruction::IteratorClose);
     }
 }
 
@@ -2086,7 +2166,7 @@ fn simple_object_pattern(
     ctx: &mut CompileContext,
     has_environment: bool,
 ) {
-    ctx.exe.add_instruction_with_immediate(
+    ctx.add_instruction_with_immediate(
         Instruction::BeginSimpleObjectBindingPattern,
         has_environment.into(),
     );
@@ -2101,10 +2181,7 @@ fn simple_object_pattern(
                 ast::BindingPatternKind::BindingIdentifier(_)
             ));
             let identifier_string = ctx.create_identifier(&identifier.name);
-            ctx.exe.add_instruction_with_identifier(
-                Instruction::BindingPatternBind,
-                identifier_string,
-            );
+            ctx.add_instruction_with_identifier(Instruction::BindingPatternBind, identifier_string);
         } else {
             let key_string = match &ele.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
@@ -2127,21 +2204,21 @@ fn simple_object_pattern(
             match &ele.value.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
                     let value_identifier_string = ctx.create_identifier(&identifier.name);
-                    ctx.exe.add_instruction_with_identifier_and_constant(
+                    ctx.add_instruction_with_identifier_and_constant(
                         Instruction::BindingPatternBindNamed,
                         value_identifier_string,
                         key_string,
                     )
                 }
                 ast::BindingPatternKind::ObjectPattern(pattern) => {
-                    ctx.exe.add_instruction_with_constant(
+                    ctx.add_instruction_with_constant(
                         Instruction::BindingPatternGetValueNamed,
                         key_string,
                     );
                     simple_object_pattern(pattern, ctx, has_environment);
                 }
                 ast::BindingPatternKind::ArrayPattern(pattern) => {
-                    ctx.exe.add_instruction_with_constant(
+                    ctx.add_instruction_with_constant(
                         Instruction::BindingPatternGetValueNamed,
                         key_string,
                     );
@@ -2162,7 +2239,7 @@ fn simple_object_pattern(
         match &rest.argument.kind {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
+                ctx.add_instruction_with_identifier(
                     Instruction::BindingPatternBindRest,
                     identifier_string,
                 );
@@ -2170,7 +2247,7 @@ fn simple_object_pattern(
             _ => unreachable!(),
         }
     } else {
-        ctx.exe.add_instruction(Instruction::FinishBindingPattern);
+        ctx.add_instruction(Instruction::FinishBindingPattern);
     }
 }
 
@@ -2184,17 +2261,17 @@ fn complex_object_pattern(
     // 1. Perform ? RequireObjectCoercible(value).
     // NOTE: RequireObjectCoercible throws in the same cases as ToObject, and other operations
     // later on (such as GetV) also perform ToObject, so we convert to an object early.
-    ctx.exe.add_instruction(Instruction::Store);
-    ctx.exe.add_instruction(Instruction::ToObject);
-    ctx.exe.add_instruction(Instruction::Load);
+    ctx.add_instruction(Instruction::Store);
+    ctx.add_instruction(Instruction::ToObject);
+    ctx.add_instruction(Instruction::Load);
 
     for property in &object_pattern.properties {
         match &property.key {
             ast::PropertyKey::StaticIdentifier(identifier) => {
-                ctx.exe.add_instruction(Instruction::Store);
-                ctx.exe.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::LoadCopy);
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
+                ctx.add_instruction_with_identifier(
                     Instruction::EvaluatePropertyAccessWithIdentifierKey,
                     identifier_string,
                 );
@@ -2202,32 +2279,29 @@ fn complex_object_pattern(
             ast::PropertyKey::PrivateIdentifier(_) => todo!(),
             _ => {
                 property.key.to_expression().compile(ctx);
-                ctx.exe
-                    .add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
+                ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
             }
         }
         if object_pattern.rest.is_some() {
-            ctx.exe.add_instruction(Instruction::GetValueKeepReference);
-            ctx.exe.add_instruction(Instruction::PushReference);
+            ctx.add_instruction(Instruction::GetValueKeepReference);
+            ctx.add_instruction(Instruction::PushReference);
         } else {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
 
         let binding_pattern = match &property.value.kind {
             ast::BindingPatternKind::AssignmentPattern(pattern) => {
                 // Run the initializer if the result value is undefined.
-                ctx.exe.add_instruction(Instruction::LoadCopy);
-                ctx.exe.add_instruction(Instruction::IsUndefined);
-                let jump_slot = ctx
-                    .exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfNot);
-                ctx.exe.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::IsUndefined);
+                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.add_instruction(Instruction::Store);
                 if is_anonymous_function_definition(&pattern.right) {
                     if let ast::BindingPatternKind::BindingIdentifier(identifier) =
                         &pattern.left.kind
                     {
                         let identifier_string = ctx.create_identifier(&identifier.name);
-                        ctx.exe.add_instruction_with_constant(
+                        ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             identifier_string,
                         );
@@ -2237,11 +2311,11 @@ fn complex_object_pattern(
                 pattern.right.compile(ctx);
                 ctx.name_identifier = None;
                 if is_reference(&pattern.right) {
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction(Instruction::GetValue);
                 }
-                ctx.exe.add_instruction(Instruction::Load);
-                ctx.exe.set_jump_target_here(jump_slot);
-                ctx.exe.add_instruction(Instruction::Store);
+                ctx.add_instruction(Instruction::Load);
+                ctx.set_jump_target_here(jump_slot);
+                ctx.add_instruction(Instruction::Store);
 
                 &pattern.left.kind
             }
@@ -2251,23 +2325,19 @@ fn complex_object_pattern(
         match binding_pattern {
             ast::BindingPatternKind::BindingIdentifier(identifier) => {
                 let identifier_string = ctx.create_identifier(&identifier.name);
-                ctx.exe.add_instruction_with_identifier(
-                    Instruction::ResolveBinding,
-                    identifier_string,
-                );
+                ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
                 if !has_environment {
-                    ctx.exe.add_instruction(Instruction::PutValue);
+                    ctx.add_instruction(Instruction::PutValue);
                 } else {
-                    ctx.exe
-                        .add_instruction(Instruction::InitializeReferencedBinding);
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 }
             }
             ast::BindingPatternKind::ObjectPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 pattern.compile(ctx);
             }
             ast::BindingPatternKind::ArrayPattern(pattern) => {
-                ctx.exe.add_instruction(Instruction::Load);
+                ctx.add_instruction(Instruction::Load);
                 pattern.compile(ctx);
             }
             ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
@@ -2281,23 +2351,21 @@ fn complex_object_pattern(
 
         // We have kept the references for all of the properties read in the reference stack, so we
         // can now use them to exclude those properties from the rest object.
-        ctx.exe.add_instruction_with_immediate(
+        ctx.add_instruction_with_immediate(
             Instruction::CopyDataPropertiesIntoObject,
             object_pattern.properties.len(),
         );
 
         let identifier_string = ctx.create_identifier(&identifier.name);
-        ctx.exe
-            .add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
+        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier_string);
         if !has_environment {
-            ctx.exe.add_instruction(Instruction::PutValue);
+            ctx.add_instruction(Instruction::PutValue);
         } else {
-            ctx.exe
-                .add_instruction(Instruction::InitializeReferencedBinding);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
         }
     } else {
         // Don't keep the object on the stack.
-        ctx.exe.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::Store);
     }
 }
 
@@ -2322,9 +2390,9 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                         init.compile(ctx);
                         // 2. Let rval be ? GetValue(rhs).
                         if is_reference(init) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
+                            ctx.add_instruction(Instruction::GetValue);
                         }
-                        ctx.exe.add_instruction(Instruction::Load);
+                        ctx.add_instruction(Instruction::Load);
                         // 3. Return ? BindingInitialization of BidingPattern with arguments rval and undefined.
                         match &decl.id.kind {
                             ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
@@ -2338,11 +2406,11 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
                     let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
-                    ctx.exe.add_instruction_with_identifier(
+                    ctx.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
                         identifier_string,
                     );
-                    ctx.exe.add_instruction(Instruction::PushReference);
+                    ctx.add_instruction(Instruction::PushReference);
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
@@ -2355,19 +2423,16 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                         init.compile(ctx);
                         // b. Let value be ? GetValue(rhs).
                         if is_reference(init) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
+                            ctx.add_instruction(Instruction::GetValue);
                         }
                     }
                     // 5. Perform ? PutValue(lhs, value).
-                    ctx.exe.add_instruction(Instruction::PopReference);
-                    ctx.exe.add_instruction(Instruction::PutValue);
+                    ctx.add_instruction(Instruction::PopReference);
+                    ctx.add_instruction(Instruction::PutValue);
 
                     // 6. Return EMPTY.
                     // Store Undefined as the result value.
-                    ctx.exe.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        Value::Undefined,
-                    );
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 }
             }
             ast::VariableDeclarationKind::Let | ast::VariableDeclarationKind::Const => {
@@ -2382,11 +2447,11 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                         init.compile(ctx);
                         // 2. Let value be ? GetValue(rhs).
                         if is_reference(init) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
+                            ctx.add_instruction(Instruction::GetValue);
                         }
                         // 3. Let env be the running execution context's LexicalEnvironment.
                         // 4. Return ? BindingInitialization of BindingPattern with arguments value and env.
-                        ctx.exe.add_instruction(Instruction::Load);
+                        ctx.add_instruction(Instruction::Load);
                         match &decl.id.kind {
                             ast::BindingPatternKind::BindingIdentifier(_) => unreachable!(),
                             ast::BindingPatternKind::ObjectPattern(pattern) => pattern.compile(ctx),
@@ -2398,7 +2463,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
                     let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
-                    ctx.exe.add_instruction_with_identifier(
+                    ctx.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
                         identifier_string,
                     );
@@ -2406,14 +2471,13 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     let Some(init) = &decl.init else {
                         // LexicalBinding : BindingIdentifier
                         // 2. Perform ! InitializeReferencedBinding(lhs, undefined).
-                        ctx.exe.add_instruction_with_constant(
+                        ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             Value::Undefined,
                         );
-                        ctx.exe
-                            .add_instruction(Instruction::InitializeReferencedBinding);
+                        ctx.add_instruction(Instruction::InitializeReferencedBinding);
                         // 3. Return empty.
-                        ctx.exe.add_instruction_with_constant(
+                        ctx.add_instruction_with_constant(
                             Instruction::StoreConstant,
                             Value::Undefined,
                         );
@@ -2421,7 +2485,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     };
 
                     //  LexicalBinding : BindingIdentifier Initializer
-                    ctx.exe.add_instruction(Instruction::PushReference);
+                    ctx.add_instruction(Instruction::PushReference);
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
                         // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
@@ -2433,19 +2497,15 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                         init.compile(ctx);
                         // b. Let value be ? GetValue(rhs).
                         if is_reference(init) {
-                            ctx.exe.add_instruction(Instruction::GetValue);
+                            ctx.add_instruction(Instruction::GetValue);
                         }
                     }
 
                     // 5. Perform ! InitializeReferencedBinding(lhs, value).
-                    ctx.exe.add_instruction(Instruction::PopReference);
-                    ctx.exe
-                        .add_instruction(Instruction::InitializeReferencedBinding);
+                    ctx.add_instruction(Instruction::PopReference);
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
                     // 6. Return empty.
-                    ctx.exe.add_instruction_with_constant(
-                        Instruction::StoreConstant,
-                        Value::Undefined,
-                    );
+                    ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 }
             }
         }
@@ -2469,8 +2529,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
             // 1. Return EMPTY.
             return;
         }
-        ctx.exe
-            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         // SAFETY: Stupid lifetime transmute.
         let body = unsafe {
             std::mem::transmute::<
@@ -2484,7 +2543,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                     if decl.kind.is_const() {
                         decl.id.bound_names(&mut |name| {
                             let identifier = String::from_str(ctx.agent, name.name.as_str());
-                            ctx.exe.add_instruction_with_identifier(
+                            ctx.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
                                 identifier,
                             );
@@ -2492,7 +2551,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                     } else if decl.kind.is_lexical() {
                         decl.id.bound_names(&mut |name| {
                             let identifier = String::from_str(ctx.agent, name.name.as_str());
-                            ctx.exe.add_instruction_with_identifier(
+                            ctx.add_instruction_with_identifier(
                                 Instruction::CreateMutableBinding,
                                 identifier,
                             );
@@ -2503,7 +2562,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                     // TODO: InstantiateFunctionObject and InitializeBinding
                     decl.bound_names(&mut |name| {
                         let identifier = String::from_str(ctx.agent, name.name.as_str());
-                        ctx.exe.add_instruction_with_identifier(
+                        ctx.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
                             identifier,
                         );
@@ -2512,7 +2571,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 LexicallyScopedDeclaration::Class(decl) => {
                     decl.bound_names(&mut |name| {
                         let identifier = String::from_str(ctx.agent, name.name.as_str());
-                        ctx.exe.add_instruction_with_identifier(
+                        ctx.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
                             identifier,
                         );
@@ -2524,13 +2583,11 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
         for ele in &self.body {
             ele.compile(ctx);
         }
-        if ctx.exe.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
+        if ctx.peek_last_instruction() != Some(Instruction::Return.as_u8()) {
             // Block did not end in a return so we overwrite the result with undefined.
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
     }
 }
 
@@ -2584,8 +2641,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                     if is_lexical {
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
-                        ctx.exe
-                            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                         // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
                         let is_const = init.kind.is_const();
                         // 4. Let boundNames be the BoundNames of LexicalDeclaration.
@@ -2595,7 +2651,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                             init.bound_names(&mut |dn| {
                                 // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
                                 let identifier = String::from_str(ctx.agent, dn.name.as_str());
-                                ctx.exe.add_instruction_with_identifier(
+                                ctx.add_instruction_with_identifier(
                                     Instruction::CreateImmutableBinding,
                                     identifier,
                                 )
@@ -2609,7 +2665,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                                 // be boundNames; otherwise let perIterationLets
                                 // be a new empty List.
                                 per_iteration_lets.push(identifier);
-                                ctx.exe.add_instruction_with_identifier(
+                                ctx.add_instruction_with_identifier(
                                     Instruction::CreateMutableBinding,
                                     identifier,
                                 )
@@ -2645,44 +2701,28 @@ impl CompileEvaluation for ast::ForStatement<'_> {
 
                     let binding = *per_iteration_lets.first().unwrap();
                     // Get value of binding from lastIterationEnv.
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::ResolveBinding, binding);
-                    ctx.exe.add_instruction(Instruction::GetValue);
+                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+                    ctx.add_instruction(Instruction::GetValue);
                     // Current declarative environment is now "outer"
-                    ctx.exe
-                        .add_instruction(Instruction::ExitDeclarativeEnvironment);
+                    ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
                     // NewDeclarativeEnvironment(outer)
-                    ctx.exe
-                        .add_instruction(Instruction::EnterDeclarativeEnvironment);
-                    ctx.exe.add_instruction_with_identifier(
-                        Instruction::CreateMutableBinding,
-                        binding,
-                    );
-                    ctx.exe
-                        .add_instruction_with_identifier(Instruction::ResolveBinding, binding);
-                    ctx.exe
-                        .add_instruction(Instruction::InitializeReferencedBinding);
+                    ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+                    ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, binding);
+                    ctx.add_instruction_with_identifier(Instruction::ResolveBinding, binding);
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
                 } else {
                     for bn in &per_iteration_lets {
-                        ctx.exe
-                            .add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
-                        ctx.exe.add_instruction(Instruction::GetValue);
-                        ctx.exe.add_instruction(Instruction::Load);
+                        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+                        ctx.add_instruction(Instruction::GetValue);
+                        ctx.add_instruction(Instruction::Load);
                     }
-                    ctx.exe
-                        .add_instruction(Instruction::ExitDeclarativeEnvironment);
-                    ctx.exe
-                        .add_instruction(Instruction::EnterDeclarativeEnvironment);
+                    ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+                    ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     for bn in per_iteration_lets.iter().rev() {
-                        ctx.exe.add_instruction_with_identifier(
-                            Instruction::CreateMutableBinding,
-                            *bn,
-                        );
-                        ctx.exe
-                            .add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
-                        ctx.exe.add_instruction(Instruction::Store);
-                        ctx.exe
-                            .add_instruction(Instruction::InitializeReferencedBinding);
+                        ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, *bn);
+                        ctx.add_instruction_with_identifier(Instruction::ResolveBinding, *bn);
+                        ctx.add_instruction(Instruction::Store);
+                        ctx.add_instruction(Instruction::InitializeReferencedBinding);
                     }
                 }
             })
@@ -2694,23 +2734,21 @@ impl CompileEvaluation for ast::ForStatement<'_> {
             create_per_iteration_env(ctx);
         }
 
-        let loop_jump = ctx.exe.get_jump_index_to_here();
+        let loop_jump = ctx.get_jump_index_to_here();
         if let Some(test) = &self.test {
             test.compile(ctx);
             if is_reference(test) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
         }
         // jump over consequent if test fails
-        let end_jump = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
 
         self.body.compile(ctx);
 
         let own_continues = ctx.current_continue.take().unwrap();
         for continue_entry in own_continues {
-            ctx.exe.set_jump_target_here(continue_entry);
+            ctx.set_jump_target_here(continue_entry);
         }
 
         if let Some(create_per_iteration_env) = create_per_iteration_env {
@@ -2720,19 +2758,17 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         if let Some(update) = &self.update {
             update.compile(ctx);
         }
-        ctx.exe
-            .add_jump_instruction_to_index(Instruction::Jump, loop_jump);
-        ctx.exe.set_jump_target_here(end_jump);
+        ctx.add_jump_instruction_to_index(Instruction::Jump, loop_jump);
+        ctx.set_jump_target_here(end_jump);
 
         let own_breaks = ctx.current_break.take().unwrap();
         for break_entry in own_breaks {
-            ctx.exe.set_jump_target_here(break_entry);
+            ctx.set_jump_target_here(break_entry);
         }
         if is_lexical {
             // Lexical binding loops have an extra declarative environment that
             // we need to exit from once we exit the loop.
-            ctx.exe
-                .add_instruction(Instruction::ExitDeclarativeEnvironment);
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
@@ -2746,14 +2782,13 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
         self.discriminant.compile(ctx);
         if is_reference(&self.discriminant) {
             // 2. Let switchValue be ? GetValue(exprRef).
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Load);
+        ctx.add_instruction(Instruction::Load);
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
-        ctx.exe
-            .add_instruction(Instruction::EnterDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         // 5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
         // TODO: Analyze switch env instantiation.
 
@@ -2771,34 +2806,31 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
             };
             // Duplicate the switchValue on the stack. One will remain, one is
             // used by the IsStrictlyEqual
-            ctx.exe.add_instruction(Instruction::Store);
-            ctx.exe.add_instruction(Instruction::LoadCopy);
-            ctx.exe.add_instruction(Instruction::Load);
+            ctx.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::LoadCopy);
+            ctx.add_instruction(Instruction::Load);
             // 2. Let exprRef be ? Evaluation of the Expression of C.
             test.compile(ctx);
             // 3. Let clauseSelector be ? GetValue(exprRef).
             if is_reference(test) {
-                ctx.exe.add_instruction(Instruction::GetValue);
+                ctx.add_instruction(Instruction::GetValue);
             }
             // 4. Return IsStrictlyEqual(input, clauseSelector).
-            ctx.exe.add_instruction(Instruction::IsStrictlyEqual);
+            ctx.add_instruction(Instruction::IsStrictlyEqual);
             // b. If found is true then [evaluate case]
-            jump_indexes.push(
-                ctx.exe
-                    .add_instruction_with_jump_slot(Instruction::JumpIfTrue),
-            );
+            jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue));
         }
 
         if has_default {
             // 10. If foundInB is true, return V.
             // 11. Let defaultR be Completion(Evaluation of DefaultClause).
-            jump_indexes.push(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump));
+            jump_indexes.push(ctx.add_instruction_with_jump_slot(Instruction::Jump));
         }
 
         let mut index = 0;
         for (i, case) in self.cases.iter().enumerate() {
             let fallthrough_jump = if i != 0 {
-                Some(ctx.exe.add_instruction_with_jump_slot(Instruction::Jump))
+                Some(ctx.add_instruction_with_jump_slot(Instruction::Jump))
             } else {
                 None
             };
@@ -2811,16 +2843,15 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
                 // Default case! The jump index is last in the Vec.
                 jump_indexes.last().unwrap()
             };
-            ctx.exe.set_jump_target_here(jump_index.clone());
+            ctx.set_jump_target_here(jump_index.clone());
 
             // Pop the switchValue from the stack.
-            ctx.exe.add_instruction(Instruction::Store);
+            ctx.add_instruction(Instruction::Store);
             // And override it with undefined
-            ctx.exe
-                .add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
 
             if let Some(fallthrough_jump) = fallthrough_jump {
-                ctx.exe.set_jump_target_here(fallthrough_jump);
+                ctx.set_jump_target_here(fallthrough_jump);
             }
 
             for ele in &case.consequent {
@@ -2830,13 +2861,12 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
 
         let own_breaks = ctx.current_break.take().unwrap();
         for break_entry in own_breaks {
-            ctx.exe.set_jump_target_here(break_entry);
+            ctx.set_jump_target_here(break_entry);
         }
         ctx.current_break = previous_break;
 
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
-        ctx.exe
-            .add_instruction(Instruction::ExitDeclarativeEnvironment);
+        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         // 9. Return R.
     }
 }
@@ -2845,9 +2875,9 @@ impl CompileEvaluation for ast::ThrowStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         self.argument.compile(ctx);
         if is_reference(&self.argument) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
-        ctx.exe.add_instruction(Instruction::Throw)
+        ctx.add_instruction(Instruction::Throw)
     }
 }
 
@@ -2857,35 +2887,29 @@ impl CompileEvaluation for ast::TryStatement<'_> {
             todo!();
         }
 
-        let jump_to_catch = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
+        let jump_to_catch =
+            ctx.add_instruction_with_jump_slot(Instruction::PushExceptionJumpTarget);
         self.block.compile(ctx);
-        ctx.exe.add_instruction(Instruction::PopExceptionJumpTarget);
-        let jump_to_end = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        ctx.add_instruction(Instruction::PopExceptionJumpTarget);
+        let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::Jump);
 
         let catch_clause = self.handler.as_ref().unwrap();
-        ctx.exe.set_jump_target_here(jump_to_catch);
+        ctx.set_jump_target_here(jump_to_catch);
         if let Some(exception_param) = &catch_clause.param {
             let ast::BindingPatternKind::BindingIdentifier(identifier) =
                 &exception_param.pattern.kind
             else {
                 todo!("{:?}", exception_param.pattern.kind);
             };
-            ctx.exe
-                .add_instruction(Instruction::EnterDeclarativeEnvironment);
+            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
             let identifier_string = String::from_str(ctx.agent, identifier.name.as_str());
-            ctx.exe.add_instruction_with_identifier(
-                Instruction::CreateCatchBinding,
-                identifier_string,
-            );
+            ctx.add_instruction_with_identifier(Instruction::CreateCatchBinding, identifier_string);
         }
         catch_clause.body.compile(ctx);
         if catch_clause.param.is_some() {
-            ctx.exe
-                .add_instruction(Instruction::ExitDeclarativeEnvironment);
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
-        ctx.exe.set_jump_target_here(jump_to_end);
+        ctx.set_jump_target_here(jump_to_end);
     }
 }
 
@@ -2895,38 +2919,35 @@ impl CompileEvaluation for ast::WhileStatement<'_> {
         let previous_break = ctx.current_break.replace(vec![]);
 
         // 2. Repeat
-        let start_jump = ctx.exe.get_jump_index_to_here();
+        let start_jump = ctx.get_jump_index_to_here();
 
         // a. Let exprRef be ? Evaluation of Expression.
 
         self.test.compile(ctx);
         if is_reference(&self.test) {
             // b. Let exprValue be ? GetValue(exprRef).
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
 
         // c. If ToBoolean(exprValue) is false, return V.
         // jump over loop jump if test fails
-        let end_jump = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
         // d. Let stmtResult be Completion(Evaluation of Statement).
         self.body.compile(ctx);
 
         // e. If LoopContinues(stmtResult, labelSet) is false, return ? UpdateEmpty(stmtResult, V).
         // f. If stmtResult.[[Value]] is not EMPTY, set V to stmtResult.[[Value]].
-        ctx.exe
-            .add_jump_instruction_to_index(Instruction::Jump, start_jump.clone());
+        ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump.clone());
         let own_continues = ctx.current_continue.take().unwrap();
         for continue_entry in own_continues {
-            ctx.exe.set_jump_target(continue_entry, start_jump.clone());
+            ctx.set_jump_target(continue_entry, start_jump.clone());
         }
 
-        ctx.exe.set_jump_target_here(end_jump);
+        ctx.set_jump_target_here(end_jump);
 
         let own_breaks = ctx.current_break.take().unwrap();
         for break_entry in own_breaks {
-            ctx.exe.set_jump_target_here(break_entry);
+            ctx.set_jump_target_here(break_entry);
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
@@ -2938,29 +2959,26 @@ impl CompileEvaluation for ast::DoWhileStatement<'_> {
         let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
-        let start_jump = ctx.exe.get_jump_index_to_here();
+        let start_jump = ctx.get_jump_index_to_here();
         self.body.compile(ctx);
 
         let own_continues = ctx.current_continue.take().unwrap();
         for continue_entry in own_continues {
-            ctx.exe.set_jump_target_here(continue_entry);
+            ctx.set_jump_target_here(continue_entry);
         }
 
         self.test.compile(ctx);
         if is_reference(&self.test) {
-            ctx.exe.add_instruction(Instruction::GetValue);
+            ctx.add_instruction(Instruction::GetValue);
         }
         // jump over loop jump if test fails
-        let end_jump = ctx
-            .exe
-            .add_instruction_with_jump_slot(Instruction::JumpIfNot);
-        ctx.exe
-            .add_jump_instruction_to_index(Instruction::Jump, start_jump);
-        ctx.exe.set_jump_target_here(end_jump);
+        let end_jump = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+        ctx.add_jump_instruction_to_index(Instruction::Jump, start_jump);
+        ctx.set_jump_target_here(end_jump);
 
         let own_breaks = ctx.current_break.take().unwrap();
         for break_entry in own_breaks {
-            ctx.exe.set_jump_target_here(break_entry);
+            ctx.set_jump_target_here(break_entry);
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
@@ -2973,7 +2991,7 @@ impl CompileEvaluation for ast::BreakStatement<'_> {
             let label = label.name.as_str();
             todo!("break {};", label);
         }
-        let break_jump = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        let break_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         ctx.current_break.as_mut().unwrap().push(break_jump);
     }
 }
@@ -2984,7 +3002,7 @@ impl CompileEvaluation for ast::ContinueStatement<'_> {
             let label = label.name.as_str();
             todo!("continue {};", label);
         }
-        let continue_jump = ctx.exe.add_instruction_with_jump_slot(Instruction::Jump);
+        let continue_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         ctx.current_continue.as_mut().unwrap().push(continue_jump);
     }
 }
@@ -3043,14 +3061,10 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
 
 impl HeapMarkAndSweep for Executable {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.constants.as_slice().mark_values(queues);
-        self.identifiers.as_slice().mark_values(queues);
-        self.references.as_slice().mark_values(queues);
+        self.constants.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.constants.as_mut_slice().sweep_values(compactions);
-        self.identifiers.as_mut_slice().sweep_values(compactions);
-        self.references.as_mut_slice().sweep_values(compactions);
+        self.constants.sweep_values(compactions);
     }
 }

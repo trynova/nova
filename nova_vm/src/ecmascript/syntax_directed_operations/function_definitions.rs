@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ptr::NonNull;
+
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -267,9 +269,19 @@ pub(crate) fn evaluate_function_body(
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
-    let data = CompileFunctionBodyData::new(agent, function_object);
-    let exe = Executable::compile_function_body(agent, data);
-    Vm::execute(agent, &exe, Some(arguments_list.0)).into_js_result()
+    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+        // SAFETY: exe is a non-null pointer pointing to an initialized
+        // Executable that cannot have a live mutable reference to it.
+        unsafe { exe.as_ref() }
+    } else {
+        let data = CompileFunctionBodyData::new(agent, function_object);
+        let exe = Box::new(Executable::compile_function_body(agent, data));
+        let exe = NonNull::from(Box::leak(exe));
+        agent[function_object].compiled_bytecode = Some(exe);
+        // SAFETY: Same as above, only more.
+        unsafe { exe.as_ref() }
+    };
+    Vm::execute(agent, exe, Some(arguments_list.0)).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
