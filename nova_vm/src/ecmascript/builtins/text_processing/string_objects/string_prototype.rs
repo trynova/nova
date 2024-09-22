@@ -749,7 +749,7 @@ impl StringPrototype {
         // 3. Let S be ? ToString(O).
         let s = to_string(agent, o)?;
 
-        let limit = args.get(0);
+        let limit = args.get(1);
         let lim = match limit {
             // 4. If limit is undefined, lim is 2**32 - 1.
             Value::Undefined => u32::MAX,
