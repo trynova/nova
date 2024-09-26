@@ -4,10 +4,17 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::{operations_on_objects::get, type_conversion::to_index},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            array_buffer::allocate_array_buffer, ArgumentsList, Behaviour, Builtin, BuiltinGetter,
+            BuiltinIntrinsicConstructor,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
@@ -46,29 +53,84 @@ impl Builtin for ArrayBufferGetSpecies {
 impl BuiltinGetter for ArrayBufferGetSpecies {}
 
 impl ArrayBufferConstructor {
+    // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
     fn behaviour(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        let Some(new_target) = new_target else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Constructor ArrayBuffe requires 'new'",
+            ));
+        };
+        // 2. Let byteLength be ? ToIndex(length).
+        let byte_length = to_index(agent, arguments.get(0))? as u64;
+        // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
+        let requested_max_byte_length = if arguments.len() > 1 {
+            get_array_buffer_max_byte_length_option(agent, arguments.get(1))?
+        } else {
+            None
+        };
+        // 4. Return ? AllocateArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
+        allocate_array_buffer(
+            agent,
+            Function::try_from(new_target).unwrap(),
+            byte_length,
+            requested_max_byte_length,
+        )
+        .map(|ab| ab.into_value())
     }
 
+    /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
     fn is_view(
         _agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. If arg is not an Object, return false.
+        // 2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
+        // 3. Return false.
+        Ok(matches!(
+            arguments.get(0),
+            Value::DataView(_)
+                | Value::Uint8Array(_)
+                | Value::Uint8ClampedArray(_)
+                | Value::Int8Array(_)
+                | Value::Uint16Array(_)
+                | Value::Int16Array(_)
+                | Value::Uint32Array(_)
+                | Value::Int32Array(_)
+                | Value::BigUint64Array(_)
+                | Value::BigInt64Array(_)
+                | Value::Float32Array(_)
+                | Value::Float64Array(_)
+        )
+        .into())
     }
 
+    /// ### [25.1.5.3 get ArrayBuffer \[ %Symbol.species% \]](https://tc39.es/ecma262/#sec-get-arraybuffer-%symbol.species%)
+    ///
+    /// ArrayBuffer\[%Symbol.species%] is an accessor property whose set
+    /// accessor function is undefined.
+    ///
+    /// > ### Note
+    /// > `ArrayBuffer.prototype.slice ( start, end )` normally uses its
+    /// > **this** value's constructor to create a derived object. However, a
+    /// > subclass constructor may over-ride that default behaviour for the
+    /// > `ArrayBuffer.prototype.slice ( start, end )` method by redefining its
+    /// > `%Symbol.species%` property.
     fn species(
         _agent: &mut Agent,
-        _this_value: Value,
+        this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Return the this value.
+        // The value of the "name" property of this function is "get [Symbol.species]".
+        Ok(this_value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -81,5 +143,30 @@ impl ArrayBufferConstructor {
             .with_prototype_property(array_buffer_prototype.into_object())
             .with_builtin_function_getter_property::<ArrayBufferGetSpecies>()
             .build();
+    }
+}
+
+/// ### [25.1.3.7 GetArrayBufferMaxByteLengthOption ( options )](https://tc39.es/ecma262/#sec-getarraybuffermaxbytelengthoption)
+///
+/// The abstract operation GetArrayBufferMaxByteLengthOption takes argument
+/// options (an ECMAScript language value) and returns either a normal
+/// completion containing either a non-negative integer or empty, or a throw
+/// completion.
+fn get_array_buffer_max_byte_length_option(
+    agent: &mut Agent,
+    options: Value,
+) -> JsResult<Option<u64>> {
+    // 1. If options is not an Object, return empty.
+    let Ok(options) = Object::try_from(options) else {
+        return Ok(None);
+    };
+    // 2. Let maxByteLength be ? Get(options, "maxByteLength").
+    let max_byte_length = get(agent, options, BUILTIN_STRING_MEMORY.maxByteLength.into())?;
+    // 3. If maxByteLength is undefined, return empty.
+    if max_byte_length.is_undefined() {
+        Ok(None)
+    } else {
+        // 4. Return ? ToIndex(maxByteLength).
+        Ok(Some(to_index(agent, max_byte_length)? as u64))
     }
 }

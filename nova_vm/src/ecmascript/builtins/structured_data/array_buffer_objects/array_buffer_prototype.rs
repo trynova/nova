@@ -4,10 +4,19 @@
 
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_objects::construct,
+            type_conversion::{to_index, to_integer_or_infinity},
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            array_buffer::{is_detached_buffer, is_fixed_length_array_buffer},
+            ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{
+            IntoFunction, IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+        },
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -72,47 +81,247 @@ impl Builtin for ArrayBufferPrototypeTransferToFixedLength {
 }
 
 impl ArrayBufferPrototype {
-    fn get_byte_length(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!()
+    /// ### [25.1.6.1 get ArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.bytelength)
+    ///
+    /// ArrayBuffer.prototype.byteLength is an accessor property whose set
+    /// accessor function is undefined.
+    fn get_byte_length(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
+        let o = require_internal_slot_array_buffer(agent, this_value)?;
+        // 4. If IsDetachedBuffer(O) is true, return +0𝔽.
+        // 5. Let length be O.[[ArrayBufferByteLength]].
+        // 6. Return 𝔽(length).
+
+        // Note: byte_length takes detached status into account. The maximum
+        // byte length of an ArrayBuffer is always within 2^53 - 1.
+        Ok((o.byte_length(agent) as i64).try_into().unwrap())
     }
 
-    fn get_detached(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.1.6.3 get ArrayBuffer.prototype.detached](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.detached)
+    ///
+    /// ArrayBuffer.prototype.detached is an accessor property whose set accessor function is undefined.
+    fn get_detached(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
+        let o = require_internal_slot_array_buffer(agent, this_value)?;
+        // 4. Return IsDetachedBuffer(O).
+        Ok(is_detached_buffer(agent, o).into())
     }
 
+    /// ### [25.1.6.4 get ArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.maxbytelength)
+    ///
+    /// ArrayBuffer.prototype.maxByteLength is an accessor property whose set accessor function is undefined.
     fn get_max_byte_length(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
+        let o = require_internal_slot_array_buffer(agent, this_value)?;
+        // 4. If IsDetachedBuffer(O) is true, return +0𝔽.
+        // 5. If IsFixedLengthArrayBuffer(O) is true, then
+        // a. Let length be O.[[ArrayBufferByteLength]].
+        // 6. Else,
+        // a. Let length be O.[[ArrayBufferMaxByteLength]].
+        // 7. Return 𝔽(length).
+        Ok((o.max_byte_length(agent) as i64).try_into().unwrap())
     }
 
-    fn get_resizable(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.1.6.5 get ArrayBuffer.prototype.resizable](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.resizable)
+    ///
+    /// ArrayBuffer.prototype.resizable is an accessor property whose set accessor function is undefined.
+    fn get_resizable(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
+        let o = require_internal_slot_array_buffer(agent, this_value)?;
+        // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise return false.
+        Ok((!is_fixed_length_array_buffer(agent, o)).into())
     }
 
-    fn resize(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
+    ///
+    /// This method performs the following steps when called:
+    fn resize(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
+        let o = require_internal_slot_array_buffer(agent, this_value)?;
+        if !o.is_resizable(agent) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Attempted to resize fixed length ArrayBuffer",
+            ));
+        }
+        // 4. Let newByteLength be ? ToIndex(newLength).
+        let new_byte_length = to_index(agent, arguments.get(0))? as usize;
+        // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
+        if is_detached_buffer(agent, o) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot resize a detached ArrayBuffer",
+            ));
+        }
+        // 6. If newByteLength > O.[[ArrayBufferMaxByteLength]], throw a RangeError exception.
+        if new_byte_length > o.max_byte_length(agent) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Attempted to resize beyond ArrayBuffer maxByteLength",
+            ));
+        }
+        // 7. Let hostHandled be ? HostResizeArrayBuffer(O, newByteLength).
+        // 8. If hostHandled is handled, return undefined.
+        // TODO: HostResizeArrayBuffer
+
+        // 9. Let oldBlock be O.[[ArrayBufferData]].
+        // 10. Let newBlock be ? CreateByteDataBlock(newByteLength).
+        // 11. Let copyLength be min(newByteLength, O.[[ArrayBufferByteLength]]).
+        // 12. Perform CopyDataBlockBytes(newBlock, 0, oldBlock, 0, copyLength).
+        // 13. NOTE: Neither creation of the new Data Block nor copying from
+        // the old Data Block are observable. Implementations may implement
+        // this method as in-place growth or shrinkage.
+        // 14. Set O.[[ArrayBufferData]] to newBlock.
+        // 15. Set O.[[ArrayBufferByteLength]] to newByteLength.
+        o.resize(agent, new_byte_length);
+
+        // 16. Return undefined.
+        Ok(Value::Undefined)
     }
 
-    fn slice(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.1.6.7 ArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice)
+    ///
+    /// This method performs the following steps when called:
+    fn slice(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
+        let o = require_internal_slot_array_buffer(agent, this_value)?;
+        // 4. If IsDetachedBuffer(O) is true, throw a TypeError exception.
+        if is_detached_buffer(agent, o) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot slice a detached ArrayBuffer",
+            ));
+        }
+        // 5. Let len be O.[[ArrayBufferByteLength]].
+        let len = o.byte_length(agent);
+
+        // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, arguments.get(0))?;
+        // 7. If relativeStart = -∞, let first be 0.
+        let first = if relative_start.is_neg_infinity(agent) {
+            0
+        } else if relative_start.is_sign_negative(agent) {
+            // 8. Else if relativeStart < 0, let first be max(len + relativeStart, 0).
+            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+        } else {
+            // 9. Else, let first be min(relativeStart, len).
+            relative_start.into_usize(agent).min(len)
+        };
+
+        // 10. If end is undefined, let relativeEnd be len;
+        let end = arguments.get(0);
+        let final_end = if end.is_undefined() {
+            len
+        } else {
+            // else let relativeEnd be ? ToIntegerOrInfinity(end).
+            let relative_end = to_integer_or_infinity(agent, end)?;
+            // 11. If relativeEnd = -∞, let final be 0.
+            if relative_end.is_neg_infinity(agent) {
+                0
+            } else if relative_end.is_sign_negative(agent) {
+                // 12. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+                (len as i64 + relative_end.into_i64(agent)).max(0) as usize
+            } else {
+                // 13. Else, let final be min(relativeEnd, len).
+                relative_end.into_usize(agent).min(len)
+            }
+        };
+
+        // 14. Let newLen be max(final - first, 0).
+        let new_len = (final_end as isize - first as isize).max(0) as usize;
+        // 15. Let ctor be ? SpeciesConstructor(O, %ArrayBuffer%).
+        let ctor = agent.current_realm().intrinsics().array_buffer();
+        // 16. Let new be ? Construct(ctor, « 𝔽(newLen) »).
+        let Object::ArrayBuffer(new) = construct(
+            agent,
+            ctor.into_function(),
+            Some(ArgumentsList(&[(new_len as i64).try_into().unwrap()])),
+            None,
+        )?
+        else {
+            unreachable!();
+        };
+        // 17. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
+        // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
+        // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
+        if is_detached_buffer(agent, new) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Construction produced a detached ArrayBuffer",
+            ));
+        }
+        // 20. If SameValue(new, O) is true, throw a TypeError exception.
+        if new == o {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Construction returned the original ArrayBuffer",
+            ));
+        }
+        // 21. If new.[[ArrayBufferByteLength]] < newLen, throw a TypeError exception.
+        if new.byte_length(agent) < new_len {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Construction returned a smaller ArrayBuffer than requested",
+            ));
+        }
+        // 22. NOTE: Side-effects of the above steps may have detached or resized O.
+        // 23. If IsDetachedBuffer(O) is true, throw a TypeError exception.
+        if is_detached_buffer(agent, o) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Construction detached ArrayBuffer being sliced",
+            ));
+        }
+        // 24. Let fromBuf be O.[[ArrayBufferData]].
+        // 25. Let toBuf be new.[[ArrayBufferData]].
+        // 26. Let currentLen be O.[[ArrayBufferByteLength]].
+        let current_len = o.byte_length(agent);
+        // 27. If first < currentLen, then
+        if first < current_len {
+            // a. Let count be min(newLen, currentLen - first).
+            let count = new_len.min(current_len - first);
+            // b. Perform CopyDataBlockBytes(toBuf, 0, fromBuf, first, count).
+            new.copy_array_buffer_data(agent, o, first, count);
+        }
+        // 28. Return new.
+        Ok(new.into_value())
     }
 
+    /// ### [25.1.6.8 ArrayBuffer.prototype.transfer ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfer)
+    ///
+    /// This method performs the following steps when called:
     fn transfer(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, preserve-resizability).
         todo!()
     }
 
+    /// ### [25.1.6.9 ArrayBuffer.prototype.transferToFixedLength ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfertofixedlength)
+    ///
+    /// This method performs the following steps when called:
     fn transfer_to_fixed_length(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, fixed-length).
         todo!()
     }
 
@@ -143,5 +352,18 @@ impl ArrayBufferPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline]
+fn require_internal_slot_array_buffer(agent: &mut Agent, o: Value) -> JsResult<ArrayBuffer> {
+    match o {
+        // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
+        // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
+        Value::ArrayBuffer(array_buffer) => Ok(array_buffer),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected this to be ArrayBuffer",
+        )),
     }
 }
