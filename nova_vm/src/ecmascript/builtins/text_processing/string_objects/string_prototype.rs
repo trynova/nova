@@ -9,7 +9,7 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::create_array_from_list,
+            operations_on_objects::{call_function, create_array_from_list, get_method},
             testing_and_comparison::require_object_coercible,
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
@@ -743,7 +743,17 @@ impl StringPrototype {
         let separator = args.get(0);
 
         if matches!(separator, Value::Undefined | Value::Null) {
-            // TODO: get_method(separator, Symbol.split)
+            let symbol = WellKnownSymbolIndexes::Split.into();
+
+            // If splitter is not undefined, then return ? Call(splitter, separator, « O, limit »).
+            if let Ok(Some(splitter)) = get_method(agent, separator, symbol) {
+                return call_function(
+                    agent,
+                    splitter,
+                    separator,
+                    Some(ArgumentsList(&[o, args.get(1)])),
+                );
+            }
         }
 
         // 3. Let S be ? ToString(O).
@@ -783,12 +793,14 @@ impl StringPrototype {
             let mut results: Vec<Value> = head
                 .enumerate()
                 .skip(1) // Rust's split inserts an empty string in the beginning.
-                .take_while(|(i, _)| *i < lim as usize)
+                .take_while(|(i, _)| *i <= lim as usize)
                 .map(|(_, part)| SmallString::try_from(part).unwrap().into_value())
                 .collect();
 
-            // Remove the latest empty string if exists
-            results.pop();
+            // Remove the latest empty string if it's needed
+            if results.len() < lim as usize {
+                results.pop();
+            }
 
             let results = Array::from_slice(agent, results.as_slice());
             return Ok(results.into_value());
