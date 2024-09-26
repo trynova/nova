@@ -814,7 +814,7 @@ impl StringPrototype {
         }
 
         let results = Array::from_slice(agent, results.as_slice());
-        return Ok(results.into_value());
+        Ok(results.into_value())
     }
 
     fn starts_with(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
