@@ -784,7 +784,7 @@ impl StringPrototype {
                 .enumerate()
                 .skip(1) // Rust's split inserts an empty string in the beginning.
                 .take_while(|(i, _)| *i < lim as usize)
-                .map(|(_, part)| Value::from(SmallString::try_from(part).unwrap()))
+                .map(|(_, part)| SmallString::try_from(part).unwrap().into_value())
                 .collect();
 
             // Remove the latest empty string if exists
