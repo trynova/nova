@@ -6,7 +6,6 @@ use super::{ArrayBuffer, ArrayBufferHeapData};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
-        builtins::array_buffer::data::InternalBuffer,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
             DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value,
@@ -62,15 +61,11 @@ pub(crate) fn allocate_array_buffer(
     //      a. If it is not possible to create a Data Block block consisting of maxByteLength bytes, throw a RangeError exception.
     //      b. NOTE: Resizable ArrayBuffers are designed to be implementable with in-place growth. Implementations may throw if, for example, virtual memory cannot be reserved up front.
     //      c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
-    let mut block =
-        DataBlock::create_byte_data_block(agent, max_byte_length.unwrap_or(byte_length))?;
-    if allocating_resizable_buffer {
-        block.resize(byte_length as usize);
-    }
+    let block = DataBlock::create_byte_data_block(agent, byte_length)?;
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
     let obj = if allocating_resizable_buffer {
-        ArrayBufferHeapData::new_resizable(block)
+        ArrayBufferHeapData::new_resizable(block, max_byte_length.unwrap() as usize)
     } else {
         ArrayBufferHeapData::new_fixed_length(block)
     };
@@ -93,32 +88,25 @@ pub(crate) fn array_buffer_byte_length(
 ) -> i64 {
     let array_buffer = &agent[array_buffer];
     // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
-    if let InternalBuffer::SharedResizableLength(_) = array_buffer.buffer {
-        // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
-        // b. Let rawLength be GetRawBytesFromSharedBlock(bufferByteLengthBlock, 0, BIGUINT64, true, order).
-        // c. Let isLittleEndian be the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-        // d. Return ℝ(RawBytesToNumeric(BIGUINT64, rawLength, isLittleEndian)).
-    };
+    // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
+    // b. Let rawLength be GetRawBytesFromSharedBlock(bufferByteLengthBlock, 0, BIGUINT64, true, order).
+    // c. Let isLittleEndian be the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
+    // d. Return ℝ(RawBytesToNumeric(BIGUINT64, rawLength, isLittleEndian)).
     // 2. Assert: IsDetachedBuffer(arrayBuffer) is false.
-    debug_assert!(!array_buffer.is_detached_buffer());
+    debug_assert!(!array_buffer.is_detached());
     // 3. Return arrayBuffer.[[ArrayBufferByteLength]].
-    match &array_buffer.buffer {
-        InternalBuffer::Detached => unreachable!(),
-        InternalBuffer::FixedLength(block) => block.len() as i64,
-        InternalBuffer::Resizable(block) => block.len() as i64,
-        InternalBuffer::SharedFixedLength(_) => todo!(),
-        InternalBuffer::SharedResizableLength(_) => todo!(),
-    }
+    array_buffer.byte_length() as i64
 }
 
 /// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)
 ///
 /// The abstract operation IsDetachedBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer or a SharedArrayBuffer) and returns a Boolean.
+#[inline]
 pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
     // 1. If arrayBuffer.[[ArrayBufferData]] is null, return true.
     // 2. Return false.
-    agent[array_buffer].is_detached_buffer()
+    agent[array_buffer].is_detached()
 }
 
 /// ### [25.1.3.4 DetachArrayBuffer ( arrayBuffer \[ , key \] )](https://tc39.es/ecma262/#sec-detacharraybuffer)
@@ -131,20 +119,15 @@ pub(crate) fn detach_array_buffer(
     agent: &mut Agent,
     _key: Option<DetachKey>,
 ) {
-    let array_buffer = &mut agent[array_buffer];
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
-    // TODO: Use IsSharedArrayBuffer
-    debug_assert!(!matches!(
-        array_buffer.buffer,
-        InternalBuffer::SharedFixedLength(_) | InternalBuffer::SharedResizableLength(_)
-    ));
+    // TODO: SharedArrayBuffer that we can even take here.
     // 2. If key is not present, set key to undefined.
     // 3. If arrayBuffer.[[ArrayBufferDetachKey]] is not key, throw a TypeError exception.
     // TODO: Implement DetachKey
 
     // 4. Set arrayBuffer.[[ArrayBufferData]] to null.
     // 5. Set arrayBuffer.[[ArrayBufferByteLength]] to 0.
-    array_buffer.buffer = InternalBuffer::Detached;
+    agent[array_buffer].buffer.detach();
     // 6. Return UNUSED.
 }
 
@@ -162,11 +145,8 @@ pub(crate) fn clone_array_buffer(
     src_byte_offset: usize,
     src_length: usize,
 ) -> JsResult<ArrayBuffer> {
-    {
-        // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
-        let src_buffer = &agent[src_buffer];
-        debug_assert!(!src_buffer.is_detached_buffer());
-    }
+    // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
+    debug_assert!(!src_buffer.is_detached(agent));
     let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
     let target_buffer = allocate_array_buffer(
@@ -184,21 +164,9 @@ pub(crate) fn clone_array_buffer(
         .as_ref()
         .unwrap();
     // 3. Let srcBlock be srcBuffer.[[ArrayBufferData]].
-    let src_block = match &src_buffer.buffer {
-        InternalBuffer::Detached => unreachable!(),
-        InternalBuffer::FixedLength(block) => block,
-        InternalBuffer::Resizable(block) => block,
-        InternalBuffer::SharedFixedLength(_) => todo!(),
-        InternalBuffer::SharedResizableLength(_) => todo!(),
-    };
+    let src_block = src_buffer.get_data_block();
     // 4. Let targetBlock be targetBuffer.[[ArrayBufferData]].
-    let target_block = match &mut target_buffer_data.buffer {
-        InternalBuffer::Detached => unreachable!(),
-        InternalBuffer::FixedLength(block) => block,
-        InternalBuffer::Resizable(block) => block,
-        InternalBuffer::SharedFixedLength(_) => todo!(),
-        InternalBuffer::SharedResizableLength(_) => todo!(),
-    };
+    let target_block = target_buffer_data.get_data_block_mut();
     // 5. Perform CopyDataBlockBytes(targetBlock, 0, srcBlock, srcByteOffset, srcLength).
     target_block.copy_data_block_bytes(0, src_block, src_byte_offset, src_length);
     // 6. Return targetBuffer.
@@ -268,21 +236,11 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
 /// The default implementation of HostResizeArrayBuffer is to return
 /// NormalCompletion(UNHANDLED).
 pub(crate) fn host_resize_array_buffer(
-    buffer: ArrayBuffer,
-    agent: &mut Agent,
-    new_byte_length: u64,
+    _buffer: ArrayBuffer,
+    _agent: &mut Agent,
+    _new_byte_length: u64,
 ) -> bool {
-    let buffer = &mut agent[buffer];
-    match &mut buffer.buffer {
-        InternalBuffer::Detached => false,
-        InternalBuffer::FixedLength(_) => false,
-        InternalBuffer::Resizable(block) => {
-            block.resize(new_byte_length as usize);
-            true
-        }
-        InternalBuffer::SharedFixedLength(_) => false,
-        InternalBuffer::SharedResizableLength(_) => todo!(),
-    }
+    false
 }
 
 /// ### [25.1.3.8 IsFixedLengthArrayBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isfixedlengtharraybuffer)
@@ -291,13 +249,9 @@ pub(crate) fn host_resize_array_buffer(
 /// arrayBuffer (an ArrayBuffer or a SharedArrayBuffer) and returns a
 /// Boolean.
 pub(crate) fn is_fixed_length_array_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bool {
-    let array_buffer = &agent[array_buffer];
     // 1. If arrayBuffer has an [[ArrayBufferMaxByteLength]] internal slot, return false.
     // 2. Return true.
-    matches!(
-        array_buffer.buffer,
-        InternalBuffer::FixedLength(_) | InternalBuffer::SharedFixedLength(_)
-    )
+    !agent[array_buffer].is_resizable()
 }
 
 /// ### [25.1.3.9 IsUnsignedElementType ( type )](https://tc39.es/ecma262/#sec-isunsignedelementtype)

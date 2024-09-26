@@ -20,6 +20,9 @@ use crate::{
     },
 };
 
+pub(crate) use abstract_operations::{
+    allocate_array_buffer, is_detached_buffer, is_fixed_length_array_buffer,
+};
 pub use data::ArrayBufferHeapData;
 use std::ops::{Index, IndexMut};
 
@@ -28,6 +31,63 @@ use std::ops::{Index, IndexMut};
 pub struct ArrayBuffer(ArrayBufferIndex);
 
 impl ArrayBuffer {
+    #[inline]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        agent[self].is_detached()
+    }
+
+    #[inline]
+    pub fn is_resizable(self, agent: &Agent) -> bool {
+        agent[self].is_resizable()
+    }
+
+    #[inline]
+    pub fn byte_length(self, agent: &Agent) -> usize {
+        agent[self].byte_length()
+    }
+
+    #[inline]
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        agent[self].max_byte_length()
+    }
+
+    /// Resize a Resizable ArrayBuffer.
+    ///
+    /// `new_byte_length` must be a safe integer.
+    pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
+        agent[self].resize(new_byte_length);
+    }
+
+    /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
+    ///
+    /// `self` and `source` must be different ArrayBuffers.
+    pub(crate) fn copy_array_buffer_data(
+        self,
+        agent: &mut Agent,
+        source: ArrayBuffer,
+        first: usize,
+        count: usize,
+    ) {
+        debug_assert_ne!(self, source);
+        let array_buffers = &mut *agent.heap.array_buffers;
+        let (source_data, target_data) = if self.get_index() > source.get_index() {
+            let (before, after) = array_buffers.split_at_mut(self.get_index());
+            (
+                before[source.get_index()].as_ref().unwrap(),
+                after[0].as_mut().unwrap(),
+            )
+        } else {
+            let (before, after) = array_buffers.split_at_mut(source.get_index());
+            (
+                after[0].as_ref().unwrap(),
+                before[self.get_index()].as_mut().unwrap(),
+            )
+        };
+        let source_data = source_data.buffer.get_data_block();
+        let target_data = target_data.buffer.get_data_block_mut();
+        target_data.copy_data_block_bytes(0, source_data, first, count);
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(ArrayBufferIndex::from_u32_index(0))
     }
