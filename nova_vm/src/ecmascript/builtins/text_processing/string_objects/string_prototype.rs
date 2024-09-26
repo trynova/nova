@@ -9,15 +9,17 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         abstract_operations::{
+            operations_on_objects::{call_function, create_array_from_list, get_method},
             testing_and_comparison::require_object_coercible,
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
+                to_uint32,
             },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
+            ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
@@ -732,8 +734,99 @@ impl StringPrototype {
         Ok(String::from_str(agent, substring).into_value())
     }
 
-    fn split(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.split)
+    fn split(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. If separator is neither undefined nor null, then
+        let separator = args.get(0);
+
+        if matches!(separator, Value::Undefined | Value::Null) {
+            let symbol = WellKnownSymbolIndexes::Split.into();
+
+            // If splitter is not undefined, then return ? Call(splitter, separator, « O, limit »).
+            if let Ok(Some(splitter)) = get_method(agent, separator, symbol) {
+                return call_function(
+                    agent,
+                    splitter,
+                    separator,
+                    Some(ArgumentsList(&[o, args.get(1)])),
+                );
+            }
+        }
+
+        // 3. Let S be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        let limit = args.get(1);
+        let lim = match limit {
+            // 4. If limit is undefined, lim is 2**32 - 1.
+            Value::Undefined => u32::MAX,
+            // else let lim be ℝ(? ToUint32(limit)).
+            // Note: Fast path for integer parameter.
+            Value::Integer(value) => value.into_i64() as u32,
+            _ => to_uint32(agent, limit)?,
+        };
+
+        // 5. Let R be ? ToString(separator).
+        let r = to_string(agent, separator)?;
+
+        // 6. If lim is zero, return an empty array
+        if lim == 0 {
+            return Ok(create_array_from_list(agent, &[]).into_value());
+        }
+
+        // 7. If separator is undefined, return an array with the whole string
+        if separator.is_undefined() {
+            return Ok(create_array_from_list(agent, &[s.into_value()]).into_value());
+        }
+
+        // 8. Let separatorLength be the length of R.
+        let separator_length = r.len(agent);
+
+        // 9. If separatorLength = 0, the split by characters
+        if separator_length == 0 {
+            let subject = s.as_str(agent);
+            let head = subject.split("");
+
+            let mut results: Vec<Value> = head
+                .enumerate()
+                .skip(1) // Rust's split inserts an empty string in the beginning.
+                .take_while(|(i, _)| *i <= lim as usize)
+                .map(|(_, part)| SmallString::try_from(part).unwrap().into_value())
+                .collect();
+
+            // Remove the latest empty string if it's needed
+            if results.len() < lim as usize {
+                results.pop();
+            }
+
+            let results = Array::from_slice(agent, results.as_slice());
+            return Ok(results.into_value());
+        }
+
+        // 10. If S is the empty String, return CreateArrayFromList(« S »).
+        if s.is_empty_string() {
+            let list: [Value; 1] = [s.into_value()];
+            return Ok(create_array_from_list(agent, &list).into_value());
+        }
+
+        // 11-17. Normal split
+        let subject = s.as_str(agent).to_owned();
+        let separator = r.as_str(agent).to_owned();
+        let head = subject.split(&separator);
+        let mut results: Vec<Value> = Vec::new();
+
+        for (i, part) in head.enumerate() {
+            if lim as usize == i {
+                break;
+            }
+            results.push(Value::from_str(agent, part));
+        }
+
+        let results = Array::from_slice(agent, results.as_slice());
+        Ok(results.into_value())
     }
 
     fn starts_with(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
