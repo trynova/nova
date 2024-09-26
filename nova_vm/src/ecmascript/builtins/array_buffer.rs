@@ -31,40 +31,31 @@ use std::ops::{Index, IndexMut};
 pub struct ArrayBuffer(ArrayBufferIndex);
 
 impl ArrayBuffer {
-    pub fn is_resizable(self, agent: &Agent) -> bool {
-        matches!(&agent[self].buffer, data::InternalBuffer::Resizable(_))
+    #[inline]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        agent[self].is_detached()
     }
 
+    #[inline]
+    pub fn is_resizable(self, agent: &Agent) -> bool {
+        agent[self].is_resizable()
+    }
+
+    #[inline]
     pub fn byte_length(self, agent: &Agent) -> usize {
-        match &agent[self].buffer {
-            data::InternalBuffer::Detached => 0,
-            data::InternalBuffer::FixedLength(data_block)
-            | data::InternalBuffer::Resizable((data_block, _)) => data_block.len(),
-            data::InternalBuffer::SharedFixedLength(_) => todo!(),
-            data::InternalBuffer::SharedResizableLength(_) => todo!(),
-        }
+        agent[self].byte_length()
     }
 
     #[inline]
     pub fn max_byte_length(self, agent: &Agent) -> usize {
-        match &agent[self].buffer {
-            data::InternalBuffer::Detached => 0,
-            data::InternalBuffer::FixedLength(data_block) => data_block.len(),
-            data::InternalBuffer::Resizable((_, capacity)) => *capacity,
-            data::InternalBuffer::SharedFixedLength(_) => todo!(),
-            data::InternalBuffer::SharedResizableLength(_) => todo!(),
-        }
+        agent[self].max_byte_length()
     }
 
     /// Resize a Resizable ArrayBuffer.
     ///
     /// `new_byte_length` must be a safe integer.
     pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
-        if let data::InternalBuffer::Resizable((data_block, _)) = &mut agent[self].buffer {
-            data_block.realloc(new_byte_length);
-        } else {
-            unreachable!();
-        }
+        agent[self].resize(new_byte_length);
     }
 
     /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
@@ -92,16 +83,8 @@ impl ArrayBuffer {
                 before[self.get_index()].as_mut().unwrap(),
             )
         };
-        let source_data = match &source_data.buffer {
-            data::InternalBuffer::FixedLength(block)
-            | data::InternalBuffer::Resizable((block, _)) => block,
-            _ => unreachable!(),
-        };
-        let target_data = match &mut target_data.buffer {
-            data::InternalBuffer::FixedLength(block)
-            | data::InternalBuffer::Resizable((block, _)) => block,
-            _ => unreachable!(),
-        };
+        let source_data = source_data.buffer.get_data_block();
+        let target_data = target_data.buffer.get_data_block_mut();
         target_data.copy_data_block_bytes(0, source_data, first, count);
     }
 

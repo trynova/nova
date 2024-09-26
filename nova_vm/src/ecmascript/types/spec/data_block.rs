@@ -6,10 +6,15 @@
 
 use std::{
     alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc, Layout},
-    ptr::{read_unaligned, write_unaligned, NonNull},
+    ptr::{self, read_unaligned, write_unaligned, NonNull},
 };
 
 use crate::ecmascript::execution::{agent::ExceptionType, Agent, JsResult};
+
+/// Sentinel pointer for a detached data block.
+///
+/// We allocate at 8 byte alignment so this is never a valid DataBlock pointer normally.
+const DETACHED_DATA_BLOCK_POINTER: *mut u8 = 0xde7ac4ed as *mut u8;
 
 /// # Data Block
 ///
@@ -32,6 +37,10 @@ pub(crate) struct DataBlock {
 impl Drop for DataBlock {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
+            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
+                // Don't try to dealloc a detached data block.
+                return;
+            }
             let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
             unsafe { dealloc(ptr.as_ptr(), layout) }
         }
@@ -66,6 +75,25 @@ impl Viewable for f32 {}
 impl Viewable for f64 {}
 
 impl DataBlock {
+    /// Sentinel value for detached DataBlocks.
+    ///
+    /// This sentinel value is never safe to read from or write data to. The
+    /// length is 0 so it shouldn't be possible to either.
+    pub const DETACHED_DATA_BLOCK: DataBlock = DataBlock {
+        // SAFETY: 0xde7ac4ed is not 0. Note that we always allocate at 8 byte
+        // alignment, so a DataBlock pointer cannot have this value naturally.
+        ptr: Some(unsafe { NonNull::new_unchecked(DETACHED_DATA_BLOCK_POINTER) }),
+        byte_length: 0,
+    };
+
+    pub fn is_detached(&self) -> bool {
+        if let (Some(a), Some(b)) = (self.ptr, Self::DETACHED_DATA_BLOCK.ptr) {
+            ptr::eq(a.as_ptr(), b.as_ptr())
+        } else {
+            false
+        }
+    }
+
     fn new(len: usize) -> Self {
         let ptr = if len == 0 {
             None
@@ -136,9 +164,11 @@ impl DataBlock {
 
     pub fn set<T: Viewable>(&mut self, offset: usize, value: T) {
         let size = std::mem::size_of::<T>();
-        let byte_offset = offset * size;
         if let Some(data) = self.ptr {
-            if byte_offset <= self.byte_length {
+            // Note: We have to check offset + 1 to ensure that the write does
+            // not reach data beyond the end of the DataBlock allocation.
+            let end_byte_offset = (offset + 1) * size;
+            if end_byte_offset <= self.byte_length {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
                 unsafe { write_unaligned(data.as_ptr().add(offset).cast(), value) }
