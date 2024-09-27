@@ -179,7 +179,6 @@ impl<'a> LexicallyDeclaredNames<'a> for Statement<'a> {
             Statement::VariableDeclaration(decl) => decl.bound_names(f),
             Statement::FunctionDeclaration(decl) => decl.bound_names(f),
             Statement::ClassDeclaration(decl) => decl.bound_names(f),
-            Statement::UsingDeclaration(decl) => decl.bound_names(f),
             Statement::TSExportAssignment(_) | Statement::TSNamespaceExportDeclaration(_) => {
                 unreachable!()
             }
@@ -391,7 +390,6 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
             Statement::ClassDeclaration(decl) => {
                 f(LexicallyScopedDeclaration::Class(decl));
             },
-            Statement::UsingDeclaration(_) => todo!(),
             // ExportDeclaration :
             // ModuleItem : ImportDeclaration
             // 1. Return a new empty List.
@@ -601,8 +599,7 @@ impl<'a> VarDeclaredNames<'a> for Statement<'a> {
             // StatementListItem : Declaration
             // 1. Return a new empty List.
             Statement::FunctionDeclaration(_) |
-            Statement::ClassDeclaration(_) |
-            Statement::UsingDeclaration(_) => {}
+            Statement::ClassDeclaration(_) => {}
             Statement::VariableDeclaration(decl) if decl.kind.is_lexical() => {}
             // VariableStatement : var VariableDeclarationList ;
             Statement::VariableDeclaration(decl) => {
@@ -1019,8 +1016,7 @@ impl<'a> VarScopedDeclarations<'a> for Statement<'a> {
                 }
             },
             Statement::FunctionDeclaration(_) |
-            Statement::ClassDeclaration(_) |
-            Statement::UsingDeclaration(_) => {},
+            Statement::ClassDeclaration(_) => {}
             Statement::TSEnumDeclaration(_) |
             Statement::TSExportAssignment(_) |
             Statement::TSImportEqualsDeclaration(_) |
@@ -1102,7 +1098,6 @@ impl<'a> TopLevelLexicallyDeclaredNames<'a> for Statement<'a> {
             // 2. Return the BoundNames of Declaration.
             Statement::ClassDeclaration(decl) => decl.bound_names(f),
             Statement::VariableDeclaration(decl) => decl.bound_names(f),
-            Statement::UsingDeclaration(decl) => decl.bound_names(f),
             Statement::ImportDeclaration(decl) => decl.bound_names(f),
             Statement::ExportNamedDeclaration(decl) => decl.bound_names(f),
             #[cfg(feature = "typescript")]
@@ -1187,7 +1182,6 @@ impl<'a> TopLevelLexicallyScopedDeclarations<'a> for Statement<'a> {
                 }
             }
             Statement::ClassDeclaration(decl) => f(LexicallyScopedDeclaration::Class(decl)),
-            Statement::UsingDeclaration(_) => todo!(),
             #[cfg(feature = "typescript")]
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {}
             #[cfg(not(feature = "typescript"))]
@@ -1247,8 +1241,7 @@ impl<'a> TopLevelVarDeclaredNames<'a> for Statement<'a> {
             | Statement::ExportAllDeclaration(_)
             | Statement::ExportDefaultDeclaration(_)
             | Statement::ExportNamedDeclaration(_)
-            | Statement::ImportDeclaration(_)
-            | Statement::UsingDeclaration(_) => {}
+            | Statement::ImportDeclaration(_) => {}
             // StatementListItem : Statement
             Statement::LabeledStatement(st) => {
                 // 1. If Statement is Statement : LabelledStatement , return TopLevelVarDeclaredNames of Statement.
@@ -1410,7 +1403,6 @@ impl<'a> TopLevelVarScopedDeclarations<'a> for Statement<'a> {
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
                 unreachable!()
             }
-            Statement::UsingDeclaration(_) => todo!(),
             Statement::TSEnumDeclaration(_)
             | Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)

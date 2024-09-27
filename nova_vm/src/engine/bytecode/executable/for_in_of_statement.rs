@@ -354,7 +354,6 @@ impl CompileEvaluation for ast::ForInStatement<'_> {
             | ast::ForStatementLeft::ObjectAssignmentTarget(_)
             | ast::ForStatementLeft::PrivateFieldExpression(_)
             | ast::ForStatementLeft::StaticMemberExpression(_) => LeftHandSideKind::Assignment,
-            ast::ForStatementLeft::UsingDeclaration(_) => todo!(),
             ast::ForStatementLeft::TSAsExpression(_)
             | ast::ForStatementLeft::TSInstantiationExpression(_)
             | ast::ForStatementLeft::TSNonNullExpression(_)
@@ -407,7 +406,6 @@ impl CompileEvaluation for ast::ForOfStatement<'_> {
             | ast::ForStatementLeft::ObjectAssignmentTarget(_)
             | ast::ForStatementLeft::PrivateFieldExpression(_)
             | ast::ForStatementLeft::StaticMemberExpression(_) => LeftHandSideKind::Assignment,
-            ast::ForStatementLeft::UsingDeclaration(_) => todo!(),
             ast::ForStatementLeft::TSAsExpression(_)
             | ast::ForStatementLeft::TSInstantiationExpression(_)
             | ast::ForStatementLeft::TSNonNullExpression(_)

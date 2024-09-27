@@ -191,7 +191,13 @@ pub fn parse_script(
     host_defined: Option<HostDefined>,
 ) -> ScriptOrErrors {
     // 1. Let script be ParseText(sourceText, Script).
-    let mut source_type = SourceType::default().with_always_strict(strict_mode);
+    let mut source_type = if strict_mode {
+        // Strict mode script is equal to module code.
+        SourceType::default().with_module(true)
+    } else {
+        // Loose mode script is just script code.
+        SourceType::default().with_script(true)
+    };
     if cfg!(feature = "typescript") {
         source_type = source_type.with_typescript(true);
     }

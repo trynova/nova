@@ -1696,7 +1696,13 @@ impl CompileEvaluation for ast::PrivateInExpression<'_> {
 
 impl CompileEvaluation for ast::RegExpLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let pattern = String::from_str(ctx.agent, self.regex.pattern.as_str());
+        let pattern = match self.regex.pattern {
+            ast::RegExpPattern::Raw(pattern) => pattern,
+            ast::RegExpPattern::Invalid(pattern) => pattern,
+            // We probably shouldn't be getting parsed RegExps?
+            ast::RegExpPattern::Pattern(_) => unreachable!(),
+        };
+        let pattern = String::from_str(ctx.agent, pattern);
         let regexp =
             reg_exp_create(ctx.agent, pattern.into_value(), Some(self.regex.flags)).unwrap();
         ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
@@ -1769,12 +1775,6 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
 impl CompileEvaluation for ast::ThisExpression {
     fn compile(&self, ctx: &mut CompileContext) {
         ctx.add_instruction(Instruction::ResolveThisBinding);
-    }
-}
-
-impl CompileEvaluation for ast::UsingDeclaration<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
     }
 }
 
@@ -2508,6 +2508,8 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
                 }
             }
+            ast::VariableDeclarationKind::Using => todo!(),
+            ast::VariableDeclarationKind::AwaitUsing => todo!(),
         }
     }
 }
@@ -2635,7 +2637,6 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 ast::ForStatementInit::ThisExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::UnaryExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::UpdateExpression(init) => init.compile(ctx),
-                ast::ForStatementInit::UsingDeclaration(init) => init.compile(ctx),
                 ast::ForStatementInit::VariableDeclaration(init) => {
                     is_lexical = init.kind.is_lexical();
                     if is_lexical {
@@ -3031,7 +3032,6 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::WhileStatement(statement) => statement.compile(ctx),
             Statement::WithStatement(_) => todo!(),
             Statement::ClassDeclaration(x) => x.compile(ctx),
-            Statement::UsingDeclaration(_) => todo!(),
             Statement::ImportDeclaration(_) => todo!(),
             Statement::ExportAllDeclaration(_) => todo!(),
             Statement::ExportDefaultDeclaration(_) => todo!(),
