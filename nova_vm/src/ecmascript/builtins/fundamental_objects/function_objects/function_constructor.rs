@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use oxc_span::SourceType;
+
 use crate::ecmascript::{
     builders::builtin_function_builder::BuiltinFunctionBuilder,
     builtins::{
@@ -167,12 +169,12 @@ pub(crate) fn create_dynamic_function(
         let mut function = None;
         let mut source_code = None;
 
+        let source_type = SourceType::default().with_script(true);
         // SAFETY: The safety requirements are that the SourceCode cannot be
         // GC'd before the program is dropped. If this function returns
         // successfully, then the program's AST and the SourceCode will both be
         // kept alive in the returned function object.
-        let parsed_result =
-            unsafe { SourceCode::parse_source(agent, source_string, Default::default()) };
+        let parsed_result = unsafe { SourceCode::parse_source(agent, source_string, source_type) };
 
         if let Ok((program, sc)) = parsed_result {
             source_code = Some(sc);

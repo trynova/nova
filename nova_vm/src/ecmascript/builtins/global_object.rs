@@ -203,7 +203,11 @@ pub fn perform_eval(
 
     // 11. Perform the following substeps in an implementation-defined order, possibly interleaving parsing and error detection:
     // a. Let script be ParseText(x, Script).
-    let source_type = SourceType::default().with_always_strict(strict_caller);
+    let source_type = if strict_caller {
+        SourceType::default().with_module(true)
+    } else {
+        SourceType::default().with_script(true)
+    };
     // SAFETY: Script is only kept alive for the duration of this call, and any
     // references made to it by functions being created in the eval call will
     // take a copy of the SourceCode. The SourceCode is also kept in the
