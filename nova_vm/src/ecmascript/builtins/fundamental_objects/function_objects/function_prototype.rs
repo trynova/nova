@@ -6,19 +6,21 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_list_from_array_like, ordinary_has_instance,
+                call_function, create_list_from_array_like, get, has_own_property,
+                ordinary_has_instance,
             },
             testing_and_comparison::is_callable,
+            type_conversion::to_integer_or_infinity,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor,
+            bound_function::bound_function_create, set_function_name, ArgumentsList, Behaviour,
+            Builtin, BuiltinFunction, BuiltinIntrinsic, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            Function, InternalSlots, IntoFunction, IntoObject, ObjectHeapData, OrdinaryObject,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalSlots, IntoFunction, IntoObject, IntoValue, Number, ObjectHeapData,
+            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -125,8 +127,95 @@ impl FunctionPrototype {
         call_function(agent, func, this_arg, Some(args_list))
     }
 
-    fn bind(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > Function objects created using **`Function.prototype.bind`** are
+    /// > exotic objects. They also do not have a **"prototype"** property.
+    ///
+    /// > #### Note 2
+    /// >
+    /// > If `Target` is either an arrow function or a bound function exotic
+    /// > object, then the `thisArg` passed to this method will not be used by
+    /// > subsequent calls to `F`.
+    fn bind(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        let this_arg = args.get(0);
+        let args = if args.len() > 1 { &args[1..] } else { &[] };
+        // 1. Let Target be the this value.
+        let target = this_value;
+        // 2. If IsCallable(Target) is false, throw a TypeError exception.
+        let Some(target) = is_callable(target) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Cannot bind a non-callable object",
+            ));
+        };
+        // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
+        let f = bound_function_create(agent, target, this_arg, args)?;
+        // 4. Let L be 0.
+        let mut l = 0;
+        // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
+        let target_has_length = has_own_property(
+            agent,
+            target.into_object(),
+            BUILTIN_STRING_MEMORY.length.into(),
+        )?;
+        // 6. If targetHasLength is true, then
+        if target_has_length {
+            // a. Let targetLen be ? Get(Target, "length").
+            let target_len = get(agent, target, BUILTIN_STRING_MEMORY.length.into())?;
+            // b. If targetLen is a Number, then
+            if let Ok(target_len) = Number::try_from(target_len) {
+                match target_len {
+                    Number::Integer(target_len) => {
+                        // 3. Let argCount be the number of elements in args.
+                        let arg_count = args.len();
+                        // 4. Set L to max(targetLenAsInt - argCount, 0).
+                        l = 0.max(target_len.into_i64() - arg_count as i64) as usize;
+                    }
+                    _ => {
+                        // i. If targetLen is +∞𝔽, then
+                        if target_len.is_pos_infinity(agent) {
+                            // 1. Set L to +∞.
+                            l = usize::MAX;
+                        } else if target_len.is_neg_infinity(agent) {
+                            // ii. Else if targetLen is -∞𝔽, then
+                            // 1. Set L to 0.
+                            l = 0;
+                        } else {
+                            // iii. Else,
+                            // 1. Let targetLenAsInt be ! ToIntegerOrInfinity(targetLen).
+                            let target_len_as_int =
+                                to_integer_or_infinity(agent, target_len.into_value())
+                                    .unwrap()
+                                    .into_i64(agent);
+                            // 2. Assert: targetLenAsInt is finite.
+                            // 3. Let argCount be the number of elements in args.
+                            let arg_count = args.len();
+                            // 4. Set L to max(targetLenAsInt - argCount, 0).
+                            l = 0.max(target_len_as_int - arg_count as i64) as usize;
+                        }
+                    }
+                }
+            }
+        }
+        // 7. Perform SetFunctionLength(F, L).
+        agent[f].length = u8::try_from(l).unwrap_or(u8::MAX);
+        // 8. Let targetName be ? Get(Target, "name").
+        let target_name = get(agent, target, BUILTIN_STRING_MEMORY.name.into())?;
+        // 9. If targetName is not a String, set targetName to the empty String.
+        let target_name = String::try_from(target_name).unwrap_or(String::EMPTY_STRING);
+        // 10. Perform SetFunctionName(F, targetName, "bound").
+        set_function_name(
+            agent,
+            f,
+            target_name.into(),
+            Some(BUILTIN_STRING_MEMORY.bound),
+        );
+        // 11. Return F.
+
+        Ok(f.into_value())
     }
 
     fn call(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {

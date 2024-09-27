@@ -1045,7 +1045,14 @@ pub(crate) fn set_function_name(
     // TODO: Handle prefixing
 
     match function.into_function() {
-        Function::BoundFunction(_idx) => todo!(),
+        Function::BoundFunction(idx) => {
+            let function = &mut agent[idx];
+            // Note: It's possible that the bound function targeted a function
+            // with a non-default prototype. In that case, object_index is
+            // already set.
+            assert!(function.name.is_none());
+            function.name = Some(name);
+        }
         Function::BuiltinFunction(_idx) => todo!(),
         Function::ECMAScriptFunction(idx) => {
             let function = &mut agent[idx];

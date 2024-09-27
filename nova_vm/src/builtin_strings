@@ -59,6 +59,7 @@ BigUint64Array
 bind
 boolean
 Boolean
+bound
 buffer
 byteLength
 byteOffset
