@@ -2974,12 +2974,12 @@ fn flatten_into_array(
 /// Unless the sort order is specified to be implementation-defined, it must
 /// satisfy all of the following conditions:
 /// * There must be some mathematical permutation π of the non-negative
-/// integers less than itemCount, such that for every non-negative integer `j`
-/// less than itemCount, the element `old[j]` is exactly the same as
-/// `new[π(j)]`.
+///   integers less than itemCount, such that for every non-negative integer
+///   `j` less than itemCount, the element `old[j]` is exactly the same as
+///   `new[π(j)]`.
 /// * Then for all non-negative integers `j` and `k`, each less than
-/// itemCount, if `ℝ(SortCompare(old[j], old[k])) < 0`, then
-/// `π(j) < π(k)`.
+///   itemCount, if `ℝ(SortCompare(old[j], old[k])) < 0`, then
+///   `π(j) < π(k)`.
 ///
 /// Here the notation `old[j]` is used to refer to `items[j]` before step 4 is
 /// executed, and the notation `new[j]` to refer to `items[j]` after step 4 has
@@ -2992,10 +2992,12 @@ fn flatten_into_array(
 /// `ℝ(comparator(a, b)) = 0`; and `a >C b` means `ℝ(comparator(a, b)) > 0`.
 ///
 /// * Calling `comparator(a, b)` always returns the same value `v` when given a
-/// specific pair of values `a` and `b` as its two arguments. Furthermore, `v` is a
-/// Number, and `v` is not NaN. Note that this implies that exactly one of `a <C b`, `a =C b`, and `a >C b` will be true for a given pair of `a` and `b`.
+///   specific pair of values `a` and `b` as its two arguments. Furthermore,
+///   `v` is a Number, and `v` is not NaN. Note that this implies that exactly
+///   one of `a <C b`, `a =C b`, and `a >C b` will be true for a given pair of
+///   `a` and `b`.
 /// * Calling `comparator(a, b)` does not modify `obj` or any object on `obj`'s
-/// prototype chain.
+///   prototype chain.
 /// * `a =C a` (reflexivity)
 /// * If `a =C b`, then `b =C a` (symmetry)
 /// * If `a =C b` and `b =C c`, then `a =C c` (transitivity of `=C`)
