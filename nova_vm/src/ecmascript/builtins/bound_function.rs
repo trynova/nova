@@ -63,6 +63,54 @@ impl IntoFunction for BoundFunction {
     }
 }
 
+/// ### [10.4.1.3 BoundFunctionCreate ( targetFunction, boundThis, boundArgs )](https://tc39.es/ecma262/#sec-boundfunctioncreate)
+///
+/// The abstract operation BoundFunctionCreate takes arguments targetFunction
+/// (a function object), boundThis (an ECMAScript language value), and
+/// boundArgs (a List of ECMAScript language values) and returns either a
+/// normal completion containing a function object or a throw completion. It is
+/// used to specify the creation of new bound function exotic objects.
+pub(crate) fn bound_function_create(
+    agent: &mut Agent,
+    target_function: Function,
+    bound_this: Value,
+    bound_args: &[Value],
+) -> JsResult<BoundFunction> {
+    // 1. Let proto be ? targetFunction.[[GetPrototypeOf]]().
+    let proto = target_function.internal_get_prototype_of(agent)?;
+    // 2. Let internalSlotsList be the list-concatenation of « [[Prototype]],
+    //     [[Extensible]] » and the internal slots listed in Table 31.
+    // 3. Let obj be MakeBasicObject(internalSlotsList).
+    // 4. Set obj.[[Prototype]] to proto.
+    // 5. Set obj.[[Call]] as described in 10.4.1.1.
+    // 6. If IsConstructor(targetFunction) is true, then
+    // a. Set obj.[[Construct]] as described in 10.4.1.2.
+    let mut elements = agent
+        .heap
+        .elements
+        .allocate_elements_with_capacity(bound_args.len());
+    elements.len = u32::try_from(bound_args.len()).unwrap();
+    // SAFETY: Option<Value> is an extra variant of the Value enum.
+    // The transmute effectively turns Value into Some(Value).
+    agent[elements]
+        .copy_from_slice(unsafe { std::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
+    let data = BoundFunctionHeapData {
+        object_index: None,
+        length: 0,
+        bound_target_function: target_function,
+        bound_this,
+        bound_arguments: elements,
+        name: None,
+    };
+    // 7. Set obj.[[BoundTargetFunction]] to targetFunction.
+    // 8. Set obj.[[BoundThis]] to boundThis.
+    // 9. Set obj.[[BoundArguments]] to boundArgs.
+    let obj = agent.heap.create(data);
+    obj.internal_set_prototype_of(agent, proto).unwrap();
+    // 10. Return obj.
+    Ok(obj)
+}
+
 impl InternalSlots for BoundFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
