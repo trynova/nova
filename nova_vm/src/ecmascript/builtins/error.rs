@@ -13,7 +13,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -86,11 +86,15 @@ impl InternalSlots for Error {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
+    }
+
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
         let prototype = self.internal_prototype(agent).unwrap();
         let message_entry = agent[self].message.map(|message| ObjectEntry {
             key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
@@ -129,7 +133,7 @@ impl InternalSlots for Error {
             keys,
             values,
         });
-        agent[self].object_index = Some(backing_object);
+        self.set_backing_object(agent, backing_object);
         backing_object
     }
 

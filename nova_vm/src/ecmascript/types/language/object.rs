@@ -259,6 +259,10 @@ impl InternalSlots for OrdinaryObject {
         Some(self)
     }
 
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+        unreachable!();
+    }
+
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
         unreachable!();
     }
@@ -500,6 +504,10 @@ impl Hash for Object {
 impl InternalSlots for Object {
     fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
         unreachable!("Object should not try to access its backing object");
+    }
+
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+        unreachable!("Object should not try to create its backing object");
     }
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {

@@ -9,14 +9,11 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            function_create_backing_object, function_internal_define_own_property, function_internal_delete, function_internal_get, function_internal_get_own_property, function_internal_has_property, function_internal_own_property_keys, function_internal_set, Function, FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value
         },
     },
     heap::{
-        indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor,
+        indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
 
@@ -90,6 +87,16 @@ impl IntoValue for BuiltinPromiseResolvingFunction {
     }
 }
 
+impl FunctionInternalProperties for BuiltinPromiseResolvingFunction {
+    fn get_name(self, _: &Agent) -> String {
+        String::EMPTY_STRING
+    }
+
+    fn get_length(self, _: &Agent) -> u8 {
+        1
+    }
+}
+
 impl InternalSlots for BuiltinPromiseResolvingFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
@@ -98,39 +105,12 @@ impl InternalSlots for BuiltinPromiseResolvingFunction {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
-        debug_assert!(self.get_backing_object(agent).is_none());
-        let prototype = self.internal_prototype(agent);
-        let length_entry = ObjectEntry {
-            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-            value: ObjectEntryPropertyDescriptor::Data {
-                value: 1.into(),
-                writable: false,
-                enumerable: false,
-                configurable: true,
-            },
-        };
-        let name_entry = ObjectEntry {
-            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
-            value: ObjectEntryPropertyDescriptor::Data {
-                value: String::EMPTY_STRING.into_value(),
-                writable: false,
-                enumerable: false,
-                configurable: true,
-            },
-        };
-        let (keys, values) = agent
-            .heap
-            .elements
-            .create_object_entries(&[length_entry, name_entry]);
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype,
-            keys,
-            values,
-        });
-        agent[self].object_index = Some(backing_object);
-        backing_object
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
+    }
+
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+        function_create_backing_object(self, agent)
     }
 }
 
@@ -140,27 +120,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         agent: &mut Agent,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get_own_property(agent, property_key)
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            Ok(Some(PropertyDescriptor {
-                value: Some(1.into()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            }))
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-            Ok(Some(PropertyDescriptor {
-                value: Some(String::EMPTY_STRING.into_value()),
-                writable: Some(false),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            }))
-        } else {
-            Ok(None)
-        }
+        function_internal_get_own_property(self, agent, property_key)
     }
 
     fn internal_define_own_property(
@@ -169,25 +129,11 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        let object_index = agent[self]
-            .object_index
-            .unwrap_or_else(|| self.create_backing_object(agent));
-        object_index.internal_define_own_property(agent, property_key, property_descriptor)
+        function_internal_define_own_property(self, agent, property_key, property_descriptor)
     }
 
     fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_has_property(agent, property_key)
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
-        {
-            Ok(true)
-        } else {
-            let parent = self.internal_get_prototype_of(agent)?;
-            parent.map_or(Ok(false), |parent| {
-                parent.internal_has_property(agent, property_key)
-            })
-        }
+        function_internal_has_property(self, agent, property_key)
     }
 
     fn internal_get(
@@ -196,18 +142,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_get(agent, property_key, receiver)
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            Ok(1.into())
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-            Ok(String::EMPTY_STRING.into_value())
-        } else {
-            let parent = self.internal_get_prototype_of(agent)?;
-            parent.map_or(Ok(Value::Undefined), |parent| {
-                parent.internal_get(agent, property_key, receiver)
-            })
-        }
+        function_internal_get(self, agent, property_key, receiver)
     }
 
     fn internal_set(
@@ -217,42 +152,15 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.internal_set(agent, property_key, value, receiver)
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
-        {
-            // length and name are not writable
-            Ok(false)
-        } else {
-            self.create_backing_object(agent)
-                .internal_set(agent, property_key, value, receiver)
-        }
+        function_internal_set(self, agent, property_key, value, receiver)
     }
 
     fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_delete(agent, property_key)
-        } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
-            || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
-        {
-            let object_index = self.create_backing_object(agent);
-            object_index.internal_delete(agent, property_key)
-        } else {
-            // Non-existing property
-            Ok(true)
-        }
+        function_internal_delete(self, agent, property_key)
     }
 
     fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent[self].object_index {
-            object_index.internal_own_property_keys(agent)
-        } else {
-            Ok(vec![
-                PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-                PropertyKey::from(BUILTIN_STRING_MEMORY.name),
-            ])
-        }
+        function_internal_own_property_keys(self, agent)
     }
 
     fn internal_call(

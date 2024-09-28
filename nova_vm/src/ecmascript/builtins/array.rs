@@ -20,12 +20,12 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
             PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
-        element_array::{ElementArrays, ElementDescriptor, ElementsVector},
+        element_array::{ElementArrays, ElementDescriptor},
         indexes::ArrayIndex,
         CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -168,26 +168,12 @@ impl InternalSlots for Array {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
-        let prototype = Some(
-            agent
-                .current_realm()
-                .intrinsics()
-                .array_prototype()
-                .into_object(),
-        );
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype,
-            keys: ElementsVector::default(),
-            values: ElementsVector::default(),
-        });
-        agent[self].object_index = Some(backing_object);
-        backing_object
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
