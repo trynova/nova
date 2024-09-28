@@ -10,7 +10,7 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     heap::{
@@ -84,23 +84,12 @@ impl InternalSlots for Date {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Date;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
-        let prototype = agent
-            .current_realm()
-            .intrinsics()
-            .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype: Some(prototype),
-            keys: Default::default(),
-            values: Default::default(),
-        });
-        agent[self].object_index = Some(backing_object);
-        backing_object
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 

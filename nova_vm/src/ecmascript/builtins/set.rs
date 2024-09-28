@@ -119,6 +119,10 @@ impl InternalSlots for Set {
         agent[self].object_index
     }
 
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
+    }
+
     fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
         let prototype = agent
             .current_realm()
@@ -130,7 +134,7 @@ impl InternalSlots for Set {
             keys: Default::default(),
             values: Default::default(),
         });
-        agent[self].object_index = Some(backing_object);
+        self.set_backing_object(agent, backing_object);
         backing_object
     }
 }

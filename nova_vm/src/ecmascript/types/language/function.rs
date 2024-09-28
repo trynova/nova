@@ -27,6 +27,12 @@ use crate::{
 
 pub(crate) use data::*;
 pub use into_function::IntoFunction;
+pub(crate) use into_function::{
+    function_create_backing_object, function_internal_define_own_property,
+    function_internal_delete, function_internal_get, function_internal_get_own_property,
+    function_internal_has_property, function_internal_own_property_keys, function_internal_set,
+    FunctionInternalProperties,
+};
 
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy, PartialEq)]
@@ -183,6 +189,10 @@ impl InternalSlots for Function {
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
         unreachable!("Function should not try to create backing object");
+    }
+
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+        unreachable!("Function should not try to set backing object");
     }
 
     #[inline(always)]

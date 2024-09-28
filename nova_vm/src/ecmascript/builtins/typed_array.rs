@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         execution::Agent,
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
             BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
             FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
             INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
@@ -160,21 +160,12 @@ impl IndexMut<TypedArray> for Vec<Option<TypedArrayHeapData>> {
 
 impl InternalSlots for TypedArray {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
-        debug_assert!(self.get_backing_object(agent).is_none());
-        let prototype = self.internal_prototype(agent);
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype,
-            keys: Default::default(),
-            values: Default::default(),
-        });
-        agent[self].object_index = Some(backing_object);
-        backing_object
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
