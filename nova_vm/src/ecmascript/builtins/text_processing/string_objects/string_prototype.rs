@@ -9,8 +9,8 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, create_array_from_list, get_method},
-            testing_and_comparison::require_object_coercible,
+            operations_on_objects::{call, call_function, create_array_from_list, get_method},
+            testing_and_comparison::{is_callable, require_object_coercible},
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
                 to_uint32,
@@ -645,8 +645,84 @@ impl StringPrototype {
         ))
     }
 
-    fn replace(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn replace(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        let search_value = args.get(0);
+        let replace_value = args.get(1);
+
+        // 2. If searchValue is neither undefined nor null, then
+        if !search_value.is_null() && !search_value.is_undefined() {
+            let symbol = WellKnownSymbolIndexes::Replace.into();
+            // If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
+            if let Ok(Some(replacer)) = get_method(agent, search_value, symbol) {
+                return call_function(
+                    agent,
+                    replacer,
+                    search_value,
+                    Some(ArgumentsList(&[o, replace_value])),
+                );
+            }
+        }
+
+        // 3. Let s be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        // 4. Let searchString be ? ToString(searchValue).
+        let search_string = to_string(agent, search_value)?;
+
+        // 5. Let functionalReplace be IsCallable(replaceValue).
+        let functional_replace = is_callable(replace_value);
+
+        // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
+        let replace_value = match functional_replace {
+            None => Some(to_string(agent, replace_value)?),
+            Some(_) => None,
+        };
+
+        // 7. Let searchLength be the length of searchString.
+        let search_length = search_string.len(agent);
+
+        // 8. Let position be StringIndexOf(s, searchString, 0).
+        // 9. If position is not-found, return s.
+        let position = if let Some(position) = search_string.as_str(agent).find(s.as_str(agent)) {
+            position
+        } else {
+            return Ok(s.into_value());
+        };
+
+        // Use rust's replace if the replace is a string, not a function
+        if let Some(replace_value) = replace_value {
+            let result = s
+                .as_str(agent)
+                .replace(search_string.as_str(agent), replace_value.as_str(agent));
+            return Ok(String::from_string(agent, result).into_value());
+        }
+
+        // 10. Let preceding be the substring of s from 0 to position.
+        // 11. Let following be the substring of s from position + searchLength.
+        // 12. If functionalReplace is true,
+        let preceding = &s.as_str(agent)[0..position].to_owned();
+        let following = &s.as_str(agent)[position..search_length].to_owned();
+
+        // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
+        let result = call(
+            agent,
+            functional_replace.unwrap().into_value(),
+            Value::Undefined,
+            Some(ArgumentsList(&[
+                search_string.into_value(),
+                Number::from(position as u32).into_value(),
+                s.into_value(),
+            ])),
+        )?;
+
+        let result = to_string(agent, result)?;
+
+        // 14. Return the string-concatenation of preceding, replacement, and following.
+        let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
+        return Ok(String::from_string(agent, concatenated_result).into_value());
     }
 
     fn replace_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
