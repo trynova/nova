@@ -645,6 +645,7 @@ impl StringPrototype {
         ))
     }
 
+    /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replace)
     fn replace(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value)?;
