@@ -653,18 +653,6 @@ impl StringPrototype {
         let search_value = args.get(0);
         let replace_value = args.get(1);
 
-        // Early path: use rust's replace if everything are strings: `"foo".replace("o", "a")`
-        if let (Ok(s), Ok(search_string), Ok(replace_string)) = (
-            String::try_from(o),
-            String::try_from(search_value),
-            String::try_from(replace_value),
-        ) {
-            let result = s
-                .as_str(agent)
-                .replace(search_string.as_str(agent), replace_string.as_str(agent));
-            return Ok(String::from_string(agent, result).into_value());
-        }
-
         // 2. If searchValue is neither undefined nor null, then
         if !search_value.is_null() && !search_value.is_undefined() {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
@@ -689,55 +677,51 @@ impl StringPrototype {
         let search_string = to_string(agent, search_value)?;
 
         // 5. Let functionalReplace be IsCallable(replaceValue).
-        match is_callable(replace_value) {
-            None => {
-                // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
-                let replace_string = to_string(agent, replace_value)?;
-                // everything are strings: `"foo".replace("o", "a")` => use rust's replace
-                let result = s
-                    .as_str(agent)
-                    .replace(search_string.as_str(agent), replace_string.as_str(agent));
-                Ok(String::from_string(agent, result).into_value())
-            }
-            Some(functional_replace) => {
-                // 7. Let searchLength be the length of searchString.
-                let search_length = search_string.len(agent);
+        if let Some(functional_replace) = is_callable(replace_value) {
+            // 7. Let searchLength be the length of searchString.
+            let search_length = search_string.len(agent);
 
-                // 8. Let position be StringIndexOf(s, searchString, 0).
-                let position =
-                    if let Some(position) = search_string.as_str(agent).find(s.as_str(agent)) {
-                        position
-                    } else {
-                        // 9. If position is not-found, return s.
-                        return Ok(s.into_value());
-                    };
+            // 8. Let position be StringIndexOf(s, searchString, 0).
+            let position = if let Some(position) = search_string.as_str(agent).find(s.as_str(agent))
+            {
+                position
+            } else {
+                // 9. If position is not-found, return s.
+                return Ok(s.into_value());
+            };
 
-                // 10. Let preceding be the substring of s from 0 to position.
-                // 11. Let following be the substring of s from position + searchLength.
-                // 12. If functionalReplace is true,
-                let preceding = &s.as_str(agent)[0..position].to_owned();
-                let following = &s.as_str(agent)[position..search_length].to_owned();
+            // 10. Let preceding be the substring of s from 0 to position.
+            // 11. Let following be the substring of s from position + searchLength.
+            // 12. If functionalReplace is true,
+            let preceding = &s.as_str(agent)[0..position].to_owned();
+            let following = &s.as_str(agent)[position..search_length].to_owned();
 
-                // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
-                let result = call(
-                    agent,
-                    functional_replace.into_value(),
-                    Value::Undefined,
-                    Some(ArgumentsList(&[
-                        search_string.into_value(),
-                        Number::from(position as u32).into_value(),
-                        s.into_value(),
-                    ])),
-                )?;
+            // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
+            let result = call(
+                agent,
+                functional_replace.into_value(),
+                Value::Undefined,
+                Some(ArgumentsList(&[
+                    search_string.into_value(),
+                    Number::from(position as u32).into_value(),
+                    s.into_value(),
+                ])),
+            )?;
 
-                let result = to_string(agent, result)?;
+            let result = to_string(agent, result)?;
 
-                // 14. Return the string-concatenation of preceding, replacement, and following.
-                let concatenated_result =
-                    format!("{}{}{}", preceding, result.as_str(agent), following);
-                Ok(String::from_string(agent, concatenated_result).into_value())
-            }
+            // 14. Return the string-concatenation of preceding, replacement, and following.
+            let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
+            return Ok(String::from_string(agent, concatenated_result).into_value());
         }
+
+        // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
+        let replace_string = to_string(agent, replace_value)?;
+        // Everything are strings: `"foo".replace("o", "a")` => use rust's replace
+        let result = s
+            .as_str(agent)
+            .replace(search_string.as_str(agent), replace_string.as_str(agent));
+        Ok(String::from_string(agent, result).into_value())
     }
 
     fn replace_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
