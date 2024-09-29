@@ -184,7 +184,7 @@ impl Function {
             Function::ECMAScriptFunction(f) => f.is_constructor(agent),
             Function::BuiltinPromiseResolvingFunction(_) => false,
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(_) => false,
+            Function::BuiltinConstructorFunction(_) => true,
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }

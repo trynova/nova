@@ -27,20 +27,17 @@ use crate::{
             },
         },
         builtins::{
-            array_create, create_builtin_function, create_unmapped_arguments_object,
+            array_create, create_builtin_constructor, create_unmapped_arguments_object,
             global_object::perform_eval, make_constructor, make_method,
             ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name, ArgumentsList, Array, Behaviour, BuiltinFunctionArgs,
-            ConstructorStatus, OrdinaryFunctionCreateParams,
+            set_function_name, ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
+            OrdinaryFunctionCreateParams,
         },
         execution::{
             agent::{resolve_binding, ExceptionType, JsError},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
             JsResult, ProtoIntrinsics,
-        },
-        syntax_directed_operations::class_definitions::{
-            base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
@@ -982,27 +979,26 @@ impl Vm {
                 let function_prototype = if has_constructor_parent {
                     Some(Object::try_from(vm.stack.pop().unwrap()).unwrap())
                 } else {
-                    None
+                    Some(
+                        agent
+                            .current_realm()
+                            .intrinsics()
+                            .function_prototype()
+                            .into_object(),
+                    )
                 };
                 let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
-                let behaviour = if has_constructor_parent {
-                    Behaviour::Constructor(derived_class_default_constructor)
-                } else {
-                    Behaviour::Constructor(base_class_default_constructor)
-                };
-                let function = create_builtin_function(
+                let function = create_builtin_constructor(
                     agent,
-                    behaviour,
-                    BuiltinFunctionArgs {
+                    BuiltinConstructorArgs {
+                        initial_name: class_name,
+                        is_derived: has_constructor_parent,
                         length: 0,
-                        name: "",
-                        realm: None,
                         prototype: function_prototype,
-                        prefix: None,
+                        prototype_property: proto,
                     },
                 );
-                agent[function].initial_name = Some(class_name);
 
                 proto
                     .internal_define_own_property(
@@ -1013,20 +1009,6 @@ impl Vm {
                             writable: Some(true),
                             enumerable: Some(false),
                             configurable: Some(true),
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap();
-
-                function
-                    .internal_define_own_property(
-                        agent,
-                        BUILTIN_STRING_MEMORY.prototype.into(),
-                        PropertyDescriptor {
-                            value: Some(proto.into_value()),
-                            writable: Some(false),
-                            enumerable: Some(false),
-                            configurable: Some(false),
                             ..Default::default()
                         },
                     )
@@ -1117,6 +1099,56 @@ impl Vm {
                     construct(agent, constructor, Some(ArgumentsList(&args)), None)
                         .map(|result| result.into_value())?,
                 );
+            }
+            Instruction::EvaluateSuper => {
+                let EnvironmentIndex::Function(this_env) = get_this_environment(agent) else {
+                    unreachable!();
+                };
+                // 1. Let newTarget be GetNewTarget().
+                // 2. Assert: newTarget is an Object.
+                // 3. Let func be GetSuperConstructor().
+                let (new_target, func) = {
+                    let data = &agent[this_env];
+                    (
+                        Function::try_from(data.new_target.unwrap()).unwrap(),
+                        data.function_object
+                            .internal_get_prototype_of(agent)
+                            .unwrap(),
+                    )
+                };
+                // 4. Let argList be ? ArgumentListEvaluation of Arguments.
+                let arg_list = vm.get_call_args(instr);
+                // 5. If IsConstructor(func) is false, throw a TypeError exception.
+                let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
+                    let error_message = format!(
+                        "'{}' is not a constructor.",
+                        func.map_or(Value::Null, |func| func.into_value())
+                            .string_repr(agent)
+                            .as_str(agent)
+                    );
+                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                };
+                // 6. Let result be ? Construct(func, argList, newTarget).
+                let result = construct(
+                    agent,
+                    func,
+                    Some(ArgumentsList(&arg_list)),
+                    Some(new_target),
+                )?;
+                // 7. Let thisER be GetThisEnvironment().
+                let EnvironmentIndex::Function(this_er) = get_this_environment(agent) else {
+                    unreachable!();
+                };
+                // 8. Perform ? thisER.BindThisValue(result).
+                this_er.bind_this_value(agent, result.into_value())?;
+                // 9. Let F be thisER.[[FunctionObject]].
+                // 10. Assert: F is an ECMAScript function object.
+                let Function::ECMAScriptFunction(_f) = agent[this_er].function_object else {
+                    unreachable!();
+                };
+                // 11. Perform ? InitializeInstanceElements(result, F).
+                // 12. Return result.
+                vm.result = Some(result.into_value());
             }
             Instruction::EvaluatePropertyAccessWithExpressionKey => {
                 let property_name_value = vm.result.take().unwrap();

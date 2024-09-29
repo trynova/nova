@@ -377,10 +377,10 @@ impl EnvironmentIndex {
     /// true if it does and false if it does not.
     pub(crate) fn has_this_binding(self, agent: &mut Agent) -> bool {
         match self {
-            EnvironmentIndex::Declarative(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Declarative(_) => false,
             EnvironmentIndex::Function(idx) => idx.has_this_binding(agent),
-            EnvironmentIndex::Global(idx) => idx.has_this_binding(),
-            EnvironmentIndex::Object(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Global(_) => true,
+            EnvironmentIndex::Object(_) => false,
         }
     }
 

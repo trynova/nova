@@ -6,8 +6,9 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        execution::{
-            Agent, ExecutionContext, JsResult, ProtoIntrinsics,
+        execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, ProtoIntrinsics},
+        syntax_directed_operations::class_definitions::{
+            base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
             function_create_backing_object, function_internal_define_own_property,
@@ -16,10 +17,12 @@ use crate::{
             function_internal_set, BuiltinConstructorHeapData, Function,
             FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
             IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
-        indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
+        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
     },
 };
 
@@ -119,12 +122,12 @@ impl IndexMut<BuiltinConstructorFunction> for Vec<Option<BuiltinConstructorHeapD
 }
 
 impl FunctionInternalProperties for BuiltinConstructorFunction {
-    fn get_name(self, agent: &Agent) -> String {
-        agent[self].initial_name.unwrap_or(String::EMPTY_STRING)
+    fn get_name(self, _: &Agent) -> String {
+        unreachable!();
     }
 
-    fn get_length(self, agent: &Agent) -> u8 {
-        agent[self].length
+    fn get_length(self, _: &Agent) -> u8 {
+        unreachable!();
     }
 }
 
@@ -201,14 +204,13 @@ impl InternalMethods for BuiltinConstructorFunction {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
-        self,
-        agent: &mut Agent,
-        this_argument: Value,
-        arguments_list: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn internal_call(self, agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None)
+        // ii. If NewTarget is undefined, throw a TypeError exception.
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "class constructors must be invoked with 'new'",
+        ))
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -224,8 +226,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         new_target: Function,
     ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target))
-            .map(|result| result.try_into().unwrap())
+        builtin_call_or_construct(agent, self, arguments_list, new_target)
     }
 }
 
@@ -236,13 +237,12 @@ impl InternalMethods for BuiltinConstructorFunction {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-pub(crate) fn builtin_call_or_construct(
+fn builtin_call_or_construct(
     agent: &mut Agent,
     f: BuiltinConstructorFunction,
-    this_argument: Option<Value>,
     arguments_list: ArgumentsList,
-    new_target: Option<Function>,
-) -> JsResult<Value> {
+    new_target: Function,
+) -> JsResult<Object> {
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -263,7 +263,7 @@ pub(crate) fn builtin_call_or_construct(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into()),
+        function: Some(f.into_function()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.
@@ -274,13 +274,11 @@ pub(crate) fn builtin_call_or_construct(
     // 10. Let result be the Completion Record that is the result of evaluating F in a manner that conforms to
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
-    let func = heap_data.behaviour;
-    let result = func(
-        agent,
-        this_argument.unwrap_or(Value::Undefined),
-        arguments_list,
-        new_target.map(|target| target.into_object()),
-    );
+    let result = if heap_data.is_derived {
+        derived_class_default_constructor(agent, arguments_list, new_target.into_object())
+    } else {
+        base_class_default_constructor(agent, new_target.into_object())
+    };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.
     // 12. Remove calleeContext from the execution context stack and restore callerContext as the running
@@ -291,6 +289,14 @@ pub(crate) fn builtin_call_or_construct(
     let _callee_context = agent.execution_context_stack.pop();
     // 13. Return ? result.
     result
+}
+
+pub(crate) struct BuiltinConstructorArgs {
+    pub(crate) is_derived: bool,
+    pub(crate) length: u8,
+    pub(crate) initial_name: String,
+    pub(crate) prototype: Option<Object>,
+    pub(crate) prototype_property: Object,
 }
 
 /// ### [10.3.4 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList \[ , realm \[ , prototype \[ , prefix \] \] \] )](https://tc39.es/ecma262/#sec-createbuiltinfunction)
@@ -305,97 +311,74 @@ pub(crate) fn builtin_call_or_construct(
 /// additionalInternalSlotsList contains the names of additional internal slots
 /// that must be defined as part of the object. This operation creates a
 /// built-in function object.
-// pub fn create_builtin_function(
-//     agent: &mut Agent,
-//     behaviour: Behaviour,
-//     args: BuiltinFunctionArgs,
-// ) -> BuiltinFunction {
-//     // 1. If realm is not present, set realm to the current Realm Record.
-//     let realm = args.realm.unwrap_or(agent.current_realm_id());
+pub(crate) fn create_builtin_constructor(
+    agent: &mut Agent,
+    args: BuiltinConstructorArgs,
+) -> BuiltinConstructorFunction {
+    // 1. If realm is not present, set realm to the current Realm Record.
+    let realm = agent.current_realm_id();
 
-//     // 9. Set func.[[InitialName]] to null.
-//     // Note: SetFunctionName inlined here: We know name is a string
-//     let initial_name = if let Some(prefix) = args.prefix {
-//         // 12. Else,
-//         // a. Perform SetFunctionName(func, name, prefix).
-//         String::from_string(agent, format!("{} {}", args.name, prefix))
-//     } else {
-//         // 11. If prefix is not present, then
-//         // a. Perform SetFunctionName(func, name).
-//         String::from_str(agent, args.name)
-//     };
+    // 9. Set func.[[InitialName]] to null.
 
-//     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
+    // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
 
-//     // 3. Let internalSlotsList be a List containing the names of all the internal slots that 10.3
-//     //    requires for the built-in function object that is about to be created.
-//     // 4. Append to internalSlotsList the elements of additionalInternalSlotsList.
-//     // Note: The BuiltinConstructorHeapData implements all internal slots that 10.3 requires.
-//     // The currently appearing spec-defined additional slots are:
-//     // * [[ConstructorKind]] and [[SourceText]] for class constructors.
-//     // * [[Promise]] and [[AlreadyResolved]] for Promise resolver functions
-//     // * [[AlreadyCalled]], [[Index]], [[Values]], [[Capability]], and [[RemainingElements]] for
-//     //   Promise.all's onFulfilled function.
-//     // We do not yet support these, and how these end up supported is not yet fully clear.
+    // 3. Let internalSlotsList be a List containing the names of all the internal slots that 10.3
+    //    requires for the built-in function object that is about to be created.
+    // 4. Append to internalSlotsList the elements of additionalInternalSlotsList.
+    // * [[ConstructorKind]] and [[SourceText]] for class constructors.
 
-//     // 5. Let func be a new built-in function object that, when called, performs the action
-//     //    described by behaviour using the provided arguments as the values of the corresponding
-//     //    parameters specified by behaviour. The new function object has internal slots whose names
-//     //    are the elements of internalSlotsList, and an [[InitialName]] internal slot.
-//     let object_index = if let Some(prototype) = args.prototype {
-//         // If a prototype is set, then check that it is not the %Function.prototype%
-//         let realm_function_prototype = agent
-//             .get_realm(realm)
-//             .intrinsics()
-//             .get_intrinsic_default_proto(BuiltinConstructorFunction::DEFAULT_PROTOTYPE);
-//         if prototype == realm_function_prototype {
-//             // If the prototype matched the realm function prototype, then ignore it
-//             // as the BuiltinConstructorHeapData indirectly implies this prototype.
-//             None
-//         } else {
-//             // If some other prototype is defined then we need to create a backing object.
-//             // 6. Set func.[[Prototype]] to prototype.
-//             // 7. Set func.[[Extensible]] to true.
-//             let length_entry = ObjectEntry {
-//                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
-//                 value: ObjectEntryPropertyDescriptor::Data {
-//                     value: args.length.into(),
-//                     writable: false,
-//                     enumerable: false,
-//                     configurable: true,
-//                 },
-//             };
-//             let name_entry = ObjectEntry {
-//                 key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
-//                 value: ObjectEntryPropertyDescriptor::Data {
-//                     value: initial_name.into_value(),
-//                     writable: false,
-//                     enumerable: false,
-//                     configurable: true,
-//                 },
-//             };
-//             Some(
-//                 agent
-//                     .heap
-//                     .create_object_with_prototype(prototype, &[length_entry, name_entry]),
-//             )
-//         }
-//     } else {
-//         None
-//     };
+    // 5. Let func be a new built-in function object that, when called, performs the action
+    //    described by behaviour using the provided arguments as the values of the corresponding
+    //    parameters specified by behaviour. The new function object has internal slots whose names
+    //    are the elements of internalSlotsList, and an [[InitialName]] internal slot.
 
-//     // 13. Return func.
-//     agent.heap.create(BuiltinConstructorHeapData {
-//         behaviour,
-//         initial_name: Some(initial_name),
-//         // 10. Perform SetFunctionLength(func, length).
-//         length: args.length as u8,
-//         // 8. Set func.[[Realm]] to realm.
-//         realm,
-//         object_index,
-//         compiled_initializer_bytecode: None,
-//     })
-// }
+    // 7. Set func.[[Extensible]] to true.
+    let length_entry = ObjectEntry {
+        key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+        value: ObjectEntryPropertyDescriptor::Data {
+            value: args.length.into(),
+            writable: false,
+            enumerable: false,
+            configurable: true,
+        },
+    };
+    let name_entry = ObjectEntry {
+        key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+        value: ObjectEntryPropertyDescriptor::Data {
+            value: args.initial_name.into_value(),
+            writable: false,
+            enumerable: false,
+            configurable: true,
+        },
+    };
+    let prototype_entry = ObjectEntry {
+        key: PropertyKey::from(BUILTIN_STRING_MEMORY.prototype),
+        value: ObjectEntryPropertyDescriptor::Data {
+            value: args.prototype_property.into_value(),
+            writable: false,
+            enumerable: false,
+            configurable: false,
+        },
+    };
+    let entries = [length_entry, name_entry, prototype_entry];
+    let backing_object = if let Some(prototype) = args.prototype {
+        agent.heap.create_object_with_prototype(prototype, &entries)
+    } else {
+        agent.heap.create_null_object(&entries)
+    };
+
+    // 13. Return func.
+    agent.heap.create(BuiltinConstructorHeapData {
+        // 10. Perform SetFunctionLength(func, length).
+        length: args.length,
+        // 8. Set func.[[Realm]] to realm.
+        realm,
+        compiled_initializer_bytecode: None,
+        is_derived: args.is_derived,
+        object_index: Some(backing_object),
+        class_span: (),
+    })
+}
 
 impl CreateHeapData<BuiltinConstructorHeapData, BuiltinConstructorFunction> for Heap {
     fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction {
@@ -417,13 +400,27 @@ impl HeapMarkAndSweep for BuiltinConstructorFunction {
 impl HeapMarkAndSweep for BuiltinConstructorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.realm.mark_values(queues);
-        self.initial_name.mark_values(queues);
         self.object_index.mark_values(queues);
+        if let Some(exe) = &self.compiled_initializer_bytecode {
+            // SAFETY: This is a valid, non-null pointer to an owned Executable
+            // that cannot have any live mutable references to it.
+            unsafe { exe.as_ref() }.mark_values(queues);
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.realm.sweep_values(compactions);
-        self.initial_name.sweep_values(compactions);
         self.object_index.sweep_values(compactions);
+        if let Some(exe) = &mut self.compiled_initializer_bytecode {
+            // SAFETY: This is a valid, non-null pointer to an owned Executable
+            // that cannot have any live references to it.
+            // References to this Executable are only created above for marking
+            // and in function_definition for running the function. Both of the
+            // references only live for the duration of a synchronous call and
+            // no longer. Sweeping cannot run concurrently with marking or with
+            // ECMAScript code execution. Hence we can be sure that this is not
+            // an aliasing violation.
+            unsafe { exe.as_mut() }.sweep_values(compactions);
+        }
     }
 }

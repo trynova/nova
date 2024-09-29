@@ -8,22 +8,15 @@ use crate::ecmascript::{
     },
     builtins::{ordinary::ordinary_create_from_constructor, ArgumentsList},
     execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-    types::{Function, InternalMethods, Object, Value},
+    types::{Function, InternalMethods, Object},
 };
 
 pub(crate) fn base_class_default_constructor(
     agent: &mut Agent,
-    _this_value: Value,
-    _: ArgumentsList,
-    new_target: Option<Object>,
-) -> JsResult<Value> {
+    new_target: Object,
+) -> JsResult<Object> {
     // ii. If NewTarget is undefined, throw a TypeError exception.
-    let Some(new_target) = new_target else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "class constructors must be invoked with 'new'",
-        ));
-    };
+    // Note: We've already checked this at an earlier level.
 
     // iii. Let F be the active function object.
     // let f = agent.running_execution_context().function.unwrap();
@@ -41,23 +34,18 @@ pub(crate) fn base_class_default_constructor(
     // TODO: Handle InitializeInstanceElements somehow.
 
     // vii. Return result.
-    Ok(result.into_value())
+    Ok(result)
 }
 
 pub(crate) fn derived_class_default_constructor(
     agent: &mut Agent,
-    _this_value: Value,
     args: ArgumentsList,
-    new_target: Option<Object>,
-) -> JsResult<Value> {
+    new_target: Object,
+) -> JsResult<Object> {
     // i. Let args be the List of arguments that was passed to this function by [[Call]] or [[Construct]].
     // ii. If NewTarget is undefined, throw a TypeError exception.
-    let Some(new_target) = new_target else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "class constructors must be invoked with 'new'",
-        ));
-    };
+    // Note: We've already checked this at an earlier level.
+
     // iii. Let F be the active function object.
     let f = agent.running_execution_context().function.unwrap();
 
@@ -87,5 +75,5 @@ pub(crate) fn derived_class_default_constructor(
     // TODO: Handle InitializeInstanceElements somehow.
 
     // vii. Return result.
-    Ok(result.into_value())
+    Ok(result)
 }

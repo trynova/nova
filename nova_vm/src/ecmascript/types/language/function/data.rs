@@ -6,7 +6,7 @@ use std::ptr::NonNull;
 
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, ConstructorFn, ECMAScriptFunctionObjectHeapData},
+        builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
         execution::RealmIdentifier,
         types::{OrdinaryObject, String, Value},
     },
@@ -55,16 +55,19 @@ pub struct BuiltinFunctionHeapData {
 #[derive(Debug, Clone)]
 pub struct BuiltinConstructorHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
+    /// Note: If we decide to always create a backing object for builtin
+    /// constructors, then we can maybe drop this.
     pub(crate) length: u8,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
     /// created.
     pub(crate) realm: RealmIdentifier,
-    /// #### \[\[InitialName]]
-    /// A String that is the initial name of the function. It is used by
-    /// 20.2.3.5 (`Function.prototype.toString()`).
-    pub(crate) initial_name: Option<String>,
-    pub(crate) behaviour: ConstructorFn,
+    pub(crate) class_span: (),
+    /// ### \[\[ConstructorKind]]
+    ///
+    /// If the boolean is `true` then ConstructorKind is Derived, else it is
+    /// Base.
+    pub(crate) is_derived: bool,
     /// Stores the compiled bytecode of class field initializers.
     pub(crate) compiled_initializer_bytecode: Option<NonNull<Executable>>,
 }
@@ -72,6 +75,16 @@ pub struct BuiltinConstructorHeapData {
 // SAFETY: We promise not to ever mutate the Executable, especially not from
 // foreign threads.
 unsafe impl Send for BuiltinConstructorHeapData {}
+
+impl Drop for BuiltinConstructorHeapData {
+    fn drop(&mut self) {
+        if let Some(exe) = self.compiled_initializer_bytecode.take() {
+            // SAFETY: No references to this compiled bytecode should exist as
+            // otherwise we should not have been garbage collected.
+            drop(unsafe { Box::from_raw(exe.as_ptr()) });
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ECMAScriptFunctionHeapData {

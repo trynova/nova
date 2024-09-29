@@ -1381,21 +1381,27 @@ impl CompileEvaluation for CallExpression<'_> {
 
         // 1. Let ref be ? Evaluation of CallExpression.
         ctx.is_call_optional_chain_this = is_chain_expression(&self.callee);
-        self.callee.compile(ctx);
-        // 2. Let func be ? GetValue(ref).
-        let need_pop_reference = if is_reference(&self.callee) {
-            ctx.add_instruction(Instruction::GetValueKeepReference);
-            // Optimization: If we know arguments is empty, we don't need to
-            // worry about arguments evaluation clobbering our function's this
-            // reference.
-            if !self.arguments.is_empty() {
-                ctx.add_instruction(Instruction::PushReference);
-                true
+        let is_super_call = matches!(self.callee, ast::Expression::Super(_));
+        let need_pop_reference = if is_super_call {
+            // Note: There is nothing to do with super calls here.
+            false
+        } else {
+            self.callee.compile(ctx);
+            if is_reference(&self.callee) {
+                // 2. Let func be ? GetValue(ref).
+                ctx.add_instruction(Instruction::GetValueKeepReference);
+                // Optimization: If we know arguments is empty, we don't need to
+                // worry about arguments evaluation clobbering our function's this
+                // reference.
+                if !self.arguments.is_empty() {
+                    ctx.add_instruction(Instruction::PushReference);
+                    true
+                } else {
+                    false
+                }
             } else {
                 false
             }
-        } else {
-            false
         };
 
         if self.optional {
@@ -1426,7 +1432,7 @@ impl CompileEvaluation for CallExpression<'_> {
             };
             // Register our jump slot to the chain nullish case handling.
             ctx.optional_chains.as_mut().unwrap().push(jump_over_call);
-        } else {
+        } else if !is_super_call {
             ctx.add_instruction(Instruction::Load);
         }
         // If we're in an optional chain, we need to pluck it out while we're
@@ -1438,10 +1444,14 @@ impl CompileEvaluation for CallExpression<'_> {
             ctx.optional_chains.replace(optional_chain);
         }
 
-        if need_pop_reference {
-            ctx.add_instruction(Instruction::PopReference);
+        if is_super_call {
+            ctx.add_instruction_with_immediate(Instruction::EvaluateSuper, num_arguments);
+        } else {
+            if need_pop_reference {
+                ctx.add_instruction(Instruction::PopReference);
+            }
+            ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
         }
-        ctx.add_instruction_with_immediate(Instruction::EvaluateCall, num_arguments);
     }
 }
 
