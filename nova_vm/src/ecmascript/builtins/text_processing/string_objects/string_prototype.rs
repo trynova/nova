@@ -698,7 +698,7 @@ impl StringPrototype {
                     .as_str(agent)
                     .replace(search_string.as_str(agent), replace_string.as_str(agent));
                 return Ok(String::from_string(agent, result).into_value());
-            },
+            }
             Some(functional_replace) => {
                 // 7. Let searchLength be the length of searchString.
                 let search_length = search_string.len(agent);
