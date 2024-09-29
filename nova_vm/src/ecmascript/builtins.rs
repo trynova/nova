@@ -12,6 +12,7 @@ pub(crate) mod arguments;
 mod array;
 mod array_buffer;
 pub mod bound_function;
+mod builtin_constructor;
 mod builtin_function;
 pub(crate) mod control_abstraction_objects;
 pub(crate) mod data_view;
@@ -49,6 +50,7 @@ pub use array::Array;
 pub(crate) use array::{ArrayHeapData, SealableElementsVector};
 pub use array_buffer::ArrayBuffer;
 pub(crate) use array_buffer::ArrayBufferHeapData;
+pub use builtin_constructor::BuiltinConstructorFunction;
 pub use builtin_function::{
     create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunction,
     BuiltinFunctionArgs, BuiltinGetter, ConstructorFn, RegularFn as JsFunction, RegularFn,

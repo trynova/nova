@@ -376,7 +376,7 @@ impl FunctionEnvironmentIndex {
                 agent[func].ecmascript_function.home_object.is_some()
             }
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinConstructorFunction(_) => todo!(),
             Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -397,7 +397,7 @@ impl FunctionEnvironmentIndex {
             Function::BuiltinFunction(_) => unreachable!(),
             Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object,
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinConstructorFunction(_) => todo!(),
             Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

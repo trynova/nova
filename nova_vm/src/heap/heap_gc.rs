@@ -47,7 +47,7 @@ use crate::ecmascript::{
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
-        Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+        Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -108,6 +108,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             await_reactions,
             bigints,
             bound_functions,
+            builtin_constructors,
             builtin_functions,
             data_views,
             dates,
@@ -376,6 +377,20 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 source_codes.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut builtin_constructors_marks: Box<[BuiltinConstructorFunction]> =
+            queues.builtin_constructors.drain(..).collect();
+        builtin_constructors_marks.sort();
+        builtin_constructors_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.builtin_constructors.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                builtin_constructors.get(index).mark_values(&mut queues);
             }
         });
         let mut builtin_functions_marks: Box<[BuiltinFunction]> =
@@ -901,6 +916,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         await_reactions,
         bigints,
         bound_functions,
+        builtin_constructors,
         builtin_functions,
         data_views,
         dates,
@@ -1096,6 +1112,15 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !bound_functions.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(bound_functions, &compactions, &bits.bound_functions);
+            });
+        }
+        if !builtin_constructors.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(
+                    builtin_constructors,
+                    &compactions,
+                    &bits.builtin_constructors,
+                );
             });
         }
         if !builtin_functions.is_empty() {

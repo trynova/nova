@@ -6,7 +6,7 @@ use std::ptr::NonNull;
 
 use crate::{
     ecmascript::{
-        builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
+        builtins::{Behaviour, ConstructorFn, ECMAScriptFunctionObjectHeapData},
         execution::RealmIdentifier,
         types::{OrdinaryObject, String, Value},
     },
@@ -51,6 +51,27 @@ pub struct BuiltinFunctionHeapData {
     pub(crate) initial_name: Option<String>,
     pub(crate) behaviour: Behaviour,
 }
+
+#[derive(Debug, Clone)]
+pub struct BuiltinConstructorHeapData {
+    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) length: u8,
+    /// #### \[\[Realm]]
+    /// A Realm Record that represents the realm in which the function was
+    /// created.
+    pub(crate) realm: RealmIdentifier,
+    /// #### \[\[InitialName]]
+    /// A String that is the initial name of the function. It is used by
+    /// 20.2.3.5 (`Function.prototype.toString()`).
+    pub(crate) initial_name: Option<String>,
+    pub(crate) behaviour: ConstructorFn,
+    /// Stores the compiled bytecode of class field initializers.
+    pub(crate) compiled_initializer_bytecode: Option<NonNull<Executable>>,
+}
+
+// SAFETY: We promise not to ever mutate the Executable, especially not from
+// foreign threads.
+unsafe impl Send for BuiltinConstructorHeapData {}
 
 #[derive(Debug)]
 pub struct ECMAScriptFunctionHeapData {

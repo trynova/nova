@@ -862,7 +862,7 @@ pub(crate) fn make_constructor(
             // a. Set F.[[Construct]] to the definition specified in 10.3.2.
         }
         Function::BuiltinGeneratorFunction => todo!(),
-        Function::BuiltinConstructorFunction => todo!(),
+        Function::BuiltinConstructorFunction(_) => todo!(),
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
@@ -976,7 +976,7 @@ pub(crate) fn set_function_name(
             // 7. Return UNUSED.
         }
         Function::BuiltinGeneratorFunction => todo!(),
-        Function::BuiltinConstructorFunction => todo!(),
+        Function::BuiltinConstructorFunction(_) => todo!(),
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),

@@ -21,8 +21,8 @@ pub(crate) use function::{
     function_create_backing_object, function_internal_define_own_property,
     function_internal_delete, function_internal_get, function_internal_get_own_property,
     function_internal_has_property, function_internal_own_property_keys, function_internal_set,
-    BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-    FunctionInternalProperties,
+    BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
+    ECMAScriptFunctionHeapData, FunctionInternalProperties,
 };
 pub use function::{Function, IntoFunction};
 pub use global_value::Global;

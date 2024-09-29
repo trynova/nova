@@ -281,7 +281,7 @@ impl FunctionPrototype {
                 Ok(Value::from_string(agent, initial_name))
             }
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction => todo!(),
+            Function::BuiltinConstructorFunction(_) => todo!(),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
                 Ok(Value::from_static_str(
