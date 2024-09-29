@@ -735,9 +735,9 @@ impl StringPrototype {
                 // 14. Return the string-concatenation of preceding, replacement, and following.
                 let concatenated_result =
                     format!("{}{}{}", preceding, result.as_str(agent), following);
-                return Ok(String::from_string(agent, concatenated_result).into_value());
+                Ok(String::from_string(agent, concatenated_result).into_value())
             }
-        };
+        }
     }
 
     fn replace_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
