@@ -655,9 +655,12 @@ impl StringPrototype {
 
         // 2. If searchValue is neither undefined nor null, then
         if !search_value.is_null() && !search_value.is_undefined() {
+            // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            // If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
-            if let Ok(Some(replacer)) = get_method(agent, search_value, symbol) {
+            let replacer = get_method(agent, search_value, symbol);
+
+            // b. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
+            if let Ok(Some(replacer)) = replacer {
                 return call_function(
                     agent,
                     replacer,
