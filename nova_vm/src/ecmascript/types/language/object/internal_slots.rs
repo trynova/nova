@@ -2,13 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Object, OrdinaryObject};
-use crate::ecmascript::execution::{Agent, ProtoIntrinsics};
+use super::{IntoObject, Object, ObjectHeapData, OrdinaryObject};
+use crate::{
+    ecmascript::execution::{Agent, ProtoIntrinsics},
+    heap::CreateHeapData,
+};
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots
 where
-    Self: Sized + Copy + Into<Object>,
+    Self: Sized + Copy + Into<Object> + IntoObject,
 {
     /// Default prototype of the object; this is used by
     /// [OrdinaryObjectInternalSlots::internal_prototype].
@@ -26,9 +29,26 @@ where
 
     /// ### \[\[BackingObject\]\]
     ///
+    /// This sets the custom "internal slot" \[\[BackingObject]].
+    /// If the backing object is already set, this should panic.
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject);
+
+    /// ### \[\[BackingObject\]\]
+    ///
     /// Creates the custom \[\[BackingObject]] object data. This is called when
     /// the item's object features are required but the backing object is None.
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject;
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+        assert!(self.get_backing_object(agent).is_none());
+        let prototype = self.internal_prototype(agent);
+        let backing_object = agent.heap.create(ObjectHeapData {
+            extensible: true,
+            prototype,
+            keys: Default::default(),
+            values: Default::default(),
+        });
+        self.set_backing_object(agent, backing_object);
+        backing_object
+    }
 
     /// #### \[\[Extensible\]\]
     ///
@@ -36,8 +56,8 @@ where
     /// slot which is used to fulfill the extensibility-related internal method
     /// invariants specified in [6.1.7.3](https://tc39.es/ecma262/#sec-invariants-of-the-essential-internal-methods).
     fn internal_extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = self.get_backing_object(agent) {
-            object_index.internal_extensible(agent)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_extensible(agent)
         } else {
             true
         }
@@ -45,8 +65,8 @@ where
 
     /// #### \[\[Extensible\]\]
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = self.get_backing_object(agent) {
-            object_index.internal_set_extensible(agent, value)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_set_extensible(agent, value)
         } else if !value {
             self.create_backing_object(agent)
                 .internal_set_extensible(agent, value)
@@ -59,8 +79,8 @@ where
     /// The value of this internal slot is either null or an object and is used
     /// for implementing inheritance.
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = self.get_backing_object(agent) {
-            object_index.internal_prototype(agent)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_prototype(agent)
         } else {
             Some(
                 agent
@@ -73,8 +93,8 @@ where
 
     /// #### \[\[Prototype\]\]
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = self.get_backing_object(agent) {
-            object_index.internal_set_prototype(agent, prototype)
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            backing_object.internal_set_prototype(agent, prototype)
         } else if prototype != self.internal_prototype(agent) {
             self.create_backing_object(agent)
                 .internal_set_prototype(agent, prototype)

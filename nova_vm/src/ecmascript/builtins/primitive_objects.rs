@@ -14,11 +14,10 @@ use crate::{
         types::{
             bigint::{HeapBigInt, SmallBigInt},
             BigInt, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Number, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
-            String, Symbol, Value, BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT,
-            BUILTIN_STRING_MEMORY, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
-            SMALL_BIGINT_DISCRIMINANT, SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT,
+            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
+            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, FLOAT_DISCRIMINANT,
+            INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
+            SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         },
     },
     engine::small_f64::SmallF64,
@@ -165,6 +164,10 @@ impl InternalSlots for PrimitiveObject {
         agent[self].object_index
     }
 
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
+    }
+
     fn internal_prototype(
         self,
         agent: &crate::ecmascript::execution::Agent,
@@ -195,19 +198,6 @@ impl InternalSlots for PrimitiveObject {
                 )
             }
         }
-    }
-
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
-        debug_assert!(self.get_backing_object(agent).is_none());
-        let prototype = self.internal_prototype(agent).unwrap();
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype: Some(prototype),
-            keys: Default::default(),
-            values: Default::default(),
-        });
-        agent[self].object_index = Some(backing_object);
-        backing_object
     }
 }
 

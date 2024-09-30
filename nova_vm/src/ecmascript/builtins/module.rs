@@ -11,8 +11,8 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult},
         scripts_and_modules::module::ModuleIdentifier,
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, PropertyDescriptor,
-            PropertyKey, String, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -112,11 +112,15 @@ impl Module {
 
 impl InternalSlots for Module {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
         agent[self].object_index
     }
 
-    fn create_backing_object(self, _: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        assert!(agent[self].object_index.replace(backing_object).is_none());
+    }
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
         unreachable!();
     }
 
