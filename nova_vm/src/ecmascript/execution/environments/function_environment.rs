@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{DeclarativeEnvironment, DeclarativeEnvironmentIndex, FunctionEnvironmentIndex};
+use super::{
+    DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
+};
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -165,6 +167,31 @@ pub(crate) fn new_class_static_element_environment(
     };
     // 7. Return env.
     agent.heap.environments.push_function_environment(env)
+}
+
+pub(crate) fn new_class_field_initializer_environment(
+    agent: &mut Agent,
+    class_constructor: Function,
+    class_instance: Object,
+    outer_env: EnvironmentIndex,
+) -> FunctionEnvironmentIndex {
+    agent
+        .heap
+        .environments
+        .declarative
+        .push(Some(DeclarativeEnvironment::new(Some(outer_env))));
+    let declarative_environment =
+        DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
+    agent
+        .heap
+        .environments
+        .push_function_environment(FunctionEnvironment {
+            this_value: Some(class_instance.into_value()),
+            this_binding_status: ThisBindingStatus::Initialized,
+            function_object: class_constructor,
+            new_target: None,
+            declarative_environment,
+        })
 }
 
 impl FunctionEnvironmentIndex {

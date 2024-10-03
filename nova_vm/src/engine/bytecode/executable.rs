@@ -52,6 +52,7 @@ pub(crate) struct CompileContext<'agent> {
     function_expressions: Vec<FunctionExpression>,
     /// Arrow function expressions being built
     arrow_function_expressions: Vec<ArrowFunctionExpression>,
+    class_initializer_bytecodes: Vec<(Option<Executable>, bool)>,
     /// NamedEvaluation name parameter
     name_identifier: Option<NamedEvaluationParameter>,
     /// If true, indicates that all bindings being created are lexical.
@@ -77,6 +78,7 @@ impl CompileContext<'_> {
             constants: Vec::new(),
             function_expressions: Vec::new(),
             arrow_function_expressions: Vec::new(),
+            class_initializer_bytecodes: Vec::new(),
             name_identifier: None,
             lexical_binding_state: false,
             current_continue: None,
@@ -219,6 +221,7 @@ impl CompileContext<'_> {
             constants: self.constants.into_boxed_slice(),
             function_expressions: self.function_expressions.into_boxed_slice(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
+            class_initializer_bytecodes: self.class_initializer_bytecodes.into_boxed_slice(),
         }
     }
 
@@ -521,6 +524,7 @@ pub(crate) struct Executable {
     pub(crate) constants: Box<[Value]>,
     pub(crate) function_expressions: Box<[FunctionExpression]>,
     pub(crate) arrow_function_expressions: Box<[ArrowFunctionExpression]>,
+    pub(crate) class_initializer_bytecodes: Box<[(Option<Executable>, bool)]>,
 }
 
 impl Executable {

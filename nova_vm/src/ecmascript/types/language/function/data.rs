@@ -4,10 +4,13 @@
 
 use std::ptr::NonNull;
 
+use oxc_span::Span;
+
 use crate::{
     ecmascript::{
         builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
-        execution::RealmIdentifier,
+        execution::{EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier},
+        scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
     engine::Executable,
@@ -55,14 +58,10 @@ pub struct BuiltinFunctionHeapData {
 #[derive(Debug, Clone)]
 pub struct BuiltinConstructorHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
-    /// Note: If we decide to always create a backing object for builtin
-    /// constructors, then we can maybe drop this.
-    pub(crate) length: u8,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
     /// created.
     pub(crate) realm: RealmIdentifier,
-    pub(crate) class_span: (),
     /// ### \[\[ConstructorKind]]
     ///
     /// If the boolean is `true` then ConstructorKind is Derived, else it is
@@ -70,6 +69,22 @@ pub struct BuiltinConstructorHeapData {
     pub(crate) is_derived: bool,
     /// Stores the compiled bytecode of class field initializers.
     pub(crate) compiled_initializer_bytecode: Option<NonNull<Executable>>,
+    /// ### \[\[Environment]]
+    ///
+    /// This is required for class field initializers.
+    pub(crate) environment: EnvironmentIndex,
+    /// ### \[\[PrivateEnvironment]]
+    ///
+    /// This is required for class field initializers.
+    pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
+    ///  \[\[SourceText]]
+    pub(crate) source_text: Span,
+
+    /// \[\[SourceCode]]
+    ///
+    /// Nova specific addition: This SourceCode is where \[\[SourceText]]
+    /// refers to.
+    pub(crate) source_code: SourceCode,
 }
 
 // SAFETY: We promise not to ever mutate the Executable, especially not from

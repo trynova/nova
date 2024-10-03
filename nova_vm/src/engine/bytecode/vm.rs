@@ -6,6 +6,7 @@ use std::{ptr::NonNull, sync::OnceLock};
 
 use ahash::AHashSet;
 use oxc_ast::ast;
+use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
 use crate::{
@@ -971,9 +972,15 @@ impl Vm {
                 vm.result = Some(function.into_value());
             }
             Instruction::ClassDefineDefaultConstructor => {
-                let has_constructor_parent = instr.args[0].unwrap();
-                assert!(has_constructor_parent <= 1);
-                let has_constructor_parent = has_constructor_parent == 1;
+                let class_initializer_bytecode_index = instr.args[0].unwrap();
+                let (compiled_initializer_bytecode, has_constructor_parent) = executable
+                    .class_initializer_bytecodes
+                    .get(class_initializer_bytecode_index as usize)
+                    .unwrap();
+                let has_constructor_parent = *has_constructor_parent;
+                let compiled_initializer_bytecode = compiled_initializer_bytecode
+                    .as_ref()
+                    .map(|bytecode| Box::new(bytecode.clone()));
 
                 let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
                 let function_prototype = if has_constructor_parent {
@@ -989,14 +996,29 @@ impl Vm {
                 };
                 let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
+                let ECMAScriptCodeEvaluationState {
+                    lexical_environment,
+                    private_environment,
+                    source_code,
+                    ..
+                } = *agent
+                    .running_execution_context()
+                    .ecmascript_code
+                    .as_ref()
+                    .unwrap();
+
                 let function = create_builtin_constructor(
                     agent,
                     BuiltinConstructorArgs {
-                        initial_name: class_name,
+                        class_name,
                         is_derived: has_constructor_parent,
-                        length: 0,
                         prototype: function_prototype,
                         prototype_property: proto,
+                        compiled_initializer_bytecode,
+                        env: lexical_environment,
+                        private_env: private_environment,
+                        source_code,
+                        source_text: Span::new(0, 0),
                     },
                 );
 

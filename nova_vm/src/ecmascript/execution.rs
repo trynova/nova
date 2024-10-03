@@ -11,10 +11,11 @@ mod realm;
 pub use agent::{Agent, JsResult};
 pub use default_host_hooks::DefaultHostHooks;
 pub(crate) use environments::{
-    get_this_environment, new_class_static_element_environment, new_declarative_environment,
-    new_function_environment, DeclarativeEnvironmentIndex, EnvironmentIndex, Environments,
-    FunctionEnvironmentIndex, GlobalEnvironment, GlobalEnvironmentIndex, ModuleEnvironmentIndex,
-    ObjectEnvironmentIndex, PrivateEnvironmentIndex, ThisBindingStatus,
+    get_this_environment, new_class_field_initializer_environment,
+    new_class_static_element_environment, new_declarative_environment, new_function_environment,
+    DeclarativeEnvironmentIndex, EnvironmentIndex, Environments, FunctionEnvironmentIndex,
+    GlobalEnvironment, GlobalEnvironmentIndex, ModuleEnvironmentIndex, ObjectEnvironmentIndex,
+    PrivateEnvironmentIndex, ThisBindingStatus,
 };
 pub(crate) use execution_context::*;
 #[cfg(test)]

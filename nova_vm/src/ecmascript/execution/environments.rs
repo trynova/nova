@@ -35,8 +35,8 @@ mod private_environment;
 
 pub(crate) use declarative_environment::{new_declarative_environment, DeclarativeEnvironment};
 pub(crate) use function_environment::{
-    new_class_static_element_environment, new_function_environment, FunctionEnvironment,
-    ThisBindingStatus,
+    new_class_field_initializer_environment, new_class_static_element_environment,
+    new_function_environment, FunctionEnvironment, ThisBindingStatus,
 };
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;

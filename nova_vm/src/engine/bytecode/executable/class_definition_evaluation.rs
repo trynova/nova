@@ -271,13 +271,9 @@ impl CompileEvaluation for ast::Class<'_> {
         }
 
         // 14. If constructor is not empty, then
-        let constructor_expression_index = if let Some(constructor) = constructor {
+        let constructor_index = if let Some(constructor) = constructor {
             // a. Let constructorInfo be ! DefineMethod of constructor with arguments proto and constructorParent.
-            Some(define_constructor_method(
-                ctx,
-                constructor,
-                has_constructor_parent,
-            ))
+            define_constructor_method(ctx, constructor, has_constructor_parent)
             // b. Let F be constructorInfo.[[Closure]].
             // c. Perform MakeClassConstructor(F).
             // d. Perform SetFunctionName(F, className).
@@ -287,11 +283,12 @@ impl CompileEvaluation for ast::Class<'_> {
             // ...
             // b. Let F be CreateBuiltinFunction(defaultConstructor, 0, className, « [[ConstructorKind]], [[SourceText]] », the current Realm Record, constructorParent).
 
+            let index = IndexType::try_from(ctx.class_initializer_bytecodes.len()).unwrap();
             ctx.add_instruction_with_immediate(
                 Instruction::ClassDefineDefaultConstructor,
-                has_constructor_parent.into(),
+                index.into(),
             );
-            None
+            index
         };
 
         // result: F
@@ -441,32 +438,39 @@ impl CompileEvaluation for ast::Class<'_> {
                     }
                 }
             }
-            let constructor =
-                constructor.expect("Class fields with default constructor not supported yet");
-            let constructor_expression_index = constructor_expression_index.unwrap();
-            let constructor_data = CompileFunctionBodyData {
-                // SAFETY: The SourceCode that contains this code cannot be garbage collected
-                // as long as the constructor function we produce here lives.
-                body: unsafe {
-                    std::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
-                        constructor.value.body.as_ref().unwrap(),
-                    )
-                },
-                // SAFETY: The SourceCode that contains this code cannot be garbage collected
-                // as long as the constructor function we produce here lives.
-                params: unsafe {
-                    std::mem::transmute::<&ast::FormalParameters<'_>, &ast::FormalParameters<'static>>(
-                        &constructor.value.params,
-                    )
-                },
-                is_concise_body: false,
-                is_lexical: false,
-                is_strict: false,
-            };
-            constructor_ctx.compile_function_body(constructor_data);
-            let executable = constructor_ctx.finish();
-            ctx.function_expressions[constructor_expression_index as usize].compiled_bytecode =
-                Some(executable);
+            if let Some(constructor) = constructor {
+                let constructor_data = CompileFunctionBodyData {
+                    // SAFETY: The SourceCode that contains this code cannot be garbage collected
+                    // as long as the constructor function we produce here lives.
+                    body: unsafe {
+                        std::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
+                            constructor.value.body.as_ref().unwrap(),
+                        )
+                    },
+                    // SAFETY: The SourceCode that contains this code cannot be garbage collected
+                    // as long as the constructor function we produce here lives.
+                    params: unsafe {
+                        std::mem::transmute::<
+                            &ast::FormalParameters<'_>,
+                            &ast::FormalParameters<'static>,
+                        >(&constructor.value.params)
+                    },
+                    is_concise_body: false,
+                    is_lexical: false,
+                    // Class code is always strict.
+                    is_strict: true,
+                };
+                constructor_ctx.compile_function_body(constructor_data);
+                let executable = constructor_ctx.finish();
+                ctx.function_expressions[constructor_index as usize].compiled_bytecode =
+                    Some(executable);
+            } else {
+                ctx.class_initializer_bytecodes
+                    .push((Some(constructor_ctx.finish()), has_constructor_parent));
+            }
+        } else if constructor.is_none() {
+            ctx.class_initializer_bytecodes
+                .push((None, has_constructor_parent));
         }
         // 30. For each PrivateElement method of staticPrivateMethods, do
         //     a. Perform ! PrivateMethodOrAccessorAdd(F, method).

@@ -400,6 +400,15 @@ impl Agent {
         self.execution_context_stack.last_mut().unwrap()
     }
 
+    /// Panics if no active function object exists.
+    pub(crate) fn active_function_object(&self) -> Function {
+        self.execution_context_stack
+            .last()
+            .unwrap()
+            .function
+            .unwrap()
+    }
+
     /// Get access to the Host data, useful to share state between calls of built-in functions.
     ///
     /// Note: This will panic if not implemented manually.

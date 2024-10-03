@@ -2,11 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use std::{
+    ops::{Index, IndexMut},
+    ptr::NonNull,
+};
+
+use oxc_span::Span;
 
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, ExecutionContext, JsResult, ProtoIntrinsics},
+        execution::{
+            agent::ExceptionType, Agent, EnvironmentIndex, ExecutionContext, JsResult,
+            PrivateEnvironmentIndex, ProtoIntrinsics,
+        },
+        scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::class_definitions::{
             base_class_default_constructor, derived_class_default_constructor,
         },
@@ -20,6 +29,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
+    engine::Executable,
     heap::{
         indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
@@ -84,6 +94,39 @@ impl From<BuiltinConstructorFunction> for Object {
 impl From<BuiltinConstructorFunction> for Function {
     fn from(value: BuiltinConstructorFunction) -> Self {
         Self::BuiltinConstructorFunction(value)
+    }
+}
+
+impl TryFrom<Value> for BuiltinConstructorFunction {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::BuiltinConstructorFunction(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Object> for BuiltinConstructorFunction {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::BuiltinConstructorFunction(data) => Ok(data),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Function> for BuiltinConstructorFunction {
+    type Error = ();
+
+    fn try_from(value: Function) -> Result<Self, Self::Error> {
+        match value {
+            Function::BuiltinConstructorFunction(data) => Ok(data),
+            _ => Err(()),
+        }
     }
 }
 
@@ -293,10 +336,14 @@ fn builtin_call_or_construct(
 
 pub(crate) struct BuiltinConstructorArgs {
     pub(crate) is_derived: bool,
-    pub(crate) length: u8,
-    pub(crate) initial_name: String,
+    pub(crate) class_name: String,
     pub(crate) prototype: Option<Object>,
     pub(crate) prototype_property: Object,
+    pub(crate) compiled_initializer_bytecode: Option<Box<Executable>>,
+    pub(crate) env: EnvironmentIndex,
+    pub(crate) private_env: Option<PrivateEnvironmentIndex>,
+    pub(crate) source_code: SourceCode,
+    pub(crate) source_text: Span,
 }
 
 /// ### [10.3.4 CreateBuiltinFunction ( behaviour, length, name, additionalInternalSlotsList \[ , realm \[ , prototype \[ , prefix \] \] \] )](https://tc39.es/ecma262/#sec-createbuiltinfunction)
@@ -336,7 +383,7 @@ pub(crate) fn create_builtin_constructor(
     let length_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
         value: ObjectEntryPropertyDescriptor::Data {
-            value: args.length.into(),
+            value: 0.into(),
             writable: false,
             enumerable: false,
             configurable: true,
@@ -345,7 +392,7 @@ pub(crate) fn create_builtin_constructor(
     let name_entry = ObjectEntry {
         key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
         value: ObjectEntryPropertyDescriptor::Data {
-            value: args.initial_name.into_value(),
+            value: args.class_name.into_value(),
             writable: false,
             enumerable: false,
             configurable: true,
@@ -367,16 +414,23 @@ pub(crate) fn create_builtin_constructor(
         agent.heap.create_null_object(&entries)
     };
 
+    let compiled_initializer_bytecode = args
+        .compiled_initializer_bytecode
+        .map(|bytecode| NonNull::from(Box::leak(bytecode)));
+
     // 13. Return func.
     agent.heap.create(BuiltinConstructorHeapData {
         // 10. Perform SetFunctionLength(func, length).
-        length: args.length,
+        // Skipped as length of builtin constructors is always 0.
         // 8. Set func.[[Realm]] to realm.
         realm,
-        compiled_initializer_bytecode: None,
+        compiled_initializer_bytecode,
         is_derived: args.is_derived,
         object_index: Some(backing_object),
-        class_span: (),
+        environment: args.env,
+        private_environment: args.private_env,
+        source_text: args.source_text,
+        source_code: args.source_code,
     })
 }
 
