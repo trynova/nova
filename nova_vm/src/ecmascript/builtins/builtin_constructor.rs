@@ -455,6 +455,9 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.realm.mark_values(queues);
         self.object_index.mark_values(queues);
+        self.environment.mark_values(queues);
+        self.private_environment.mark_values(queues);
+        self.source_code.mark_values(queues);
         if let Some(exe) = &self.compiled_initializer_bytecode {
             // SAFETY: This is a valid, non-null pointer to an owned Executable
             // that cannot have any live mutable references to it.
@@ -465,6 +468,9 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.realm.sweep_values(compactions);
         self.object_index.sweep_values(compactions);
+        self.environment.sweep_values(compactions);
+        self.private_environment.sweep_values(compactions);
+        self.source_code.sweep_values(compactions);
         if let Some(exe) = &mut self.compiled_initializer_bytecode {
             // SAFETY: This is a valid, non-null pointer to an owned Executable
             // that cannot have any live references to it.
