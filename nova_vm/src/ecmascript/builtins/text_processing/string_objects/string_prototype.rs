@@ -9,7 +9,7 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call, call_function, create_array_from_list, get_method},
+            operations_on_objects::{call_function, create_array_from_list, get_method},
             testing_and_comparison::{is_callable, require_object_coercible},
             type_conversion::{
                 is_trimmable_whitespace, to_integer_or_infinity, to_length, to_number, to_string,
@@ -657,10 +657,10 @@ impl StringPrototype {
         if !search_value.is_null() && !search_value.is_undefined() {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value, symbol);
+            let replacer = get_method(agent, search_value, symbol)?;
 
             // b. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
-            if let Ok(Some(replacer)) = replacer {
+            if let Some(replacer) = replacer {
                 return call_function(
                     agent,
                     replacer,
@@ -690,16 +690,10 @@ impl StringPrototype {
                 return Ok(s.into_value());
             };
 
-            // 10. Let preceding be the substring of s from 0 to position.
-            // 11. Let following be the substring of s from position + searchLength.
-            // 12. If functionalReplace is true,
-            let preceding = &s.as_str(agent)[0..position].to_owned();
-            let following = &s.as_str(agent)[position..search_length].to_owned();
-
             // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
-            let result = call(
+            let result = call_function(
                 agent,
-                functional_replace.into_value(),
+                functional_replace,
                 Value::Undefined,
                 Some(ArgumentsList(&[
                     search_string.into_value(),
@@ -709,6 +703,12 @@ impl StringPrototype {
             )?;
 
             let result = to_string(agent, result)?;
+
+            // 10. Let preceding be the substring of s from 0 to position.
+            // 11. Let following be the substring of s from position + searchLength.
+            // 12. If functionalReplace is true,
+            let preceding = &s.as_str(agent)[0..position].to_owned();
+            let following = &s.as_str(agent)[position..search_length].to_owned();
 
             // 14. Return the string-concatenation of preceding, replacement, and following.
             let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
