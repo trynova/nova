@@ -74,7 +74,7 @@ pub enum Instruction {
     EvaluateNew,
     /// Store SuperCall() as the result value.
     ///
-    /// This instruction has the number of argumnet values that need to be
+    /// This instruction has the number of argument values that need to be
     /// popped from the stack (last to first) as an argument.
     EvaluateSuper,
     /// Store EvaluatePropertyAccessWithExpressionKey() as the result value.
