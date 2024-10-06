@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{collections::VecDeque, iter::repeat};
+use std::{cmp::max, collections::VecDeque, iter::repeat};
 
 use small_string::SmallString;
 
@@ -682,7 +682,7 @@ impl StringPrototype {
             let search_length = search_string.len(agent);
 
             // 8. Let position be StringIndexOf(s, searchString, 0).
-            let position = if let Some(position) = search_string.as_str(agent).find(s.as_str(agent))
+            let position = if let Some(position) = s.as_str(agent).find(search_string.as_str(agent))
             {
                 position
             } else {
@@ -708,7 +708,7 @@ impl StringPrototype {
             // 11. Let following be the substring of s from position + searchLength.
             // 12. If functionalReplace is true,
             let preceding = &s.as_str(agent)[0..position].to_owned();
-            let following = &s.as_str(agent)[position..search_length].to_owned();
+            let following = &s.as_str(agent)[position + search_length..].to_owned();
 
             // 14. Return the string-concatenation of preceding, replacement, and following.
             let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
@@ -718,14 +718,138 @@ impl StringPrototype {
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
         let replace_string = to_string(agent, replace_value)?;
         // Everything are strings: `"foo".replace("o", "a")` => use rust's replace
+        let result =
+            s.as_str(agent)
+                .replacen(search_string.as_str(agent), replace_string.as_str(agent), 1);
+        Ok(String::from_string(agent, result).into_value())
+    }
+
+    /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replaceall)
+    fn replace_all(agent: &mut Agent, this_value: Value, args: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        let search_value = args.get(0);
+        let replace_value = args.get(1);
+
+        // 2. If searchValue is neither undefined nor null, then
+        if !search_value.is_null() && !search_value.is_undefined() {
+            // a. Let isRegExp be ? IsRegExp(searchValue).
+            let is_reg_exp = false;
+
+            // b. If isRegExp is true, then
+            if is_reg_exp {
+                // i. Let flags be ? Get(searchValue, "flags").
+                // ii. Perform ? RequireObjectCoercible(flags).
+                // iii. If ? ToString(flags) does not contain "g", throw a TypeError exception.
+                todo!();
+            }
+
+            // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
+            let symbol = WellKnownSymbolIndexes::Replace.into();
+            let replacer = get_method(agent, search_value, symbol)?;
+
+            // d. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
+            if let Some(replacer) = replacer {
+                return call_function(
+                    agent,
+                    replacer,
+                    search_value,
+                    Some(ArgumentsList(&[o, replace_value])),
+                );
+            }
+        }
+
+        // 3. Let s be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        // 4. Let searchString be ? ToString(searchValue).
+        let search_string = to_string(agent, search_value)?;
+
+        // 5. Let functionalReplace be IsCallable(replaceValue).
+        if let Some(functional_replace) = is_callable(replace_value) {
+            // 7. Let searchLength be the length of searchString.
+            let search_length = search_string.len(agent);
+
+            // 8. Let advanceBy be max(1, searchLength).
+            let advance_by = max(1, search_length);
+
+            // 9. Let matchPositions be a new empty List.
+            let mut match_positions: Vec<usize> = vec![];
+
+            // 10. Let position be StringIndexOf(s, searchString, 0).
+            let search_str = search_string.as_str(agent).to_owned();
+            let subject = s.as_str(agent).to_owned();
+
+            let mut position = if let Some(position) = subject.find(&search_str) {
+                position
+            } else {
+                // If position is not-found, return s.
+                return Ok(s.into_value());
+            };
+
+            match_positions.push(position);
+            position += advance_by;
+
+            // 11. Repeat, while position is not not-found,
+            loop {
+                if let Some(pos) = subject[position..].find(&search_str) {
+                    match_positions.push(position + pos);
+                    position += advance_by;
+                } else {
+                    break;
+                };
+            }
+
+            // 12. Let endOfLastMatch be 0.
+            let mut end_of_last_match = 0;
+
+            // 13. Let result be the empty String.
+            let mut result = "".to_string();
+
+            // 14. For each element p of matchPositions, do
+            for p in match_positions {
+                // a. Let preserved be the substring of string from endOfLastMatch to p.
+                let preserved = subject[end_of_last_match..p].to_owned();
+
+                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
+                let replacement = call_function(
+                    agent,
+                    functional_replace,
+                    Value::Undefined,
+                    Some(ArgumentsList(&[
+                        search_string.into_value(),
+                        Number::from(position as u32).into_value(),
+                        s.into_value(),
+                    ])),
+                )?;
+
+                // d. Set result to the string-concatenation of result, preserved, and replacement.
+                let replacement_str = replacement.to_string(agent)?;
+                let replacement_str = replacement_str.as_str(agent);
+
+                let concat = format!("{}{}", &preserved, &replacement_str);
+                result.push_str(&concat);
+                end_of_last_match = p + search_length;
+            }
+
+            // 15. If endOfLastMatch < the length of string, set result to the string-concatenation of result and the substring of string from endOfLastMatch.
+            if end_of_last_match < subject.len() {
+                let preserved = subject[end_of_last_match..].to_owned();
+                result.push_str(&preserved);
+            }
+
+            // 16. Return result.
+            return Ok(String::from_str(agent, &result).into_value());
+        }
+
+        // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
+        let replace_string = to_string(agent, replace_value)?;
+        // Everything are strings: `"foo".replaceAll("o", "a")` => use rust's replace
         let result = s
             .as_str(agent)
             .replace(search_string.as_str(agent), replace_string.as_str(agent));
         Ok(String::from_string(agent, result).into_value())
-    }
-
-    fn replace_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
     }
 
     fn search(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
