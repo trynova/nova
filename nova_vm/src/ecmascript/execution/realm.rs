@@ -989,17 +989,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.4.3 Math
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Math);
-        let value = agent.get_realm(realm_id).intrinsics().math();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "math")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Math);
+            let value = agent.get_realm(realm_id).intrinsics().math();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.4.4 Reflect
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Reflect);
         let value = agent.get_realm(realm_id).intrinsics().reflect();

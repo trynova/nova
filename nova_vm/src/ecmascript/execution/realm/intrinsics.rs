@@ -128,7 +128,6 @@ use crate::{
                 bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
             },
             date_objects::{date_constructor::DateConstructor, date_prototype::DatePrototype},
-            math_object::MathObject,
             number_objects::{
                 number_constructor::NumberConstructor, number_prototype::NumberPrototype,
             },
@@ -142,6 +141,9 @@ use crate::{
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
     },
 };
+
+#[cfg(feature = "math")]
+use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
 
 use super::RealmIdentifier;
 
@@ -258,6 +260,7 @@ impl Intrinsics {
         NumberConstructor::create_intrinsic(agent, realm);
         BigIntPrototype::create_intrinsic(agent, realm);
         BigIntConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm);
         DatePrototype::create_intrinsic(agent, realm);
         DateConstructor::create_intrinsic(agent, realm);
@@ -976,6 +979,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "math")]
     /// %Math%
     pub(crate) fn math(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::MathObject
@@ -1547,6 +1551,7 @@ impl HeapMarkAndSweep for Intrinsics {
         self.map_prototype().mark_values(queues);
         self.map().mark_values(queues);
         self.map_iterator_prototype().mark_values(queues);
+        #[cfg(feature = "math")]
         self.math().mark_values(queues);
         self.number_prototype().mark_values(queues);
         self.number().mark_values(queues);
