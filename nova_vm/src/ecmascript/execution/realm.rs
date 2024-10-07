@@ -977,16 +977,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.4.2 JSON
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.JSON);
-        let value = agent.get_realm(realm_id).intrinsics().json();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
+        #[cfg(feature = "json")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.JSON);
+            let value = agent.get_realm(realm_id).intrinsics().json();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
 
         // 19.4.3 Math
         #[cfg(feature = "math")]
