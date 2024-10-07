@@ -23,6 +23,9 @@ sonic-rs = { workspace = true }
 wtf8 = { workspace = true }
 
 [features]
+default = ["math"]
+math = []
+
 typescript = []
 
 [build-dependencies]
