@@ -805,13 +805,10 @@ impl StringPrototype {
             let mut end_of_last_match = 0;
 
             // 13. Let result be the empty String.
-            let mut result = "".to_string();
+            let mut result = std::string::String::with_capacity(subject.len());
 
             // 14. For each element p of matchPositions, do
             for p in match_positions {
-                // a. Let preserved be the substring of string from endOfLastMatch to p.
-                let preserved = subject[end_of_last_match..p].to_owned();
-
                 // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
@@ -824,23 +821,25 @@ impl StringPrototype {
                     ])),
                 )?;
 
+                // a. Let preserved be the substring of string from endOfLastMatch to p.
+                let preserved = &subject[end_of_last_match..p];
                 // d. Set result to the string-concatenation of result, preserved, and replacement.
                 let replacement_str = replacement.to_string(agent)?;
                 let replacement_str = replacement_str.as_str(agent);
-
-                let concat = format!("{}{}", &preserved, &replacement_str);
-                result.push_str(&concat);
+                result.reserve(preserved.len() + replacement_str.len());
+                result.push_str(preserved);
+                result.push_str(replacement_str);
                 end_of_last_match = p + search_length;
             }
 
             // 15. If endOfLastMatch < the length of string, set result to the string-concatenation of result and the substring of string from endOfLastMatch.
             if end_of_last_match < subject.len() {
-                let preserved = subject[end_of_last_match..].to_owned();
-                result.push_str(&preserved);
+                let preserved = &subject[end_of_last_match..];
+                result.push_str(preserved);
             }
 
             // 16. Return result.
-            return Ok(String::from_str(agent, &result).into_value());
+            return Ok(String::from_string(agent, result).into_value());
         }
 
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
