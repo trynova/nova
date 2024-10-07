@@ -82,7 +82,6 @@ use crate::{
                     data_view_constructor::DataViewConstructor,
                     data_view_prototype::DataViewPrototype,
                 },
-                json_object::JSONObject,
                 shared_array_buffer_objects::{
                     shared_array_buffer_constructor::SharedArrayBufferConstructor,
                     shared_array_buffer_prototype::SharedArrayBufferPrototype,
@@ -142,10 +141,11 @@ use crate::{
     },
 };
 
+use super::RealmIdentifier;
 #[cfg(feature = "math")]
 use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
-
-use super::RealmIdentifier;
+#[cfg(feature = "json")]
+use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
@@ -294,6 +294,7 @@ impl Intrinsics {
         DataViewPrototype::create_intrinsic(agent, realm);
         DataViewConstructor::create_intrinsic(agent, realm);
         AtomicsObject::create_intrinsic(agent, realm);
+        #[cfg(feature = "json")]
         JSONObject::create_intrinsic(agent, realm);
         WeakRefPrototype::create_intrinsic(agent, realm);
         WeakRefConstructor::create_intrinsic(agent, realm);
@@ -940,6 +941,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "json")]
     /// %JSON%
     pub(crate) fn json(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::JSONObject
@@ -1546,6 +1548,7 @@ impl HeapMarkAndSweep for Intrinsics {
         self.is_finite().mark_values(queues);
         self.is_nan().mark_values(queues);
         self.iterator_prototype().mark_values(queues);
+        #[cfg(feature = "json")]
         self.json().mark_values(queues);
         self.map_prototype_entries().mark_values(queues);
         self.map_prototype().mark_values(queues);
