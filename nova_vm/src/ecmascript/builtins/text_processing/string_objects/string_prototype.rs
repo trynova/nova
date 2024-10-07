@@ -792,13 +792,9 @@ impl StringPrototype {
             position += advance_by;
 
             // 11. Repeat, while position is not not-found,
-            loop {
-                if let Some(pos) = subject[position..].find(&search_str) {
-                    match_positions.push(position + pos);
-                    position += advance_by;
-                } else {
-                    break;
-                };
+            while let Some(pos) = subject[position..].find(&search_str) {
+                match_positions.push(position + pos);
+                position += advance_by;
             }
 
             // 12. Let endOfLastMatch be 0.
