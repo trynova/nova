@@ -63,7 +63,10 @@ use crate::ecmascript::{
         weak_set::data::WeakSetHeapData,
     },
     scripts_and_modules::source_code::SourceCodeHeapData,
-    types::{bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, BUILTIN_STRINGS_LIST},
+    types::{
+        bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
+        BUILTIN_STRINGS_LIST,
+    },
 };
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
@@ -87,6 +90,7 @@ pub struct Heap {
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
+    pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     pub data_views: Vec<Option<DataViewHeapData>>,
     pub dates: Vec<Option<DateHeapData>>,
@@ -167,6 +171,7 @@ impl Heap {
             await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),
+            builtin_constructors: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),
             data_views: Vec::with_capacity(0),
             dates: Vec::with_capacity(1024),

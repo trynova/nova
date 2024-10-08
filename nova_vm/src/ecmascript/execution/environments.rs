@@ -35,8 +35,8 @@ mod private_environment;
 
 pub(crate) use declarative_environment::{new_declarative_environment, DeclarativeEnvironment};
 pub(crate) use function_environment::{
-    new_class_static_element_environment, new_function_environment, FunctionEnvironment,
-    ThisBindingStatus,
+    new_class_field_initializer_environment, new_class_static_element_environment,
+    new_function_environment, FunctionEnvironment, ThisBindingStatus,
 };
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
@@ -377,10 +377,10 @@ impl EnvironmentIndex {
     /// true if it does and false if it does not.
     pub(crate) fn has_this_binding(self, agent: &mut Agent) -> bool {
         match self {
-            EnvironmentIndex::Declarative(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Declarative(_) => false,
             EnvironmentIndex::Function(idx) => idx.has_this_binding(agent),
-            EnvironmentIndex::Global(idx) => idx.has_this_binding(),
-            EnvironmentIndex::Object(idx) => idx.has_this_binding(),
+            EnvironmentIndex::Global(_) => true,
+            EnvironmentIndex::Object(_) => false,
         }
     }
 

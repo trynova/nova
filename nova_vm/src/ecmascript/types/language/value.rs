@@ -41,7 +41,7 @@ use crate::{
             weak_map::WeakMap,
             weak_ref::WeakRef,
             weak_set::WeakSet,
-            Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+            Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
@@ -120,7 +120,9 @@ pub enum Value {
     // TODO: Figure out if all the special function types are wanted or if we'd
     // prefer to just keep them as internal variants of the three above ones.
     BuiltinGeneratorFunction,
-    BuiltinConstructorFunction,
+    /// Default class constructor created in step 14 of
+    /// [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
+    BuiltinConstructorFunction(BuiltinConstructorFunction),
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
@@ -235,8 +237,9 @@ pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegE
 
 pub(crate) const BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BuiltinGeneratorFunction);
-pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 =
-    value_discriminant(Value::BuiltinConstructorFunction);
+pub(crate) const BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
+    Value::BuiltinConstructorFunction(BuiltinConstructorFunction::_def()),
+);
 pub(crate) const BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT: u8 = value_discriminant(
     Value::BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction::_def()),
 );
@@ -543,7 +546,10 @@ impl Value {
                 data.get_index().hash(hasher);
             }
             Value::BuiltinGeneratorFunction => todo!(),
-            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinConstructorFunction(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::BuiltinPromiseResolvingFunction(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -742,7 +748,10 @@ impl Value {
                 data.get_index().hash(hasher);
             }
             Value::BuiltinGeneratorFunction => todo!(),
-            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinConstructorFunction(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::BuiltinPromiseResolvingFunction(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1029,7 +1038,7 @@ impl HeapMarkAndSweep for Value {
             Value::Float32Array(data) => data.mark_values(queues),
             Value::Float64Array(data) => data.mark_values(queues),
             Value::BuiltinGeneratorFunction => todo!(),
-            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinConstructorFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseResolvingFunction(data) => data.mark_values(queues),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
@@ -1093,7 +1102,7 @@ impl HeapMarkAndSweep for Value {
             Value::Float32Array(data) => data.sweep_values(compactions),
             Value::Float64Array(data) => data.sweep_values(compactions),
             Value::BuiltinGeneratorFunction => todo!(),
-            Value::BuiltinConstructorFunction => todo!(),
+            Value::BuiltinConstructorFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseResolvingFunction(data) => data.sweep_values(compactions),
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),

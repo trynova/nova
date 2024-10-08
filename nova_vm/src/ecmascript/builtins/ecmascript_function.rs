@@ -24,8 +24,8 @@ use crate::{
                 ExceptionType::{self, SyntaxError},
             },
             new_function_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            ExecutionContext, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics, RealmIdentifier,
-            ThisBindingStatus,
+            ExecutionContext, FunctionEnvironmentIndex, JsResult, PrivateEnvironmentIndex,
+            ProtoIntrinsics, RealmIdentifier, ThisBindingStatus,
         },
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         syntax_directed_operations::function_definitions::{
@@ -436,7 +436,9 @@ impl InternalMethods for ECMAScriptFunction {
             return Err(error);
         }
         // 5. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
-        // Note: We pass in the localEnv directly to avoid borrow issues.
+        let EnvironmentIndex::Function(local_env) = local_env else {
+            panic!("localEnv is not a Function Environment Record");
+        };
         ordinary_call_bind_this(agent, self, local_env, this_argument);
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
         let result = ordinary_call_evaluate_body(agent, self, arguments_list);
@@ -480,6 +482,9 @@ impl InternalMethods for ECMAScriptFunction {
             .as_ref()
             .unwrap()
             .lexical_environment;
+        let EnvironmentIndex::Function(constructor_env) = constructor_env else {
+            panic!("constructorEnv is not a Function Environment Record");
+        };
         // 5. Assert: calleeContext is now the running execution context.
         // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
 
@@ -494,14 +499,16 @@ impl InternalMethods for ECMAScriptFunction {
             );
             // b. Let initializeResult be Completion(InitializeInstanceElements(thisArgument, F)).
             // c. If initializeResult is an abrupt completion, then
-            //    i. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+            //    i. Remove calleeContext from the execution context stack and
+            //       restore callerContext as the running execution context.
             //    ii. Return ? initializeResult.
             // TODO: Classes.
         }
 
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
         let result = ordinary_call_evaluate_body(agent, self, arguments_list);
-        // 9. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
+        // 9. Remove calleeContext from the execution context stack and restore
+        //    callerContext as the running execution context.
         agent.execution_context_stack.pop();
         // 10. If result is a return completion, then
         // 11. Else,
@@ -510,17 +517,31 @@ impl InternalMethods for ECMAScriptFunction {
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
         if let Ok(value) = Object::try_from(value) {
-            return Ok(value);
-        }
+            Ok(value)
+        } else
         //   b. If kind is base, return thisArgument.
         if is_base {
-            return Ok(this_argument.unwrap());
-        }
-        todo!("Derived classes");
+            Ok(this_argument.unwrap())
+        } else
         //   c. If result.[[Value]] is not undefined, throw a TypeError exception.
-        // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
-        // 13. Assert: thisBinding is an Object.
-        // 14. Return thisBinding.
+        if !value.is_undefined() {
+            let message = format!(
+                "derived class constructor returned invalid value {}",
+                value.string_repr(agent).as_str(agent)
+            );
+            let message = String::from_string(agent, message);
+            Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
+        } else {
+            // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
+            // 13. Assert: thisBinding is an Object.
+            let Ok(this_binding) = Object::try_from(constructor_env.get_this_binding(agent)?)
+            else {
+                unreachable!();
+            };
+
+            // 14. Return thisBinding.
+            Ok(this_binding)
+        }
     }
 }
 
@@ -583,7 +604,7 @@ pub(crate) fn prepare_for_ordinary_call(
 pub(crate) fn ordinary_call_bind_this(
     agent: &mut Agent,
     f: ECMAScriptFunction,
-    local_env: EnvironmentIndex,
+    local_env: FunctionEnvironmentIndex,
     this_argument: Value,
 ) {
     let function_heap_data = &agent[f].ecmascript_function;
@@ -618,9 +639,6 @@ pub(crate) fn ordinary_call_bind_this(
         }
     };
     // 7. Assert: localEnv is a Function Environment Record.
-    let EnvironmentIndex::Function(local_env) = local_env else {
-        panic!("localEnv is not a Function Environment Record");
-    };
     // 8. Assert: The next step never returns an abrupt completion because localEnv.[[ThisBindingStatus]] is not INITIALIZED.
     assert_ne!(
         local_env.get_this_binding_status(agent),
@@ -851,8 +869,6 @@ pub(crate) fn make_constructor(
             // a. Assert: IsConstructor(F) is false.
             debug_assert!(!data.ecmascript_function.constructor_status.is_constructor());
             // b. Assert: F is an extensible object that does not have a "prototype" own property.
-            // TODO: Handle Some() object indexes?
-            assert!(data.object_index.is_none());
             // c. Set F.[[Construct]] to the definition specified in 10.2.2.
             // 3. Set F.[[ConstructorKind]] to BASE.
             data.ecmascript_function.constructor_status = ConstructorStatus::ConstructorFunction;
@@ -862,7 +878,7 @@ pub(crate) fn make_constructor(
             // a. Set F.[[Construct]] to the definition specified in 10.3.2.
         }
         Function::BuiltinGeneratorFunction => todo!(),
-        Function::BuiltinConstructorFunction => todo!(),
+        Function::BuiltinConstructorFunction(_) => unreachable!(),
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),
@@ -965,18 +981,17 @@ pub(crate) fn set_function_name(
             assert!(function.name.is_none());
             function.name = Some(name);
         }
-        Function::BuiltinFunction(_idx) => todo!(),
+        Function::BuiltinFunction(_idx) => unreachable!(),
         Function::ECMAScriptFunction(idx) => {
             let function = &mut agent[idx];
             // 1. Assert: F is an extensible object that does not have a "name" own property.
-            // TODO: Also potentially allow running this function with Some() object index if needed.
-            assert!(function.object_index.is_none() && function.name.is_none());
+            assert!(function.name.is_none());
             // 6. Perform ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
             function.name = Some(name);
             // 7. Return UNUSED.
         }
         Function::BuiltinGeneratorFunction => todo!(),
-        Function::BuiltinConstructorFunction => todo!(),
+        Function::BuiltinConstructorFunction(_) => unreachable!(),
         Function::BuiltinPromiseResolvingFunction(_) => todo!(),
         Function::BuiltinPromiseCollectorFunction => todo!(),
         Function::BuiltinProxyRevokerFunction => todo!(),

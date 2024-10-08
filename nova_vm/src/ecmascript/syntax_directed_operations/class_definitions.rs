@@ -4,29 +4,25 @@
 
 use crate::ecmascript::{
     abstract_operations::{
-        operations_on_objects::construct, testing_and_comparison::is_constructor,
+        operations_on_objects::{construct, initialize_instance_elements},
+        testing_and_comparison::is_constructor,
     },
-    builtins::{ordinary::ordinary_create_from_constructor, ArgumentsList},
+    builtins::{
+        ordinary::ordinary_create_from_constructor, ArgumentsList, BuiltinConstructorFunction,
+    },
     execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-    types::{Function, InternalMethods, Object, Value},
+    types::{Function, InternalMethods, Object},
 };
 
 pub(crate) fn base_class_default_constructor(
     agent: &mut Agent,
-    _this_value: Value,
-    _: ArgumentsList,
-    new_target: Option<Object>,
-) -> JsResult<Value> {
+    new_target: Object,
+) -> JsResult<Object> {
     // ii. If NewTarget is undefined, throw a TypeError exception.
-    let Some(new_target) = new_target else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "class constructors must be invoked with 'new'",
-        ));
-    };
+    // Note: We've already checked this at an earlier level.
 
     // iii. Let F be the active function object.
-    // let f = agent.running_execution_context().function.unwrap();
+    let f = BuiltinConstructorFunction::try_from(agent.active_function_object()).unwrap();
 
     // iv. If F.[[ConstructorKind]] is derived, then
     // v. Else,
@@ -38,28 +34,23 @@ pub(crate) fn base_class_default_constructor(
         ProtoIntrinsics::Object,
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    // TODO: Handle InitializeInstanceElements somehow.
+    initialize_instance_elements(agent, result, f)?;
 
     // vii. Return result.
-    Ok(result.into_value())
+    Ok(result)
 }
 
 pub(crate) fn derived_class_default_constructor(
     agent: &mut Agent,
-    _this_value: Value,
     args: ArgumentsList,
-    new_target: Option<Object>,
-) -> JsResult<Value> {
+    new_target: Object,
+) -> JsResult<Object> {
     // i. Let args be the List of arguments that was passed to this function by [[Call]] or [[Construct]].
     // ii. If NewTarget is undefined, throw a TypeError exception.
-    let Some(new_target) = new_target else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "class constructors must be invoked with 'new'",
-        ));
-    };
+    // Note: We've already checked this at an earlier level.
+
     // iii. Let F be the active function object.
-    let f = agent.running_execution_context().function.unwrap();
+    let f = BuiltinConstructorFunction::try_from(agent.active_function_object()).unwrap();
 
     // iv. If F.[[ConstructorKind]] is derived, then
     // 1. NOTE: This branch behaves similarly to constructor(...args) { super(...args); }.
@@ -84,8 +75,8 @@ pub(crate) fn derived_class_default_constructor(
         Some(Function::try_from(new_target).unwrap()),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    // TODO: Handle InitializeInstanceElements somehow.
+    initialize_instance_elements(agent, result, f)?;
 
     // vii. Return result.
-    Ok(result.into_value())
+    Ok(result)
 }
