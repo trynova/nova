@@ -23,9 +23,10 @@ sonic-rs = { workspace = true,  optional = true}
 wtf8 = { workspace = true }
 
 [features]
-default = ["math", "json"]
+default = ["math", "json", "date"]
 math = []
 json = ["sonic-rs"]
+date = []
 
 typescript = []
 

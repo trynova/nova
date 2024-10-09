@@ -27,6 +27,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     // Numbers and dates
     BigIntPrototype,
     MathObject,
+    #[cfg(feature = "date")]
     DatePrototype,
 
     // Text processing
@@ -132,6 +133,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     // Numbers and dates
     Number,
     BigInt,
+    #[cfg(feature = "date")]
     Date,
 
     // Text processing
@@ -200,6 +202,7 @@ pub(crate) enum IntrinsicFunctionIndexes {
     ArrayPrototypeSort,
     ArrayPrototypeToString,
     ArrayPrototypeValues,
+    #[cfg(feature = "date")]
     DatePrototypeToUTCString,
     DecodeURI,
     DecodeURIComponent,

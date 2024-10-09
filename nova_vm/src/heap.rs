@@ -40,7 +40,6 @@ use crate::ecmascript::{
             },
         },
         data_view::data::DataViewHeapData,
-        date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -68,6 +67,10 @@ use crate::ecmascript::{
         BUILTIN_STRINGS_LIST,
     },
 };
+
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::data::DateHeapData;
+
 use crate::ecmascript::{
     builtins::{ArrayBufferHeapData, ArrayHeapData},
     execution::{Environments, Realm, RealmIdentifier},
@@ -93,6 +96,7 @@ pub struct Heap {
     pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     pub data_views: Vec<Option<DataViewHeapData>>,
+    #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     /// ElementsArrays is where all element arrays live;
@@ -174,6 +178,7 @@ impl Heap {
             builtin_constructors: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),
             data_views: Vec::with_capacity(0),
+            #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {

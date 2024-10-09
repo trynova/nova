@@ -11,6 +11,8 @@ mod property_storage;
 
 use std::hash::Hash;
 
+#[cfg(feature = "date")]
+use super::value::DATE_DISCRIMINANT;
 use super::{
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT,
@@ -20,19 +22,22 @@ use super::{
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
-        DATA_VIEW_DISCRIMINANT, DATE_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT,
-        EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT,
-        FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, GENERATOR_DISCRIMINANT,
-        INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
-        ITERATOR_DISCRIMINANT, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT,
-        OBJECT_DISCRIMINANT, PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT,
-        PROXY_DISCRIMINANT, REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT,
+        DATA_VIEW_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT,
+        ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
+        FLOAT_64_ARRAY_DISCRIMINANT, GENERATOR_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
+        INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT, ITERATOR_DISCRIMINANT,
+        MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
+        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
+        REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT,
         SHARED_ARRAY_BUFFER_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
         UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, WEAK_MAP_DISCRIMINANT,
         WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
+
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::Date;
 use crate::{
     ecmascript::{
         builtins::{
@@ -42,7 +47,6 @@ use crate::{
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             data_view::DataView,
-            date::Date,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -104,6 +108,7 @@ pub enum Object {
     Array(Array) = ARRAY_DISCRIMINANT,
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
     DataView(DataView) = DATA_VIEW_DISCRIMINANT,
+    #[cfg(feature = "date")]
     Date(Date) = DATE_DISCRIMINANT,
     Error(Error) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry) = FINALIZATION_REGISTRY_DISCRIMINANT,
@@ -160,6 +165,7 @@ impl IntoValue for Object {
             Object::Array(data) => Value::Array(data),
             Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
             Object::DataView(data) => Value::DataView(data),
+            #[cfg(feature = "date")]
             Object::Date(data) => Value::Date(data),
             Object::Error(data) => Value::Error(data),
             Object::FinalizationRegistry(data) => Value::FinalizationRegistry(data),
@@ -336,6 +342,7 @@ impl From<Object> for Value {
             Object::Array(data) => Value::Array(data),
             Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
             Object::DataView(data) => Value::DataView(data),
+            #[cfg(feature = "date")]
             Object::Date(data) => Value::Date(data),
             Object::Error(data) => Value::Error(data),
             Object::FinalizationRegistry(data) => Value::FinalizationRegistry(data),
@@ -389,6 +396,7 @@ impl TryFrom<Value> for Object {
             | Value::SmallBigInt(_) => Err(()),
             Value::Object(x) => Ok(Object::from(x)),
             Value::Array(x) => Ok(Object::from(x)),
+            #[cfg(feature = "date")]
             Value::Date(x) => Ok(Object::Date(x)),
             Value::Error(x) => Ok(Object::from(x)),
             Value::BoundFunction(x) => Ok(Object::from(x)),
@@ -467,6 +475,7 @@ impl Hash for Object {
             Object::Array(data) => data.get_index().hash(state),
             Object::ArrayBuffer(data) => data.get_index().hash(state),
             Object::DataView(data) => data.get_index().hash(state),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.get_index().hash(state),
             Object::Error(data) => data.get_index().hash(state),
             Object::FinalizationRegistry(data) => data.get_index().hash(state),
@@ -521,6 +530,7 @@ impl InternalSlots for Object {
             Object::Object(data) => data.internal_extensible(agent),
             Object::Array(data) => data.internal_extensible(agent),
             Object::ArrayBuffer(data) => data.internal_extensible(agent),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_extensible(agent),
             Object::Error(data) => data.internal_extensible(agent),
             Object::BoundFunction(data) => data.internal_extensible(agent),
@@ -578,6 +588,7 @@ impl InternalSlots for Object {
             Object::Object(data) => data.internal_set_extensible(agent, value),
             Object::Array(data) => data.internal_set_extensible(agent, value),
             Object::ArrayBuffer(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set_extensible(agent, value),
             Object::Error(data) => data.internal_set_extensible(agent, value),
             Object::BoundFunction(data) => data.internal_set_extensible(agent, value),
@@ -653,6 +664,7 @@ impl InternalSlots for Object {
             Object::Object(data) => data.internal_prototype(agent),
             Object::Array(data) => data.internal_prototype(agent),
             Object::ArrayBuffer(data) => data.internal_prototype(agent),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_prototype(agent),
             Object::Error(data) => data.internal_prototype(agent),
             Object::BoundFunction(data) => data.internal_prototype(agent),
@@ -710,6 +722,7 @@ impl InternalSlots for Object {
             Object::Object(data) => data.internal_set_prototype(agent, prototype),
             Object::Array(data) => data.internal_set_prototype(agent, prototype),
             Object::ArrayBuffer(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set_prototype(agent, prototype),
             Object::Error(data) => data.internal_set_prototype(agent, prototype),
             Object::BoundFunction(data) => data.internal_set_prototype(agent, prototype),
@@ -789,6 +802,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_get_prototype_of(agent),
             Object::Array(data) => data.internal_get_prototype_of(agent),
             Object::ArrayBuffer(data) => data.internal_get_prototype_of(agent),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_get_prototype_of(agent),
             Object::Error(data) => data.internal_get_prototype_of(agent),
             Object::BoundFunction(data) => data.internal_get_prototype_of(agent),
@@ -864,6 +878,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Array(data) => data.internal_set_prototype_of(agent, prototype),
             Object::ArrayBuffer(data) => data.internal_set_prototype_of(agent, prototype),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Error(data) => data.internal_set_prototype_of(agent, prototype),
             Object::BoundFunction(data) => data.internal_set_prototype_of(agent, prototype),
@@ -941,6 +956,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_is_extensible(agent),
             Object::Array(data) => data.internal_is_extensible(agent),
             Object::ArrayBuffer(data) => data.internal_is_extensible(agent),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_is_extensible(agent),
             Object::Error(data) => data.internal_is_extensible(agent),
             Object::BoundFunction(data) => data.internal_is_extensible(agent),
@@ -1006,6 +1022,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_prevent_extensions(agent),
             Object::Array(data) => data.internal_prevent_extensions(agent),
             Object::ArrayBuffer(data) => data.internal_prevent_extensions(agent),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_prevent_extensions(agent),
             Object::Error(data) => data.internal_prevent_extensions(agent),
             Object::BoundFunction(data) => data.internal_prevent_extensions(agent),
@@ -1085,6 +1102,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_get_own_property(agent, property_key),
             Object::Array(data) => data.internal_get_own_property(agent, property_key),
             Object::ArrayBuffer(data) => data.internal_get_own_property(agent, property_key),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_get_own_property(agent, property_key),
             Object::Error(data) => data.internal_get_own_property(agent, property_key),
             Object::BoundFunction(data) => data.internal_get_own_property(agent, property_key),
@@ -1175,6 +1193,7 @@ impl InternalMethods for Object {
             Object::ArrayBuffer(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
+            #[cfg(feature = "date")]
             Object::Date(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -1301,6 +1320,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_has_property(agent, property_key),
             Object::Array(data) => data.internal_has_property(agent, property_key),
             Object::ArrayBuffer(data) => data.internal_has_property(agent, property_key),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_has_property(agent, property_key),
             Object::Error(data) => data.internal_has_property(agent, property_key),
             Object::BoundFunction(data) => data.internal_has_property(agent, property_key),
@@ -1383,6 +1403,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_get(agent, property_key, receiver),
             Object::Array(data) => data.internal_get(agent, property_key, receiver),
             Object::ArrayBuffer(data) => data.internal_get(agent, property_key, receiver),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_get(agent, property_key, receiver),
             Object::Error(data) => data.internal_get(agent, property_key, receiver),
             Object::BoundFunction(data) => data.internal_get(agent, property_key, receiver),
@@ -1466,6 +1487,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Array(data) => data.internal_set(agent, property_key, value, receiver),
             Object::ArrayBuffer(data) => data.internal_set(agent, property_key, value, receiver),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Error(data) => data.internal_set(agent, property_key, value, receiver),
             Object::BoundFunction(data) => data.internal_set(agent, property_key, value, receiver),
@@ -1556,6 +1578,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_delete(agent, property_key),
             Object::Array(data) => data.internal_delete(agent, property_key),
             Object::ArrayBuffer(data) => data.internal_delete(agent, property_key),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_delete(agent, property_key),
             Object::Error(data) => data.internal_delete(agent, property_key),
             Object::BoundFunction(data) => data.internal_delete(agent, property_key),
@@ -1631,6 +1654,7 @@ impl InternalMethods for Object {
             Object::Object(data) => data.internal_own_property_keys(agent),
             Object::Array(data) => data.internal_own_property_keys(agent),
             Object::ArrayBuffer(data) => data.internal_own_property_keys(agent),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.internal_own_property_keys(agent),
             Object::Error(data) => data.internal_own_property_keys(agent),
             Object::BoundFunction(data) => data.internal_own_property_keys(agent),
@@ -1743,6 +1767,7 @@ impl HeapMarkAndSweep for Object {
             Object::Object(data) => data.mark_values(queues),
             Object::Array(data) => data.mark_values(queues),
             Object::ArrayBuffer(data) => data.mark_values(queues),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.mark_values(queues),
             Object::Error(data) => data.mark_values(queues),
             Object::BoundFunction(data) => data.mark_values(queues),
@@ -1805,6 +1830,7 @@ impl HeapMarkAndSweep for Object {
             Object::Array(data) => data.sweep_values(compactions),
             Object::ArrayBuffer(data) => data.sweep_values(compactions),
             Object::DataView(data) => data.sweep_values(compactions),
+            #[cfg(feature = "date")]
             Object::Date(data) => data.sweep_values(compactions),
             Object::Error(data) => data.sweep_values(compactions),
             Object::FinalizationRegistry(data) => data.sweep_values(compactions),

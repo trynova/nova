@@ -126,7 +126,6 @@ use crate::{
             bigint_objects::{
                 bigint_constructor::BigIntConstructor, bigint_prototype::BigIntPrototype,
             },
-            date_objects::{date_constructor::DateConstructor, date_prototype::DatePrototype},
             number_objects::{
                 number_constructor::NumberConstructor, number_prototype::NumberPrototype,
             },
@@ -142,6 +141,11 @@ use crate::{
 };
 
 use super::RealmIdentifier;
+
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
+    date_constructor::DateConstructor, date_prototype::DatePrototype,
+};
 #[cfg(feature = "math")]
 use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
 #[cfg(feature = "json")]
@@ -172,6 +176,7 @@ pub enum ProtoIntrinsics {
     BigUint64Array,
     Boolean,
     DataView,
+    #[cfg(feature = "date")]
     Date,
     Error,
     EvalError,
@@ -262,7 +267,9 @@ impl Intrinsics {
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
         MathObject::create_intrinsic(agent, realm);
+        #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "date")]
         DateConstructor::create_intrinsic(agent, realm);
         StringPrototype::create_intrinsic(agent, realm);
         StringConstructor::create_intrinsic(agent, realm);
@@ -331,6 +338,7 @@ impl Intrinsics {
             ProtoIntrinsics::BigInt => self.big_int_prototype().into(),
             ProtoIntrinsics::Boolean => self.boolean_prototype().into(),
             ProtoIntrinsics::Error => self.error_prototype().into(),
+            #[cfg(feature = "date")]
             ProtoIntrinsics::Date => self.date_prototype().into(),
             ProtoIntrinsics::EvalError => self.eval_error_prototype().into(),
             ProtoIntrinsics::Function => self.function_prototype().into(),
@@ -652,6 +660,7 @@ impl Intrinsics {
         IntrinsicConstructorIndexes::DataView.get_object_index(self.object_index_base)
     }
 
+    #[cfg(feature = "date")]
     /// %Date.prototype.toUTCString%
     pub(crate) fn date_prototype_to_utcstring(&self) -> BuiltinFunction {
         IntrinsicFunctionIndexes::DatePrototypeToUTCString
@@ -659,6 +668,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "date")]
     /// %Date.prototype%
     pub(crate) fn date_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::DatePrototype
@@ -666,6 +676,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "date")]
     /// %Date%
     pub(crate) fn date(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Date
@@ -673,6 +684,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "date")]
     pub(crate) fn date_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Date.get_object_index(self.object_index_base)
     }
@@ -1513,8 +1525,11 @@ impl HeapMarkAndSweep for Intrinsics {
         self.boolean().mark_values(queues);
         self.data_view_prototype().mark_values(queues);
         self.data_view().mark_values(queues);
+        #[cfg(feature = "date")]
         self.date_prototype_to_utcstring().mark_values(queues);
+        #[cfg(feature = "date")]
         self.date_prototype().mark_values(queues);
+        #[cfg(feature = "date")]
         self.date().mark_values(queues);
         self.decode_uri().mark_values(queues);
         self.decode_uri_component().mark_values(queues);

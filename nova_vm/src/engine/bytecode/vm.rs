@@ -2090,7 +2090,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Object(_)  |
         Value::Array(_)  |
         Value::ArrayBuffer(_)  |
-        Value::Date(_)  |
         Value::Error(_)  |
         // 14. Return "object".
         Value::PrimitiveObject(_) |
@@ -2125,6 +2124,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "date")]
+        Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinGeneratorFunction |

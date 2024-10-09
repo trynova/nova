@@ -15,6 +15,8 @@ use super::{
     indexes::{ElementIndex, StringIndex, TypedArrayIndex},
     Heap, WellKnownSymbolIndexes,
 };
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -27,7 +29,6 @@ use crate::ecmascript::{
             },
         },
         data_view::DataView,
-        date::Date,
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
@@ -111,6 +112,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             builtin_constructors,
             builtin_functions,
             data_views,
+            #[cfg(feature = "date")]
             dates,
             ecmascript_functions,
             elements,
@@ -420,19 +422,22 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 data_views.get(index).mark_values(&mut queues);
             }
         });
-        let mut date_marks: Box<[Date]> = queues.dates.drain(..).collect();
-        date_marks.sort();
-        date_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.dates.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "date")]
+        {
+            let mut date_marks: Box<[Date]> = queues.dates.drain(..).collect();
+            date_marks.sort();
+            date_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.dates.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    dates.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                dates.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut embedder_object_marks: Box<[EmbedderObject]> =
             queues.embedder_objects.drain(..).collect();
         embedder_object_marks.sort();
@@ -919,6 +924,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         builtin_constructors,
         builtin_functions,
         data_views,
+        #[cfg(feature = "date")]
         dates,
         ecmascript_functions,
         elements,
@@ -1133,6 +1139,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
             });
         }
+        #[cfg(feature = "date")]
         if !dates.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(dates, &compactions, &bits.dates);

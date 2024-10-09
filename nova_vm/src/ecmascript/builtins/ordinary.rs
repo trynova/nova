@@ -24,10 +24,11 @@ use crate::{
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
+#[cfg(feature = "date")]
+use super::date::data::DateHeapData;
 use super::{
     control_abstraction_objects::generator_objects::GeneratorHeapData,
     data_view::data::DataViewHeapData,
-    date::data::DateHeapData,
     error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
@@ -824,6 +825,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(ErrorHeapData::new(ExceptionType::EvalError, None, None))
             .into_object(),
+        #[cfg(feature = "date")]
         ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into_object(),
         ProtoIntrinsics::Function => todo!(),
         ProtoIntrinsics::Number => agent
@@ -1041,6 +1043,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
             ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
             ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
+            #[cfg(feature = "date")]
             ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
             ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),
             ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into_function()),
