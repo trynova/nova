@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::data::DateHeapData;
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::generator_objects::GeneratorHeapData,
         data_view::data::DataViewHeapData,
-        date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -34,7 +35,6 @@ use crate::ecmascript::{
         Value,
     },
 };
-
 use core::fmt::Debug;
 use std::{
     hash::{Hash, Hasher},
@@ -165,6 +165,7 @@ pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
 pub type BuiltinConstructorIndex = BaseIndex<BuiltinConstructorHeapData>;
 pub type DataViewIndex = BaseIndex<DataViewHeapData>;
+#[cfg(feature = "date")]
 pub type DateIndex = BaseIndex<DateHeapData>;
 pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
 pub type ElementIndex = BaseIndex<[Option<Value>]>;

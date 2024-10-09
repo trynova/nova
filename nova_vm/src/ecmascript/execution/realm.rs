@@ -574,18 +574,20 @@ pub(crate) fn set_default_global_bindings(
         };
         define_property_or_throw(agent, global, name, desc)?;
 
-        // 19.3.9 Date ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Date);
-        let value = agent.get_realm(realm_id).intrinsics().date();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "date")]
+        {
+            // 19.3.9 Date ( . . . )
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Date);
+            let value = agent.get_realm(realm_id).intrinsics().date();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.3.10 Error ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Error);
         let value = agent.get_realm(realm_id).intrinsics().error();
@@ -1171,6 +1173,7 @@ mod test {
         if let Some((missing_builtin_index, _)) = missing_builtin {
             panic_builtin_function_missing(missing_builtin_index);
         }
+        #[cfg(feature = "date")]
         assert!(agent.heap.dates.is_empty());
         assert!(agent.heap.ecmascript_functions.is_empty());
         assert_eq!(agent.heap.environments.declarative.len(), 1);

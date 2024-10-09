@@ -165,6 +165,7 @@ impl ObjectPrototype {
             // 5. If isArray is true, let builtinTag be "Array".
             Value::Array(_) => Ok(BUILTIN_STRING_MEMORY._object_Array_.into_value()),
             // 12. Else if O has a [[DateValue]] internal slot, let builtinTag be "Date".
+            #[cfg(feature = "date")]
             Value::Date(_) => Ok(BUILTIN_STRING_MEMORY._object_Date_.into_value()),
             // 8. Else if O has an [[ErrorData]] internal slot, let builtinTag be "Error".
             Value::Error(_) => Ok(BUILTIN_STRING_MEMORY._object_Error_.into_value()),

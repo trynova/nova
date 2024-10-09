@@ -9,6 +9,8 @@ use super::{
     BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, String, StringHeapData,
     Symbol,
 };
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::Date;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
@@ -21,7 +23,6 @@ use crate::{
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             data_view::DataView,
-            date::Date,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -50,6 +51,7 @@ use crate::{
     heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
+
 use std::{
     hash::{Hash, Hasher},
     mem::size_of,
@@ -144,6 +146,7 @@ pub enum Value {
     Array(Array),
     ArrayBuffer(ArrayBuffer),
     DataView(DataView),
+    #[cfg(feature = "date")]
     Date(Date),
     Error(Error),
     FinalizationRegistry(FinalizationRegistry),
@@ -225,6 +228,7 @@ pub(crate) const OBJECT_DISCRIMINANT: u8 =
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
+#[cfg(feature = "date")]
 pub(crate) const DATE_DISCRIMINANT: u8 = value_discriminant(Value::Date(Date::_def()));
 pub(crate) const ERROR_DISCRIMINANT: u8 = value_discriminant(Value::Error(Error::_def()));
 pub(crate) const BUILTIN_FUNCTION_DISCRIMINANT: u8 =
@@ -576,6 +580,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "date")]
             Value::Date(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -778,6 +783,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "date")]
             Value::Date(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1008,6 +1014,7 @@ impl HeapMarkAndSweep for Value {
             Value::Object(data) => data.mark_values(queues),
             Value::Array(data) => data.mark_values(queues),
             Value::ArrayBuffer(data) => data.mark_values(queues),
+            #[cfg(feature = "date")]
             Value::Date(data) => data.mark_values(queues),
             Value::Error(data) => data.mark_values(queues),
             Value::BoundFunction(data) => data.mark_values(queues),
@@ -1072,6 +1079,7 @@ impl HeapMarkAndSweep for Value {
             Value::Object(data) => data.sweep_values(compactions),
             Value::Array(data) => data.sweep_values(compactions),
             Value::ArrayBuffer(data) => data.sweep_values(compactions),
+            #[cfg(feature = "date")]
             Value::Date(data) => data.sweep_values(compactions),
             Value::Error(data) => data.sweep_values(compactions),
             Value::BoundFunction(data) => data.sweep_values(compactions),

@@ -8,6 +8,8 @@ use super::{
     indexes::{BaseIndex, ElementIndex, TypedArrayIndex},
     Heap,
 };
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -20,7 +22,6 @@ use crate::ecmascript::{
             },
         },
         data_view::DataView,
-        date::Date,
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
@@ -64,6 +65,7 @@ pub struct HeapBits {
     pub builtin_constructors: Box<[bool]>,
     pub builtin_functions: Box<[bool]>,
     pub data_views: Box<[bool]>,
+    #[cfg(feature = "date")]
     pub dates: Box<[bool]>,
     pub declarative_environments: Box<[bool]>,
     pub e_2_10: Box<[(bool, u16)]>,
@@ -118,6 +120,7 @@ pub(crate) struct WorkQueues {
     pub builtin_constructors: Vec<BuiltinConstructorFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
     pub data_views: Vec<DataView>,
+    #[cfg(feature = "date")]
     pub dates: Vec<Date>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
     pub e_2_10: Vec<(ElementIndex, u32)>,
@@ -172,6 +175,7 @@ impl HeapBits {
         let builtin_constructors = vec![false; heap.builtin_constructors.len()];
         let builtin_functions = vec![false; heap.builtin_functions.len()];
         let data_views = vec![false; heap.data_views.len()];
+        #[cfg(feature = "date")]
         let dates = vec![false; heap.dates.len()];
         let declarative_environments = vec![false; heap.environments.declarative.len()];
         let e_2_10 = vec![(false, 0u16); heap.elements.e2pow10.values.len()];
@@ -223,6 +227,7 @@ impl HeapBits {
             builtin_constructors: builtin_constructors.into_boxed_slice(),
             builtin_functions: builtin_functions.into_boxed_slice(),
             data_views: data_views.into_boxed_slice(),
+            #[cfg(feature = "date")]
             dates: dates.into_boxed_slice(),
             declarative_environments: declarative_environments.into_boxed_slice(),
             e_2_10: e_2_10.into_boxed_slice(),
@@ -280,6 +285,7 @@ impl WorkQueues {
             builtin_constructors: Vec::with_capacity(heap.builtin_constructors.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
+            #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
             declarative_environments: Vec::with_capacity(heap.environments.declarative.len() / 4),
             e_2_10: Vec::with_capacity(heap.elements.e2pow10.values.len() / 4),
@@ -360,6 +366,7 @@ impl WorkQueues {
             builtin_constructors,
             builtin_functions,
             data_views,
+            #[cfg(feature = "date")]
             dates,
             declarative_environments,
             e_2_10,
@@ -402,6 +409,10 @@ impl WorkQueues {
             weak_refs,
             weak_sets,
         } = self;
+
+        #[cfg(not(feature = "date"))]
+        let dates: &[bool; 0] = &[];
+
         array_buffers.is_empty()
             && arrays.is_empty()
             && array_iterators.is_empty()
@@ -603,6 +614,7 @@ pub(crate) struct CompactionLists {
     pub builtin_constructors: CompactionList,
     pub builtin_functions: CompactionList,
     pub data_views: CompactionList,
+    #[cfg(feature = "date")]
     pub dates: CompactionList,
     pub declarative_environments: CompactionList,
     pub e_2_10: CompactionList,
@@ -687,6 +699,7 @@ impl CompactionLists {
             embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),
             generators: CompactionList::from_mark_bits(&bits.generators),
             source_codes: CompactionList::from_mark_bits(&bits.source_codes),
+            #[cfg(feature = "date")]
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
             maps: CompactionList::from_mark_bits(&bits.maps),

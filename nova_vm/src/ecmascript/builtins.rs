@@ -16,6 +16,7 @@ mod builtin_constructor;
 mod builtin_function;
 pub(crate) mod control_abstraction_objects;
 pub(crate) mod data_view;
+#[cfg(feature = "date")]
 pub mod date;
 mod ecmascript_function;
 pub(crate) mod embedder_object;
