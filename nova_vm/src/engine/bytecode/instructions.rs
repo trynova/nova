@@ -72,6 +72,11 @@ pub enum Instruction {
     /// stack afterwards is the constructor to
     /// call.
     EvaluateNew,
+    /// Store SuperCall() as the result value.
+    ///
+    /// This instruction has the number of argument values that need to be
+    /// popped from the stack (last to first) as an argument.
+    EvaluateSuper,
     /// Store EvaluatePropertyAccessWithExpressionKey() as the result value.
     EvaluatePropertyAccessWithExpressionKey,
     /// Store EvaluatePropertyAccessWithIdentifierKey() as the result value.
@@ -377,6 +382,7 @@ impl Instruction {
             | Self::DirectEvalCall
             | Self::EvaluateCall
             | Self::EvaluateNew
+            | Self::EvaluateSuper
             | Self::EvaluatePropertyAccessWithIdentifierKey
             | Self::InstantiateArrowFunctionExpression
             | Self::InstantiateOrdinaryFunctionExpression

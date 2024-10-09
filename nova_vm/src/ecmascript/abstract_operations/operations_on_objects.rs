@@ -17,15 +17,19 @@ use crate::{
         builtins::{
             array_create,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            ArgumentsList, Array,
+            ArgumentsList, Array, BuiltinConstructorFunction,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{
+            agent::ExceptionType, new_class_field_initializer_environment, Agent,
+            ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
+            RealmIdentifier,
+        },
         types::{
-            Function, InternalMethods, IntoObject, IntoValue, Number, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Number, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::instanceof_operator,
+    engine::{instanceof_operator, Vm},
     heap::{Heap, ObjectEntry},
     SmallInteger,
 };
@@ -868,6 +872,63 @@ pub(crate) fn copy_data_properties_into_object(
             .into_object(),
         &entries,
     ))
+}
+
+/// [7.3.33 InitializeInstanceElements ( O, constructor )](https://tc39.es/ecma262/#sec-initializeinstanceelements)
+///
+/// The abstract operation InitializeInstanceElements takes arguments O (an
+/// Object) and constructor (an ECMAScript function object) and returns either
+/// a normal completion containing unused or a throw completion.
+pub(crate) fn initialize_instance_elements(
+    agent: &mut Agent,
+    o: Object,
+    constructor: BuiltinConstructorFunction,
+) -> JsResult<()> {
+    // 1. Let methods be the value of constructor.[[PrivateMethods]].
+    // 2. For each PrivateElement method of methods, do
+    // a. Perform ? PrivateMethodOrAccessorAdd(O, method).
+    // TODO: Private properties and methods.
+    // 3. Let fields be the value of constructor.[[Fields]].
+    // 4. For each element fieldRecord of fields, do
+    // a. Perform ? DefineField(O, fieldRecord).
+    // 5. Return unused.
+    let constructor_data = &agent[constructor];
+    if let Some(bytecode) = constructor_data.compiled_initializer_bytecode {
+        // Note: The code here looks quite a bit different from what the spec
+        // says. For one, the spec is bugged and doesn't consider default
+        // constructors at all. Second, we compile field initializers into
+        // the ECMAScript class constructors directly, so our code only needs
+        // to work for builtin constructors.
+        // Third, the spec defines the initializers as individual functions
+        // run one after the other. Instea we compile all of the initializers
+        // into a single bytecode executable associated with the constructor.
+        // The problem then becomes how to run this executable as an ECMAScript
+        // function.
+        // To do this, we need a new execution context that points to a new
+        // Function environment. The function environment should be lexically a
+        // child of the class constructor's creating environment.
+        let bytecode = unsafe { bytecode.as_ref() };
+        let f = constructor.into_function();
+        let outer_env = constructor_data.environment;
+        let outer_priv_env = constructor_data.private_environment;
+        let source_code = constructor_data.source_code;
+        let decl_env = new_class_field_initializer_environment(agent, f, o, outer_env);
+        agent.execution_context_stack.push(ExecutionContext {
+            ecmascript_code: Some(ECMAScriptCodeEvaluationState {
+                lexical_environment: EnvironmentIndex::Function(decl_env),
+                variable_environment: EnvironmentIndex::Function(decl_env),
+                private_environment: outer_priv_env,
+                is_strict_mode: true,
+                source_code,
+            }),
+            function: Some(f),
+            realm: agent[constructor].realm,
+            script_or_module: None,
+        });
+        let _ = Vm::execute(agent, bytecode, None).into_js_result()?;
+        agent.execution_context_stack.pop();
+    }
+    Ok(())
 }
 
 /// ### [7.3.34 AddValueToKeyedGroup ( groups, key, value )](https://tc39.es/ecma262/#sec-add-value-to-keyed-group)

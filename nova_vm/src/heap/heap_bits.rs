@@ -40,7 +40,7 @@ use crate::ecmascript::{
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
-        Array, ArrayBuffer, BuiltinFunction, ECMAScriptFunction,
+        Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
@@ -61,6 +61,7 @@ pub struct HeapBits {
     pub await_reactions: Box<[bool]>,
     pub bigints: Box<[bool]>,
     pub bound_functions: Box<[bool]>,
+    pub builtin_constructors: Box<[bool]>,
     pub builtin_functions: Box<[bool]>,
     pub data_views: Box<[bool]>,
     pub dates: Box<[bool]>,
@@ -114,6 +115,7 @@ pub(crate) struct WorkQueues {
     pub await_reactions: Vec<AwaitReactionIdentifier>,
     pub bigints: Vec<HeapBigInt>,
     pub bound_functions: Vec<BoundFunction>,
+    pub builtin_constructors: Vec<BuiltinConstructorFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
     pub data_views: Vec<DataView>,
     pub dates: Vec<Date>,
@@ -167,6 +169,7 @@ impl HeapBits {
         let await_reactions = vec![false; heap.await_reactions.len()];
         let bigints = vec![false; heap.bigints.len()];
         let bound_functions = vec![false; heap.bound_functions.len()];
+        let builtin_constructors = vec![false; heap.builtin_constructors.len()];
         let builtin_functions = vec![false; heap.builtin_functions.len()];
         let data_views = vec![false; heap.data_views.len()];
         let dates = vec![false; heap.dates.len()];
@@ -217,6 +220,7 @@ impl HeapBits {
             await_reactions: await_reactions.into_boxed_slice(),
             bigints: bigints.into_boxed_slice(),
             bound_functions: bound_functions.into_boxed_slice(),
+            builtin_constructors: builtin_constructors.into_boxed_slice(),
             builtin_functions: builtin_functions.into_boxed_slice(),
             data_views: data_views.into_boxed_slice(),
             dates: dates.into_boxed_slice(),
@@ -273,6 +277,7 @@ impl WorkQueues {
             await_reactions: Vec::with_capacity(heap.await_reactions.len() / 4),
             bigints: Vec::with_capacity(heap.bigints.len() / 4),
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
+            builtin_constructors: Vec::with_capacity(heap.builtin_constructors.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             dates: Vec::with_capacity(heap.dates.len() / 4),
@@ -352,6 +357,7 @@ impl WorkQueues {
             await_reactions,
             bigints,
             bound_functions,
+            builtin_constructors,
             builtin_functions,
             data_views,
             dates,
@@ -402,6 +408,7 @@ impl WorkQueues {
             && await_reactions.is_empty()
             && bigints.is_empty()
             && bound_functions.is_empty()
+            && builtin_constructors.is_empty()
             && builtin_functions.is_empty()
             && data_views.is_empty()
             && dates.is_empty()
@@ -593,6 +600,7 @@ pub(crate) struct CompactionLists {
     pub await_reactions: CompactionList,
     pub bigints: CompactionList,
     pub bound_functions: CompactionList,
+    pub builtin_constructors: CompactionList,
     pub builtin_functions: CompactionList,
     pub data_views: CompactionList,
     pub dates: CompactionList,
@@ -673,6 +681,7 @@ impl CompactionLists {
             await_reactions: CompactionList::from_mark_bits(&bits.await_reactions),
             bigints: CompactionList::from_mark_bits(&bits.bigints),
             bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
+            builtin_constructors: CompactionList::from_mark_bits(&bits.builtin_constructors),
             builtin_functions: CompactionList::from_mark_bits(&bits.builtin_functions),
             ecmascript_functions: CompactionList::from_mark_bits(&bits.ecmascript_functions),
             embedder_objects: CompactionList::from_mark_bits(&bits.embedder_objects),

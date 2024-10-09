@@ -29,8 +29,9 @@ use crate::ecmascript::{
         ArrayBufferHeapData, ArrayHeapData,
     },
     types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData, Value,
+        BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
+        ECMAScriptFunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
+        Value,
     },
 };
 
@@ -162,6 +163,7 @@ pub type ArrayIteratorIndex = BaseIndex<ArrayIteratorHeapData>;
 pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
+pub type BuiltinConstructorIndex = BaseIndex<BuiltinConstructorHeapData>;
 pub type DataViewIndex = BaseIndex<DataViewHeapData>;
 pub type DateIndex = BaseIndex<DateHeapData>;
 pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;

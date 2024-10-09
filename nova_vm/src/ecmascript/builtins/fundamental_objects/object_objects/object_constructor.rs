@@ -706,6 +706,7 @@ impl ObjectConstructor {
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
     fn keys(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
         let o = arguments.get(0);
+        println!("key target: {:?}", o);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
