@@ -46,8 +46,11 @@ use super::{
     weak_map::data::WeakMapHeapData,
     weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
-    ArrayBufferHeapData, ArrayHeapData,
+    ArrayHeapData,
 };
+
+#[cfg(feature = "array-buffer")]
+use super::ArrayBufferHeapData;
 
 impl Index<OrdinaryObject> for Agent {
     type Output = ObjectHeapData;
@@ -801,6 +804,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 
     let object = match proto_intrinsics {
         ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
+        #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::ArrayBuffer => agent
             .heap
             .create(ArrayBufferHeapData::default())
@@ -1033,6 +1037,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
             ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
             ProtoIntrinsics::ArrayIterator => None,
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
             ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
             ProtoIntrinsics::AsyncGeneratorFunction => {

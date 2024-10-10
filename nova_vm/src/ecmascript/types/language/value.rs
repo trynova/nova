@@ -11,6 +11,9 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::ArrayBuffer;
+
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
@@ -42,7 +45,7 @@ use crate::{
             weak_map::WeakMap,
             weak_ref::WeakRef,
             weak_set::WeakSet,
-            Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
@@ -144,6 +147,7 @@ pub enum Value {
     Arguments(OrdinaryObject),
     // TODO: MappedArguments(MappedArgumentsObject),
     Array(Array),
+    #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer),
     DataView(DataView),
     #[cfg(feature = "date")]
@@ -226,6 +230,7 @@ pub(crate) const SMALL_BIGINT_DISCRIMINANT: u8 =
 pub(crate) const OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::Object(OrdinaryObject::_def()));
 pub(crate) const ARRAY_DISCRIMINANT: u8 = value_discriminant(Value::Array(Array::_def()));
+#[cfg(feature = "array-buffer")]
 pub(crate) const ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayBuffer(ArrayBuffer::_def()));
 #[cfg(feature = "date")]
@@ -572,6 +577,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::ArrayBuffer(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -775,6 +781,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::ArrayBuffer(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1013,6 +1020,7 @@ impl HeapMarkAndSweep for Value {
             Value::BigInt(data) => data.mark_values(queues),
             Value::Object(data) => data.mark_values(queues),
             Value::Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::ArrayBuffer(data) => data.mark_values(queues),
             #[cfg(feature = "date")]
             Value::Date(data) => data.mark_values(queues),
@@ -1078,6 +1086,7 @@ impl HeapMarkAndSweep for Value {
             Value::BigInt(data) => data.sweep_values(compactions),
             Value::Object(data) => data.sweep_values(compactions),
             Value::Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::ArrayBuffer(data) => data.sweep_values(compactions),
             #[cfg(feature = "date")]
             Value::Date(data) => data.sweep_values(compactions),

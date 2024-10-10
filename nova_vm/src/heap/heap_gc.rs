@@ -17,6 +17,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::ArrayBuffer;
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -48,7 +50,7 @@ use crate::ecmascript::{
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
-        Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -103,6 +105,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
 
     while !queues.is_empty() {
         let Heap {
+            #[cfg(feature = "array-buffer")]
             array_buffers,
             arrays,
             array_iterators,
@@ -273,19 +276,23 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 arrays.get(index).mark_values(&mut queues);
             }
         });
-        let mut array_buffer_marks: Box<[ArrayBuffer]> = queues.array_buffers.drain(..).collect();
-        array_buffer_marks.sort();
-        array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.array_buffers.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "array-buffer")]
+        {
+            let mut array_buffer_marks: Box<[ArrayBuffer]> =
+                queues.array_buffers.drain(..).collect();
+            array_buffer_marks.sort();
+            array_buffer_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.array_buffers.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    array_buffers.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                array_buffers.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut array_iterator_marks: Box<[ArrayIterator]> =
             queues.array_iterators.drain(..).collect();
         array_iterator_marks.sort();
@@ -915,6 +922,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
     }
 
     let Heap {
+        #[cfg(feature = "array-buffer")]
         array_buffers,
         arrays,
         array_iterators,
@@ -1090,6 +1098,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
             });
         }
+        #[cfg(feature = "array-buffer")]
         if !array_buffers.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);

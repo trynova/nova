@@ -70,9 +70,10 @@ use crate::ecmascript::{
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
-
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::ArrayBufferHeapData;
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, ArrayHeapData},
+    builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::ModuleIdentifier,
@@ -87,6 +88,7 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
 pub struct Heap {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
@@ -169,6 +171,7 @@ impl CreateHeapData<std::string::String, String> for Heap {
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
             array_iterators: Vec::with_capacity(256),

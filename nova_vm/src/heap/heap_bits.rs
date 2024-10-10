@@ -10,6 +10,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::ArrayBuffer;
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -41,7 +43,7 @@ use crate::ecmascript::{
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
-        Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
@@ -56,6 +58,7 @@ use crate::ecmascript::{
 
 #[derive(Debug)]
 pub struct HeapBits {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: Box<[bool]>,
     pub arrays: Box<[bool]>,
     pub array_iterators: Box<[bool]>,
@@ -111,6 +114,7 @@ pub struct HeapBits {
 
 #[derive(Debug)]
 pub(crate) struct WorkQueues {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<ArrayBuffer>,
     pub arrays: Vec<Array>,
     pub array_iterators: Vec<ArrayIterator>,
@@ -166,6 +170,7 @@ pub(crate) struct WorkQueues {
 
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
+        #[cfg(feature = "array-buffer")]
         let array_buffers = vec![false; heap.array_buffers.len()];
         let arrays = vec![false; heap.arrays.len()];
         let array_iterators = vec![false; heap.array_iterators.len()];
@@ -218,6 +223,7 @@ impl HeapBits {
         let weak_refs = vec![false; heap.weak_refs.len()];
         let weak_sets = vec![false; heap.weak_sets.len()];
         Self {
+            #[cfg(feature = "array-buffer")]
             array_buffers: array_buffers.into_boxed_slice(),
             arrays: arrays.into_boxed_slice(),
             array_iterators: array_iterators.into_boxed_slice(),
@@ -276,6 +282,7 @@ impl HeapBits {
 impl WorkQueues {
     pub fn new(heap: &Heap) -> Self {
         Self {
+            #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() / 4),
             array_iterators: Vec::with_capacity(heap.array_iterators.len() / 4),
@@ -357,6 +364,7 @@ impl WorkQueues {
 
     pub fn is_empty(&self) -> bool {
         let Self {
+            #[cfg(feature = "array-buffer")]
             array_buffers,
             arrays,
             array_iterators,
@@ -412,6 +420,8 @@ impl WorkQueues {
 
         #[cfg(not(feature = "date"))]
         let dates: &[bool; 0] = &[];
+        #[cfg(not(feature = "array-buffer"))]
+        let array_buffers: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -605,6 +615,7 @@ impl Default for CompactionListBuilder {
 }
 
 pub(crate) struct CompactionLists {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: CompactionList,
     pub arrays: CompactionList,
     pub array_iterators: CompactionList,
@@ -688,6 +699,7 @@ impl CompactionLists {
             e_2_24: CompactionList::from_mark_u32s(&bits.e_2_24),
             e_2_32: CompactionList::from_mark_u32s(&bits.e_2_32),
             arrays: CompactionList::from_mark_bits(&bits.arrays),
+            #[cfg(feature = "array-buffer")]
             array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
             array_iterators: CompactionList::from_mark_bits(&bits.array_iterators),
             await_reactions: CompactionList::from_mark_bits(&bits.await_reactions),

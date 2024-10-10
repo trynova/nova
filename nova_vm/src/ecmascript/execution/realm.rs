@@ -503,17 +503,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.3 ArrayBuffer ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ArrayBuffer);
-        let value = agent.get_realm(realm_id).intrinsics().array_buffer();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "array-buffer")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ArrayBuffer);
+            let value = agent.get_realm(realm_id).intrinsics().array_buffer();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.3.4 BigInt ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigInt);
         let value = agent.get_realm(realm_id).intrinsics().big_int();
@@ -1159,6 +1161,7 @@ mod test {
                 .builtin_function_index_base,
             BuiltinFunctionIndex::from_index(0)
         );
+        #[cfg(feature = "array-buffer")]
         assert!(agent.heap.array_buffers.is_empty());
         // Array prototype is itself an Array :/
         assert_eq!(agent.heap.arrays.len(), 1);

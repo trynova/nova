@@ -4,6 +4,8 @@
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::ArrayBufferHeapData;
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::generator_objects::GeneratorHeapData,
@@ -27,7 +29,7 @@ use crate::ecmascript::{
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
-        ArrayBufferHeapData, ArrayHeapData,
+        ArrayHeapData,
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
@@ -157,6 +159,7 @@ impl<T> Default for BaseIndex<T> {
     }
 }
 
+#[cfg(feature = "array-buffer")]
 pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
 pub type ArrayIndex = BaseIndex<ArrayHeapData>;
 pub type ArrayIteratorIndex = BaseIndex<ArrayIteratorHeapData>;

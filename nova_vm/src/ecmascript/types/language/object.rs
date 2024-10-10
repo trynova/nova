@@ -11,16 +11,17 @@ mod property_storage;
 
 use std::hash::Hash;
 
+#[cfg(feature = "array-buffer")]
+use super::value::ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
 use super::{
     value::{
-        ARGUMENTS_DISCRIMINANT, ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT,
-        ARRAY_ITERATOR_DISCRIMINANT, ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-        ASYNC_ITERATOR_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
-        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
+        ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
+        BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         DATA_VIEW_DISCRIMINANT, ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT,
         ERROR_DISCRIMINANT, FINALIZATION_REGISTRY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
@@ -38,6 +39,8 @@ use super::{
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::ArrayBuffer;
 use crate::{
     ecmascript::{
         builtins::{
@@ -67,8 +70,7 @@ use crate::{
             weak_map::WeakMap,
             weak_ref::WeakRef,
             weak_set::WeakSet,
-            ArgumentsList, Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction,
-            ECMAScriptFunction,
+            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
@@ -106,6 +108,7 @@ pub enum Object {
     PrimitiveObject(PrimitiveObject) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments(OrdinaryObject) = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
     DataView(DataView) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
@@ -163,6 +166,7 @@ impl IntoValue for Object {
             Object::PrimitiveObject(data) => Value::PrimitiveObject(data),
             Object::Arguments(data) => Value::Arguments(data),
             Object::Array(data) => Value::Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
             Object::DataView(data) => Value::DataView(data),
             #[cfg(feature = "date")]
@@ -340,6 +344,7 @@ impl From<Object> for Value {
             Object::PrimitiveObject(data) => Value::PrimitiveObject(data),
             Object::Arguments(data) => Value::Arguments(data),
             Object::Array(data) => Value::Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => Value::ArrayBuffer(data),
             Object::DataView(data) => Value::DataView(data),
             #[cfg(feature = "date")]
@@ -411,6 +416,7 @@ impl TryFrom<Value> for Object {
             Value::BuiltinProxyRevokerFunction => Ok(Object::BuiltinProxyRevokerFunction),
             Value::PrimitiveObject(data) => Ok(Object::PrimitiveObject(data)),
             Value::Arguments(data) => Ok(Object::Arguments(data)),
+            #[cfg(feature = "array-buffer")]
             Value::ArrayBuffer(idx) => Ok(Object::ArrayBuffer(idx)),
             Value::DataView(data) => Ok(Object::DataView(data)),
             Value::FinalizationRegistry(data) => Ok(Object::FinalizationRegistry(data)),
@@ -473,6 +479,7 @@ impl Hash for Object {
             Object::PrimitiveObject(data) => data.get_index().hash(state),
             Object::Arguments(data) => data.get_index().hash(state),
             Object::Array(data) => data.get_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.get_index().hash(state),
             Object::DataView(data) => data.get_index().hash(state),
             #[cfg(feature = "date")]
@@ -529,6 +536,7 @@ impl InternalSlots for Object {
         match self {
             Object::Object(data) => data.internal_extensible(agent),
             Object::Array(data) => data.internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_extensible(agent),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_extensible(agent),
@@ -587,6 +595,7 @@ impl InternalSlots for Object {
         match self {
             Object::Object(data) => data.internal_set_extensible(agent, value),
             Object::Array(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set_extensible(agent, value),
@@ -663,6 +672,7 @@ impl InternalSlots for Object {
         match self {
             Object::Object(data) => data.internal_prototype(agent),
             Object::Array(data) => data.internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_prototype(agent),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_prototype(agent),
@@ -721,6 +731,7 @@ impl InternalSlots for Object {
         match self {
             Object::Object(data) => data.internal_set_prototype(agent, prototype),
             Object::Array(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set_prototype(agent, prototype),
@@ -801,6 +812,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_get_prototype_of(agent),
             Object::Array(data) => data.internal_get_prototype_of(agent),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_get_prototype_of(agent),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_get_prototype_of(agent),
@@ -877,6 +889,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Array(data) => data.internal_set_prototype_of(agent, prototype),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_set_prototype_of(agent, prototype),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set_prototype_of(agent, prototype),
@@ -955,6 +968,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_is_extensible(agent),
             Object::Array(data) => data.internal_is_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_is_extensible(agent),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_is_extensible(agent),
@@ -1021,6 +1035,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_prevent_extensions(agent),
             Object::Array(data) => data.internal_prevent_extensions(agent),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_prevent_extensions(agent),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_prevent_extensions(agent),
@@ -1101,6 +1116,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_get_own_property(agent, property_key),
             Object::Array(data) => data.internal_get_own_property(agent, property_key),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_get_own_property(agent, property_key),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_get_own_property(agent, property_key),
@@ -1190,6 +1206,7 @@ impl InternalMethods for Object {
             Object::Array(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(idx) => {
                 idx.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -1319,6 +1336,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_has_property(agent, property_key),
             Object::Array(data) => data.internal_has_property(agent, property_key),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_has_property(agent, property_key),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_has_property(agent, property_key),
@@ -1402,6 +1420,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_get(agent, property_key, receiver),
             Object::Array(data) => data.internal_get(agent, property_key, receiver),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_get(agent, property_key, receiver),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_get(agent, property_key, receiver),
@@ -1486,6 +1505,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Array(data) => data.internal_set(agent, property_key, value, receiver),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_set(agent, property_key, value, receiver),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_set(agent, property_key, value, receiver),
@@ -1577,6 +1597,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_delete(agent, property_key),
             Object::Array(data) => data.internal_delete(agent, property_key),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_delete(agent, property_key),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_delete(agent, property_key),
@@ -1653,6 +1674,7 @@ impl InternalMethods for Object {
         match self {
             Object::Object(data) => data.internal_own_property_keys(agent),
             Object::Array(data) => data.internal_own_property_keys(agent),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.internal_own_property_keys(agent),
             #[cfg(feature = "date")]
             Object::Date(data) => data.internal_own_property_keys(agent),
@@ -1766,6 +1788,7 @@ impl HeapMarkAndSweep for Object {
         match self {
             Object::Object(data) => data.mark_values(queues),
             Object::Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.mark_values(queues),
             #[cfg(feature = "date")]
             Object::Date(data) => data.mark_values(queues),
@@ -1828,6 +1851,7 @@ impl HeapMarkAndSweep for Object {
             Object::PrimitiveObject(data) => data.sweep_values(compactions),
             Object::Arguments(data) => data.sweep_values(compactions),
             Object::Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::ArrayBuffer(data) => data.sweep_values(compactions),
             Object::DataView(data) => data.sweep_values(compactions),
             #[cfg(feature = "date")]

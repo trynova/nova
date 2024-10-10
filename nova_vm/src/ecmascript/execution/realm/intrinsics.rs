@@ -73,10 +73,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
             structured_data::{
-                array_buffer_objects::{
-                    array_buffer_constructor::ArrayBufferConstructor,
-                    array_buffer_prototype::ArrayBufferPrototype,
-                },
                 atomics_object::AtomicsObject,
                 data_view_objects::{
                     data_view_constructor::DataViewConstructor,
@@ -148,6 +144,10 @@ use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
 };
 #[cfg(feature = "math")]
 use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::structured_data::array_buffer_objects::{
+    array_buffer_constructor::ArrayBufferConstructor, array_buffer_prototype::ArrayBufferPrototype,
+};
 #[cfg(feature = "json")]
 use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
 
@@ -167,6 +167,7 @@ pub(crate) struct Intrinsics {
 pub enum ProtoIntrinsics {
     AggregateError,
     Array,
+    #[cfg(feature = "array-buffer")]
     ArrayBuffer,
     ArrayIterator,
     AsyncFunction,
@@ -294,7 +295,9 @@ impl Intrinsics {
         WeakMapConstructor::create_intrinsic(agent, realm);
         WeakSetPrototype::create_intrinsic(agent, realm);
         WeakSetConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         ArrayBufferPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         ArrayBufferConstructor::create_intrinsic(agent, realm);
         SharedArrayBufferPrototype::create_intrinsic(agent, realm);
         SharedArrayBufferConstructor::create_intrinsic(agent, realm);
@@ -333,6 +336,7 @@ impl Intrinsics {
     ) -> Object {
         match intrinsic_default_proto {
             ProtoIntrinsics::Array => self.array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::ArrayBuffer => self.array_buffer_prototype().into(),
             ProtoIntrinsics::ArrayIterator => self.array_iterator_prototype().into(),
             ProtoIntrinsics::BigInt => self.big_int_prototype().into(),
@@ -470,6 +474,7 @@ impl Intrinsics {
         IntrinsicConstructorIndexes::Array.get_object_index(self.object_index_base)
     }
 
+    #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer.prototype%
     pub(crate) fn array_buffer_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::ArrayBufferPrototype
@@ -477,6 +482,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer%
     pub(crate) fn array_buffer(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::ArrayBuffer
@@ -484,6 +490,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn array_buffer_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::ArrayBuffer.get_object_index(self.object_index_base)
     }
@@ -1502,7 +1509,9 @@ impl HeapMarkAndSweep for Intrinsics {
         self.array_prototype_values().mark_values(queues);
         self.array_prototype().mark_values(queues);
         self.array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.array_buffer_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.array_buffer().mark_values(queues);
         self.array_iterator_prototype().mark_values(queues);
         self.async_from_sync_iterator_prototype()

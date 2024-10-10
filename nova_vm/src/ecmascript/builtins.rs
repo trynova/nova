@@ -10,6 +10,7 @@
 
 pub(crate) mod arguments;
 mod array;
+#[cfg(feature = "array-buffer")]
 mod array_buffer;
 pub mod bound_function;
 mod builtin_constructor;
@@ -49,7 +50,9 @@ pub(crate) use arguments::*;
 pub(crate) use array::abstract_operations::*;
 pub use array::Array;
 pub(crate) use array::{ArrayHeapData, SealableElementsVector};
+#[cfg(feature = "array-buffer")]
 pub use array_buffer::ArrayBuffer;
+#[cfg(feature = "array-buffer")]
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_constructor::BuiltinConstructorFunction;
 pub(crate) use builtin_constructor::{create_builtin_constructor, BuiltinConstructorArgs};

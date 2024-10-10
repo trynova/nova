@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#[cfg(feature = "array-buffer")]
 pub(crate) mod array_buffer_objects;
 pub(crate) mod atomics_object;
 pub(crate) mod data_view_objects;
