@@ -11,7 +11,7 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::ArrayBuffer;
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -23,7 +23,6 @@ use crate::ecmascript::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
         },
-        data_view::DataView,
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
@@ -67,6 +66,7 @@ pub struct HeapBits {
     pub bound_functions: Box<[bool]>,
     pub builtin_constructors: Box<[bool]>,
     pub builtin_functions: Box<[bool]>,
+    #[cfg(feature = "array-buffer")]
     pub data_views: Box<[bool]>,
     #[cfg(feature = "date")]
     pub dates: Box<[bool]>,
@@ -123,6 +123,7 @@ pub(crate) struct WorkQueues {
     pub bound_functions: Vec<BoundFunction>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
+    #[cfg(feature = "array-buffer")]
     pub data_views: Vec<DataView>,
     #[cfg(feature = "date")]
     pub dates: Vec<Date>,
@@ -179,6 +180,7 @@ impl HeapBits {
         let bound_functions = vec![false; heap.bound_functions.len()];
         let builtin_constructors = vec![false; heap.builtin_constructors.len()];
         let builtin_functions = vec![false; heap.builtin_functions.len()];
+        #[cfg(feature = "array-buffer")]
         let data_views = vec![false; heap.data_views.len()];
         #[cfg(feature = "date")]
         let dates = vec![false; heap.dates.len()];
@@ -232,6 +234,7 @@ impl HeapBits {
             bound_functions: bound_functions.into_boxed_slice(),
             builtin_constructors: builtin_constructors.into_boxed_slice(),
             builtin_functions: builtin_functions.into_boxed_slice(),
+            #[cfg(feature = "array-buffer")]
             data_views: data_views.into_boxed_slice(),
             #[cfg(feature = "date")]
             dates: dates.into_boxed_slice(),
@@ -291,6 +294,7 @@ impl WorkQueues {
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
             builtin_constructors: Vec::with_capacity(heap.builtin_constructors.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
@@ -373,6 +377,7 @@ impl WorkQueues {
             bound_functions,
             builtin_constructors,
             builtin_functions,
+            #[cfg(feature = "array-buffer")]
             data_views,
             #[cfg(feature = "date")]
             dates,
@@ -420,6 +425,8 @@ impl WorkQueues {
 
         #[cfg(not(feature = "date"))]
         let dates: &[bool; 0] = &[];
+        #[cfg(not(feature = "array-buffer"))]
+        let data_views: &[bool; 0] = &[];
         #[cfg(not(feature = "array-buffer"))]
         let array_buffers: &[bool; 0] = &[];
 
@@ -624,6 +631,7 @@ pub(crate) struct CompactionLists {
     pub bound_functions: CompactionList,
     pub builtin_constructors: CompactionList,
     pub builtin_functions: CompactionList,
+    #[cfg(feature = "array-buffer")]
     pub data_views: CompactionList,
     #[cfg(feature = "date")]
     pub dates: CompactionList,
@@ -732,6 +740,7 @@ impl CompactionLists {
             strings: CompactionList::from_mark_bits(&bits.strings),
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
+            #[cfg(feature = "array-buffer")]
             data_views: CompactionList::from_mark_bits(&bits.data_views),
             finalization_registrys: CompactionList::from_mark_bits(&bits.finalization_registrys),
             proxys: CompactionList::from_mark_bits(&bits.proxys),

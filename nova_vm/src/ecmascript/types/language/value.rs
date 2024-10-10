@@ -12,8 +12,7 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::ArrayBuffer;
-
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
@@ -25,7 +24,6 @@ use crate::{
                 generator_objects::Generator,
                 promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
-            data_view::DataView,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -149,6 +147,7 @@ pub enum Value {
     Array(Array),
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer),
+    #[cfg(feature = "array-buffer")]
     DataView(DataView),
     #[cfg(feature = "date")]
     Date(Date),
@@ -260,6 +259,7 @@ pub(crate) const PRIMITIVE_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::PrimitiveObject(PrimitiveObject::_def()));
 pub(crate) const ARGUMENTS_DISCRIMINANT: u8 =
     value_discriminant(Value::Arguments(OrdinaryObject::_def()));
+#[cfg(feature = "array-buffer")]
 pub(crate) const DATA_VIEW_DISCRIMINANT: u8 = value_discriminant(Value::DataView(DataView::_def()));
 pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
     value_discriminant(Value::FinalizationRegistry(FinalizationRegistry::_def()));
@@ -582,6 +582,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::DataView(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -786,6 +787,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::DataView(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1031,6 +1033,7 @@ impl HeapMarkAndSweep for Value {
             Value::RegExp(data) => data.mark_values(queues),
             Value::PrimitiveObject(data) => data.mark_values(queues),
             Value::Arguments(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::DataView(data) => data.mark_values(queues),
             Value::FinalizationRegistry(data) => data.mark_values(queues),
             Value::Map(data) => data.mark_values(queues),
@@ -1097,6 +1100,7 @@ impl HeapMarkAndSweep for Value {
             Value::RegExp(data) => data.sweep_values(compactions),
             Value::PrimitiveObject(data) => data.sweep_values(compactions),
             Value::Arguments(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::DataView(data) => data.sweep_values(compactions),
             Value::FinalizationRegistry(data) => data.sweep_values(compactions),
             Value::Map(data) => data.sweep_values(compactions),

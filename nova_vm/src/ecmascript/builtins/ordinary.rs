@@ -28,7 +28,6 @@ use crate::{
 use super::date::data::DateHeapData;
 use super::{
     control_abstraction_objects::generator_objects::GeneratorHeapData,
-    data_view::data::DataViewHeapData,
     error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
@@ -48,9 +47,8 @@ use super::{
     weak_set::data::WeakSetHeapData,
     ArrayHeapData,
 };
-
 #[cfg(feature = "array-buffer")]
-use super::ArrayBufferHeapData;
+use super::{data_view::data::DataViewHeapData, ArrayBufferHeapData};
 
 impl Index<OrdinaryObject> for Agent {
     type Output = ObjectHeapData;
@@ -901,6 +899,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
+        #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::DataView => agent.heap.create(DataViewHeapData::default()).into_object(),
         ProtoIntrinsics::FinalizationRegistry => agent
             .heap
@@ -1047,6 +1046,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into_function()),
             ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
             ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
             #[cfg(feature = "date")]
             ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),

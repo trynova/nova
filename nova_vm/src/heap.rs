@@ -39,7 +39,6 @@ use crate::ecmascript::{
                 promise_resolving_functions::PromiseResolvingFunctionHeapData,
             },
         },
-        data_view::data::DataViewHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -71,7 +70,7 @@ use crate::ecmascript::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::ArrayBufferHeapData;
+use crate::ecmascript::builtins::{data_view::data::DataViewHeapData, ArrayBufferHeapData};
 use crate::ecmascript::{
     builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
@@ -97,6 +96,7 @@ pub struct Heap {
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
     pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
+    #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
@@ -180,6 +180,7 @@ impl Heap {
             bound_functions: Vec::with_capacity(256),
             builtin_constructors: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),
+            #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(0),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),

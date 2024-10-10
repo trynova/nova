@@ -2094,7 +2094,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::PrimitiveObject(_) |
         Value::RegExp(_) |
         Value::Arguments(_) |
-        Value::DataView(_) |
         Value::FinalizationRegistry(_) |
         Value::Map(_) |
         Value::Promise(_) |
@@ -2124,7 +2123,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "array-buffer")]
-        Value::ArrayBuffer(_) => BUILTIN_STRING_MEMORY.object,
+        Value::ArrayBuffer(_) |
+        Value::DataView(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".

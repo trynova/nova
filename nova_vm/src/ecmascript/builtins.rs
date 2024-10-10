@@ -16,6 +16,7 @@ pub mod bound_function;
 mod builtin_constructor;
 mod builtin_function;
 pub(crate) mod control_abstraction_objects;
+#[cfg(feature = "array-buffer")]
 pub(crate) mod data_view;
 #[cfg(feature = "date")]
 pub mod date;

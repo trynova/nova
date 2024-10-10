@@ -5,11 +5,10 @@
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::ArrayBufferHeapData;
+use crate::ecmascript::builtins::{data_view::data::DataViewHeapData, ArrayBufferHeapData};
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::generator_objects::GeneratorHeapData,
-        data_view::data::DataViewHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -167,6 +166,7 @@ pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
 pub type BuiltinConstructorIndex = BaseIndex<BuiltinConstructorHeapData>;
+#[cfg(feature = "array-buffer")]
 pub type DataViewIndex = BaseIndex<DataViewHeapData>;
 #[cfg(feature = "date")]
 pub type DateIndex = BaseIndex<DateHeapData>;

@@ -565,17 +565,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.8 DataView ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.DataView);
-        let value = agent.get_realm(realm_id).intrinsics().data_view();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "array-buffer")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.DataView);
+            let value = agent.get_realm(realm_id).intrinsics().data_view();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         #[cfg(feature = "date")]
         {
             // 19.3.9 Date ( . . . )

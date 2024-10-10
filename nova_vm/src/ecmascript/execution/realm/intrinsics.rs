@@ -74,10 +74,6 @@ use crate::{
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
             structured_data::{
                 atomics_object::AtomicsObject,
-                data_view_objects::{
-                    data_view_constructor::DataViewConstructor,
-                    data_view_prototype::DataViewPrototype,
-                },
                 shared_array_buffer_objects::{
                     shared_array_buffer_constructor::SharedArrayBufferConstructor,
                     shared_array_buffer_prototype::SharedArrayBufferPrototype,
@@ -144,12 +140,18 @@ use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
 };
 #[cfg(feature = "math")]
 use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::structured_data::array_buffer_objects::{
-    array_buffer_constructor::ArrayBufferConstructor, array_buffer_prototype::ArrayBufferPrototype,
-};
 #[cfg(feature = "json")]
 use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::structured_data::{
+    array_buffer_objects::{
+        array_buffer_constructor::ArrayBufferConstructor,
+        array_buffer_prototype::ArrayBufferPrototype,
+    },
+    data_view_objects::{
+        data_view_constructor::DataViewConstructor, data_view_prototype::DataViewPrototype,
+    },
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
@@ -176,6 +178,7 @@ pub enum ProtoIntrinsics {
     BigInt64Array,
     BigUint64Array,
     Boolean,
+    #[cfg(feature = "array-buffer")]
     DataView,
     #[cfg(feature = "date")]
     Date,
@@ -301,7 +304,9 @@ impl Intrinsics {
         ArrayBufferConstructor::create_intrinsic(agent, realm);
         SharedArrayBufferPrototype::create_intrinsic(agent, realm);
         SharedArrayBufferConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         DataViewPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         DataViewConstructor::create_intrinsic(agent, realm);
         AtomicsObject::create_intrinsic(agent, realm);
         #[cfg(feature = "json")]
@@ -362,6 +367,7 @@ impl Intrinsics {
             }
             ProtoIntrinsics::BigInt64Array => self.big_int64_array_prototype().into(),
             ProtoIntrinsics::BigUint64Array => self.big_int64_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => self.data_view_prototype().into(),
             ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
             ProtoIntrinsics::Float32Array => self.float32_array_prototype().into(),
@@ -650,6 +656,7 @@ impl Intrinsics {
     }
 
     /// %DataView.prototype%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn data_view_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::DataViewPrototype
             .get_object_index(self.object_index_base)
@@ -657,12 +664,14 @@ impl Intrinsics {
     }
 
     /// %DataView%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn data_view(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::DataView
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn data_view_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::DataView.get_object_index(self.object_index_base)
     }
@@ -1000,8 +1009,8 @@ impl Intrinsics {
             .into()
     }
 
-    #[cfg(feature = "math")]
     /// %Math%
+    #[cfg(feature = "math")]
     pub(crate) fn math(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::MathObject
             .get_object_index(self.object_index_base)
@@ -1532,7 +1541,9 @@ impl HeapMarkAndSweep for Intrinsics {
         self.big_uint64_array_prototype().mark_values(queues);
         self.boolean_prototype().mark_values(queues);
         self.boolean().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.data_view_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.data_view().mark_values(queues);
         #[cfg(feature = "date")]
         self.date_prototype_to_utcstring().mark_values(queues);

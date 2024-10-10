@@ -23,7 +23,7 @@ sonic-rs = { workspace = true, optional = true }
 wtf8 = { workspace = true }
 
 [features]
-default = ["math", "json", "date", "array-buffer"]
+default = ["math", "json", "date"]
 math = []
 json = ["sonic-rs"]
 date = []

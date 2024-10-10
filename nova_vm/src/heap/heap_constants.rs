@@ -26,6 +26,7 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Numbers and dates
     BigIntPrototype,
+    #[cfg(feature = "math")]
     MathObject,
     #[cfg(feature = "date")]
     DatePrototype,
@@ -55,8 +56,10 @@ pub(crate) enum IntrinsicObjectIndexes {
     WeakSetPrototype,
 
     // Structured data
+    #[cfg(feature = "array-buffer")]
     ArrayBufferPrototype,
     SharedArrayBufferPrototype,
+    #[cfg(feature = "array-buffer")]
     DataViewPrototype,
     AtomicsObject,
     JSONObject,
@@ -164,6 +167,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     // Structured data
     ArrayBuffer,
     SharedArrayBuffer,
+    #[cfg(feature = "array-buffer")]
     DataView,
 
     // Managing memory
