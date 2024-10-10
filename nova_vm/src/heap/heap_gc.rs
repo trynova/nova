@@ -4,6 +4,8 @@
 
 use std::thread;
 
+#[cfg(feature = "array-buffer")]
+use super::indexes::TypedArrayIndex;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
@@ -12,7 +14,7 @@ use super::{
         sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
         HeapMarkAndSweep, WorkQueues,
     },
-    indexes::{ElementIndex, StringIndex, TypedArrayIndex},
+    indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
 };
 #[cfg(feature = "date")]
@@ -144,6 +146,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             shared_array_buffers,
             strings,
             symbols,
+            #[cfg(feature = "array-buffer")]
             typed_arrays,
             weak_maps,
             weak_refs,
@@ -691,20 +694,23 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 symbols.get(index).mark_values(&mut queues);
             }
         });
-        let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
-            queues.typed_arrays.drain(..).collect();
-        typed_arrays_marks.sort();
-        typed_arrays_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if let Some(marked) = bits.typed_arrays.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "array-buffer")]
+        {
+            let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
+                queues.typed_arrays.drain(..).collect();
+            typed_arrays_marks.sort();
+            typed_arrays_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if let Some(marked) = bits.typed_arrays.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    typed_arrays.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                typed_arrays.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut weak_map_marks: Box<[WeakMap]> = queues.weak_maps.drain(..).collect();
         weak_map_marks.sort();
         weak_map_marks.iter().for_each(|&idx| {
@@ -965,6 +971,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         shared_array_buffers,
         strings,
         symbols,
+        #[cfg(feature = "array-buffer")]
         typed_arrays,
         weak_maps,
         weak_refs,
@@ -1319,6 +1326,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(symbols, &compactions, &bits.symbols);
             });
         }
+        #[cfg(feature = "array-buffer")]
         if !typed_arrays.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);

@@ -42,6 +42,7 @@ pub(crate) mod set;
 pub(crate) mod shared_array_buffer;
 pub(crate) mod structured_data;
 pub(crate) mod text_processing;
+#[cfg(feature = "array-buffer")]
 pub(crate) mod typed_array;
 pub(crate) mod weak_map;
 pub(crate) mod weak_ref;

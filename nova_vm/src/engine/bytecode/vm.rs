@@ -2102,17 +2102,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::WeakMap(_) |
         Value::WeakRef(_) |
         Value::WeakSet(_) |
-        Value::Int8Array(_) |
-        Value::Uint8Array(_) |
-        Value::Uint8ClampedArray(_) |
-        Value::Int16Array(_) |
-        Value::Uint16Array(_) |
-        Value::Int32Array(_) |
-        Value::Uint32Array(_) |
-        Value::BigInt64Array(_) |
-        Value::BigUint64Array(_) |
-        Value::Float32Array(_) |
-        Value::Float64Array(_) |
         Value::AsyncFromSyncIterator |
         Value::AsyncIterator |
         Value::Iterator |
@@ -2124,6 +2113,17 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "array-buffer")]
         Value::ArrayBuffer(_) |
+        Value::Int8Array(_) |
+        Value::Uint8Array(_) |
+        Value::Uint8ClampedArray(_) |
+        Value::Int16Array(_) |
+        Value::Uint16Array(_) |
+        Value::Int32Array(_) |
+        Value::Uint32Array(_) |
+        Value::BigInt64Array(_) |
+        Value::BigUint64Array(_) |
+        Value::Float32Array(_) |
+        Value::Float64Array(_) |
         Value::DataView(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,

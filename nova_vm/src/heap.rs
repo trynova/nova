@@ -55,7 +55,6 @@ use crate::ecmascript::{
         regexp::RegExpHeapData,
         set::data::SetHeapData,
         shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::data::TypedArrayHeapData,
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
@@ -70,7 +69,9 @@ use crate::ecmascript::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::data::DataViewHeapData, ArrayBufferHeapData};
+use crate::ecmascript::builtins::{
+    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
 use crate::ecmascript::{
     builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
@@ -126,6 +127,7 @@ pub struct Heap {
     pub set_iterators: Vec<Option<SetIteratorHeapData>>,
     pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
@@ -220,6 +222,7 @@ impl Heap {
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
             weak_maps: Vec::with_capacity(0),
             weak_refs: Vec::with_capacity(0),

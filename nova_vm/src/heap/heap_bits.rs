@@ -3,9 +3,11 @@ use ahash::AHashMap;
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#[cfg(feature = "array-buffer")]
+use super::indexes::TypedArrayIndex;
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
-    indexes::{BaseIndex, ElementIndex, TypedArrayIndex},
+    indexes::{BaseIndex, ElementIndex},
     Heap,
 };
 #[cfg(feature = "date")]
@@ -106,6 +108,7 @@ pub struct HeapBits {
     pub shared_array_buffers: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: Box<[bool]>,
     pub weak_maps: Box<[bool]>,
     pub weak_refs: Box<[bool]>,
@@ -163,6 +166,7 @@ pub(crate) struct WorkQueues {
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString>,
     pub symbols: Vec<Symbol>,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<TypedArrayIndex>,
     pub weak_maps: Vec<WeakMap>,
     pub weak_refs: Vec<WeakRef>,
@@ -220,6 +224,7 @@ impl HeapBits {
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
+        #[cfg(feature = "array-buffer")]
         let typed_arrays = vec![false; heap.typed_arrays.len()];
         let weak_maps = vec![false; heap.weak_maps.len()];
         let weak_refs = vec![false; heap.weak_refs.len()];
@@ -274,6 +279,7 @@ impl HeapBits {
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: typed_arrays.into_boxed_slice(),
             weak_maps: weak_maps.into_boxed_slice(),
             weak_refs: weak_refs.into_boxed_slice(),
@@ -336,6 +342,7 @@ impl WorkQueues {
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
             strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(heap.typed_arrays.len() / 4),
             weak_maps: Vec::with_capacity(heap.weak_maps.len() / 4),
             weak_refs: Vec::with_capacity(heap.weak_refs.len() / 4),
@@ -417,6 +424,7 @@ impl WorkQueues {
             shared_array_buffers,
             strings,
             symbols,
+            #[cfg(feature = "array-buffer")]
             typed_arrays,
             weak_maps,
             weak_refs,
@@ -429,6 +437,8 @@ impl WorkQueues {
         let data_views: &[bool; 0] = &[];
         #[cfg(not(feature = "array-buffer"))]
         let array_buffers: &[bool; 0] = &[];
+        #[cfg(not(feature = "array-buffer"))]
+        let typed_arrays: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -671,6 +681,7 @@ pub(crate) struct CompactionLists {
     pub shared_array_buffers: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: CompactionList,
     pub weak_maps: CompactionList,
     pub weak_refs: CompactionList,
@@ -747,6 +758,7 @@ impl CompactionLists {
             weak_maps: CompactionList::from_mark_bits(&bits.weak_maps),
             weak_refs: CompactionList::from_mark_bits(&bits.weak_refs),
             weak_sets: CompactionList::from_mark_bits(&bits.weak_sets),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: CompactionList::from_mark_bits(&bits.typed_arrays),
         }
     }

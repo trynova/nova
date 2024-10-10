@@ -12,7 +12,10 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+use crate::{
+    ecmascript::builtins::{data_view::DataView, ArrayBuffer},
+    heap::indexes::TypedArrayIndex,
+};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
@@ -49,7 +52,7 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     engine::small_f64::SmallF64,
-    heap::{indexes::TypedArrayIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
 
@@ -164,16 +167,27 @@ pub enum Value {
     WeakSet(WeakSet),
 
     // TypedArrays
+    #[cfg(feature = "array-buffer")]
     Int8Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Uint8Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Uint8ClampedArray(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Int16Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Uint16Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Int32Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Uint32Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     BigInt64Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex),
+    #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex),
 
     // Iterator objects
@@ -272,26 +286,37 @@ pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap(WeakMap::_def()));
 pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef(WeakRef::_def()));
 pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet(WeakSet::_def()));
+#[cfg(feature = "array-buffer")]
 pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Int8Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const UINT_8_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Uint8Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const UINT_8_CLAMPED_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Uint8ClampedArray(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const INT_16_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Int16Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const UINT_16_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Uint16Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const INT_32_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Int32Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const UINT_32_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Uint32Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const BIGINT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::BigInt64Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const BIGUINT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::BigUint64Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const FLOAT_32_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Float32Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "array-buffer")]
 pub(crate) const FLOAT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Float64Array(TypedArrayIndex::from_u32_index(0)));
 pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
@@ -636,46 +661,57 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint8Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint8ClampedArray(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Int16Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint16Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Int32Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint32Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::BigInt64Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
@@ -841,46 +877,57 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint8Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint8ClampedArray(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Int16Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint16Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Int32Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Uint32Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::BigInt64Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
@@ -1044,16 +1091,27 @@ impl HeapMarkAndSweep for Value {
             Value::WeakMap(data) => data.mark_values(queues),
             Value::WeakRef(data) => data.mark_values(queues),
             Value::WeakSet(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Uint8Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Uint8ClampedArray(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Int16Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Uint16Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Int32Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Uint32Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::BigInt64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => data.mark_values(queues),
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => data.mark_values(queues),
@@ -1111,16 +1169,27 @@ impl HeapMarkAndSweep for Value {
             Value::WeakMap(data) => data.sweep_values(compactions),
             Value::WeakRef(data) => data.sweep_values(compactions),
             Value::WeakSet(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Uint8Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Uint8ClampedArray(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Int16Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Uint16Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Int32Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Uint32Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::BigInt64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => data.sweep_values(compactions),
             Value::BuiltinGeneratorFunction => todo!(),
             Value::BuiltinConstructorFunction(data) => data.sweep_values(compactions),

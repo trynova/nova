@@ -14,25 +14,28 @@ use std::hash::Hash;
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
-use super::value::{ARRAY_BUFFER_DISCRIMINANT, DATA_VIEW_DISCRIMINANT};
+use super::value::{
+    ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+    DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
+    INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
+    UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+};
 use super::{
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
         ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
-        BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
-        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
-        BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT, BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-        FINALIZATION_REGISTRY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
-        FLOAT_64_ARRAY_DISCRIMINANT, GENERATOR_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
-        INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT, ITERATOR_DISCRIMINANT,
+        FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
         MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
         REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT,
-        SHARED_ARRAY_BUFFER_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
-        UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, WEAK_MAP_DISCRIMINANT,
-        WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
+        SHARED_ARRAY_BUFFER_DISCRIMINANT, WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT,
+        WEAK_SET_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
@@ -40,7 +43,10 @@ use super::{
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+use crate::{
+    ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
+    heap::indexes::TypedArrayIndex,
+};
 use crate::{
     ecmascript::{
         builtins::{
@@ -65,7 +71,6 @@ use crate::{
             regexp::RegExp,
             set::Set,
             shared_array_buffer::SharedArrayBuffer,
-            typed_array::TypedArray,
             weak_map::WeakMap,
             weak_ref::WeakRef,
             weak_set::WeakSet,
@@ -75,7 +80,7 @@ use crate::{
         types::PropertyDescriptor,
     },
     heap::{
-        indexes::{ArrayIndex, ObjectIndex, TypedArrayIndex},
+        indexes::{ArrayIndex, ObjectIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
@@ -124,16 +129,27 @@ pub enum Object {
     WeakMap(WeakMap) = WEAK_MAP_DISCRIMINANT,
     WeakRef(WeakRef) = WEAK_REF_DISCRIMINANT,
     WeakSet(WeakSet) = WEAK_SET_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Uint8Array(TypedArrayIndex) = UINT_8_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Uint8ClampedArray(TypedArrayIndex) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Int16Array(TypedArrayIndex) = INT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Uint16Array(TypedArrayIndex) = UINT_16_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Int32Array(TypedArrayIndex) = INT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Uint32Array(TypedArrayIndex) = UINT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     BigInt64Array(TypedArrayIndex) = BIGINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex) = FLOAT_32_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
@@ -183,16 +199,27 @@ impl IntoValue for Object {
             Object::WeakMap(data) => Value::WeakMap(data),
             Object::WeakRef(data) => Value::WeakRef(data),
             Object::WeakSet(data) => Value::WeakSet(data),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => Value::Int8Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => Value::Uint8Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => Value::Uint8ClampedArray(data),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => Value::Int16Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => Value::Uint16Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => Value::Int32Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => Value::Uint32Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => Value::BigInt64Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => Value::BigUint64Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => Value::Float32Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
@@ -362,16 +389,27 @@ impl From<Object> for Value {
             Object::WeakMap(data) => Value::WeakMap(data),
             Object::WeakRef(data) => Value::WeakRef(data),
             Object::WeakSet(data) => Value::WeakSet(data),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => Value::Int8Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => Value::Uint8Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => Value::Uint8ClampedArray(data),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => Value::Int16Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => Value::Uint16Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => Value::Int32Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => Value::Uint32Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => Value::BigInt64Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => Value::BigUint64Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => Value::Float32Array(data),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data),
             Object::AsyncFromSyncIterator => Value::AsyncFromSyncIterator,
             Object::AsyncIterator => Value::AsyncIterator,
@@ -432,16 +470,27 @@ impl TryFrom<Value> for Object {
             Value::WeakMap(data) => Ok(Object::WeakMap(data)),
             Value::WeakRef(data) => Ok(Object::WeakRef(data)),
             Value::WeakSet(data) => Ok(Object::WeakSet(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => Ok(Object::Int8Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Uint8Array(data) => Ok(Object::Uint8Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Uint8ClampedArray(data) => Ok(Object::Uint8ClampedArray(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Int16Array(data) => Ok(Object::Int16Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Uint16Array(data) => Ok(Object::Uint16Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Int32Array(data) => Ok(Object::Int32Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Uint32Array(data) => Ok(Object::Uint32Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::BigInt64Array(data) => Ok(Object::BigInt64Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => Ok(Object::BigUint64Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => Ok(Object::Float32Array(data)),
+            #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => Ok(Object::Float64Array(data)),
             Value::AsyncFromSyncIterator => Ok(Object::AsyncFromSyncIterator),
             Value::AsyncIterator => Ok(Object::AsyncIterator),
@@ -499,16 +548,27 @@ impl Hash for Object {
             Object::WeakMap(data) => data.get_index().hash(state),
             Object::WeakRef(data) => data.get_index().hash(state),
             Object::WeakSet(data) => data.get_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.into_index().hash(state),
             Object::AsyncFromSyncIterator => {}
             Object::AsyncIterator => {}
@@ -567,22 +627,33 @@ impl InternalSlots for Object {
             Object::WeakMap(data) => data.internal_extensible(agent),
             Object::WeakRef(data) => data.internal_extensible(agent),
             Object::WeakSet(data) => data.internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => TypedArray::Int8Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => TypedArray::Int16Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => TypedArray::Uint16Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => TypedArray::Int32Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => TypedArray::Uint32Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_extensible(agent),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
@@ -629,36 +700,47 @@ impl InternalSlots for Object {
             Object::WeakMap(data) => data.internal_set_extensible(agent, value),
             Object::WeakRef(data) => data.internal_set_extensible(agent, value),
             Object::WeakSet(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set_extensible(agent, value)
             }
@@ -705,22 +787,33 @@ impl InternalSlots for Object {
             Object::WeakMap(data) => data.internal_prototype(agent),
             Object::WeakRef(data) => data.internal_prototype(agent),
             Object::WeakSet(data) => data.internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => TypedArray::Int8Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_prototype(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => TypedArray::Int16Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => TypedArray::Uint16Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => TypedArray::Int32Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => TypedArray::Uint32Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_prototype(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_prototype(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_prototype(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_prototype(agent),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
@@ -769,36 +862,47 @@ impl InternalSlots for Object {
             Object::WeakMap(data) => data.internal_set_prototype(agent, prototype),
             Object::WeakRef(data) => data.internal_set_prototype(agent, prototype),
             Object::WeakSet(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set_prototype(agent, prototype)
             }
@@ -847,34 +951,45 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_get_prototype_of(agent),
             Object::WeakRef(data) => data.internal_get_prototype_of(agent),
             Object::WeakSet(data) => data.internal_get_prototype_of(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => TypedArray::Int8Array(data).internal_get_prototype_of(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_get_prototype_of(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_get_prototype_of(agent)
             }
@@ -929,36 +1044,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_set_prototype_of(agent, prototype),
             Object::WeakRef(data) => data.internal_set_prototype_of(agent, prototype),
             Object::WeakSet(data) => data.internal_set_prototype_of(agent, prototype),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_prototype_of(agent, prototype)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set_prototype_of(agent, prototype)
             }
@@ -1005,28 +1131,39 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_is_extensible(agent),
             Object::WeakRef(data) => data.internal_is_extensible(agent),
             Object::WeakSet(data) => data.internal_is_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => TypedArray::Int8Array(data).internal_is_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_is_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_is_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => TypedArray::Int16Array(data).internal_is_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_is_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => TypedArray::Int32Array(data).internal_is_extensible(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_is_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_is_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_is_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_is_extensible(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_is_extensible(agent)
             }
@@ -1075,36 +1212,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_prevent_extensions(agent),
             Object::WeakRef(data) => data.internal_prevent_extensions(agent),
             Object::WeakSet(data) => data.internal_prevent_extensions(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_prevent_extensions(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_prevent_extensions(agent)
             }
@@ -1161,36 +1309,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_get_own_property(agent, property_key),
             Object::WeakRef(data) => data.internal_get_own_property(agent, property_key),
             Object::WeakSet(data) => data.internal_get_own_property(agent, property_key),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_get_own_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_get_own_property(agent, property_key)
             }
@@ -1288,38 +1447,49 @@ impl InternalMethods for Object {
             Object::WeakSet(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => TypedArray::Int8Array(data).internal_define_own_property(
                 agent,
                 property_key,
                 property_descriptor,
             ),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => TypedArray::Uint8Array(data).internal_define_own_property(
                 agent,
                 property_key,
                 property_descriptor,
             ),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => TypedArray::Int16Array(data).internal_define_own_property(
                 agent,
                 property_key,
                 property_descriptor,
             ),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => TypedArray::Uint16Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => TypedArray::Int32Array(data).internal_define_own_property(
                 agent,
                 property_key,
                 property_descriptor,
             ),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => TypedArray::Uint32Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => TypedArray::BigInt64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor),
             Object::AsyncFromSyncIterator => todo!(),
@@ -1381,36 +1551,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_has_property(agent, property_key),
             Object::WeakRef(data) => data.internal_has_property(agent, property_key),
             Object::WeakSet(data) => data.internal_has_property(agent, property_key),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_has_property(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_has_property(agent, property_key)
             }
@@ -1466,36 +1647,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_get(agent, property_key, receiver),
             Object::WeakRef(data) => data.internal_get(agent, property_key, receiver),
             Object::WeakSet(data) => data.internal_get(agent, property_key, receiver),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_get(agent, property_key, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_get(agent, property_key, receiver)
             }
@@ -1562,39 +1754,50 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_set(agent, property_key, value, receiver),
             Object::WeakRef(data) => data.internal_set(agent, property_key, value, receiver),
             Object::WeakSet(data) => data.internal_set(agent, property_key, value, receiver),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => TypedArray::Uint8ClampedArray(data).internal_set(
                 agent,
                 property_key,
                 value,
                 receiver,
             ),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_set(agent, property_key, value, receiver)
             }
@@ -1643,36 +1846,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_delete(agent, property_key),
             Object::WeakRef(data) => data.internal_delete(agent, property_key),
             Object::WeakSet(data) => data.internal_delete(agent, property_key),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_delete(agent, property_key)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_delete(agent, property_key)
             }
@@ -1719,36 +1933,47 @@ impl InternalMethods for Object {
             Object::WeakMap(data) => data.internal_own_property_keys(agent),
             Object::WeakRef(data) => data.internal_own_property_keys(agent),
             Object::WeakSet(data) => data.internal_own_property_keys(agent),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => {
                 TypedArray::Int8Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => {
                 TypedArray::Uint8Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => {
                 TypedArray::Uint8ClampedArray(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => {
                 TypedArray::Int16Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => {
                 TypedArray::Uint16Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => {
                 TypedArray::Int32Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => {
                 TypedArray::Uint32Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => {
                 TypedArray::BigInt64Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_own_property_keys(agent)
             }
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => {
                 TypedArray::Float64Array(data).internal_own_property_keys(agent)
             }
@@ -1834,16 +2059,27 @@ impl HeapMarkAndSweep for Object {
             Object::WeakMap(data) => data.mark_values(queues),
             Object::WeakRef(data) => data.mark_values(queues),
             Object::WeakSet(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.mark_values(queues),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
@@ -1888,16 +2124,27 @@ impl HeapMarkAndSweep for Object {
             Object::WeakMap(data) => data.sweep_values(compactions),
             Object::WeakRef(data) => data.sweep_values(compactions),
             Object::WeakSet(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Uint8ClampedArray(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Int16Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Uint16Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Int32Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Uint32Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::BigInt64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.sweep_values(compactions),
             Object::AsyncFromSyncIterator => todo!(),
             Object::AsyncIterator => todo!(),
