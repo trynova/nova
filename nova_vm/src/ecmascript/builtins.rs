@@ -10,11 +10,13 @@
 
 pub(crate) mod arguments;
 mod array;
+#[cfg(feature = "array-buffer")]
 mod array_buffer;
 pub mod bound_function;
 mod builtin_constructor;
 mod builtin_function;
 pub(crate) mod control_abstraction_objects;
+#[cfg(feature = "array-buffer")]
 pub(crate) mod data_view;
 #[cfg(feature = "date")]
 pub mod date;
@@ -40,6 +42,7 @@ pub(crate) mod set;
 pub(crate) mod shared_array_buffer;
 pub(crate) mod structured_data;
 pub(crate) mod text_processing;
+#[cfg(feature = "array-buffer")]
 pub(crate) mod typed_array;
 pub(crate) mod weak_map;
 pub(crate) mod weak_ref;
@@ -49,7 +52,9 @@ pub(crate) use arguments::*;
 pub(crate) use array::abstract_operations::*;
 pub use array::Array;
 pub(crate) use array::{ArrayHeapData, SealableElementsVector};
+#[cfg(feature = "array-buffer")]
 pub use array_buffer::ArrayBuffer;
+#[cfg(feature = "array-buffer")]
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_constructor::BuiltinConstructorFunction;
 pub(crate) use builtin_constructor::{create_builtin_constructor, BuiltinConstructorArgs};

@@ -53,6 +53,7 @@ impl ArrayIteratorPrototype {
         let len: i64 = match array {
             // i. If array has a [[TypedArrayName]] internal slot, then
             // TODO!
+            #[cfg(feature = "array-buffer")]
             Object::Int8Array(_)
             | Object::Uint8Array(_)
             | Object::Uint8ClampedArray(_)

@@ -19,15 +19,15 @@ oxc_syntax = { workspace = true }
 rand = { workspace = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string" }
-sonic-rs = { workspace = true,  optional = true}
+sonic-rs = { workspace = true, optional = true }
 wtf8 = { workspace = true }
 
 [features]
-default = ["math", "json", "date"]
+default = ["math", "json", "date", "array-buffer"]
 math = []
 json = ["sonic-rs"]
 date = []
-
+array-buffer = []
 typescript = []
 
 [build-dependencies]

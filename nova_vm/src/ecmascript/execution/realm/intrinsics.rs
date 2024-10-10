@@ -30,18 +30,10 @@ use crate::{
                 },
             },
             global_object::GlobalObject,
-            indexed_collections::{
-                array_objects::{
-                    array_constructor::ArrayConstructor,
-                    array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
-                    array_prototype::ArrayPrototype,
-                },
-                typed_array_objects::{
-                    typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
-                    typed_array_intrinsic_object::{
-                        TypedArrayIntrinsicObject, TypedArrayPrototype,
-                    },
-                },
+            indexed_collections::array_objects::{
+                array_constructor::ArrayConstructor,
+                array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
+                array_prototype::ArrayPrototype,
             },
             keyed_collections::{
                 map_objects::{
@@ -73,15 +65,7 @@ use crate::{
             primitive_objects::PrimitiveObject,
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
             structured_data::{
-                array_buffer_objects::{
-                    array_buffer_constructor::ArrayBufferConstructor,
-                    array_buffer_prototype::ArrayBufferPrototype,
-                },
                 atomics_object::AtomicsObject,
-                data_view_objects::{
-                    data_view_constructor::DataViewConstructor,
-                    data_view_prototype::DataViewPrototype,
-                },
                 shared_array_buffer_objects::{
                     shared_array_buffer_constructor::SharedArrayBufferConstructor,
                     shared_array_buffer_prototype::SharedArrayBufferPrototype,
@@ -150,6 +134,22 @@ use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
 use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
 #[cfg(feature = "json")]
 use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{
+    indexed_collections::typed_array_objects::{
+        typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
+        typed_array_intrinsic_object::{TypedArrayIntrinsicObject, TypedArrayPrototype},
+    },
+    structured_data::{
+        array_buffer_objects::{
+            array_buffer_constructor::ArrayBufferConstructor,
+            array_buffer_prototype::ArrayBufferPrototype,
+        },
+        data_view_objects::{
+            data_view_constructor::DataViewConstructor, data_view_prototype::DataViewPrototype,
+        },
+    },
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
@@ -167,27 +167,36 @@ pub(crate) struct Intrinsics {
 pub enum ProtoIntrinsics {
     AggregateError,
     Array,
+    #[cfg(feature = "array-buffer")]
     ArrayBuffer,
     ArrayIterator,
     AsyncFunction,
     AsyncGeneratorFunction,
     BigInt,
+    #[cfg(feature = "array-buffer")]
     BigInt64Array,
+    #[cfg(feature = "array-buffer")]
     BigUint64Array,
     Boolean,
+    #[cfg(feature = "array-buffer")]
     DataView,
     #[cfg(feature = "date")]
     Date,
     Error,
     EvalError,
     FinalizationRegistry,
+    #[cfg(feature = "array-buffer")]
     Float32Array,
+    #[cfg(feature = "array-buffer")]
     Float64Array,
     Function,
     Generator,
     GeneratorFunction,
+    #[cfg(feature = "array-buffer")]
     Int16Array,
+    #[cfg(feature = "array-buffer")]
     Int32Array,
+    #[cfg(feature = "array-buffer")]
     Int8Array,
     Map,
     MapIterator,
@@ -204,8 +213,11 @@ pub enum ProtoIntrinsics {
     Symbol,
     SyntaxError,
     TypeError,
+    #[cfg(feature = "array-buffer")]
     Uint16Array,
+    #[cfg(feature = "array-buffer")]
     Uint32Array,
+    #[cfg(feature = "array-buffer")]
     Uint8Array,
     UriError,
     WeakMap,
@@ -280,9 +292,13 @@ impl Intrinsics {
         ArrayPrototype::create_intrinsic(agent, realm);
         ArrayConstructor::create_intrinsic(agent, realm);
         ArrayIteratorPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         TypedArrayPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         TypedArrayIntrinsicObject::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         TypedArrayPrototypes::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         TypedArrayConstructors::create_intrinsic(agent, realm);
         MapPrototype::create_intrinsic(agent, realm);
         MapConstructor::create_intrinsic(agent, realm);
@@ -294,11 +310,15 @@ impl Intrinsics {
         WeakMapConstructor::create_intrinsic(agent, realm);
         WeakSetPrototype::create_intrinsic(agent, realm);
         WeakSetConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         ArrayBufferPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         ArrayBufferConstructor::create_intrinsic(agent, realm);
         SharedArrayBufferPrototype::create_intrinsic(agent, realm);
         SharedArrayBufferConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         DataViewPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "array-buffer")]
         DataViewConstructor::create_intrinsic(agent, realm);
         AtomicsObject::create_intrinsic(agent, realm);
         #[cfg(feature = "json")]
@@ -333,6 +353,7 @@ impl Intrinsics {
     ) -> Object {
         match intrinsic_default_proto {
             ProtoIntrinsics::Array => self.array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::ArrayBuffer => self.array_buffer_prototype().into(),
             ProtoIntrinsics::ArrayIterator => self.array_iterator_prototype().into(),
             ProtoIntrinsics::BigInt => self.big_int_prototype().into(),
@@ -356,16 +377,24 @@ impl Intrinsics {
             ProtoIntrinsics::AsyncGeneratorFunction => {
                 self.async_generator_function_prototype().into()
             }
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::BigInt64Array => self.big_int64_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::BigUint64Array => self.big_int64_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => self.data_view_prototype().into(),
             ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Float32Array => self.float32_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Float64Array => self.float64_array_prototype().into(),
             ProtoIntrinsics::Generator => self.generator_prototype().into(),
             ProtoIntrinsics::GeneratorFunction => self.generator_function_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Int16Array => self.int16_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Int32Array => self.int32_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Int8Array => self.int8_array_prototype().into(),
             ProtoIntrinsics::Map => self.map_prototype().into(),
             ProtoIntrinsics::MapIterator => self.map_iterator_prototype().into(),
@@ -374,8 +403,11 @@ impl Intrinsics {
             ProtoIntrinsics::Set => self.set_prototype().into(),
             ProtoIntrinsics::SetIterator => self.set_iterator_prototype().into(),
             ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint16Array => self.uint16_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint32Array => self.uint32_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => self.uint8_array_prototype().into(),
             ProtoIntrinsics::WeakMap => self.weak_map_prototype().into(),
             ProtoIntrinsics::WeakRef => self.weak_ref_prototype().into(),
@@ -470,6 +502,7 @@ impl Intrinsics {
         IntrinsicConstructorIndexes::Array.get_object_index(self.object_index_base)
     }
 
+    #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer.prototype%
     pub(crate) fn array_buffer_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::ArrayBufferPrototype
@@ -477,6 +510,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer%
     pub(crate) fn array_buffer(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::ArrayBuffer
@@ -484,6 +518,7 @@ impl Intrinsics {
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn array_buffer_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::ArrayBuffer.get_object_index(self.object_index_base)
     }
@@ -587,35 +622,41 @@ impl Intrinsics {
     }
 
     /// %BigInt64Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn big_int64_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::BigInt64ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn big_int64_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::BigInt64Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn big_int64_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::BigInt64Array.get_object_index(self.object_index_base)
     }
 
     /// %BigUint64Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn big_uint64_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::BigUint64ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn big_uint64_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::BigUint64Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn big_uint64_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::BigUint64Array.get_object_index(self.object_index_base)
     }
@@ -643,6 +684,7 @@ impl Intrinsics {
     }
 
     /// %DataView.prototype%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn data_view_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::DataViewPrototype
             .get_object_index(self.object_index_base)
@@ -650,12 +692,14 @@ impl Intrinsics {
     }
 
     /// %DataView%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn data_view(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::DataView
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn data_view_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::DataView.get_object_index(self.object_index_base)
     }
@@ -786,35 +830,41 @@ impl Intrinsics {
     }
 
     /// %Float32Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn float32_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Float32ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn float32_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Float32Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn float32_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Float32Array.get_object_index(self.object_index_base)
     }
 
     /// %Float64Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn float64_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Float64ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn float64_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Float64Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn float64_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Float64Array.get_object_index(self.object_index_base)
     }
@@ -882,52 +932,61 @@ impl Intrinsics {
     }
 
     /// %Int16Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int16_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Int16ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int16_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Int16Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int16_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Int16Array.get_object_index(self.object_index_base)
     }
 
     /// %Int32Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int32_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Int32ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int32_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Int32Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int32_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Int32Array.get_object_index(self.object_index_base)
     }
 
     /// %Int8Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int8_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Int8ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int8_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Int8Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn int8_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Int8Array.get_object_index(self.object_index_base)
     }
@@ -993,8 +1052,8 @@ impl Intrinsics {
             .into()
     }
 
-    #[cfg(feature = "math")]
     /// %Math%
+    #[cfg(feature = "math")]
     pub(crate) fn math(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::MathObject
             .get_object_index(self.object_index_base)
@@ -1303,6 +1362,7 @@ impl Intrinsics {
     }
 
     /// %TypedArray.prototype.values%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn typed_array_prototype_values(&self) -> BuiltinFunction {
         IntrinsicFunctionIndexes::TypedArrayPrototypeValues
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -1310,6 +1370,7 @@ impl Intrinsics {
     }
 
     /// %TypedArray.prototype%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn typed_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::TypedArrayPrototype
             .get_object_index(self.object_index_base)
@@ -1317,12 +1378,14 @@ impl Intrinsics {
     }
 
     /// %TypedArray%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn typed_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::TypedArray
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn typed_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::TypedArray.get_object_index(self.object_index_base)
     }
@@ -1346,69 +1409,81 @@ impl Intrinsics {
     }
 
     /// %Uint16Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint16_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Uint16ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint16_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint16Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint16_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Uint16Array.get_object_index(self.object_index_base)
     }
 
     /// %Uint32Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint32_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Uint32ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint32_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint32Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint32_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Uint32Array.get_object_index(self.object_index_base)
     }
 
     /// %Uint8Array%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint8_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Uint8ArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint8_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint8Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint8_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Uint8Array.get_object_index(self.object_index_base)
     }
 
     /// %Uint8ClampedArray%
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint8_clamped_array_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::Uint8ClampedArrayPrototype
             .get_object_index(self.object_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint8_clamped_array(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::Uint8ClampedArray
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "array-buffer")]
     pub(crate) fn uint8_clamped_array_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::Uint8ClampedArray.get_object_index(self.object_index_base)
     }
@@ -1502,7 +1577,9 @@ impl HeapMarkAndSweep for Intrinsics {
         self.array_prototype_values().mark_values(queues);
         self.array_prototype().mark_values(queues);
         self.array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.array_buffer_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.array_buffer().mark_values(queues);
         self.array_iterator_prototype().mark_values(queues);
         self.async_from_sync_iterator_prototype()
@@ -1517,13 +1594,19 @@ impl HeapMarkAndSweep for Intrinsics {
         self.atomics().mark_values(queues);
         self.big_int_prototype().mark_values(queues);
         self.big_int().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.big_int64_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.big_int64_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.big_uint64_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.big_uint64_array_prototype().mark_values(queues);
         self.boolean_prototype().mark_values(queues);
         self.boolean().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.data_view_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.data_view().mark_values(queues);
         #[cfg(feature = "date")]
         self.date_prototype_to_utcstring().mark_values(queues);
@@ -1543,9 +1626,13 @@ impl HeapMarkAndSweep for Intrinsics {
         self.eval_error().mark_values(queues);
         self.finalization_registry_prototype().mark_values(queues);
         self.finalization_registry().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.float32_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.float32_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.float64_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.float64_array_prototype().mark_values(queues);
         self.function_prototype().mark_values(queues);
         self.function().mark_values(queues);
@@ -1554,11 +1641,17 @@ impl HeapMarkAndSweep for Intrinsics {
         self.generator_function_prototype().mark_values(queues);
         self.generator_function().mark_values(queues);
         self.generator_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.int16_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.int16_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.int32_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.int32_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.int8_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.int8_array_prototype().mark_values(queues);
         self.is_finite().mark_values(queues);
         self.is_nan().mark_values(queues);
@@ -1606,20 +1699,32 @@ impl HeapMarkAndSweep for Intrinsics {
         self.syntax_error_prototype().mark_values(queues);
         self.syntax_error().mark_values(queues);
         self.throw_type_error().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.typed_array_prototype_values().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.typed_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.typed_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.typed_array_prototype().mark_values(queues);
         self.type_error_prototype().mark_values(queues);
         self.type_error().mark_values(queues);
         self.type_error_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint16_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint16_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint32_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint32_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint8_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint8_array_prototype().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint8_clamped_array().mark_values(queues);
+        #[cfg(feature = "array-buffer")]
         self.uint8_clamped_array_prototype().mark_values(queues);
         self.unescape().mark_values(queues);
         self.uri_error_prototype().mark_values(queues);

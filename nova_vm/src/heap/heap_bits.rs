@@ -3,13 +3,17 @@ use ahash::AHashMap;
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#[cfg(feature = "array-buffer")]
+use super::indexes::TypedArrayIndex;
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
-    indexes::{BaseIndex, ElementIndex, TypedArrayIndex},
+    indexes::{BaseIndex, ElementIndex},
     Heap,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -21,7 +25,6 @@ use crate::ecmascript::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
         },
-        data_view::DataView,
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
@@ -41,7 +44,7 @@ use crate::ecmascript::{
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
-        Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
@@ -56,6 +59,7 @@ use crate::ecmascript::{
 
 #[derive(Debug)]
 pub struct HeapBits {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: Box<[bool]>,
     pub arrays: Box<[bool]>,
     pub array_iterators: Box<[bool]>,
@@ -64,6 +68,7 @@ pub struct HeapBits {
     pub bound_functions: Box<[bool]>,
     pub builtin_constructors: Box<[bool]>,
     pub builtin_functions: Box<[bool]>,
+    #[cfg(feature = "array-buffer")]
     pub data_views: Box<[bool]>,
     #[cfg(feature = "date")]
     pub dates: Box<[bool]>,
@@ -103,6 +108,7 @@ pub struct HeapBits {
     pub shared_array_buffers: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: Box<[bool]>,
     pub weak_maps: Box<[bool]>,
     pub weak_refs: Box<[bool]>,
@@ -111,6 +117,7 @@ pub struct HeapBits {
 
 #[derive(Debug)]
 pub(crate) struct WorkQueues {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<ArrayBuffer>,
     pub arrays: Vec<Array>,
     pub array_iterators: Vec<ArrayIterator>,
@@ -119,6 +126,7 @@ pub(crate) struct WorkQueues {
     pub bound_functions: Vec<BoundFunction>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
+    #[cfg(feature = "array-buffer")]
     pub data_views: Vec<DataView>,
     #[cfg(feature = "date")]
     pub dates: Vec<Date>,
@@ -158,6 +166,7 @@ pub(crate) struct WorkQueues {
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString>,
     pub symbols: Vec<Symbol>,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<TypedArrayIndex>,
     pub weak_maps: Vec<WeakMap>,
     pub weak_refs: Vec<WeakRef>,
@@ -166,6 +175,7 @@ pub(crate) struct WorkQueues {
 
 impl HeapBits {
     pub fn new(heap: &Heap) -> Self {
+        #[cfg(feature = "array-buffer")]
         let array_buffers = vec![false; heap.array_buffers.len()];
         let arrays = vec![false; heap.arrays.len()];
         let array_iterators = vec![false; heap.array_iterators.len()];
@@ -174,6 +184,7 @@ impl HeapBits {
         let bound_functions = vec![false; heap.bound_functions.len()];
         let builtin_constructors = vec![false; heap.builtin_constructors.len()];
         let builtin_functions = vec![false; heap.builtin_functions.len()];
+        #[cfg(feature = "array-buffer")]
         let data_views = vec![false; heap.data_views.len()];
         #[cfg(feature = "date")]
         let dates = vec![false; heap.dates.len()];
@@ -213,11 +224,13 @@ impl HeapBits {
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
+        #[cfg(feature = "array-buffer")]
         let typed_arrays = vec![false; heap.typed_arrays.len()];
         let weak_maps = vec![false; heap.weak_maps.len()];
         let weak_refs = vec![false; heap.weak_refs.len()];
         let weak_sets = vec![false; heap.weak_sets.len()];
         Self {
+            #[cfg(feature = "array-buffer")]
             array_buffers: array_buffers.into_boxed_slice(),
             arrays: arrays.into_boxed_slice(),
             array_iterators: array_iterators.into_boxed_slice(),
@@ -226,6 +239,7 @@ impl HeapBits {
             bound_functions: bound_functions.into_boxed_slice(),
             builtin_constructors: builtin_constructors.into_boxed_slice(),
             builtin_functions: builtin_functions.into_boxed_slice(),
+            #[cfg(feature = "array-buffer")]
             data_views: data_views.into_boxed_slice(),
             #[cfg(feature = "date")]
             dates: dates.into_boxed_slice(),
@@ -265,6 +279,7 @@ impl HeapBits {
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: typed_arrays.into_boxed_slice(),
             weak_maps: weak_maps.into_boxed_slice(),
             weak_refs: weak_refs.into_boxed_slice(),
@@ -276,6 +291,7 @@ impl HeapBits {
 impl WorkQueues {
     pub fn new(heap: &Heap) -> Self {
         Self {
+            #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() / 4),
             array_iterators: Vec::with_capacity(heap.array_iterators.len() / 4),
@@ -284,6 +300,7 @@ impl WorkQueues {
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
             builtin_constructors: Vec::with_capacity(heap.builtin_constructors.len() / 4),
             builtin_functions: Vec::with_capacity(heap.builtin_functions.len() / 4),
+            #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(heap.data_views.len() / 4),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(heap.dates.len() / 4),
@@ -325,6 +342,7 @@ impl WorkQueues {
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
             strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(heap.typed_arrays.len() / 4),
             weak_maps: Vec::with_capacity(heap.weak_maps.len() / 4),
             weak_refs: Vec::with_capacity(heap.weak_refs.len() / 4),
@@ -357,6 +375,7 @@ impl WorkQueues {
 
     pub fn is_empty(&self) -> bool {
         let Self {
+            #[cfg(feature = "array-buffer")]
             array_buffers,
             arrays,
             array_iterators,
@@ -365,6 +384,7 @@ impl WorkQueues {
             bound_functions,
             builtin_constructors,
             builtin_functions,
+            #[cfg(feature = "array-buffer")]
             data_views,
             #[cfg(feature = "date")]
             dates,
@@ -404,6 +424,7 @@ impl WorkQueues {
             shared_array_buffers,
             strings,
             symbols,
+            #[cfg(feature = "array-buffer")]
             typed_arrays,
             weak_maps,
             weak_refs,
@@ -412,6 +433,12 @@ impl WorkQueues {
 
         #[cfg(not(feature = "date"))]
         let dates: &[bool; 0] = &[];
+        #[cfg(not(feature = "array-buffer"))]
+        let data_views: &[bool; 0] = &[];
+        #[cfg(not(feature = "array-buffer"))]
+        let array_buffers: &[bool; 0] = &[];
+        #[cfg(not(feature = "array-buffer"))]
+        let typed_arrays: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -605,6 +632,7 @@ impl Default for CompactionListBuilder {
 }
 
 pub(crate) struct CompactionLists {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: CompactionList,
     pub arrays: CompactionList,
     pub array_iterators: CompactionList,
@@ -613,6 +641,7 @@ pub(crate) struct CompactionLists {
     pub bound_functions: CompactionList,
     pub builtin_constructors: CompactionList,
     pub builtin_functions: CompactionList,
+    #[cfg(feature = "array-buffer")]
     pub data_views: CompactionList,
     #[cfg(feature = "date")]
     pub dates: CompactionList,
@@ -652,6 +681,7 @@ pub(crate) struct CompactionLists {
     pub shared_array_buffers: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: CompactionList,
     pub weak_maps: CompactionList,
     pub weak_refs: CompactionList,
@@ -688,6 +718,7 @@ impl CompactionLists {
             e_2_24: CompactionList::from_mark_u32s(&bits.e_2_24),
             e_2_32: CompactionList::from_mark_u32s(&bits.e_2_32),
             arrays: CompactionList::from_mark_bits(&bits.arrays),
+            #[cfg(feature = "array-buffer")]
             array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
             array_iterators: CompactionList::from_mark_bits(&bits.array_iterators),
             await_reactions: CompactionList::from_mark_bits(&bits.await_reactions),
@@ -720,12 +751,14 @@ impl CompactionLists {
             strings: CompactionList::from_mark_bits(&bits.strings),
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
+            #[cfg(feature = "array-buffer")]
             data_views: CompactionList::from_mark_bits(&bits.data_views),
             finalization_registrys: CompactionList::from_mark_bits(&bits.finalization_registrys),
             proxys: CompactionList::from_mark_bits(&bits.proxys),
             weak_maps: CompactionList::from_mark_bits(&bits.weak_maps),
             weak_refs: CompactionList::from_mark_bits(&bits.weak_refs),
             weak_sets: CompactionList::from_mark_bits(&bits.weak_sets),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: CompactionList::from_mark_bits(&bits.typed_arrays),
         }
     }

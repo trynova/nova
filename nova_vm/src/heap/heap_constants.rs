@@ -26,6 +26,7 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Numbers and dates
     BigIntPrototype,
+    #[cfg(feature = "math")]
     MathObject,
     #[cfg(feature = "date")]
     DatePrototype,
@@ -35,17 +36,29 @@ pub(crate) enum IntrinsicObjectIndexes {
 
     // Indexed collections
     ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     TypedArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Int8ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Uint8ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Uint8ClampedArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Int16ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Uint16ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Int32ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Uint32ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     BigInt64ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     BigUint64ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Float32ArrayPrototype,
+    #[cfg(feature = "array-buffer")]
     Float64ArrayPrototype,
 
     // Keyed collections
@@ -55,8 +68,10 @@ pub(crate) enum IntrinsicObjectIndexes {
     WeakSetPrototype,
 
     // Structured data
+    #[cfg(feature = "array-buffer")]
     ArrayBufferPrototype,
     SharedArrayBufferPrototype,
+    #[cfg(feature = "array-buffer")]
     DataViewPrototype,
     AtomicsObject,
     JSONObject,
@@ -142,17 +157,29 @@ pub(crate) enum IntrinsicConstructorIndexes {
 
     // Indexed collections
     Array,
+    #[cfg(feature = "array-buffer")]
     TypedArray,
+    #[cfg(feature = "array-buffer")]
     Int8Array,
+    #[cfg(feature = "array-buffer")]
     Uint8Array,
+    #[cfg(feature = "array-buffer")]
     Uint8ClampedArray,
+    #[cfg(feature = "array-buffer")]
     Int16Array,
+    #[cfg(feature = "array-buffer")]
     Uint16Array,
+    #[cfg(feature = "array-buffer")]
     Int32Array,
+    #[cfg(feature = "array-buffer")]
     Uint32Array,
+    #[cfg(feature = "array-buffer")]
     BigInt64Array,
+    #[cfg(feature = "array-buffer")]
     BigUint64Array,
+    #[cfg(feature = "array-buffer")]
     Float32Array,
+    #[cfg(feature = "array-buffer")]
     Float64Array,
 
     // Keyed collections
@@ -162,8 +189,10 @@ pub(crate) enum IntrinsicConstructorIndexes {
     WeakSet,
 
     // Structured data
+    #[cfg(feature = "array-buffer")]
     ArrayBuffer,
     SharedArrayBuffer,
+    #[cfg(feature = "array-buffer")]
     DataView,
 
     // Managing memory
@@ -222,6 +251,7 @@ pub(crate) enum IntrinsicFunctionIndexes {
     StringPrototypeTrimEnd,
     StringPrototypeTrimStart,
     ThrowTypeError,
+    #[cfg(feature = "array-buffer")]
     TypedArrayPrototypeValues,
     Unescape,
 }
