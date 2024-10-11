@@ -1,9 +1,17 @@
 # Contributing
 
-First be forewarned: Contributions are wanted and dearly desired, but @aapoalas
-is a pain to deal with. He'll nitpick your PR to the bone if he happens to be in
-the mood to do so. He's not doing it to be evil or anything, he's just an idiot.
-Please forgive him, if you can.
+Hello, welcome and thank you for showing interesting contributing to Nova!
+Contributions are absolutely welcome, wanted, and dearly desired. That being
+said, before you being, you'll want to know a few things.
+
+1. @aapoalas will likely leave a lot of PR comments. He's not doing it to be
+   evil or anything, he's just an idiot.
+2. Nova's code follows the ECMAScript specification. When in doubt, read, copy,
+   implement the specification.
+3. Testing is mainly based upon the test262 conformance suit. Updating
+   conformance results needs to be done.
+
+More information is found below.
 
 ## Pull Request Code of Conduct
 
@@ -13,8 +21,87 @@ The following ground rules should be followed:
 1. Be respectful.
 1. Be your best self, and assume the best of everyone.
 
-Then more specific ones. Feel free to also assume Rust Code of Conduct, it's
-probably a good one.
+Feel free to also assume Rust Code of Conduct.
+
+### Align with the [ECMAScript specification](https://tc39.es/ecma262/)
+
+Nova's code and folder structure follows the ECMAScript specification as much as
+possible. This means that when you need to implement a new abstract operation
+from the specification, your best course of action is generally to copy the
+specification text as a comment into the file inside the
+`nova_vm/src/ecmascript` folder that is the closest match to the specification's
+header structure for that abstract operation. If a matching file clearly does
+not exist, you may create one. When in doubt, ask in Discord or open an issue on
+GitHub.
+
+Once you've copied the specification text in as a comment, you can start turning
+the commented out abstract operation into a function. Start by changing the
+header and comment part of the abstract operation into a doc comment and make
+the header a level three header with a link to the original specification.
+Preferably, wrap the comment part into multiple lines (generally 80 is used as
+the line width point). Finally, remove the repetitive and redundant "It performs
+the following steps when called:" part.
+
+As an example, this:
+
+```rs
+// 7.1.2 ToBoolean ( argument )
+//
+// The abstract operation ToBoolean takes argument argument (an ECMAScript language value) and returns a Boolean. It converts argument to a value of type Boolean. It performs the following steps when called:
+//
+// 1. If argument is a Boolean, return argument.
+// 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
+// 3. NOTE: This step is replaced in section B.3.6.1.
+// 4. Return true.
+```
+
+turns into
+
+```rs
+/// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+///
+/// The abstract operation ToBoolean takes argument argument (an ECMAScript
+/// language value) and returns a Boolean. It converts argument to a value of
+/// type Boolean.
+//
+// 1. If argument is a Boolean, return argument.
+// 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
+// 3. NOTE: This step is replaced in section B.3.6.1.
+// 4. Return true.
+```
+
+Now after the doc comment part, add a function of the same name (using Rust's
+preferred casing) and move the abstract operation steps inside the function's
+body. Consider adding a `todo!()` at the end of the function to avoid Rust
+yelling at you a whole lot about your return value. Usually `pub(crate)` is the
+preferred publicity level, but go down to private if you can.
+
+The first argument to Nova's functions is usually a `&mut Agent` or `&Agent`
+reference. A `&mut Agent` call can mutate the JavaScript heap, which also means
+it can call JavaScript. A `&Agent` call cannot mutate the heap and thus cannot
+call JavaScript, but can access data from the heap. A call that takes neither
+operates entirely on stack-local data. Other arguments should be named as the
+specification suggests.
+
+In our example, from an overabundance of caution, we assume we'll need access to
+the heap and thus take an `&Agent` reference.
+
+```rs
+/// ### [7.1.2 ToBoolean ( argument )](https://tc39.es/ecma262/#sec-toboolean)
+///
+/// The abstract operation ToBoolean takes argument argument (an ECMAScript
+/// language value) and returns a Boolean. It converts argument to a value of
+/// type Boolean.
+pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
+    // 1. If argument is a Boolean, return argument.
+    // 2. If argument is one of undefined, null, +0𝔽, -0𝔽, NaN, 0ℤ, or the empty String, return false.
+    // 3. NOTE: This step is replaced in section B.3.6.1.
+    // 4. Return true.
+    todo!()
+}
+```
+
+After this, go step by step implementing the abstract operation.
 
 ### Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
@@ -56,10 +143,48 @@ mean that there's something there to improve.
 
 ### Tests in PRs
 
-Whenever adding a feature, it is always a good idea to add a test. That being
-said, our test harness is currently mostly nonexistential. As such, features can
-be merged without tests **within reason**. The expectation then is that either
-the feature will be tested well by test262 or tests will be added later.
+Nova mainly tests itself using the official
+[ECMAScript test262 conformance suite](https://github.com/tc39/test262). The
+expected results are saved into the `tests/expectations.json` file: All PR
+branches are tested to check that the test results match the expectations.
+
+When making changes, you'll thus often need to update or at least check the
+expectations. You can do this with the following command:
+
+```sh
+cargo build --profile release && cargo run --bin test262 --profile release -- -u
+```
+
+This will build you a release version of Nova, and run the test262 conformance
+suite using that executable. At the end of the run, it will record the results
+in `expectations.json`.
+
+You can run an individual test262 test case or a set of tests using
+
+```sh
+cargo build && cargo run --bin test262 eval-test internal/path/to/tests
+```
+
+Here the "internal/path/to/tests" matches a path or a subpath in the
+`expectations.json`. As an example:
+
+```sh
+cargo build && cargo run --bin test262 eval-test built-ins/Array/from/from-string.js
+```
+
+We also have some unit and integration test around using cargo's test harnesses.
+Adding to these is absolutely welcome, as they enable more Miri testing etc.
+These are also run on all PRs.
+
+#### Custom quick-shot tests
+
+Keep your own `test.js` in the `nova` folder and run it with
+
+```sh
+cargo run eval test.js
+```
+
+This is great for quick, simple things you want to test out in isolation.
 
 ### Performance considerations
 
@@ -135,7 +260,7 @@ exhaustive list of these (by constructor or prototype, or combined)
 ### Other things
 
 This list serves as a "this is where you were" for returning developers as well
-as a potential easy jumping-into point for newcompers.
+as a potential easy jumping-into point for newcomers.
 
 - Write implementations of more abstract operations
   - See `nova_vm/src/ecmascript/abstract_operations`
