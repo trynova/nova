@@ -4,6 +4,8 @@
 
 use std::thread;
 
+#[cfg(feature = "array-buffer")]
+use super::indexes::TypedArrayIndex;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
@@ -12,11 +14,13 @@ use super::{
         sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
         HeapMarkAndSweep, WorkQueues,
     },
-    indexes::{ElementIndex, StringIndex, TypedArrayIndex},
+    indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -28,7 +32,6 @@ use crate::ecmascript::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
         },
-        data_view::DataView,
         embedder_object::EmbedderObject,
         error::Error,
         finalization_registry::FinalizationRegistry,
@@ -48,7 +51,7 @@ use crate::ecmascript::{
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
-        Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -103,6 +106,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
 
     while !queues.is_empty() {
         let Heap {
+            #[cfg(feature = "array-buffer")]
             array_buffers,
             arrays,
             array_iterators,
@@ -111,6 +115,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             bound_functions,
             builtin_constructors,
             builtin_functions,
+            #[cfg(feature = "array-buffer")]
             data_views,
             #[cfg(feature = "date")]
             dates,
@@ -141,6 +146,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             shared_array_buffers,
             strings,
             symbols,
+            #[cfg(feature = "array-buffer")]
             typed_arrays,
             weak_maps,
             weak_refs,
@@ -273,19 +279,23 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 arrays.get(index).mark_values(&mut queues);
             }
         });
-        let mut array_buffer_marks: Box<[ArrayBuffer]> = queues.array_buffers.drain(..).collect();
-        array_buffer_marks.sort();
-        array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.array_buffers.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "array-buffer")]
+        {
+            let mut array_buffer_marks: Box<[ArrayBuffer]> =
+                queues.array_buffers.drain(..).collect();
+            array_buffer_marks.sort();
+            array_buffer_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.array_buffers.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    array_buffers.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                array_buffers.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut array_iterator_marks: Box<[ArrayIterator]> =
             queues.array_iterators.drain(..).collect();
         array_iterator_marks.sort();
@@ -409,19 +419,22 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 builtin_functions.get(index).mark_values(&mut queues);
             }
         });
-        let mut data_view_marks: Box<[DataView]> = queues.data_views.drain(..).collect();
-        data_view_marks.sort();
-        data_view_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.data_views.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "array-buffer")]
+        {
+            let mut data_view_marks: Box<[DataView]> = queues.data_views.drain(..).collect();
+            data_view_marks.sort();
+            data_view_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.data_views.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    data_views.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                data_views.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         #[cfg(feature = "date")]
         {
             let mut date_marks: Box<[Date]> = queues.dates.drain(..).collect();
@@ -681,20 +694,23 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 symbols.get(index).mark_values(&mut queues);
             }
         });
-        let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
-            queues.typed_arrays.drain(..).collect();
-        typed_arrays_marks.sort();
-        typed_arrays_marks.iter().for_each(|&idx| {
-            let index = idx.into_index();
-            if let Some(marked) = bits.typed_arrays.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "array-buffer")]
+        {
+            let mut typed_arrays_marks: Box<[TypedArrayIndex]> =
+                queues.typed_arrays.drain(..).collect();
+            typed_arrays_marks.sort();
+            typed_arrays_marks.iter().for_each(|&idx| {
+                let index = idx.into_index();
+                if let Some(marked) = bits.typed_arrays.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    typed_arrays.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                typed_arrays.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut weak_map_marks: Box<[WeakMap]> = queues.weak_maps.drain(..).collect();
         weak_map_marks.sort();
         weak_map_marks.iter().for_each(|&idx| {
@@ -915,6 +931,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
     }
 
     let Heap {
+        #[cfg(feature = "array-buffer")]
         array_buffers,
         arrays,
         array_iterators,
@@ -923,6 +940,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         bound_functions,
         builtin_constructors,
         builtin_functions,
+        #[cfg(feature = "array-buffer")]
         data_views,
         #[cfg(feature = "date")]
         dates,
@@ -953,6 +971,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         shared_array_buffers,
         strings,
         symbols,
+        #[cfg(feature = "array-buffer")]
         typed_arrays,
         weak_maps,
         weak_refs,
@@ -1090,6 +1109,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_u8_elements_vector_values(&mut e2pow8.values, &compactions, &bits.e_2_8);
             });
         }
+        #[cfg(feature = "array-buffer")]
         if !array_buffers.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);
@@ -1134,6 +1154,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(builtin_functions, &compactions, &bits.builtin_functions);
             });
         }
+        #[cfg(feature = "array-buffer")]
         if !data_views.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
@@ -1305,6 +1326,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(symbols, &compactions, &bits.symbols);
             });
         }
+        #[cfg(feature = "array-buffer")]
         if !typed_arrays.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
