@@ -789,7 +789,7 @@ impl StringPrototype {
             }
 
             // If none has found, return s.
-            if match_positions.len() == 0 {
+            if match_positions.is_empty() {
                 return Ok(s.into_value());
             }
 
