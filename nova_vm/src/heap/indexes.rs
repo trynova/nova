@@ -4,6 +4,8 @@
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
@@ -25,7 +27,6 @@ use crate::ecmascript::{
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::data::SetHeapData,
-        shared_array_buffer::data::SharedArrayBufferHeapData,
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
@@ -187,6 +188,7 @@ pub type ProxyIndex = BaseIndex<ProxyHeapData>;
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
 pub type SetIndex = BaseIndex<SetHeapData>;
 pub type SetIteratorIndex = BaseIndex<SetIteratorHeapData>;
+#[cfg(feature = "shared-array-buffer")]
 pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
 pub type StringIndex = BaseIndex<StringHeapData>;
 pub type SymbolIndex = BaseIndex<SymbolHeapData>;

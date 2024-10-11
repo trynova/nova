@@ -12,6 +12,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::{
@@ -40,7 +42,6 @@ use crate::ecmascript::{
         proxy::Proxy,
         regexp::RegExp,
         set::Set,
-        shared_array_buffer::SharedArrayBuffer,
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
@@ -105,6 +106,7 @@ pub struct HeapBits {
     pub scripts: Box<[bool]>,
     pub sets: Box<[bool]>,
     pub set_iterators: Box<[bool]>,
+    #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Box<[bool]>,
     pub strings: Box<[bool]>,
     pub symbols: Box<[bool]>,
@@ -163,6 +165,7 @@ pub(crate) struct WorkQueues {
     pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<Set>,
     pub set_iterators: Vec<SetIterator>,
+    #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString>,
     pub symbols: Vec<Symbol>,
@@ -221,6 +224,7 @@ impl HeapBits {
         let scripts = vec![false; heap.scripts.len()];
         let sets = vec![false; heap.sets.len()];
         let set_iterators = vec![false; heap.set_iterators.len()];
+        #[cfg(feature = "shared-array-buffer")]
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
         let strings = vec![false; heap.strings.len()];
         let symbols = vec![false; heap.symbols.len()];
@@ -276,6 +280,7 @@ impl HeapBits {
             scripts: scripts.into_boxed_slice(),
             sets: sets.into_boxed_slice(),
             set_iterators: set_iterators.into_boxed_slice(),
+            #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
             strings: strings.into_boxed_slice(),
             symbols: symbols.into_boxed_slice(),
@@ -339,6 +344,7 @@ impl WorkQueues {
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             sets: Vec::with_capacity(heap.sets.len() / 4),
             set_iterators: Vec::with_capacity(heap.set_iterators.len() / 4),
+            #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
             strings: Vec::with_capacity((heap.strings.len() / 4).max(BUILTIN_STRINGS_LIST.len())),
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
@@ -421,6 +427,7 @@ impl WorkQueues {
             scripts,
             sets,
             set_iterators,
+            #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
             strings,
             symbols,
@@ -439,6 +446,8 @@ impl WorkQueues {
         let array_buffers: &[bool; 0] = &[];
         #[cfg(not(feature = "array-buffer"))]
         let typed_arrays: &[bool; 0] = &[];
+        #[cfg(not(feature = "shared-array-buffer"))]
+        let shared_array_buffers: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -678,6 +687,7 @@ pub(crate) struct CompactionLists {
     pub scripts: CompactionList,
     pub sets: CompactionList,
     pub set_iterators: CompactionList,
+    #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: CompactionList,
     pub strings: CompactionList,
     pub symbols: CompactionList,
@@ -749,6 +759,7 @@ impl CompactionLists {
             sets: CompactionList::from_mark_bits(&bits.sets),
             set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),
             strings: CompactionList::from_mark_bits(&bits.strings),
+            #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: CompactionList::from_mark_bits(&bits.shared_array_buffers),
             symbols: CompactionList::from_mark_bits(&bits.symbols),
             #[cfg(feature = "array-buffer")]

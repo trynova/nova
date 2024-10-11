@@ -11,6 +11,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
 use crate::{
     ecmascript::builtins::{data_view::DataView, ArrayBuffer},
@@ -42,7 +44,6 @@ use crate::{
             proxy::Proxy,
             regexp::RegExp,
             set::Set,
-            shared_array_buffer::SharedArrayBuffer,
             weak_map::WeakMap,
             weak_ref::WeakRef,
             weak_set::WeakSet,
@@ -161,6 +162,7 @@ pub enum Value {
     Proxy(Proxy),
     RegExp(RegExp),
     Set(Set),
+    #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer),
     WeakMap(WeakMap),
     WeakRef(WeakRef),
@@ -281,6 +283,7 @@ pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_def(
 pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_def()));
 pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_def()));
 pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_def()));
+#[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedArrayBuffer(SharedArrayBuffer::_def()));
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap(WeakMap::_def()));
@@ -645,6 +648,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -861,6 +865,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1087,6 +1092,7 @@ impl HeapMarkAndSweep for Value {
             Value::Proxy(data) => data.mark_values(queues),
             Value::Promise(data) => data.mark_values(queues),
             Value::Set(data) => data.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => data.mark_values(queues),
             Value::WeakMap(data) => data.mark_values(queues),
             Value::WeakRef(data) => data.mark_values(queues),
@@ -1165,6 +1171,7 @@ impl HeapMarkAndSweep for Value {
             Value::Proxy(data) => data.sweep_values(compactions),
             Value::Promise(data) => data.sweep_values(compactions),
             Value::Set(data) => data.sweep_values(compactions),
+            #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => data.sweep_values(compactions),
             Value::WeakMap(data) => data.sweep_values(compactions),
             Value::WeakRef(data) => data.sweep_values(compactions),
