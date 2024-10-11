@@ -778,23 +778,19 @@ impl StringPrototype {
             let mut match_positions: Vec<usize> = vec![];
 
             // 10. Let position be StringIndexOf(s, searchString, 0).
-            let search_str = search_string.as_str(agent).to_owned();
+            let search_str = search_string.as_str(agent);
             let subject = s.as_str(agent).to_owned();
-
-            let mut position = if let Some(position) = subject.find(&search_str) {
-                position
-            } else {
-                // If position is not-found, return s.
-                return Ok(s.into_value());
-            };
-
-            match_positions.push(position);
-            position += advance_by;
+            let mut position = 0;
 
             // 11. Repeat, while position is not not-found,
-            while let Some(pos) = subject[position..].find(&search_str) {
+            while let Some(pos) = subject[position..].find(search_str) {
                 match_positions.push(position + pos);
-                position += advance_by;
+                position += advance_by + pos;
+            }
+
+            // If none has found, return s.
+            if match_positions.len() == 0 {
+                return Ok(s.into_value());
             }
 
             // 12. Let endOfLastMatch be 0.
