@@ -15,7 +15,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{Executable, ExecutionResult, Vm},
+    engine::{Executable, ExecutionResult, SuspendedVm, Vm},
     heap::{
         indexes::{BaseIndex, GeneratorIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -337,7 +337,7 @@ pub struct GeneratorHeapData {
 
 #[derive(Debug)]
 pub(crate) enum VmOrArguments {
-    Vm(Vm),
+    Vm(SuspendedVm),
     Arguments(Box<[Value]>),
 }
 

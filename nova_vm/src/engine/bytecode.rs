@@ -12,4 +12,4 @@ pub(crate) use executable::{
     NamedEvaluationParameter, SendableRef,
 };
 pub(crate) use instructions::{Instruction, InstructionIter};
-pub(crate) use vm::{instanceof_operator, ExecutionResult, Vm};
+pub(crate) use vm::{instanceof_operator, ExecutionResult, SuspendedVm, Vm};

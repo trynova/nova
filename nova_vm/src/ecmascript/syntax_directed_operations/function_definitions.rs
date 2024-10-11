@@ -300,8 +300,18 @@ pub(crate) fn evaluate_async_function_body(
     //} else {
     // 4. Else,
     // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
-    let data = CompileFunctionBodyData::new(agent, function_object);
-    let exe = Executable::compile_function_body(agent, data);
+    let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
+        // SAFETY: exe is a non-null pointer pointing to an initialized
+        // Executable that cannot have a live mutable reference to it.
+        unsafe { exe.as_ref() }
+    } else {
+        let data = CompileFunctionBodyData::new(agent, function_object);
+        let exe = Box::new(Executable::compile_function_body(agent, data));
+        let exe = NonNull::from(Box::leak(exe));
+        agent[function_object].compiled_bytecode = Some(exe);
+        // SAFETY: Same as above, only more.
+        unsafe { exe.as_ref() }
+    };
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
@@ -329,7 +339,7 @@ pub(crate) fn evaluate_async_function_body(
             // cloning it would mess up the execution context stack.
             let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
                 vm: Some(vm),
-                executable: Some(exe),
+                async_function: Some(function_object),
                 execution_context: Some(agent.running_execution_context().clone()),
                 return_promise_capability: promise_capability,
             }));
