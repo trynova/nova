@@ -5,7 +5,7 @@
 mod data_block;
 mod property_descriptor;
 mod reference;
-
+#[cfg(feature = "array-buffer")]
 pub(crate) use data_block::DataBlock;
 pub use property_descriptor::PropertyDescriptor;
 pub(crate) use reference::*;

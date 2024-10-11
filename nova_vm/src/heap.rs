@@ -39,8 +39,6 @@ use crate::ecmascript::{
                 promise_resolving_functions::PromiseResolvingFunctionHeapData,
             },
         },
-        data_view::data::DataViewHeapData,
-        date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -57,7 +55,6 @@ use crate::ecmascript::{
         regexp::RegExpHeapData,
         set::data::SetHeapData,
         shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::data::TypedArrayHeapData,
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
@@ -68,8 +65,15 @@ use crate::ecmascript::{
         BUILTIN_STRINGS_LIST,
     },
 };
+
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
 use crate::ecmascript::{
-    builtins::{ArrayBufferHeapData, ArrayHeapData},
+    builtins::ArrayHeapData,
     execution::{Environments, Realm, RealmIdentifier},
     scripts_and_modules::{
         module::ModuleIdentifier,
@@ -84,6 +88,7 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
 pub struct Heap {
+    #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
@@ -92,7 +97,9 @@ pub struct Heap {
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
     pub builtin_constructors: Vec<Option<BuiltinConstructorHeapData>>,
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
+    #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
+    #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
     /// ElementsArrays is where all element arrays live;
@@ -120,6 +127,7 @@ pub struct Heap {
     pub set_iterators: Vec<Option<SetIteratorHeapData>>,
     pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
+    #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
@@ -165,6 +173,7 @@ impl CreateHeapData<std::string::String, String> for Heap {
 impl Heap {
     pub fn new() -> Heap {
         let mut heap = Heap {
+            #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(1024),
             arrays: Vec::with_capacity(1024),
             array_iterators: Vec::with_capacity(256),
@@ -173,7 +182,9 @@ impl Heap {
             bound_functions: Vec::with_capacity(256),
             builtin_constructors: Vec::with_capacity(256),
             builtin_functions: Vec::with_capacity(1024),
+            #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(0),
+            #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
             elements: ElementArrays {
@@ -211,6 +222,7 @@ impl Heap {
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
+            #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
             weak_maps: Vec::with_capacity(0),
             weak_refs: Vec::with_capacity(0),

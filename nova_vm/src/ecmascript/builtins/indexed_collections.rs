@@ -3,4 +3,5 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod array_objects;
+#[cfg(feature = "array-buffer")]
 pub(crate) mod typed_array_objects;
