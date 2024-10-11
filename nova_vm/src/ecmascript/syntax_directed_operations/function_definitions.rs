@@ -315,7 +315,7 @@ pub(crate) fn evaluate_async_function_body(
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
-    match Vm::execute(agent, &exe, Some(arguments_list.0)) {
+    match Vm::execute(agent, exe, Some(arguments_list.0)) {
         ExecutionResult::Return(result) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
