@@ -23,6 +23,44 @@ The following ground rules should be followed:
 
 Feel free to also assume Rust Code of Conduct.
 
+### Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+
+The initial commit of a PR branch and the PR title should follow Conventional
+Commits. Consider also using the same logic in branch names. The commonly used
+prefixes here are `fix`, `feat`, and `chore`. Other recommended ones like
+`build`, `perf`, and `refactor` are of course good as well.
+
+Scoping is also recommended, but is not currently clearly defined. Some examples
+are:
+
+1. `feat(ecmascript)`: This is an added feature to the spec-completeness of the
+   engine, eg. a new abstract operation, heap data object or such.
+1. `fix(heap)`: This fixes something in the heap implementation, eg. maybe the
+   heap garbage collection.
+1. `feat(vm)`: This adds to the interpreter.
+1. `chore(cli)`: This might bump a dependency in the `nova_cli` crate.
+
+### Use [Conventional Comments](https://conventionalcomments.org/)
+
+When reviewing PRs, use conventional comments to plainly describe your
+intention. Prefixing a comment with `issue:` means that you do not think the PR
+can be merged as-is and needs fixing. `needs (nonblocking):` means that you
+think there is a problem in the code, but it can (possibly should) be fixed as a
+followup or at a later date, and does not block merging. `nitpick:` is your
+personal hobby-horse, `question:` is pure curiosity or not understanding the
+code, etc.
+
+Also: Whenever possible, give `praise:`! Praising the code and hard work of
+others makes you feel good, and probably makes them feel good as well. Even if
+it's a minor thing, like someone drive-by fixing that typo that bugged you the
+other day, or cleaning up a weird construct into something a bit nicer, or
+whatever: Even if it's not directly related to the focal point of the PR, praise
+the work others do.
+
+By all this it goes to say: When someone gives you `praise:`, they mean it. When
+someone marks down an `issue:` they do not mean that your code is bad, they just
+mean that there's something there to improve.
+
 ### Align with the [ECMAScript specification](https://tc39.es/ecma262/)
 
 Nova's code and folder structure follows the ECMAScript specification as much as
@@ -101,45 +139,41 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 }
 ```
 
-After this, go step by step implementing the abstract operation.
+After this, go step by step implementing the abstract operation. Note that the
+specification text is still not the bible, and you are allowed to take certain
+liberties with it. Specifically, you may do any and all of the following with
+some conditions:
 
-### Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+1. Add fast-paths for common cases.
+2. Move steps around.
+3. Skip steps that are performed elsewhere or guaranteed to always do the same
+   thing.
 
-The initial commit of a PR branch and the PR title should follow Conventional
-Commits. Consider also using the same logic in branch names. The commonly used
-prefixes here are `fix`, `feat`, and `chore`. Other recommended ones like
-`build`, `perf`, and `refactor` are of course good as well.
+The condition for doing any of these is that the change must not be observable
+to a user. For example, if the specification states to initially set the values
+of a struct to all undefined, and then define them one at a time without calling
+any JavaScript (press the `u` key on the ECMAScript specification website to see
+where JavaScript may get called) then you may instead define the entire struct
+all-at-once and potentially avoid supporting undefined fields (`Option<T>`)
+entirely.
 
-Scoping is also recommended, but is not currently clearly defined. Some examples
-are:
+If the specification tells you to assert that a particular parameter is of a
+specification type `T` and Nova's implementation already guarantees that type
+through the function's type signature, you may ignore the assertion entirely.
+Consider adding a comment to explain that the type signature guarantees the
+assertion.
 
-1. `feat(ecmascript)`: This is an added feature to the spec-completeness of the
-   engine, eg. a new abstract operation, heap data object or such.
-1. `fix(heap)`: This fixes something in the heap implementation, eg. maybe the
-   heap garbage collection.
-1. `feat(vm)`: This adds to the interpreter.
-1. `chore(cli)`: This might bump a dependency in the `nova_cli` crate.
+If the specification tells you to first get the value of an immutable type
+(string, boolean, number, symbol), or to prepare a value's data for creation
+(such as creating a new String), and then performs checks to see if all
+parameters are correct (throwing errors if incorrect), then you may freely
+reorder the value getter and/or the data creation to happen after the checks.
 
-### Use [Conventional Comments](https://conventionalcomments.org/)
-
-When reviewing PRs, use conventional comments to plainly describe your
-intention. Prefixing a comment with `issue:` means that you do not think the PR
-can be merged as-is and needs fixing. `needs (nonblocking):` means that you
-think there is a problem in the code, but it can (possibly should) be fixed as a
-followup or at a later date, and does not block merging. `nitpick:` is your
-personal hobby-horse, `question:` is pure curiosity or not understanding the
-code, etc.
-
-Also: Whenever possible, give `praise:`! Praising the code and hard work of
-others makes you feel good, and probably makes them feel good as well. Even if
-it's a minor thing, like someone drive-by fixing that typo that bugged you the
-other day, or cleaning up a weird construct into something a bit nicer, or
-whatever: Even if it's not directly related to the focal point of the PR, praise
-the work others do.
-
-By all this it goes to say: When someone gives you `praise:`, they mean it. When
-someone marks down an `issue:` they do not mean that your code is bad, they just
-mean that there's something there to improve.
+If the specification tells you to first check one parameter value (and throws an
+error if incorrect), then conditionally performs some JavaScript function call,
+and then checks another parameter value and throws an error if incorrect then
+you are not allowed to reorder the second check to happen together with the
+first, as that would be an observable change.
 
 ### Tests in PRs
 
@@ -188,38 +222,18 @@ This is great for quick, simple things you want to test out in isolation.
 
 ### Performance considerations
 
-The engine is not at the point where performance would really be a big
-consideration. That being said, if you can show great performance or conversely
-show that performance hasn't gotten worse, then that's great! No need to worry
-about it all too much, though.
+The engine is not at the point where performance is a big consideration. That
+being said, we do not want to write slow-by-construction code. Heap data clones
+should be kept to a minimum where reasonable, and fast-paths for the most common
+cases are highly recommended in abstract operations.
+
+That being said, we do not have performance metrics at present. Therefore, it is
+also not a supremely important or reasonable thing to require code to be
+supremely optimal since we cannot prove it one way or the other.
 
 ## List of active development ideas
 
 Here are some good ideas on what you can contribute to.
-
-### Technical points
-
-The heap will need to be concurrently marked at some point. Additionally, we'll
-want to split some heap data structures into two or more parts; only the
-commonly used parts should be loaded into L1 cache during common engine
-operations.
-
-For this purpose we'll need our own `Vec`, `Vec2`, `Vec3` and possibly other
-vector types. The first order of business is to get the length and capacity to
-be stored as a `u32`. The second will be enabling the splitting of heap data
-structures; this sbould work in a way similar to `ParallelVec` so that the size
-of `Vec2` and `Vec3` stays equal to `Vec`.
-
-Then finally, at some point we'll also want to make the whole heap thread-safe.
-Heap vectors (`Vec`, `Vec2`, ...) will become RCU-based, so when they expand (on
-push) they will return a `None` or `Some(droppable_vec)` which can either be
-dropped immediately (if concurrent heap marking is not currently ongoing) or
-pushed into a "graveyard" `UnsafeCell<Vec<(*mut (), fn(*mut ()))>>` that gets
-dropped at the end of a mark-and-sweep iteration.
-
-These and other technical work items can be found from the GitHub issues with
-the
-[`technical` label](https://github.com/trynova/nova/issues?q=is%3Aopen+is%3Aissue+label%3Atechnical+).
 
 ### Internal methods of exotic objects
 
@@ -257,6 +271,146 @@ parts of them, is a massive and important effort. You can find a mostly
 exhaustive list of these (by constructor or prototype, or combined)
 [in the GitHub issue tracker](https://github.com/trynova/nova/issues?q=is%3Aopen+is%3Aissue+label%3A%22builtin+function%22).
 
+### Heap evolution
+
+The heap needs much more work before it can be considered complete. Technical
+work items like the heap evolution works can be found from the GitHub issues
+with the
+[`technical` label](https://github.com/trynova/nova/issues?q=is%3Aopen+is%3Aissue+label%3Atechnical+).
+
+#### Parallel, single-mutator-multiple-reader vectors
+
+The heap will need to be concurrently marked at some point. Additionally, we'll
+want to split some heap data structures into two or more parts; only the
+commonly used parts should be loaded into L1 cache during common engine
+operations.
+
+For this purpose we'll need our own `Vec`, `Vec2`, `Vec3` and possibly other
+vector types. The first order of business is to get the length and capacity to
+be stored as a `u32`. The second will be enabling the splitting of heap data
+structures; this sbould work in a way similar to `ParallelVec` so that the size
+of `Vec2` and `Vec3` stays equal to `Vec`.
+
+Then finally, at some point we'll also want to make the whole heap thread-safe.
+Heap vectors (`Vec`, `Vec2`, ...) will become RCU-based, so when they expand (on
+push) they will return a `None` or `Some(droppable_vec)` which can either be
+dropped immediately (if concurrent heap marking is not currently ongoing) or
+pushed into a "graveyard" `UnsafeCell<Vec<(*mut (), fn(*mut ()))>>` that gets
+dropped at the end of a mark-and-sweep iteration.
+
+#### Interleaved garbage collection
+
+Currently Nova's garbage collection can only happen when no JavaScript is
+running. This means that for instance a dumb live loop like this will eventually
+exhaust all memory:
+
+```ts
+while (true) {
+  ({});
+}
+```
+
+We want to interleave garbage collection together with running JavaScript, but
+this is not a trivial piece of work. Right now calls in the engine look like
+this:
+
+```rs
+fn call(agent: &mut Agent, value: Value) -> Value {
+    // ...
+}
+```
+
+For interleaved work, we'd want to ensure that either:
+
+1. `Value` is safe to keep on stack. This means changing these to be
+   `Local<'a, Value>`s that have an extra level of indirection between the stack
+   and the heap, and the garbage collection can access that extra indirection.
+2. `Value` cannot be used after a potential garbage collection point. This would
+   mean adding a lifetime to `Value` that is bound to the `&'a mut` lifetime.
+   The Rust borrow checker will stand in opposition to us here.
+
+Some additional thoughts on the two approaches is found below.
+
+##### `Local<'a, Value>`
+
+Any problem can always be fixed by adding an extra level of indirection. In this
+case the problem of "where did you put that Value, is it still needed, and can I
+mutate it during garbage collection?" can be solved by adding a level of
+indirection. In V8 this would be the `HandleScope`. The garbage collector would
+be given access to the `HandleScope`'s memory so that it can trace items "on the
+stack" and fix them to point to the proper items after garbage collection.
+
+This would be the easiest solution, as this could optionally even be made to
+work in terms of actual pointers to `Value`s. That would be a pretty poor
+solution, honestly, but it would work. One of the biggest downsides with this
+approach would be that we'd need not only `Local<'a, Value>` but also
+`Local<'a, Object>` and `Local<'a, Array>` and so on and so forth. This is
+effectively a second layer of `Value` definitions on top of the first.
+
+If the `Local<'a, Value>` is not pointer based, then another downside is that we
+cannot drop the `Local` values automatically once they're no longer needed using
+`impl Drop` because we'd need access to the `HandleScope` inside the `Drop`.
+Something called linear types could fix this issue.
+
+##### `Value` lifetime bound to garbage collection safepoints
+
+Any problem can always be fixed by adding an extra lifetime. In this case the
+problem of "you're not allowed to keep that Value on stack, I would need to
+mutate it during garbage collection" can be solved by using a lifetime to make
+sure that Values are never on the stack when garbage collection might happen.
+This isn't too hard, really, it just means calls change to be:
+
+```rs
+fn call<'a>(agent: &'a mut Agent, value: Value<'a>) -> Value<'a> {
+    // ...
+}
+```
+
+This works perfectly well, except for the fact that it cannot be called. Why?
+Because the `Value<'a>` borrows the exclusively owned `&'a mut Agent` lifetime;
+this is called a reborrow and it's fine within a function but it cannot be done
+intra-procedurally. What we could do is this:
+
+```rs
+fn call(agent: &mut Agent, value: Register<Value<'_>>) -> Register<Value<'_>> {
+    // SAFETY: We've not called any methods that take `&mut Agent` before this.
+    // `Value` is thus still a valid reference.
+    let value = unsafe { value.bind(agent) };
+    // ...
+    result.into_register()
+}
+```
+
+Now we can at least call the function, and lifetimes would protect us from
+keeping `Value<'a>` on the stack unsafely. They would _not_ help us with making
+sure that `Register<Value<'a>>` is used properly and even if it did, the whole
+`Register<Value<'a>>` system is fairly painful to use as each function call
+would need to start with this `unsafe {}` song and dance.
+
+But what about when we call some mutable function and need to keep a reference
+to a stack value past that call? This is how that would look:
+
+```rs
+fn call(agent: &mut Agent, value: Register<Value<'_>>) -> JsResult<Register<Value<'_>>> {
+    let value = unsafe { value.bind(agent) };
+    let kept_value: Global<Value<'static>> = value.make_global(value);
+    other_call(agent, value.into_register())?;
+    let value = kept_value.take(agent);
+    // ...
+}
+```
+
+We'd need to make the Value temporarily a Global (which introduces an extra
+level of indirection), and then "unwrap" that Global after the call. Globals do
+currently exist in Nova, but they are "leaky" in that dropping them on the stack
+does not clear their memory on the heap, and is effectively a heap memory leak.
+In this case we can see that if `other_call` returns early with an error, then
+we accidentally leak `kept_value`'s data. This is again not good.
+
+So we'd need a `Local<'a, Value<'_>>` type of indirection in this case as well.
+Whether or not the whole `Register<Value<'_>>` system makes any sense with that
+added in is then very much up for debate.
+
 ### Other things
 
 This list serves as a "this is where you were" for returning developers as well
@@ -279,10 +433,22 @@ Some more long-term prospects and/or wild ideas:
     `Heap<'old>` to `Heap<'new>` and the borrow checker would then help to make
     sure that any and all `T<'new>` structs within the heap are properly
     transformed to `T<'new>`.
-- Add a `Reference` variant to `Value` (or create a `ValueOrReference` enum that
-  is the true root enum)
-  - ReferenceRecords would (maybe?) move to Heap directly. This might make some
-    syntax-directed operations simpler to implement.
+- Add a `Local<'a, Value>` enum that acts as our GC-safe, indirected Value
+  storage. See above for more discussion on this under "Heap evolution".
+  - A plain `Value` won't be safe to keep on the stack when calling into the
+    engine if the engine is free to perform garbage collection at (effectively)
+    any (safe)point within the engine code. The `Value`'s internal number might
+    need to be readjusted due to GC, which then breaks the `Value`'s identity in
+    a sense.
+  - A `Local<'a, Value>`s would not point directly to the heap but would instead
+    point to an intermediate storage (this is also exactly how V8 does it) where
+    identities never change. A nice benefit here is that if we make `Local`
+    itself an equivalent enum to `Value`, just with a different index type
+    inside, then we can have the intermediate storage store only heap value
+    references with 5 bytes each:
+    `struct Storage<const N: usize> { types: [u8; N]; values: [u32; N]; }`. We
+    cannot drop the types array as it is needed for marking and sweeping the
+    storage.
 - Add `DISCRIMINANT + 0x80` variants that work as thrown values of type
   `DISCRIMINANT`
   - As a result, eg. a thrown String would be just a String with the top bit set
