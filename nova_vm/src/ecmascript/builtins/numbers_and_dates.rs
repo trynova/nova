@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub mod bigint_objects;
+#[cfg(feature = "date")]
 pub mod date_objects;
 #[cfg(feature = "math")]
 pub mod math_object;

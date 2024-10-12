@@ -2167,14 +2167,11 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         // 12. NOTE: This step is replaced in section B.3.6.3.
         Value::Object(_)  |
         Value::Array(_)  |
-        Value::ArrayBuffer(_)  |
-        Value::Date(_)  |
         Value::Error(_)  |
         // 14. Return "object".
         Value::PrimitiveObject(_) |
         Value::RegExp(_) |
         Value::Arguments(_) |
-        Value::DataView(_) |
         Value::FinalizationRegistry(_) |
         Value::Map(_) |
         Value::Promise(_) |
@@ -2183,6 +2180,17 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::WeakMap(_) |
         Value::WeakRef(_) |
         Value::WeakSet(_) |
+        Value::AsyncFromSyncIterator |
+        Value::AsyncIterator |
+        Value::Iterator |
+        Value::ArrayIterator(_) |
+        Value::SetIterator(_) |
+        Value::MapIterator(_) |
+        Value::Generator(_) |
+        Value::Module(_) |
+        Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "array-buffer")]
+        Value::ArrayBuffer(_) |
         Value::Int8Array(_) |
         Value::Uint8Array(_) |
         Value::Uint8ClampedArray(_) |
@@ -2194,15 +2202,9 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::BigUint64Array(_) |
         Value::Float32Array(_) |
         Value::Float64Array(_) |
-        Value::AsyncFromSyncIterator |
-        Value::AsyncIterator |
-        Value::Iterator |
-        Value::ArrayIterator(_) |
-        Value::SetIterator(_) |
-        Value::MapIterator(_) |
-        Value::Generator(_) |
-        Value::Module(_) |
-        Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
+        Value::DataView(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "date")]
+        Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".
         Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_) |
         Value::BuiltinGeneratorFunction |

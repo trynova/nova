@@ -2,11 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::generator_objects::GeneratorHeapData,
-        data_view::data::DataViewHeapData,
-        date::data::DateHeapData,
         embedder_object::data::EmbedderObjectHeapData,
         error::ErrorHeapData,
         finalization_registry::data::FinalizationRegistryHeapData,
@@ -22,11 +26,10 @@ use crate::ecmascript::{
         regexp::RegExpHeapData,
         set::data::SetHeapData,
         shared_array_buffer::data::SharedArrayBufferHeapData,
-        typed_array::data::TypedArrayHeapData,
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
-        ArrayBufferHeapData, ArrayHeapData,
+        ArrayHeapData,
     },
     types::{
         BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
@@ -34,7 +37,6 @@ use crate::ecmascript::{
         Value,
     },
 };
-
 use core::fmt::Debug;
 use std::{
     hash::{Hash, Hasher},
@@ -157,6 +159,7 @@ impl<T> Default for BaseIndex<T> {
     }
 }
 
+#[cfg(feature = "array-buffer")]
 pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
 pub type ArrayIndex = BaseIndex<ArrayHeapData>;
 pub type ArrayIteratorIndex = BaseIndex<ArrayIteratorHeapData>;
@@ -164,7 +167,9 @@ pub type BigIntIndex = BaseIndex<BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
 pub type BuiltinConstructorIndex = BaseIndex<BuiltinConstructorHeapData>;
+#[cfg(feature = "array-buffer")]
 pub type DataViewIndex = BaseIndex<DataViewHeapData>;
+#[cfg(feature = "date")]
 pub type DateIndex = BaseIndex<DateHeapData>;
 pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
 pub type ElementIndex = BaseIndex<[Option<Value>]>;
@@ -185,6 +190,7 @@ pub type SetIteratorIndex = BaseIndex<SetIteratorHeapData>;
 pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
 pub type StringIndex = BaseIndex<StringHeapData>;
 pub type SymbolIndex = BaseIndex<SymbolHeapData>;
+#[cfg(feature = "array-buffer")]
 pub type TypedArrayIndex = BaseIndex<TypedArrayHeapData>;
 pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
 pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
