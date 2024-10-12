@@ -2,6 +2,36 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use super::RealmIdentifier;
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
+    date_constructor::DateConstructor, date_prototype::DatePrototype,
+};
+#[cfg(feature = "math")]
+use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
+#[cfg(feature = "json")]
+use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
+    shared_array_buffer_constructor::SharedArrayBufferConstructor,
+    shared_array_buffer_prototype::SharedArrayBufferPrototype,
+};
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{
+    indexed_collections::typed_array_objects::{
+        typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
+        typed_array_intrinsic_object::{TypedArrayIntrinsicObject, TypedArrayPrototype},
+    },
+    structured_data::{
+        array_buffer_objects::{
+            array_buffer_constructor::ArrayBufferConstructor,
+            array_buffer_prototype::ArrayBufferPrototype,
+        },
+        data_view_objects::{
+            data_view_constructor::DataViewConstructor, data_view_prototype::DataViewPrototype,
+        },
+    },
+};
 use crate::{
     ecmascript::{
         builtins::{
@@ -64,13 +94,7 @@ use crate::{
             },
             primitive_objects::PrimitiveObject,
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
-            structured_data::{
-                atomics_object::AtomicsObject,
-                shared_array_buffer_objects::{
-                    shared_array_buffer_constructor::SharedArrayBufferConstructor,
-                    shared_array_buffer_prototype::SharedArrayBufferPrototype,
-                },
-            },
+            structured_data::atomics_object::AtomicsObject,
             text_processing::{
                 regexp_objects::{
                     regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
@@ -121,33 +145,6 @@ use crate::{
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
-    },
-};
-
-use super::RealmIdentifier;
-
-#[cfg(feature = "date")]
-use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
-    date_constructor::DateConstructor, date_prototype::DatePrototype,
-};
-#[cfg(feature = "math")]
-use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
-#[cfg(feature = "json")]
-use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    indexed_collections::typed_array_objects::{
-        typed_array_constructors::{TypedArrayConstructors, TypedArrayPrototypes},
-        typed_array_intrinsic_object::{TypedArrayIntrinsicObject, TypedArrayPrototype},
-    },
-    structured_data::{
-        array_buffer_objects::{
-            array_buffer_constructor::ArrayBufferConstructor,
-            array_buffer_prototype::ArrayBufferPrototype,
-        },
-        data_view_objects::{
-            data_view_constructor::DataViewConstructor, data_view_prototype::DataViewPrototype,
-        },
     },
 };
 
@@ -208,6 +205,7 @@ pub enum ProtoIntrinsics {
     RegExp,
     Set,
     SetIterator,
+    #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer,
     String,
     Symbol,
@@ -314,7 +312,9 @@ impl Intrinsics {
         ArrayBufferPrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "array-buffer")]
         ArrayBufferConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "shared-array-buffer")]
         SharedArrayBufferPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "shared-array-buffer")]
         SharedArrayBufferConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "array-buffer")]
         DataViewPrototype::create_intrinsic(agent, realm);
@@ -402,6 +402,7 @@ impl Intrinsics {
             ProtoIntrinsics::RegExp => self.reg_exp_prototype().into(),
             ProtoIntrinsics::Set => self.set_prototype().into(),
             ProtoIntrinsics::SetIterator => self.set_iterator_prototype().into(),
+            #[cfg(feature = "shared-array-buffer")]
             ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint16Array => self.uint16_array_prototype().into(),
@@ -1258,6 +1259,7 @@ impl Intrinsics {
     }
 
     /// %SharedArrayBuffer.prototype%
+    #[cfg(feature = "shared-array-buffer")]
     pub(crate) fn shared_array_buffer_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::SharedArrayBufferPrototype
             .get_object_index(self.object_index_base)
@@ -1265,12 +1267,14 @@ impl Intrinsics {
     }
 
     /// %SharedArrayBuffer%
+    #[cfg(feature = "shared-array-buffer")]
     pub(crate) fn shared_array_buffer(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::SharedArrayBuffer
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "shared-array-buffer")]
     pub(crate) fn shared_array_buffer_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::SharedArrayBuffer.get_object_index(self.object_index_base)
     }
@@ -1687,7 +1691,9 @@ impl HeapMarkAndSweep for Intrinsics {
         self.set_prototype().mark_values(queues);
         self.set().mark_values(queues);
         self.set_iterator_prototype().mark_values(queues);
+        #[cfg(feature = "shared-array-buffer")]
         self.shared_array_buffer_prototype().mark_values(queues);
+        #[cfg(feature = "shared-array-buffer")]
         self.shared_array_buffer().mark_values(queues);
         self.string_prototype_trim_end().mark_values(queues);
         self.string_prototype_trim_start().mark_values(queues);

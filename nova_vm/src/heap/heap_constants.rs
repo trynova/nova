@@ -70,6 +70,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     // Structured data
     #[cfg(feature = "array-buffer")]
     ArrayBufferPrototype,
+    #[cfg(feature = "shared-array-buffer")]
     SharedArrayBufferPrototype,
     #[cfg(feature = "array-buffer")]
     DataViewPrototype,
@@ -191,6 +192,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     // Structured data
     #[cfg(feature = "array-buffer")]
     ArrayBuffer,
+    #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer,
     #[cfg(feature = "array-buffer")]
     DataView,

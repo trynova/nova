@@ -2176,7 +2176,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Map(_) |
         Value::Promise(_) |
         Value::Set(_) |
-        Value::SharedArrayBuffer(_) |
         Value::WeakMap(_) |
         Value::WeakRef(_) |
         Value::WeakSet(_) |
@@ -2189,6 +2188,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "shared-array-buffer")]
+        Value::SharedArrayBuffer(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "array-buffer")]
         Value::ArrayBuffer(_) |
         Value::Int8Array(_) |

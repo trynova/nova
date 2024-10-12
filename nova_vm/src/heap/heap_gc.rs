@@ -19,6 +19,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::{
@@ -47,7 +49,6 @@ use crate::ecmascript::{
         proxy::Proxy,
         regexp::RegExp,
         set::Set,
-        shared_array_buffer::SharedArrayBuffer,
         weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
@@ -143,6 +144,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             scripts,
             sets,
             set_iterators,
+            #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
             strings,
             symbols,
@@ -654,20 +656,23 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 set_iterators.get(index).mark_values(&mut queues);
             }
         });
-        let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
-            queues.shared_array_buffers.drain(..).collect();
-        shared_array_buffer_marks.sort();
-        shared_array_buffer_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.shared_array_buffers.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "shared-array-buffer")]
+        {
+            let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
+                queues.shared_array_buffers.drain(..).collect();
+            shared_array_buffer_marks.sort();
+            shared_array_buffer_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.shared_array_buffers.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    shared_array_buffers.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                shared_array_buffers.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut string_marks: Box<[HeapString]> = queues.strings.drain(..).collect();
         string_marks.sort();
         string_marks.iter().for_each(|&idx| {
@@ -968,6 +973,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         scripts,
         sets,
         set_iterators,
+        #[cfg(feature = "shared-array-buffer")]
         shared_array_buffers,
         strings,
         symbols,
@@ -1302,6 +1308,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(set_iterators, &compactions, &bits.set_iterators);
             });
         }
+        #[cfg(feature = "shared-array-buffer")]
         if !shared_array_buffers.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(

@@ -26,6 +26,8 @@ use crate::{
 
 #[cfg(feature = "date")]
 use super::date::data::DateHeapData;
+#[cfg(feature = "shared-array-buffer")]
+use super::shared_array_buffer::data::SharedArrayBufferHeapData;
 use super::{
     control_abstraction_objects::generator_objects::GeneratorHeapData,
     error::ErrorHeapData,
@@ -40,7 +42,6 @@ use super::{
     promise::data::PromiseHeapData,
     regexp::RegExpHeapData,
     set::data::SetHeapData,
-    shared_array_buffer::data::SharedArrayBufferHeapData,
     weak_map::data::WeakMapHeapData,
     weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
@@ -950,6 +951,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(SetIteratorHeapData::default())
             .into_object(),
+        #[cfg(feature = "shared-array-buffer")]
         ProtoIntrinsics::SharedArrayBuffer => agent
             .heap
             .create(SharedArrayBufferHeapData::default())
@@ -1093,6 +1095,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
             ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
             ProtoIntrinsics::SetIterator => None,
+            #[cfg(feature = "shared-array-buffer")]
             ProtoIntrinsics::SharedArrayBuffer => {
                 Some(intrinsics.shared_array_buffer().into_function())
             }

@@ -817,17 +817,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.28 SharedArrayBuffer ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SharedArrayBuffer);
-        let value = agent.get_realm(realm_id).intrinsics().shared_array_buffer();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "shared-array-buffer")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SharedArrayBuffer);
+            let value = agent.get_realm(realm_id).intrinsics().shared_array_buffer();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.3.29 String ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.String);
         let value = agent.get_realm(realm_id).intrinsics().string();

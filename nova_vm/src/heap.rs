@@ -54,7 +54,6 @@ use crate::ecmascript::{
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::data::SetHeapData,
-        shared_array_buffer::data::SharedArrayBufferHeapData,
         weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
@@ -68,6 +67,8 @@ use crate::ecmascript::{
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
@@ -125,6 +126,7 @@ pub struct Heap {
     pub regexps: Vec<Option<RegExpHeapData>>,
     pub sets: Vec<Option<SetHeapData>>,
     pub set_iterators: Vec<Option<SetIteratorHeapData>>,
+    #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
     pub symbols: Vec<Option<SymbolHeapData>>,
     #[cfg(feature = "array-buffer")]
@@ -219,6 +221,7 @@ impl Heap {
             scripts: Vec::with_capacity(1),
             sets: Vec::with_capacity(128),
             set_iterators: Vec::with_capacity(128),
+            #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
