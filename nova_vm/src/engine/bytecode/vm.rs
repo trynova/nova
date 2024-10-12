@@ -64,8 +64,14 @@ unsafe impl Sync for EmptyParametersList {}
 pub(crate) enum ExecutionResult {
     Return(Value),
     Throw(JsError),
-    Await { vm: Vm, awaited_value: Value },
-    Yield { vm: Vm, yielded_value: Value },
+    Await {
+        vm: SuspendedVm,
+        awaited_value: Value,
+    },
+    Yield {
+        vm: SuspendedVm,
+        yielded_value: Value,
+    },
 }
 impl ExecutionResult {
     pub(crate) fn into_js_result(self) -> JsResult<Value> {
@@ -113,6 +119,55 @@ pub(crate) struct Vm {
     reference: Option<Reference>,
 }
 
+#[derive(Debug)]
+pub(crate) struct SuspendedVm {
+    ip: usize,
+    /// Note: Stack is non-empty only if the code awaits inside a call
+    /// expression. This is reasonably rare that we can expect the stack to
+    /// usually be empty. In this case this Box is an empty dangling pointer
+    /// and no heap data clone is required.
+    stack: Box<[Value]>,
+    /// Note: Reference stack is non-empty only if the code awaits inside a
+    /// call expression. This means that usually no heap data clone is
+    /// required.
+    reference_stack: Box<[Reference]>,
+    /// Note: Iterator stack is non-empty only if the code awaits inside a
+    /// for-in or for-of loop. This means that often no heap data clone is
+    /// required.
+    iterator_stack: Box<[VmIterator]>,
+    /// Note: Exception jump stack is non-empty only if the code awaits inside
+    /// a try block. This means that often no heap data clone is required.
+    exception_jump_target_stack: Box<[ExceptionJumpTarget]>,
+}
+
+impl SuspendedVm {
+    pub(crate) fn resume(
+        self,
+        agent: &mut Agent,
+        executable: &Executable,
+        value: Value,
+    ) -> ExecutionResult {
+        let vm = Vm::from_suspended(self);
+        vm.resume(agent, executable, value)
+    }
+
+    pub(crate) fn resume_throw(
+        self,
+        agent: &mut Agent,
+        executable: &Executable,
+        err: Value,
+    ) -> ExecutionResult {
+        // Optimisation: Avoid unsuspending the Vm if we're just going to throw
+        // out of it immediately.
+        if self.exception_jump_target_stack.is_empty() {
+            let err = JsError::new(err);
+            return ExecutionResult::Throw(err);
+        }
+        let vm = Vm::from_suspended(self);
+        vm.resume_throw(agent, executable, err)
+    }
+}
+
 impl Vm {
     fn new() -> Self {
         Self {
@@ -121,6 +176,29 @@ impl Vm {
             reference_stack: Vec::new(),
             iterator_stack: Vec::new(),
             exception_jump_target_stack: Vec::new(),
+            result: None,
+            exception: None,
+            reference: None,
+        }
+    }
+
+    fn suspend(self) -> SuspendedVm {
+        SuspendedVm {
+            ip: self.ip,
+            stack: self.stack.into_boxed_slice(),
+            reference_stack: self.reference_stack.into_boxed_slice(),
+            iterator_stack: self.iterator_stack.into_boxed_slice(),
+            exception_jump_target_stack: self.exception_jump_target_stack.into_boxed_slice(),
+        }
+    }
+
+    fn from_suspended(suspended: SuspendedVm) -> Self {
+        Self {
+            ip: suspended.ip,
+            stack: suspended.stack.into_vec(),
+            reference_stack: suspended.reference_stack.into_vec(),
+            iterator_stack: suspended.iterator_stack.into_vec(),
+            exception_jump_target_stack: suspended.exception_jump_target_stack.into_vec(),
             result: None,
             exception: None,
             reference: None,
@@ -183,7 +261,7 @@ impl Vm {
         vm.inner_execute(agent, executable)
     }
 
-    pub(crate) fn resume(
+    pub fn resume(
         mut self,
         agent: &mut Agent,
         executable: &Executable,
@@ -193,7 +271,7 @@ impl Vm {
         self.inner_execute(agent, executable)
     }
 
-    pub(crate) fn resume_throw(
+    pub fn resume_throw(
         mut self,
         agent: &mut Agent,
         executable: &Executable,
@@ -217,14 +295,14 @@ impl Vm {
                 Ok(ContinuationKind::Yield) => {
                     let yielded_value = self.result.take().unwrap();
                     return ExecutionResult::Yield {
-                        vm: self,
+                        vm: self.suspend(),
                         yielded_value,
                     };
                 }
                 Ok(ContinuationKind::Await) => {
                     let awaited_value = self.result.take().unwrap();
                     return ExecutionResult::Await {
-                        vm: self,
+                        vm: self.suspend(),
                         awaited_value,
                     };
                 }
@@ -2207,30 +2285,18 @@ impl HeapMarkAndSweep for ExceptionJumpTarget {
     }
 }
 
-impl HeapMarkAndSweep for Vm {
+impl HeapMarkAndSweep for SuspendedVm {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.stack.as_slice().mark_values(queues);
-        self.reference_stack.as_slice().mark_values(queues);
-        self.iterator_stack.as_slice().mark_values(queues);
-        self.exception_jump_target_stack
-            .as_slice()
-            .mark_values(queues);
-        self.result.mark_values(queues);
-        self.exception.mark_values(queues);
-        self.reference.mark_values(queues);
+        self.stack.mark_values(queues);
+        self.reference_stack.mark_values(queues);
+        self.iterator_stack.mark_values(queues);
+        self.exception_jump_target_stack.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.stack.as_mut_slice().sweep_values(compactions);
-        self.reference_stack
-            .as_mut_slice()
-            .sweep_values(compactions);
-        self.iterator_stack.as_mut_slice().sweep_values(compactions);
-        self.exception_jump_target_stack
-            .as_mut_slice()
-            .sweep_values(compactions);
-        self.result.sweep_values(compactions);
-        self.exception.sweep_values(compactions);
-        self.reference.sweep_values(compactions);
+        self.stack.sweep_values(compactions);
+        self.reference_stack.sweep_values(compactions);
+        self.iterator_stack.sweep_values(compactions);
+        self.exception_jump_target_stack.sweep_values(compactions);
     }
 }

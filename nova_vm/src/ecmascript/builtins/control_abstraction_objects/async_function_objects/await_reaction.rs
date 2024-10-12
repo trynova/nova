@@ -18,11 +18,12 @@ use crate::{
                 promise_prototype::inner_promise_then,
             },
             promise::Promise,
+            ECMAScriptFunction,
         },
         execution::{Agent, ExecutionContext},
         types::Value,
     },
-    engine::{Executable, ExecutionResult, Vm},
+    engine::{ExecutionResult, SuspendedVm},
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -66,10 +67,12 @@ impl AwaitReactionIdentifier {
         // 3. d. Resume the suspended evaluation of asyncContext using NormalCompletion(v) as the result of the operation that suspended it.
         // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
         let vm = agent[self].vm.take().unwrap();
-        let executable = agent[self].executable.take().unwrap();
+        let async_function = agent[self].async_function.unwrap();
+        // SAFETY: We keep the async function alive.
+        let executable = unsafe { agent[async_function].compiled_bytecode.unwrap().as_ref() };
         let execution_result = match reaction_type {
-            PromiseReactionType::Fulfill => vm.resume(agent, &executable, value),
-            PromiseReactionType::Reject => vm.resume_throw(agent, &executable, value),
+            PromiseReactionType::Fulfill => vm.resume(agent, executable, value),
+            PromiseReactionType::Reject => vm.resume_throw(agent, executable, value),
         };
 
         match execution_result {
@@ -97,7 +100,6 @@ impl AwaitReactionIdentifier {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 8. Remove asyncContext from the execution context stack and restore the execution context that is at the top of the execution context stack as the running execution context.
                 agent[self].vm = Some(vm);
-                agent[self].executable = Some(executable);
                 agent[self].execution_context = Some(agent.execution_context_stack.pop().unwrap());
 
                 // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
@@ -162,8 +164,8 @@ impl HeapMarkAndSweep for AwaitReactionIdentifier {
 
 #[derive(Debug)]
 pub(crate) struct AwaitReaction {
-    pub(crate) vm: Option<Vm>,
-    pub(crate) executable: Option<Executable>,
+    pub(crate) vm: Option<SuspendedVm>,
+    pub(crate) async_function: Option<ECMAScriptFunction>,
     pub(crate) execution_context: Option<ExecutionContext>,
     pub(crate) return_promise_capability: PromiseCapability,
 }
@@ -178,13 +180,13 @@ impl CreateHeapData<AwaitReaction, AwaitReactionIdentifier> for Heap {
 impl HeapMarkAndSweep for AwaitReaction {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.vm.mark_values(queues);
-        self.executable.mark_values(queues);
+        self.async_function.mark_values(queues);
         self.return_promise_capability.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.vm.sweep_values(compactions);
-        self.executable.sweep_values(compactions);
+        self.async_function.sweep_values(compactions);
         self.return_promise_capability.sweep_values(compactions);
     }
 }
