@@ -1514,7 +1514,6 @@ enum TrimWhere {
     StartAndEnd,
 }
 
-#[derive(Debug)]
 enum NormalizeForm {
     NFC,
     NFD,
