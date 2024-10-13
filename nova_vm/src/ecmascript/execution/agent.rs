@@ -22,7 +22,7 @@ use crate::{
     heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable},
     Heap,
 };
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -259,6 +259,11 @@ pub struct Agent {
     pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     pub(crate) execution_context_stack: Vec<ExecutionContext>,
+    /// Temporary storage for on-stack values.
+    ///
+    /// TODO: With Realm-specific heaps we'll need a side-table to define which
+    /// Realm a particular stack value points to.
+    pub(crate) stack_values: RefCell<Vec<Value>>,
 }
 
 impl Agent {
@@ -271,6 +276,7 @@ impl Agent {
             global_symbol_registry: AHashMap::default(),
             host_hooks,
             execution_context_stack: Vec::new(),
+            stack_values: RefCell::new(Vec::with_capacity(64)),
         }
     }
 
