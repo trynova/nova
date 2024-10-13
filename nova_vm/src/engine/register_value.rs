@@ -55,6 +55,7 @@ impl<T: IntoValue> Register<T> {
     ///
     /// The following code is **invalid**: Do not do this.
     ///
+    /// ```rs
     /// fn example(
     ///     agent: &mut Agent,
     ///     this: Register<Value>,
