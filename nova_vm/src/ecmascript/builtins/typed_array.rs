@@ -124,6 +124,27 @@ impl From<TypedArray> for Object {
     }
 }
 
+impl TryFrom<Value> for TypedArray {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::Int8Array(base_index) => Ok(TypedArray::Int8Array(base_index)),
+            Value::Uint8Array(base_index) => Ok(TypedArray::Uint8Array(base_index)),
+            Value::Uint8ClampedArray(base_index) => Ok(TypedArray::Uint8ClampedArray(base_index)),
+            Value::Int16Array(base_index) => Ok(TypedArray::Int16Array(base_index)),
+            Value::Uint16Array(base_index) => Ok(TypedArray::Uint16Array(base_index)),
+            Value::Int32Array(base_index) => Ok(TypedArray::Int32Array(base_index)),
+            Value::Uint32Array(base_index) => Ok(TypedArray::Uint32Array(base_index)),
+            Value::BigInt64Array(base_index) => Ok(TypedArray::BigInt64Array(base_index)),
+            Value::BigUint64Array(base_index) => Ok(TypedArray::BigUint64Array(base_index)),
+            Value::Float32Array(base_index) => Ok(TypedArray::Float32Array(base_index)),
+            Value::Float64Array(base_index) => Ok(TypedArray::Float64Array(base_index)),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Index<TypedArray> for Agent {
     type Output = TypedArrayHeapData;
 
