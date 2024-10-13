@@ -1,0 +1,6 @@
+[package]
+name = "nova_vec"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
