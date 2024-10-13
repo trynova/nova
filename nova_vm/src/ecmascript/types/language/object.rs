@@ -15,6 +15,8 @@ use std::hash::Hash;
 use super::value::DATE_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use super::value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
+#[cfg(feature = "weak-map")]
+use super::value::WEAK_MAP_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
 use super::value::{
     ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
@@ -35,16 +37,17 @@ use super::{
         FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
         MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-        REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, WEAK_MAP_DISCRIMINANT,
-        WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
+        REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, WEAK_REF_DISCRIMINANT,
+        WEAK_SET_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
-
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "weak-map")]
+use crate::ecmascript::builtins::weak_map::WeakMap;
 #[cfg(feature = "array-buffer")]
 use crate::{
     ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
@@ -73,7 +76,6 @@ use crate::{
             proxy::Proxy,
             regexp::RegExp,
             set::Set,
-            weak_map::WeakMap,
             weak_ref::WeakRef,
             weak_set::WeakSet,
             ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
@@ -129,6 +131,7 @@ pub enum Object {
     Set(Set) = SET_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    #[cfg(feature = "weak-map")]
     WeakMap(WeakMap) = WEAK_MAP_DISCRIMINANT,
     WeakRef(WeakRef) = WEAK_REF_DISCRIMINANT,
     WeakSet(WeakSet) = WEAK_SET_DISCRIMINANT,
@@ -200,6 +203,7 @@ impl IntoValue for Object {
             Object::Set(data) => Value::Set(data),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => Value::SharedArrayBuffer(data),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => Value::WeakMap(data),
             Object::WeakRef(data) => Value::WeakRef(data),
             Object::WeakSet(data) => Value::WeakSet(data),
@@ -391,6 +395,7 @@ impl From<Object> for Value {
             Object::Set(data) => Value::Set(data),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => Value::SharedArrayBuffer(data),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => Value::WeakMap(data),
             Object::WeakRef(data) => Value::WeakRef(data),
             Object::WeakSet(data) => Value::WeakSet(data),
@@ -473,6 +478,7 @@ impl TryFrom<Value> for Object {
             Value::Set(data) => Ok(Object::Set(data)),
             #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => Ok(Object::SharedArrayBuffer(data)),
+            #[cfg(feature = "weak-map")]
             Value::WeakMap(data) => Ok(Object::WeakMap(data)),
             Value::WeakRef(data) => Ok(Object::WeakRef(data)),
             Value::WeakSet(data) => Ok(Object::WeakSet(data)),
@@ -552,6 +558,7 @@ impl Hash for Object {
             Object::Set(data) => data.get_index().hash(state),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.get_index().hash(state),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.get_index().hash(state),
             Object::WeakRef(data) => data.get_index().hash(state),
             Object::WeakSet(data) => data.get_index().hash(state),
@@ -632,6 +639,7 @@ impl InternalSlots for Object {
             Object::Set(data) => data.internal_extensible(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_extensible(agent),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_extensible(agent),
             Object::WeakRef(data) => data.internal_extensible(agent),
             Object::WeakSet(data) => data.internal_extensible(agent),
@@ -706,6 +714,7 @@ impl InternalSlots for Object {
             Object::Set(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_set_extensible(agent, value),
             Object::WeakRef(data) => data.internal_set_extensible(agent, value),
             Object::WeakSet(data) => data.internal_set_extensible(agent, value),
@@ -794,6 +803,7 @@ impl InternalSlots for Object {
             Object::Set(data) => data.internal_prototype(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_prototype(agent),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_prototype(agent),
             Object::WeakRef(data) => data.internal_prototype(agent),
             Object::WeakSet(data) => data.internal_prototype(agent),
@@ -870,6 +880,7 @@ impl InternalSlots for Object {
             Object::Set(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_set_prototype(agent, prototype),
             Object::WeakRef(data) => data.internal_set_prototype(agent, prototype),
             Object::WeakSet(data) => data.internal_set_prototype(agent, prototype),
@@ -960,6 +971,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_get_prototype_of(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_get_prototype_of(agent),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_get_prototype_of(agent),
             Object::WeakRef(data) => data.internal_get_prototype_of(agent),
             Object::WeakSet(data) => data.internal_get_prototype_of(agent),
@@ -1054,6 +1066,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_set_prototype_of(agent, prototype),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_set_prototype_of(agent, prototype),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_set_prototype_of(agent, prototype),
             Object::WeakRef(data) => data.internal_set_prototype_of(agent, prototype),
             Object::WeakSet(data) => data.internal_set_prototype_of(agent, prototype),
@@ -1142,6 +1155,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_is_extensible(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_is_extensible(agent),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_is_extensible(agent),
             Object::WeakRef(data) => data.internal_is_extensible(agent),
             Object::WeakSet(data) => data.internal_is_extensible(agent),
@@ -1224,6 +1238,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_prevent_extensions(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_prevent_extensions(agent),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_prevent_extensions(agent),
             Object::WeakRef(data) => data.internal_prevent_extensions(agent),
             Object::WeakSet(data) => data.internal_prevent_extensions(agent),
@@ -1322,6 +1337,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_get_own_property(agent, property_key),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_get_own_property(agent, property_key),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_get_own_property(agent, property_key),
             Object::WeakRef(data) => data.internal_get_own_property(agent, property_key),
             Object::WeakSet(data) => data.internal_get_own_property(agent, property_key),
@@ -1455,6 +1471,7 @@ impl InternalMethods for Object {
             Object::SharedArrayBuffer(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -1566,6 +1583,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_has_property(agent, property_key),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_has_property(agent, property_key),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_has_property(agent, property_key),
             Object::WeakRef(data) => data.internal_has_property(agent, property_key),
             Object::WeakSet(data) => data.internal_has_property(agent, property_key),
@@ -1663,6 +1681,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_get(agent, property_key, receiver),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_get(agent, property_key, receiver),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_get(agent, property_key, receiver),
             Object::WeakRef(data) => data.internal_get(agent, property_key, receiver),
             Object::WeakSet(data) => data.internal_get(agent, property_key, receiver),
@@ -1771,6 +1790,7 @@ impl InternalMethods for Object {
             Object::SharedArrayBuffer(data) => {
                 data.internal_set(agent, property_key, value, receiver)
             }
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_set(agent, property_key, value, receiver),
             Object::WeakRef(data) => data.internal_set(agent, property_key, value, receiver),
             Object::WeakSet(data) => data.internal_set(agent, property_key, value, receiver),
@@ -1864,6 +1884,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_delete(agent, property_key),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_delete(agent, property_key),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_delete(agent, property_key),
             Object::WeakRef(data) => data.internal_delete(agent, property_key),
             Object::WeakSet(data) => data.internal_delete(agent, property_key),
@@ -1952,6 +1973,7 @@ impl InternalMethods for Object {
             Object::Set(data) => data.internal_own_property_keys(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_own_property_keys(agent),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.internal_own_property_keys(agent),
             Object::WeakRef(data) => data.internal_own_property_keys(agent),
             Object::WeakSet(data) => data.internal_own_property_keys(agent),
@@ -2079,6 +2101,7 @@ impl HeapMarkAndSweep for Object {
             Object::Set(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.mark_values(queues),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.mark_values(queues),
             Object::WeakRef(data) => data.mark_values(queues),
             Object::WeakSet(data) => data.mark_values(queues),
@@ -2145,6 +2168,7 @@ impl HeapMarkAndSweep for Object {
             Object::Set(data) => data.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.sweep_values(compactions),
+            #[cfg(feature = "weak-map")]
             Object::WeakMap(data) => data.sweep_values(compactions),
             Object::WeakRef(data) => data.sweep_values(compactions),
             Object::WeakSet(data) => data.sweep_values(compactions),

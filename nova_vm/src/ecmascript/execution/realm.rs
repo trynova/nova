@@ -941,17 +941,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.38 WeakMap ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakMap);
-        let value = agent.get_realm(realm_id).intrinsics().weak_map();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "weak-map")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakMap);
+            let value = agent.get_realm(realm_id).intrinsics().weak_map();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.3.39 WeakRef ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakRef);
         let value = agent.get_realm(realm_id).intrinsics().weak_ref();

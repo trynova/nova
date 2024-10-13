@@ -28,6 +28,8 @@ use crate::{
 use super::date::data::DateHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::data::SharedArrayBufferHeapData;
+#[cfg(feature = "weak-map")]
+use super::weak_map::data::WeakMapHeapData;
 use super::{
     control_abstraction_objects::generator_objects::GeneratorHeapData,
     error::ErrorHeapData,
@@ -42,7 +44,6 @@ use super::{
     promise::data::PromiseHeapData,
     regexp::RegExpHeapData,
     set::data::SetHeapData,
-    weak_map::data::WeakMapHeapData,
     weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
     ArrayHeapData,
@@ -971,6 +972,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
+        #[cfg(feature = "weak-map")]
         ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
         ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
         ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
@@ -1110,6 +1112,7 @@ pub(crate) fn get_prototype_from_constructor(
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
             ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
+            #[cfg(feature = "weak-map")]
             ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
             ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
             ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),

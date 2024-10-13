@@ -29,6 +29,28 @@ use self::{
     },
     indexes::{NumberIndex, ObjectIndex, StringIndex},
 };
+#[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
+#[cfg(feature = "weak-map")]
+use crate::ecmascript::builtins::weak_map::data::WeakMapHeapData;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
+use crate::ecmascript::{
+    builtins::ArrayHeapData,
+    execution::{Environments, Realm, RealmIdentifier},
+    scripts_and_modules::{
+        module::ModuleIdentifier,
+        script::{Script, ScriptIdentifier},
+    },
+    types::{
+        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
+    },
+};
 use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::{
@@ -54,7 +76,6 @@ use crate::ecmascript::{
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::data::SetHeapData,
-        weak_map::data::WeakMapHeapData,
         weak_ref::data::WeakRefHeapData,
         weak_set::data::WeakSetHeapData,
     },
@@ -62,27 +83,6 @@ use crate::ecmascript::{
     types::{
         bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
         BUILTIN_STRINGS_LIST,
-    },
-};
-
-#[cfg(feature = "date")]
-use crate::ecmascript::builtins::date::data::DateHeapData;
-#[cfg(feature = "shared-array-buffer")]
-use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{
-    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
-};
-use crate::ecmascript::{
-    builtins::ArrayHeapData,
-    execution::{Environments, Realm, RealmIdentifier},
-    scripts_and_modules::{
-        module::ModuleIdentifier,
-        script::{Script, ScriptIdentifier},
-    },
-    types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
     },
 };
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
@@ -131,6 +131,7 @@ pub struct Heap {
     pub symbols: Vec<Option<SymbolHeapData>>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
+    #[cfg(feature = "weak-map")]
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
     pub weak_sets: Vec<Option<WeakSetHeapData>>,
@@ -227,6 +228,7 @@ impl Heap {
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
+            #[cfg(feature = "weak-map")]
             weak_maps: Vec::with_capacity(0),
             weak_refs: Vec::with_capacity(0),
             weak_sets: Vec::with_capacity(0),

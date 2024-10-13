@@ -14,6 +14,8 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "weak-map")]
+use crate::ecmascript::builtins::weak_map::WeakMap;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::{
@@ -42,7 +44,6 @@ use crate::ecmascript::{
         proxy::Proxy,
         regexp::RegExp,
         set::Set,
-        weak_map::WeakMap,
         weak_ref::WeakRef,
         weak_set::WeakSet,
         Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
@@ -112,6 +113,7 @@ pub struct HeapBits {
     pub symbols: Box<[bool]>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Box<[bool]>,
+    #[cfg(feature = "weak-map")]
     pub weak_maps: Box<[bool]>,
     pub weak_refs: Box<[bool]>,
     pub weak_sets: Box<[bool]>,
@@ -171,6 +173,7 @@ pub(crate) struct WorkQueues {
     pub symbols: Vec<Symbol>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<TypedArrayIndex>,
+    #[cfg(feature = "weak-map")]
     pub weak_maps: Vec<WeakMap>,
     pub weak_refs: Vec<WeakRef>,
     pub weak_sets: Vec<WeakSet>,
@@ -230,6 +233,7 @@ impl HeapBits {
         let symbols = vec![false; heap.symbols.len()];
         #[cfg(feature = "array-buffer")]
         let typed_arrays = vec![false; heap.typed_arrays.len()];
+        #[cfg(feature = "weak-map")]
         let weak_maps = vec![false; heap.weak_maps.len()];
         let weak_refs = vec![false; heap.weak_refs.len()];
         let weak_sets = vec![false; heap.weak_sets.len()];
@@ -286,6 +290,7 @@ impl HeapBits {
             symbols: symbols.into_boxed_slice(),
             #[cfg(feature = "array-buffer")]
             typed_arrays: typed_arrays.into_boxed_slice(),
+            #[cfg(feature = "weak-map")]
             weak_maps: weak_maps.into_boxed_slice(),
             weak_refs: weak_refs.into_boxed_slice(),
             weak_sets: weak_sets.into_boxed_slice(),
@@ -350,6 +355,7 @@ impl WorkQueues {
             symbols: Vec::with_capacity((heap.symbols.len() / 4).max(13)),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(heap.typed_arrays.len() / 4),
+            #[cfg(feature = "weak-map")]
             weak_maps: Vec::with_capacity(heap.weak_maps.len() / 4),
             weak_refs: Vec::with_capacity(heap.weak_refs.len() / 4),
             weak_sets: Vec::with_capacity(heap.weak_sets.len() / 4),
@@ -433,6 +439,7 @@ impl WorkQueues {
             symbols,
             #[cfg(feature = "array-buffer")]
             typed_arrays,
+            #[cfg(feature = "weak-map")]
             weak_maps,
             weak_refs,
             weak_sets,
@@ -448,6 +455,8 @@ impl WorkQueues {
         let typed_arrays: &[bool; 0] = &[];
         #[cfg(not(feature = "shared-array-buffer"))]
         let shared_array_buffers: &[bool; 0] = &[];
+        #[cfg(not(feature = "weak-map"))]
+        let weak_maps: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -693,6 +702,7 @@ pub(crate) struct CompactionLists {
     pub symbols: CompactionList,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: CompactionList,
+    #[cfg(feature = "weak-map")]
     pub weak_maps: CompactionList,
     pub weak_refs: CompactionList,
     pub weak_sets: CompactionList,
@@ -766,6 +776,7 @@ impl CompactionLists {
             data_views: CompactionList::from_mark_bits(&bits.data_views),
             finalization_registrys: CompactionList::from_mark_bits(&bits.finalization_registrys),
             proxys: CompactionList::from_mark_bits(&bits.proxys),
+            #[cfg(feature = "weak-map")]
             weak_maps: CompactionList::from_mark_bits(&bits.weak_maps),
             weak_refs: CompactionList::from_mark_bits(&bits.weak_refs),
             weak_sets: CompactionList::from_mark_bits(&bits.weak_sets),
