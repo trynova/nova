@@ -184,6 +184,8 @@ impl CompileContext<'_> {
             eprintln!();
         }
 
+        println!("{:?}", data.params);
+
         function_declaration_instantiation::instantiation(
             self,
             data.params,
@@ -527,35 +529,37 @@ pub(crate) struct Executable {
     pub(crate) class_initializer_bytecodes: Box<[(Option<Executable>, bool)]>,
 }
 
+pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
+    if *ip >= instructions.len() {
+        return None;
+    }
+
+    let kind: Instruction = unsafe { std::mem::transmute::<u8, Instruction>(instructions[*ip]) };
+    *ip += 1;
+
+    let mut args: [Option<IndexType>; 2] = [None, None];
+
+    for item in args.iter_mut().take(kind.argument_count() as usize) {
+        let length = instructions[*ip..].len();
+        if length >= 2 {
+            let bytes = IndexType::from_ne_bytes(unsafe {
+                *std::mem::transmute::<*const u8, *const [u8; 2]>(instructions[*ip..].as_ptr())
+            });
+            *ip += 2;
+            *item = Some(bytes);
+        } else {
+            *ip += 1;
+            *item = None;
+        }
+    }
+
+    Some(Instr { kind, args })
+}
+
 impl Executable {
+    #[inline]
     pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
-        if *ip >= self.instructions.len() {
-            return None;
-        }
-
-        let kind: Instruction =
-            unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[*ip]) };
-        *ip += 1;
-
-        let mut args: [Option<IndexType>; 2] = [None, None];
-
-        for item in args.iter_mut().take(kind.argument_count() as usize) {
-            let length = self.instructions[*ip..].len();
-            if length >= 2 {
-                let bytes = IndexType::from_ne_bytes(unsafe {
-                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
-                        self.instructions[*ip..].as_ptr(),
-                    )
-                });
-                *ip += 2;
-                *item = Some(bytes);
-            } else {
-                *ip += 1;
-                *item = None;
-            }
-        }
-
-        Some(Instr { kind, args })
+        get_instruction(&self.instructions, ip)
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {

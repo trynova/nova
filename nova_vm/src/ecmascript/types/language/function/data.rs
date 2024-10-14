@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ptr::NonNull;
-
 use oxc_span::Span;
 
 use crate::{
@@ -13,7 +11,7 @@ use crate::{
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
-    engine::Executable,
+    engine::HeapAllocatedBytecode,
     heap::element_array::ElementsVector,
 };
 
@@ -68,7 +66,7 @@ pub struct BuiltinConstructorHeapData {
     /// Base.
     pub(crate) is_derived: bool,
     /// Stores the compiled bytecode of class field initializers.
-    pub(crate) compiled_initializer_bytecode: Option<NonNull<Executable>>,
+    pub(crate) compiled_initializer_bytecode: Option<HeapAllocatedBytecode>,
     /// ### \[\[Environment]]
     ///
     /// This is required for class field initializers.
@@ -96,7 +94,7 @@ impl Drop for BuiltinConstructorHeapData {
         if let Some(exe) = self.compiled_initializer_bytecode.take() {
             // SAFETY: No references to this compiled bytecode should exist as
             // otherwise we should not have been garbage collected.
-            drop(unsafe { Box::from_raw(exe.as_ptr()) });
+            unsafe { exe.drop() };
         }
     }
 }
@@ -107,7 +105,7 @@ pub struct ECMAScriptFunctionHeapData {
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     /// Stores the compiled bytecode of an ECMAScript function.
-    pub(crate) compiled_bytecode: Option<NonNull<Executable>>,
+    pub(crate) compiled_bytecode: Option<HeapAllocatedBytecode>,
     pub(crate) name: Option<String>,
 }
 
@@ -118,7 +116,7 @@ impl Drop for ECMAScriptFunctionHeapData {
         if let Some(exe) = self.compiled_bytecode.take() {
             // SAFETY: No references to this compiled bytecode should exist as
             // otherwise we should not have been garbage collected.
-            drop(unsafe { Box::from_raw(exe.as_ptr()) });
+            unsafe { exe.drop() };
         }
     }
 }

@@ -15,7 +15,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{Executable, ExecutionResult, SuspendedVm, Vm},
+    engine::{ExecutionResult, HeapAllocatedBytecode, SuspendedVm, Vm},
     heap::{
         indexes::{BaseIndex, GeneratorIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -76,8 +76,8 @@ impl Generator {
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
-            VmOrArguments::Arguments(args) => Vm::execute(agent, &executable, Some(&args)),
-            VmOrArguments::Vm(vm) => vm.resume(agent, &executable, value),
+            VmOrArguments::Arguments(args) => Vm::execute(agent, executable, Some(&args)),
+            VmOrArguments::Vm(vm) => vm.resume(agent, executable, value),
         };
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
@@ -194,7 +194,7 @@ impl Generator {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume_throw(agent, &executable, value);
+        let execution_result = vm.resume_throw(agent, executable, value);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -346,7 +346,7 @@ pub(crate) enum GeneratorState {
     // SUSPENDED-START has `vm_or_args` set to Arguments, SUSPENDED-YIELD has it set to Vm.
     Suspended {
         vm_or_args: VmOrArguments,
-        executable: Executable,
+        executable: HeapAllocatedBytecode,
         execution_context: ExecutionContext,
     },
     Executing,

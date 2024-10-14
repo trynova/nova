@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ptr::NonNull;
-
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -36,7 +34,7 @@ use crate::{
             Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::{Executable, ExecutionResult, FunctionExpression, Vm},
+    engine::{Executable, ExecutionResult, FunctionExpression, HeapAllocatedBytecode, Vm},
     heap::CreateHeapData,
 };
 use oxc_ast::ast::{self};
@@ -270,16 +268,12 @@ pub(crate) fn evaluate_function_body(
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
-        // SAFETY: exe is a non-null pointer pointing to an initialized
-        // Executable that cannot have a live mutable reference to it.
-        unsafe { exe.as_ref() }
+        exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Box::new(Executable::compile_function_body(agent, data));
-        let exe = NonNull::from(Box::leak(exe));
+        let exe = HeapAllocatedBytecode::new(Executable::compile_function_body(agent, data));
         agent[function_object].compiled_bytecode = Some(exe);
-        // SAFETY: Same as above, only more.
-        unsafe { exe.as_ref() }
+        exe
     };
     Vm::execute(agent, exe, Some(arguments_list.0)).into_js_result()
 }
@@ -301,16 +295,12 @@ pub(crate) fn evaluate_async_function_body(
     // 4. Else,
     // a. Perform AsyncFunctionStart(promiseCapability, FunctionBody).
     let exe = if let Some(exe) = agent[function_object].compiled_bytecode {
-        // SAFETY: exe is a non-null pointer pointing to an initialized
-        // Executable that cannot have a live mutable reference to it.
-        unsafe { exe.as_ref() }
+        exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Box::new(Executable::compile_function_body(agent, data));
-        let exe = NonNull::from(Box::leak(exe));
+        let exe = HeapAllocatedBytecode::new(Executable::compile_function_body(agent, data));
         agent[function_object].compiled_bytecode = Some(exe);
-        // SAFETY: Same as above, only more.
-        unsafe { exe.as_ref() }
+        exe
     };
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
@@ -385,7 +375,7 @@ pub(crate) fn evaluate_generator_body(
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, function_object);
-    let executable = Executable::compile_function_body(agent, data);
+    let executable = HeapAllocatedBytecode::new(Executable::compile_function_body(agent, data));
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,

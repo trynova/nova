@@ -907,7 +907,6 @@ pub(crate) fn initialize_instance_elements(
         // To do this, we need a new execution context that points to a new
         // Function environment. The function environment should be lexically a
         // child of the class constructor's creating environment.
-        let bytecode = unsafe { bytecode.as_ref() };
         let f = constructor.into_function();
         let outer_env = constructor_data.environment;
         let outer_priv_env = constructor_data.private_environment;

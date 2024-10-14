@@ -2,10 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    ops::{Index, IndexMut},
-    ptr::NonNull,
-};
+use std::ops::{Index, IndexMut};
 
 use oxc_span::Span;
 
@@ -29,7 +26,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    engine::Executable,
+    engine::{Executable, HeapAllocatedBytecode},
     heap::{
         indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
@@ -339,7 +336,7 @@ pub(crate) struct BuiltinConstructorArgs {
     pub(crate) class_name: String,
     pub(crate) prototype: Option<Object>,
     pub(crate) prototype_property: Object,
-    pub(crate) compiled_initializer_bytecode: Option<Box<Executable>>,
+    pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: EnvironmentIndex,
     pub(crate) private_env: Option<PrivateEnvironmentIndex>,
     pub(crate) source_code: SourceCode,
@@ -416,7 +413,7 @@ pub(crate) fn create_builtin_constructor(
 
     let compiled_initializer_bytecode = args
         .compiled_initializer_bytecode
-        .map(|bytecode| NonNull::from(Box::leak(bytecode)));
+        .map(HeapAllocatedBytecode::new);
 
     // 13. Return func.
     agent.heap.create(BuiltinConstructorHeapData {
@@ -458,11 +455,7 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData {
         self.environment.mark_values(queues);
         self.private_environment.mark_values(queues);
         self.source_code.mark_values(queues);
-        if let Some(exe) = &self.compiled_initializer_bytecode {
-            // SAFETY: This is a valid, non-null pointer to an owned Executable
-            // that cannot have any live mutable references to it.
-            unsafe { exe.as_ref() }.mark_values(queues);
-        }
+        self.compiled_initializer_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
@@ -471,16 +464,6 @@ impl HeapMarkAndSweep for BuiltinConstructorHeapData {
         self.environment.sweep_values(compactions);
         self.private_environment.sweep_values(compactions);
         self.source_code.sweep_values(compactions);
-        if let Some(exe) = &mut self.compiled_initializer_bytecode {
-            // SAFETY: This is a valid, non-null pointer to an owned Executable
-            // that cannot have any live references to it.
-            // References to this Executable are only created above for marking
-            // and in function_definition for running the function. Both of the
-            // references only live for the duration of a synchronous call and
-            // no longer. Sweeping cannot run concurrently with marking or with
-            // ECMAScript code execution. Hence we can be sure that this is not
-            // an aliasing violation.
-            unsafe { exe.as_mut() }.sweep_values(compactions);
-        }
+        self.compiled_initializer_bytecode.sweep_values(compactions);
     }
 }

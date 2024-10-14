@@ -54,7 +54,7 @@ use crate::ecmascript::{
         Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
-        DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
+        Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
         GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
@@ -63,7 +63,17 @@ use crate::ecmascript::{
     },
 };
 
-pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
+pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
+    let Agent {
+        heap,
+        execution_context_stack,
+        stack_values,
+        vm_stack,
+        options: _,
+        symbol_id: _,
+        global_symbol_registry: _,
+        host_hooks: _,
+    } = agent;
     let mut bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 
@@ -73,6 +83,16 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         }
     });
 
+    execution_context_stack.iter().for_each(|ctx| {
+        ctx.mark_values(&mut queues);
+    });
+    stack_values
+        .borrow()
+        .iter()
+        .for_each(|value| value.mark_values(&mut queues));
+    vm_stack.iter().for_each(|vm_ptr| {
+        unsafe { vm_ptr.as_ref() }.mark_values(&mut queues);
+    });
     let mut last_filled_global_value = None;
     heap.globals.iter().enumerate().for_each(|(i, &value)| {
         if let Some(value) = value {
@@ -931,15 +951,26 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         });
     }
 
-    sweep(heap, &bits, root_realms);
+    sweep(agent, &bits, root_realms);
 }
 
-fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdentifier>]) {
+fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIdentifier>]) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     for realm in root_realms {
         realm.sweep_values(&compactions);
     }
+
+    let Agent {
+        heap,
+        execution_context_stack,
+        stack_values,
+        vm_stack,
+        options: _,
+        symbol_id: _,
+        global_symbol_registry: _,
+        host_hooks: _,
+    } = agent;
 
     let Heap {
         #[cfg(feature = "array-buffer")]
@@ -1366,22 +1397,44 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
             });
         }
+        if !execution_context_stack.is_empty() {
+            s.spawn(|| {
+                execution_context_stack
+                    .iter_mut()
+                    .for_each(|entry| entry.sweep_values(&compactions));
+            });
+        }
+        if !stack_values.borrow().is_empty() {
+            stack_values
+                .borrow_mut()
+                .iter_mut()
+                .for_each(|entry| entry.sweep_values(&compactions));
+        }
+        if !vm_stack.is_empty() {
+            vm_stack
+                .iter_mut()
+                .for_each(|entry| unsafe { entry.as_mut().sweep_values(&compactions) });
+        }
     });
 }
 
 #[test]
 fn test_heap_gc() {
-    use crate::ecmascript::types::Value;
+    use crate::ecmascript::{
+        execution::{agent::Options, DefaultHostHooks},
+        types::Value,
+    };
 
-    let mut heap: Heap = Default::default();
-    assert!(heap.objects.is_empty());
-    let obj = Value::Object(heap.create_null_object(&[]));
+    let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+
+    assert!(agent.heap.objects.is_empty());
+    let obj = Value::Object(agent.heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
-    heap.globals.push(Some(obj));
-    heap_gc(&mut heap, &mut []);
-    println!("Objects: {:#?}", heap.objects);
-    assert_eq!(heap.objects.len(), 1);
-    assert_eq!(heap.elements.e2pow4.values.len(), 0);
-    assert!(heap.globals.last().is_some());
-    println!("Global #1: {:#?}", heap.globals.last().unwrap());
+    agent.heap.globals.push(Some(obj));
+    heap_gc(&mut agent, &mut []);
+    println!("Objects: {:#?}", agent.heap.objects);
+    assert_eq!(agent.heap.objects.len(), 1);
+    assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);
+    assert!(agent.heap.globals.last().is_some());
+    println!("Global #1: {:#?}", agent.heap.globals.last().unwrap());
 }
