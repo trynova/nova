@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod executable;
+mod heap_allocated_bytecode;
 mod instructions;
 pub(super) mod iterator;
 mod vm;
@@ -11,5 +12,6 @@ pub(crate) use executable::{
     is_reference, CompileContext, CompileEvaluation, Executable, FunctionExpression, IndexType,
     NamedEvaluationParameter, SendableRef,
 };
+pub(crate) use heap_allocated_bytecode::HeapAllocatedBytecode;
 pub(crate) use instructions::{Instruction, InstructionIter};
 pub(crate) use vm::{instanceof_operator, ExecutionResult, SuspendedVm, Vm};

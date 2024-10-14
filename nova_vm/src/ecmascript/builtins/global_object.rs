@@ -28,7 +28,7 @@ use crate::{
         },
         types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{Executable, Vm},
+    engine::{Executable, HeapAllocatedBytecode, Vm},
     heap::IntrinsicFunctionIndexes,
 };
 
@@ -331,11 +331,18 @@ pub fn perform_eval(
 
     // 29. If result is a normal completion, then
     let result = if result.is_ok() {
-        let exe = Executable::compile_eval_body(agent, &script.body);
+        // TODO: We have a problem here. First, we're forcing an extra heap
+        // allocation for no good reason.
+        // Second, this executable is not accessible by the heap and will thus
+        // break if garbage collection triggers within the eval.
+        let exe = HeapAllocatedBytecode::new(Executable::compile_eval_body(agent, &script.body));
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe, None).into_js_result()
+        let result = Vm::execute(agent, exe, None).into_js_result();
+        // SAFETY: No one can access the bytecode anymore.
+        unsafe { exe.drop() };
+        result
     } else {
         Err(result.err().unwrap())
     };

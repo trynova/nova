@@ -19,7 +19,7 @@ use crate::{
         },
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{Executable, Vm},
+    engine::{Executable, HeapAllocatedBytecode, Vm},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHashSet;
@@ -140,6 +140,9 @@ pub struct Script {
     /// parts.
     pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
 
+    /// Stores the compiled bytecode of a Script.
+    pub(crate) compiled_bytecode: Option<HeapAllocatedBytecode>,
+
     /// ### \[\[LoadedModules]]
     ///
     /// A map from the specifier strings imported by this script to the
@@ -168,11 +171,13 @@ impl HeapMarkAndSweep for Script {
     fn mark_values(&self, queues: &mut WorkQueues) {
         self.realm.mark_values(queues);
         self.source_code.mark_values(queues);
+        self.compiled_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         self.realm.sweep_values(compactions);
         self.source_code.sweep_values(compactions);
+        self.compiled_bytecode.sweep_values(compactions);
     }
 }
 
@@ -225,6 +230,7 @@ pub fn parse_script(
         // [[HostDefined]]: hostDefined,
         host_defined,
         source_code,
+        compiled_bytecode: None,
     })
     // }
 }
@@ -284,11 +290,12 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
-        let exe = Executable::compile_script(agent, script);
+        let bytecode = HeapAllocatedBytecode::new(Executable::compile_script(agent, script));
+        agent[script].compiled_bytecode = Some(bytecode);
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe, None).into_js_result()
+        Vm::execute(agent, bytecode, None).into_js_result()
     } else {
         Err(result.err().unwrap())
     };
