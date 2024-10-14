@@ -21,10 +21,10 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
-#[cfg(feature = "weak-map")]
-use crate::ecmascript::builtins::weak_map::WeakMap;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::ecmascript::{
     builtins::{
         bound_function::BoundFunction,
@@ -51,8 +51,6 @@ use crate::ecmascript::{
         proxy::Proxy,
         regexp::RegExp,
         set::Set,
-        weak_ref::WeakRef,
-        weak_set::WeakSet,
         Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
@@ -151,9 +149,11 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             symbols,
             #[cfg(feature = "array-buffer")]
             typed_arrays,
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             weak_maps,
+            #[cfg(feature = "weak-refs")]
             weak_refs,
+            #[cfg(feature = "weak-refs")]
             weak_sets,
         } = heap;
         let Environments {
@@ -718,7 +718,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
             });
         }
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")]
         {
             let mut weak_map_marks: Box<[WeakMap]> = queues.weak_maps.drain(..).collect();
             weak_map_marks.sort();
@@ -733,33 +733,34 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                     weak_maps.get(index).mark_values(&mut queues);
                 }
             });
+            let mut weak_ref_marks: Box<[WeakRef]> = queues.weak_refs.drain(..).collect();
+            weak_ref_marks.sort();
+            weak_ref_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.weak_refs.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    weak_refs.get(index).mark_values(&mut queues);
+                }
+            });
+            let mut weak_set_marks: Box<[WeakSet]> = queues.weak_sets.drain(..).collect();
+            weak_set_marks.sort();
+            weak_set_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.weak_sets.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    weak_sets.get(index).mark_values(&mut queues);
+                }
+            });
         }
-        let mut weak_ref_marks: Box<[WeakRef]> = queues.weak_refs.drain(..).collect();
-        weak_ref_marks.sort();
-        weak_ref_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.weak_refs.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                weak_refs.get(index).mark_values(&mut queues);
-            }
-        });
-        let mut weak_set_marks: Box<[WeakSet]> = queues.weak_sets.drain(..).collect();
-        weak_set_marks.sort();
-        weak_set_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.weak_sets.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
-                }
-                *marked = true;
-                weak_sets.get(index).mark_values(&mut queues);
-            }
-        });
+
         let mut e_2_4_marks: Box<[(ElementIndex, u32)]> = queues.e_2_4.drain(..).collect();
         e_2_4_marks.sort();
         e_2_4_marks.iter().for_each(|&(idx, len)| {
@@ -984,9 +985,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         symbols,
         #[cfg(feature = "array-buffer")]
         typed_arrays,
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")]
         weak_maps,
+        #[cfg(feature = "weak-refs")]
         weak_refs,
+        #[cfg(feature = "weak-refs")]
         weak_sets,
     } = heap;
     let Environments {
@@ -1345,17 +1348,19 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
             });
         }
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")]
         if !weak_maps.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(weak_maps, &compactions, &bits.weak_maps);
             });
         }
+        #[cfg(feature = "weak-refs")]
         if !weak_refs.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(weak_refs, &compactions, &bits.weak_refs);
             });
         }
+        #[cfg(feature = "weak-refs")]
         if !weak_sets.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);

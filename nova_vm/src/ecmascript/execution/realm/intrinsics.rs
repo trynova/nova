@@ -3,9 +3,18 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::RealmIdentifier;
-#[cfg(feature = "weak-map")]
-use crate::ecmascript::builtins::keyed_collections::weak_map_objects::{
-    weak_map_constructor::WeakMapConstructor, weak_map_prototype::WeakMapPrototype,
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::builtins::keyed_collections::{
+    weak_map_objects::{
+        weak_map_constructor::WeakMapConstructor, weak_map_prototype::WeakMapPrototype,
+    },
+    weak_set_objects::{
+        weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
+    },
+};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::builtins::managing_memory::weak_ref_objects::{
+    weak_ref_constructor::WeakRefConstructor, weak_ref_prototype::WeakRefPrototype,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
@@ -80,18 +89,10 @@ use crate::{
                     set_iterator_objects::set_iterator_prototype::SetIteratorPrototype,
                     set_prototype::SetPrototype,
                 },
-                weak_set_objects::{
-                    weak_set_constructor::WeakSetConstructor, weak_set_prototype::WeakSetPrototype,
-                },
             },
-            managing_memory::{
-                finalization_registry_objects::{
-                    finalization_registry_constructor::FinalizationRegistryConstructor,
-                    finalization_registry_prototype::FinalizationRegistryPrototype,
-                },
-                weak_ref_objects::{
-                    weak_ref_constructor::WeakRefConstructor, weak_ref_prototype::WeakRefPrototype,
-                },
+            managing_memory::finalization_registry_objects::{
+                finalization_registry_constructor::FinalizationRegistryConstructor,
+                finalization_registry_prototype::FinalizationRegistryPrototype,
             },
             primitive_objects::PrimitiveObject,
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
@@ -219,9 +220,11 @@ pub enum ProtoIntrinsics {
     #[cfg(feature = "array-buffer")]
     Uint8Array,
     UriError,
-    #[cfg(feature = "weak-map")]
+    #[cfg(feature = "weak-refs")]
     WeakMap,
+    #[cfg(feature = "weak-refs")]
     WeakRef,
+    #[cfg(feature = "weak-refs")]
     WeakSet,
 }
 
@@ -306,11 +309,13 @@ impl Intrinsics {
         SetPrototype::create_intrinsic(agent, realm);
         SetConstructor::create_intrinsic(agent, realm);
         SetIteratorPrototype::create_intrinsic(agent, realm);
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")]
         WeakMapPrototype::create_intrinsic(agent, realm);
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")]
         WeakMapConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "weak-refs")]
         WeakSetPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "weak-refs")]
         WeakSetConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "array-buffer")]
         ArrayBufferPrototype::create_intrinsic(agent, realm);
@@ -327,7 +332,9 @@ impl Intrinsics {
         AtomicsObject::create_intrinsic(agent, realm);
         #[cfg(feature = "json")]
         JSONObject::create_intrinsic(agent, realm);
+        #[cfg(feature = "weak-refs")]
         WeakRefPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "weak-refs")]
         WeakRefConstructor::create_intrinsic(agent, realm);
         FinalizationRegistryPrototype::create_intrinsic(agent, realm);
         FinalizationRegistryConstructor::create_intrinsic(agent, realm);
@@ -414,9 +421,11 @@ impl Intrinsics {
             ProtoIntrinsics::Uint32Array => self.uint32_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => self.uint8_array_prototype().into(),
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => self.weak_map_prototype().into(),
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakRef => self.weak_ref_prototype().into(),
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakSet => self.weak_set_prototype().into(),
         }
     }
@@ -1523,7 +1532,7 @@ impl Intrinsics {
     }
 
     /// %WeakMap.prototype%
-    #[cfg(feature = "weak-map")]
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_map_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::WeakMapPrototype
             .get_object_index(self.object_index_base)
@@ -1531,19 +1540,20 @@ impl Intrinsics {
     }
 
     /// %WeakMap%
-    #[cfg(feature = "weak-map")]
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_map(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::WeakMap
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
-    #[cfg(feature = "weak-map")]
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_map_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::WeakMap.get_object_index(self.object_index_base)
     }
 
     /// %WeakRef.prototype%
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_ref_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::WeakRefPrototype
             .get_object_index(self.object_index_base)
@@ -1551,17 +1561,20 @@ impl Intrinsics {
     }
 
     /// %WeakRef%
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_ref(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::WeakRef
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_ref_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::WeakRef.get_object_index(self.object_index_base)
     }
 
     /// %WeakSet.prototype%
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_set_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::WeakSetPrototype
             .get_object_index(self.object_index_base)
@@ -1569,12 +1582,14 @@ impl Intrinsics {
     }
 
     /// %WeakSet%
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_set(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::WeakSet
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "weak-refs")]
     pub(crate) fn weak_set_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::WeakSet.get_object_index(self.object_index_base)
     }
@@ -1743,13 +1758,17 @@ impl HeapMarkAndSweep for Intrinsics {
         self.unescape().mark_values(queues);
         self.uri_error_prototype().mark_values(queues);
         self.uri_error().mark_values(queues);
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")] 
         self.weak_map_prototype().mark_values(queues);
-        #[cfg(feature = "weak-map")]
+        #[cfg(feature = "weak-refs")] 
         self.weak_map().mark_values(queues);
+        #[cfg(feature = "weak-refs")] 
         self.weak_ref_prototype().mark_values(queues);
+        #[cfg(feature = "weak-refs")] 
         self.weak_ref().mark_values(queues);
+        #[cfg(feature = "weak-refs")] 
         self.weak_set_prototype().mark_values(queues);
+        #[cfg(feature = "weak-refs")] 
         self.weak_set().mark_values(queues);
     }
 

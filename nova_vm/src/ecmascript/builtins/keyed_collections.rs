@@ -4,6 +4,7 @@
 
 pub(crate) mod map_objects;
 pub(crate) mod set_objects;
-#[cfg(feature = "weak-map")]
+#[cfg(feature = "weak-refs")]
 pub(crate) mod weak_map_objects;
+#[cfg(feature = "weak-refs")]
 pub(crate) mod weak_set_objects;

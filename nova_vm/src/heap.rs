@@ -33,11 +33,14 @@ use self::{
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
-#[cfg(feature = "weak-map")]
-use crate::ecmascript::builtins::weak_map::data::WeakMapHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
     data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::builtins::{
+    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
+    weak_set::data::WeakSetHeapData,
 };
 use crate::ecmascript::{
     builtins::ArrayHeapData,
@@ -76,8 +79,6 @@ use crate::ecmascript::{
         proxy::data::ProxyHeapData,
         regexp::RegExpHeapData,
         set::data::SetHeapData,
-        weak_ref::data::WeakRefHeapData,
-        weak_set::data::WeakSetHeapData,
     },
     scripts_and_modules::source_code::SourceCodeHeapData,
     types::{
@@ -131,9 +132,11 @@ pub struct Heap {
     pub symbols: Vec<Option<SymbolHeapData>>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
-    #[cfg(feature = "weak-map")]
+    #[cfg(feature = "weak-refs")]
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
+    #[cfg(feature = "weak-refs")]
     pub weak_refs: Vec<Option<WeakRefHeapData>>,
+    #[cfg(feature = "weak-refs")]
     pub weak_sets: Vec<Option<WeakSetHeapData>>,
     pub modules: Vec<Option<ModuleHeapData>>,
     pub scripts: Vec<Option<Script>>,
@@ -228,9 +231,11 @@ impl Heap {
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             weak_maps: Vec::with_capacity(0),
+            #[cfg(feature = "weak-refs")]
             weak_refs: Vec::with_capacity(0),
+            #[cfg(feature = "weak-refs")]
             weak_sets: Vec::with_capacity(0),
         };
 

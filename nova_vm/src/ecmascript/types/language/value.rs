@@ -13,8 +13,8 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
-#[cfg(feature = "weak-map")]
-use crate::ecmascript::builtins::weak_map::WeakMap;
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "array-buffer")]
 use crate::{
     ecmascript::builtins::{data_view::DataView, ArrayBuffer},
@@ -46,8 +46,6 @@ use crate::{
             proxy::Proxy,
             regexp::RegExp,
             set::Set,
-            weak_ref::WeakRef,
-            weak_set::WeakSet,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
@@ -165,9 +163,11 @@ pub enum Value {
     Set(Set),
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer),
-    #[cfg(feature = "weak-map")]
+    #[cfg(feature = "weak-refs")]
     WeakMap(WeakMap),
+    #[cfg(feature = "weak-refs")]
     WeakRef(WeakRef),
+    #[cfg(feature = "weak-refs")]
     WeakSet(WeakSet),
 
     // TypedArrays
@@ -288,9 +288,11 @@ pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_def(
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
     value_discriminant(Value::SharedArrayBuffer(SharedArrayBuffer::_def()));
-#[cfg(feature = "weak-map")]
+#[cfg(feature = "weak-refs")]
 pub(crate) const WEAK_MAP_DISCRIMINANT: u8 = value_discriminant(Value::WeakMap(WeakMap::_def()));
+#[cfg(feature = "weak-refs")]
 pub(crate) const WEAK_REF_DISCRIMINANT: u8 = value_discriminant(Value::WeakRef(WeakRef::_def()));
+#[cfg(feature = "weak-refs")]
 pub(crate) const WEAK_SET_DISCRIMINANT: u8 = value_discriminant(Value::WeakSet(WeakSet::_def()));
 #[cfg(feature = "array-buffer")]
 pub(crate) const INT_8_ARRAY_DISCRIMINANT: u8 =
@@ -656,15 +658,17 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             Value::WeakMap(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "weak-refs")]
             Value::WeakRef(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "weak-refs")]
             Value::WeakSet(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -874,15 +878,17 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             Value::WeakMap(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "weak-refs")]
             Value::WeakRef(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "weak-refs")]
             Value::WeakSet(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1099,9 +1105,11 @@ impl HeapMarkAndSweep for Value {
             Value::Set(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => data.mark_values(queues),
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             Value::WeakMap(data) => data.mark_values(queues),
+            #[cfg(feature = "weak-refs")]
             Value::WeakRef(data) => data.mark_values(queues),
+            #[cfg(feature = "weak-refs")]
             Value::WeakSet(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => data.mark_values(queues),
@@ -1179,9 +1187,11 @@ impl HeapMarkAndSweep for Value {
             Value::Set(data) => data.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => data.sweep_values(compactions),
-            #[cfg(feature = "weak-map")]
+            #[cfg(feature = "weak-refs")]
             Value::WeakMap(data) => data.sweep_values(compactions),
+            #[cfg(feature = "weak-refs")]
             Value::WeakRef(data) => data.sweep_values(compactions),
+            #[cfg(feature = "weak-refs")]
             Value::WeakSet(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Value::Int8Array(data) => data.sweep_values(compactions),

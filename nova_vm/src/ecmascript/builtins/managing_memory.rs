@@ -3,4 +3,5 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod finalization_registry_objects;
+#[cfg(feature = "weak-refs")]
 pub(crate) mod weak_ref_objects;
