@@ -975,9 +975,9 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .into_object(),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
     };
 
@@ -1117,9 +1117,9 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
             #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
-            #[cfg(feature = "weak-refs")] 
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
-            #[cfg(feature = "weak-refs")] 
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
         };
         if Some(constructor) == intrinsic_constructor {

@@ -1758,17 +1758,17 @@ impl HeapMarkAndSweep for Intrinsics {
         self.unescape().mark_values(queues);
         self.uri_error_prototype().mark_values(queues);
         self.uri_error().mark_values(queues);
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         self.weak_map_prototype().mark_values(queues);
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         self.weak_map().mark_values(queues);
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         self.weak_ref_prototype().mark_values(queues);
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         self.weak_ref().mark_values(queues);
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         self.weak_set_prototype().mark_values(queues);
-        #[cfg(feature = "weak-refs")] 
+        #[cfg(feature = "weak-refs")]
         self.weak_set().mark_values(queues);
     }
 

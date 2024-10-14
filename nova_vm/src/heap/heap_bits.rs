@@ -472,7 +472,6 @@ impl WorkQueues {
         #[cfg(not(feature = "weak-refs"))]
         let weak_sets: &[bool; 0] = &[];
 
-
         array_buffers.is_empty()
             && arrays.is_empty()
             && array_iterators.is_empty()
