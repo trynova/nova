@@ -603,9 +603,11 @@ impl StringPrototype {
         };
 
         // 6. Let ns be the String value that is the result of normalizing S into the normalization form named by f as specified in the latest Unicode Standard, Normalization Forms.
-        let ns = unicode_normalize(s.as_str(agent), f);
-        // 7. Return ns.
-        Ok(Value::from_string(agent, ns).into_value())
+        match unicode_normalize(s.as_str(agent), f) {
+            // 7. Return ns.
+            None => Ok(s.into_value()),
+            Some(ns) => Ok(Value::from_string(agent, ns).into_value()),
+        }
     }
 
     /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
@@ -1537,23 +1539,23 @@ impl FromStr for NormalizeForm {
     }
 }
 
-fn unicode_normalize(s: &str, f: NormalizeForm) -> std::string::String {
+fn unicode_normalize(s: &str, f: NormalizeForm) -> Option<std::string::String> {
     match f {
         NormalizeForm::Nfc => match is_nfc_quick(s.chars()) {
-            IsNormalized::Yes => s.to_string(),
-            _ => s.nfc().collect::<std::string::String>(),
+            IsNormalized::Yes => None,
+            _ => Some(s.nfc().collect::<std::string::String>()),
         },
         NormalizeForm::Nfd => match is_nfd_quick(s.chars()) {
-            IsNormalized::Yes => s.to_string(),
-            _ => s.nfd().collect::<std::string::String>(),
+            IsNormalized::Yes => None,
+            _ => Some(s.nfd().collect::<std::string::String>()),
         },
         NormalizeForm::Nfkc => match is_nfkc_quick(s.chars()) {
-            IsNormalized::Yes => s.to_string(),
-            _ => s.nfkc().collect::<std::string::String>(),
+            IsNormalized::Yes => None,
+            _ => Some(s.nfkc().collect::<std::string::String>()),
         },
         NormalizeForm::Nfkd => match is_nfkd_quick(s.chars()) {
-            IsNormalized::Yes => s.to_string(),
-            _ => s.nfkd().collect::<std::string::String>(),
+            IsNormalized::Yes => None,
+            _ => Some(s.nfkd().collect::<std::string::String>()),
         },
     }
 }
