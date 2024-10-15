@@ -2,9 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::max, collections::VecDeque, iter::repeat};
+use std::{cmp::max, collections::VecDeque, iter::repeat, str::FromStr};
 
 use small_string::SmallString;
+use unicode_normalization::{
+    is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick, IsNormalized, UnicodeNormalization,
+};
 
 use crate::{
     ecmascript::{
@@ -567,8 +570,44 @@ impl StringPrototype {
         todo!()
     }
 
-    fn normalize(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [22.1.3.15 String.prototype.normalize ( \[ form \] )](https://tc39.es/ecma262/#sec-string.prototype.normalize)
+    fn normalize(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value)?;
+
+        // 2. Let S be ? ToString(O).
+        let s = to_string(agent, o)?;
+
+        // 3. If form is undefined, let f be "NFC".
+        let form = arguments.get(0);
+        let f = if form.is_undefined() {
+            NormalizeForm::Nfc
+        } else {
+            // 4. Else, let f be ? ToString(form).
+            let f = to_string(agent, form)?;
+            let form_result = NormalizeForm::from_str(f.as_str(agent));
+            match form_result {
+                Ok(form) => form,
+                // 5. If f is not one of "NFC", "NFD", "NFKC", or "NFKD", throw a RangeError exception.
+                Err(()) => {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::RangeError,
+                        "The normalization form should be one of NFC, NFD, NFKC, NFKD.",
+                    ))
+                }
+            }
+        };
+
+        // 6. Let ns be the String value that is the result of normalizing S into the normalization form named by f as specified in the latest Unicode Standard, Normalization Forms.
+        match unicode_normalize(s.as_str(agent), f) {
+            // 7. Return ns.
+            None => Ok(s.into_value()),
+            Some(ns) => Ok(Value::from_string(agent, ns).into_value()),
+        }
     }
 
     /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
@@ -1477,4 +1516,46 @@ enum TrimWhere {
     Start,
     End,
     StartAndEnd,
+}
+
+enum NormalizeForm {
+    Nfc,
+    Nfd,
+    Nfkc,
+    Nfkd,
+}
+
+impl FromStr for NormalizeForm {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<NormalizeForm, Self::Err> {
+        match input {
+            "NFC" => Ok(NormalizeForm::Nfc),
+            "NFD" => Ok(NormalizeForm::Nfd),
+            "NFKC" => Ok(NormalizeForm::Nfkc),
+            "NFKD" => Ok(NormalizeForm::Nfkd),
+            _ => Err(()),
+        }
+    }
+}
+
+fn unicode_normalize(s: &str, f: NormalizeForm) -> Option<std::string::String> {
+    match f {
+        NormalizeForm::Nfc => match is_nfc_quick(s.chars()) {
+            IsNormalized::Yes => None,
+            _ => Some(s.nfc().collect::<std::string::String>()),
+        },
+        NormalizeForm::Nfd => match is_nfd_quick(s.chars()) {
+            IsNormalized::Yes => None,
+            _ => Some(s.nfd().collect::<std::string::String>()),
+        },
+        NormalizeForm::Nfkc => match is_nfkc_quick(s.chars()) {
+            IsNormalized::Yes => None,
+            _ => Some(s.nfkc().collect::<std::string::String>()),
+        },
+        NormalizeForm::Nfkd => match is_nfkd_quick(s.chars()) {
+            IsNormalized::Yes => None,
+            _ => Some(s.nfkd().collect::<std::string::String>()),
+        },
+    }
 }
