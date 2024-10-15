@@ -45,8 +45,11 @@ pub(crate) mod structured_data;
 pub(crate) mod text_processing;
 #[cfg(feature = "array-buffer")]
 pub(crate) mod typed_array;
+#[cfg(feature = "weak-refs")]
 pub(crate) mod weak_map;
+#[cfg(feature = "weak-refs")]
 pub(crate) mod weak_ref;
+#[cfg(feature = "weak-refs")]
 pub(crate) mod weak_set;
 
 pub(crate) use arguments::*;
