@@ -42,14 +42,16 @@ use super::{
     promise::data::PromiseHeapData,
     regexp::RegExpHeapData,
     set::data::SetHeapData,
-    weak_map::data::WeakMapHeapData,
-    weak_ref::data::WeakRefHeapData,
-    weak_set::data::WeakSetHeapData,
     ArrayHeapData,
 };
 #[cfg(feature = "array-buffer")]
 use super::{
     data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
+#[cfg(feature = "weak-refs")]
+use super::{
+    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
+    weak_set::data::WeakSetHeapData,
 };
 
 impl Index<OrdinaryObject> for Agent {
@@ -971,8 +973,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
+        #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
+        #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
+        #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
     };
 
@@ -1110,8 +1115,11 @@ pub(crate) fn get_prototype_from_constructor(
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
             ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
+            #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
         };
         if Some(constructor) == intrinsic_constructor {
