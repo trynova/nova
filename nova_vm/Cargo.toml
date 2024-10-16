@@ -31,7 +31,7 @@ date = []
 array-buffer = []
 shared-array-buffer = []
 weak-refs = []
-atomics = []
+atomics = ["array-buffer", "shared-array-buffer"]
 typescript = []
 
 [build-dependencies]
