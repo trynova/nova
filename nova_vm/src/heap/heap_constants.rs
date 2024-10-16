@@ -74,6 +74,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     SharedArrayBufferPrototype,
     #[cfg(feature = "array-buffer")]
     DataViewPrototype,
+    #[cfg(feature = "atomics")]
     AtomicsObject,
     JSONObject,
 

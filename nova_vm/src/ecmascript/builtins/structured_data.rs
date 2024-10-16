@@ -4,6 +4,7 @@
 
 #[cfg(feature = "array-buffer")]
 pub(crate) mod array_buffer_objects;
+#[cfg(feature = "atomics")]
 pub(crate) mod atomics_object;
 #[cfg(feature = "array-buffer")]
 pub(crate) mod data_view_objects;

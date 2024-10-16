@@ -24,13 +24,14 @@ unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
 
 [features]
-default = ["math", "json", "date", "array-buffer", "shared-array-buffer", "weak-refs"]
+default = ["math", "json", "date", "array-buffer", "shared-array-buffer", "weak-refs", "atomics"]
 math = []
 json = ["sonic-rs"]
 date = []
 array-buffer = []
 shared-array-buffer = []
 weak-refs = []
+atomics = ["array-buffer", "shared-array-buffer"]
 typescript = []
 
 [build-dependencies]
