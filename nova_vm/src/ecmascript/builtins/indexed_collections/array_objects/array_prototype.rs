@@ -22,7 +22,7 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
+            array_create, array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
             BuiltinIntrinsic,
         },
         execution::{
@@ -2624,8 +2624,31 @@ impl ArrayPrototype {
         todo!();
     }
 
-    fn to_reversed(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn to_reversed(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. Let A be ? ArrayCreate(len).
+        let a = array_create(agent, len as usize, len as usize, None)?;
+        // 4. Let k be 0.
+        let mut k = 0;
+        // 5. Repeat, while k < len,
+        while k < len {
+            //    a. Let from be ! ToString(𝔽(len - k - 1)).
+            let from = PropertyKey::Integer((len - k - 1).try_into().unwrap());
+            //    b. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::try_from(k).unwrap();
+            //    c. Let fromValue be ? Get(O, from).
+            let from_value = get(agent, o, from)?;
+            //    d. Perform ! CreateDataPropertyOrThrow(A, Pk, fromValue).
+            create_data_property_or_throw(agent, a, pk, from_value)?;
+            //    e. Set k to k + 1.
+            k += 1;
+            eprintln!("k: {}", k);
+        }
+        // 6. Return A.
+        Ok(a.into_value())
     }
 
     fn to_sorted(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
