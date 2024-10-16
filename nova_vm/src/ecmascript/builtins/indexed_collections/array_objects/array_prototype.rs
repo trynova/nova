@@ -2088,8 +2088,77 @@ impl ArrayPrototype {
         Ok(accumulator)
     }
 
-    fn reverse(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    fn reverse(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        if let Value::Array(array) = this_value {
+            // Fast path: Array is dense and contains no descriptors. No JS
+            // functions can thus be called by shift.
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                array.as_mut_slice(agent).reverse();
+                return Ok(array.into_value());
+            }
+        }
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. Let middle be floor(len / 2).
+        let middle = len / 2;
+        // 4. Let lower be 0.
+        let mut lower: i64 = 0;
+        // 5. Repeat, while lower ≠ middle,
+        while lower != middle {
+            //    a. Let upper be len - lower - 1.
+            let upper = len - lower - 1;
+            //    b. Let upperP be ! ToString(𝔽(upper)).
+            let upper_p = PropertyKey::Integer(upper.try_into().unwrap());
+            //    c. Let lowerP be ! ToString(𝔽(lower)).
+            let lower_p = PropertyKey::Integer(lower.try_into().unwrap());
+            //    d. Let lowerExists be ? HasProperty(O, lowerP).
+            //    e. If lowerExists is true, then
+            //       i. Let lowerValue be ? Get(O, lowerP).
+            let lower_exists = has_property(agent, o, lower_p)?;
+            //    f. Let upperExists be ? HasProperty(O, upperP).
+            //    g. If upperExists is true, then
+            //       i. Let upperValue be ? Get(O, upperP).
+            let upper_exists = has_property(agent, o, upper_p)?;
+
+            //    h. If lowerExists is true and upperExists is true, then
+            if lower_exists && upper_exists {
+                //       i. Perform ? Set(O, lowerP, upperValue, true).
+                //       ii. Perform ? Set(O, upperP, lowerValue, true).
+                let lower_value = get(agent, o, lower_p)?;
+                let upper_value = get(agent, o, upper_p)?;
+                set(agent, o, lower_p, upper_value, true)?;
+                set(agent, o, upper_p, lower_value, true)?;
+            }
+            //    i. Else if lowerExists is false and upperExists is true, then
+            else if !lower_exists && upper_exists {
+                //       i. Perform ? Set(O, lowerP, upperValue, true).
+                //       ii. Perform ? DeletePropertyOrThrow(O, upperP).
+                let upper_value = get(agent, o, upper_p)?;
+                set(agent, o, lower_p, upper_value, true)?;
+                delete_property_or_throw(agent, o, upper_p)?;
+            }
+            //    j. Else if lowerExists is true and upperExists is false, then
+            else if lower_exists && !upper_exists {
+                //       i. Perform ? DeletePropertyOrThrow(O, lowerP).
+                //       ii. Perform ? Set(O, upperP, lowerValue, true).
+                let lower_value = get(agent, o, lower_p)?;
+                delete_property_or_throw(agent, o, lower_p)?;
+                set(agent, o, upper_p, lower_value, true)?;
+            }
+            //    k. Else,
+            else {
+                //       i. Assert: lowerExists and upperExists are both false.
+                //       ii. NOTE: No action is required.
+                assert!(!(lower_exists && upper_exists));
+            }
+            //    l. Set lower to lower + 1.
+            lower += 1;
+        }
+        // 6. Return O.
+        Ok(o.into_value())
     }
 
     /// ### [23.1.3.27 Array.prototype.shift ( )](https://tc39.es/ecma262/#sec-array.prototype.shift)
