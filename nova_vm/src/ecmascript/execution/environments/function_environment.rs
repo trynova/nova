@@ -70,17 +70,31 @@ pub(crate) struct FunctionEnvironment {
 
 impl HeapMarkAndSweep for FunctionEnvironment {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.declarative_environment.mark_values(queues);
-        self.function_object.mark_values(queues);
-        self.new_target.mark_values(queues);
-        self.this_value.mark_values(queues);
+        let Self {
+            this_value,
+            this_binding_status: _,
+            function_object,
+            new_target,
+            declarative_environment,
+        } = self;
+        declarative_environment.mark_values(queues);
+        function_object.mark_values(queues);
+        new_target.mark_values(queues);
+        this_value.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.declarative_environment.sweep_values(compactions);
-        self.function_object.sweep_values(compactions);
-        self.new_target.sweep_values(compactions);
-        self.this_value.sweep_values(compactions);
+        let Self {
+            this_value,
+            this_binding_status: _,
+            function_object,
+            new_target,
+            declarative_environment,
+        } = self;
+        declarative_environment.sweep_values(compactions);
+        function_object.sweep_values(compactions);
+        new_target.sweep_values(compactions);
+        this_value.sweep_values(compactions);
     }
 }
 

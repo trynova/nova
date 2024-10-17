@@ -321,18 +321,34 @@ impl HeapMarkAndSweep for BoundFunction {
 
 impl HeapMarkAndSweep for BoundFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.name.mark_values(queues);
-        self.bound_target_function.mark_values(queues);
-        self.object_index.mark_values(queues);
-        self.bound_this.mark_values(queues);
-        self.bound_arguments.mark_values(queues);
+        let Self {
+            object_index,
+            length: _,
+            bound_target_function,
+            bound_this,
+            bound_arguments,
+            name,
+        } = self;
+        name.mark_values(queues);
+        bound_target_function.mark_values(queues);
+        object_index.mark_values(queues);
+        bound_this.mark_values(queues);
+        bound_arguments.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.name.sweep_values(compactions);
-        self.bound_target_function.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-        self.bound_this.sweep_values(compactions);
-        self.bound_arguments.sweep_values(compactions);
+        let Self {
+            object_index,
+            length: _,
+            bound_target_function,
+            bound_this,
+            bound_arguments,
+            name,
+        } = self;
+        name.sweep_values(compactions);
+        bound_target_function.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+        bound_this.sweep_values(compactions);
+        bound_arguments.sweep_values(compactions);
     }
 }

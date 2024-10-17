@@ -151,6 +151,7 @@ impl Debug for SourceCodeHeapData {
 
 impl Drop for SourceCodeHeapData {
     fn drop(&mut self) {
+        println!("Dropping SourceCode {:?}", self.source);
         // SAFETY: All references to this SourceCode should have been dropped
         // before we drop this.
         drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
@@ -179,11 +180,19 @@ impl CreateHeapData<SourceCodeHeapData, SourceCode> for Heap {
 
 impl HeapMarkAndSweep for SourceCodeHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.source.mark_values(queues);
+        let Self {
+            source,
+            allocator: _,
+        } = self;
+        source.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.source.sweep_values(compactions);
+        let Self {
+            source,
+            allocator: _,
+        } = self;
+        source.sweep_values(compactions);
     }
 }
 

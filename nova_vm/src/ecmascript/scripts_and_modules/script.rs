@@ -169,15 +169,31 @@ pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
 
 impl HeapMarkAndSweep for Script {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.realm.mark_values(queues);
-        self.source_code.mark_values(queues);
-        self.compiled_bytecode.mark_values(queues);
+        let Self {
+            realm,
+            ecmascript_code: _,
+            compiled_bytecode,
+            loaded_modules: _,
+            host_defined: _,
+            source_code,
+        } = self;
+        realm.mark_values(queues);
+        source_code.mark_values(queues);
+        compiled_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.realm.sweep_values(compactions);
-        self.source_code.sweep_values(compactions);
-        self.compiled_bytecode.sweep_values(compactions);
+        let Self {
+            realm,
+            ecmascript_code: _,
+            compiled_bytecode,
+            loaded_modules: _,
+            host_defined: _,
+            source_code,
+        } = self;
+        realm.sweep_values(compactions);
+        source_code.sweep_values(compactions);
+        compiled_bytecode.sweep_values(compactions);
     }
 }
 

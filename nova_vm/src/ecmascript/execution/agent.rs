@@ -234,6 +234,8 @@ impl GcAgent {
         assert!(self.agent.execution_context_stack.is_empty());
         let result = self.agent.run_in_realm(realm, func);
         assert!(self.agent.execution_context_stack.is_empty());
+        assert!(self.agent.vm_stack.is_empty());
+        self.agent.stack_values.borrow_mut().clear();
         result
     }
 

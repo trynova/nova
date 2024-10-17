@@ -29,12 +29,22 @@ impl Default for RegExpHeapData {
 
 impl HeapMarkAndSweep for RegExpHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.original_source.mark_values(queues);
+        let Self {
+            object_index,
+            original_source,
+            original_flags: _,
+        } = self;
+        object_index.mark_values(queues);
+        original_source.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.original_source.sweep_values(compactions);
+        let Self {
+            object_index,
+            original_source,
+            original_flags: _,
+        } = self;
+        object_index.sweep_values(compactions);
+        original_source.sweep_values(compactions);
     }
 }

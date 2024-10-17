@@ -8,7 +8,11 @@ use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 pub struct EmbedderObjectHeapData {}
 
 impl HeapMarkAndSweep for EmbedderObjectHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        let Self {} = self;
+    }
 
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        let Self {} = self;
+    }
 }

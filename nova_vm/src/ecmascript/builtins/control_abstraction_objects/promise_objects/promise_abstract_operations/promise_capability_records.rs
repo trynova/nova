@@ -228,11 +228,19 @@ impl PromiseCapability {
 
 impl HeapMarkAndSweep for PromiseCapability {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.promise.mark_values(queues);
+        let Self {
+            promise,
+            must_be_unresolved: _,
+        } = self;
+        promise.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.promise.sweep_values(compactions);
+        let Self {
+            promise,
+            must_be_unresolved: _,
+        } = self;
+        promise.sweep_values(compactions);
     }
 }
 

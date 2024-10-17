@@ -172,12 +172,24 @@ pub struct MapIteratorHeapData {
 
 impl HeapMarkAndSweep for MapIteratorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.map.mark_values(queues);
+        let Self {
+            object_index,
+            map,
+            next_index: _,
+            kind: _,
+        } = self;
+        object_index.mark_values(queues);
+        map.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.map.sweep_values(compactions);
+        let Self {
+            object_index,
+            map,
+            next_index: _,
+            kind: _,
+        } = self;
+        object_index.sweep_values(compactions);
+        map.sweep_values(compactions);
     }
 }
