@@ -27,21 +27,31 @@ pub struct WeakMapHeapData {
 
 impl HeapMarkAndSweep for WeakMapHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        for ele in &self.keys {
+        let Self {
+            object_index,
+            keys,
+            values,
+        } = self;
+        object_index.mark_values(queues);
+        for ele in keys {
             ele.mark_values(queues);
         }
-        for ele in &self.values {
+        for ele in values {
             ele.mark_values(queues);
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        for ele in &mut self.keys {
+        let Self {
+            object_index,
+            keys,
+            values,
+        } = self;
+        object_index.sweep_values(compactions);
+        for ele in keys {
             ele.sweep_values(compactions);
         }
-        for ele in &mut self.values {
+        for ele in values {
             ele.sweep_values(compactions);
         }
     }

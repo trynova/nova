@@ -540,14 +540,28 @@ impl HeapMarkAndSweep for BuiltinFunction {
 
 impl HeapMarkAndSweep for BuiltinFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.realm.mark_values(queues);
-        self.initial_name.mark_values(queues);
-        self.object_index.mark_values(queues);
+        let Self {
+            object_index,
+            length: _,
+            realm,
+            initial_name,
+            behaviour: _,
+        } = self;
+        realm.mark_values(queues);
+        initial_name.mark_values(queues);
+        object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.realm.sweep_values(compactions);
-        self.initial_name.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
+        let Self {
+            object_index,
+            length: _,
+            realm,
+            initial_name,
+            behaviour: _,
+        } = self;
+        realm.sweep_values(compactions);
+        initial_name.sweep_values(compactions);
+        object_index.sweep_values(compactions);
     }
 }

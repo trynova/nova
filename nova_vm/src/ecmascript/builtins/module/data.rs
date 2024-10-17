@@ -86,18 +86,44 @@ impl ModuleRecord {
 
 impl HeapMarkAndSweep for ModuleHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        for ele in self.exports.iter() {
+        let Self {
+            object_index,
+            module,
+            exports,
+        } = self;
+        let ModuleRecord {
+            realm,
+            environment: _,
+            namespace,
+            host_defined: _,
+        } = module;
+        for ele in exports.iter() {
             ele.mark_values(queues);
         }
-        self.module.namespace.mark_values(queues);
-        self.object_index.mark_values(queues);
+        realm.mark_values(queues);
+        // environment.mark_values(queues);
+        namespace.mark_values(queues);
+        object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        for ele in self.exports.iter_mut() {
+        let Self {
+            object_index,
+            module,
+            exports,
+        } = self;
+        let ModuleRecord {
+            realm,
+            environment: _,
+            namespace,
+            host_defined: _,
+        } = module;
+        for ele in exports.iter_mut() {
             ele.sweep_values(compactions);
         }
-        self.module.namespace.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
+        realm.sweep_values(compactions);
+        // environment.sweep_values(compactions);
+        namespace.sweep_values(compactions);
+        object_index.sweep_values(compactions);
     }
 }

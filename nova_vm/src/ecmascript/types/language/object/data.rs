@@ -51,14 +51,27 @@ impl ObjectHeapData {
 
 impl HeapMarkAndSweep for ObjectHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.keys.mark_values(queues);
-        self.values.mark_values(queues);
-        self.prototype.mark_values(queues);
+        let Self {
+            extensible: _,
+            prototype,
+            keys,
+            values,
+        } = self;
+
+        keys.mark_values(queues);
+        values.mark_values(queues);
+        prototype.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.keys.sweep_values(compactions);
-        self.values.sweep_values(compactions);
-        self.prototype.sweep_values(compactions);
+        let Self {
+            extensible: _,
+            prototype,
+            keys,
+            values,
+        } = self;
+        keys.sweep_values(compactions);
+        values.sweep_values(compactions);
+        prototype.sweep_values(compactions);
     }
 }

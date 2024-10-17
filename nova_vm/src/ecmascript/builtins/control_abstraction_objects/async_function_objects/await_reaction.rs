@@ -68,8 +68,7 @@ impl AwaitReactionIdentifier {
         // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
         let vm = agent[self].vm.take().unwrap();
         let async_function = agent[self].async_function.unwrap();
-        // SAFETY: We keep the async function alive.
-        let executable = unsafe { agent[async_function].compiled_bytecode.unwrap().as_ref() };
+        let executable = agent[async_function].compiled_bytecode.unwrap();
         let execution_result = match reaction_type {
             PromiseReactionType::Fulfill => vm.resume(agent, executable, value),
             PromiseReactionType::Reject => vm.resume_throw(agent, executable, value),
@@ -179,14 +178,28 @@ impl CreateHeapData<AwaitReaction, AwaitReactionIdentifier> for Heap {
 
 impl HeapMarkAndSweep for AwaitReaction {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.vm.mark_values(queues);
-        self.async_function.mark_values(queues);
-        self.return_promise_capability.mark_values(queues);
+        let Self {
+            vm,
+            async_function,
+            execution_context,
+            return_promise_capability,
+        } = self;
+        vm.mark_values(queues);
+        async_function.mark_values(queues);
+        execution_context.mark_values(queues);
+        return_promise_capability.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.vm.sweep_values(compactions);
-        self.async_function.sweep_values(compactions);
-        self.return_promise_capability.sweep_values(compactions);
+        let Self {
+            vm,
+            async_function,
+            execution_context,
+            return_promise_capability,
+        } = self;
+        vm.sweep_values(compactions);
+        async_function.sweep_values(compactions);
+        execution_context.sweep_values(compactions);
+        return_promise_capability.sweep_values(compactions);
     }
 }

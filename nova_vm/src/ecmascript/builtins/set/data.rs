@@ -168,8 +168,12 @@ fn rehash_set_data(
 
 impl HeapMarkAndSweep for SetHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.set_data
+        let Self {
+            object_index,
+            set_data,
+        } = self;
+        object_index.mark_values(queues);
+        set_data
             .values
             .iter()
             .for_each(|value| value.mark_values(queues));

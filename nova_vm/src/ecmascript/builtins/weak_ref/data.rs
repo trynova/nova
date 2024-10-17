@@ -26,15 +26,25 @@ impl Default for WeakRefHeapData {
 
 impl HeapMarkAndSweep for WeakRefHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        if self.is_strong {
-            self.value.mark_values(queues);
+        let Self {
+            object_index,
+            value,
+            is_strong,
+        } = self;
+        object_index.mark_values(queues);
+        if *is_strong {
+            value.mark_values(queues);
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.value.sweep_values(compactions);
-        self.is_strong = false;
+        let Self {
+            object_index,
+            value,
+            is_strong,
+        } = self;
+        object_index.sweep_values(compactions);
+        value.sweep_values(compactions);
+        *is_strong = false;
     }
 }

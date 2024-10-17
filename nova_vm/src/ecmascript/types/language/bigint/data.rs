@@ -12,8 +12,12 @@ pub struct BigIntHeapData {
 
 impl HeapMarkAndSweep for BigIntHeapData {
     #[inline(always)]
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        let Self { data: _ } = self;
+    }
 
     #[inline(always)]
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        let Self { data: _ } = self;
+    }
 }

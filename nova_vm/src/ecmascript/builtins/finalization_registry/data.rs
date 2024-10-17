@@ -14,10 +14,12 @@ pub struct FinalizationRegistryHeapData {
 
 impl HeapMarkAndSweep for FinalizationRegistryHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
+        let Self { object_index } = self;
+        object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
+        let Self { object_index } = self;
+        object_index.sweep_values(compactions);
     }
 }

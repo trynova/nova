@@ -23,7 +23,11 @@ impl From<NumberHeapData> for f64 {
 }
 
 impl HeapMarkAndSweep for NumberHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        let Self { data: _ } = self;
+    }
 
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        let Self { data: _ } = self;
+    }
 }

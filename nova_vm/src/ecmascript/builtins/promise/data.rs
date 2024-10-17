@@ -93,13 +93,21 @@ impl HeapMarkAndSweep for PromiseReactions {
 
 impl HeapMarkAndSweep for PromiseHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.promise_state.mark_values(queues);
+        let Self {
+            object_index,
+            promise_state,
+        } = self;
+        object_index.mark_values(queues);
+        promise_state.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.promise_state.sweep_values(compactions);
+        let Self {
+            object_index,
+            promise_state,
+        } = self;
+        object_index.sweep_values(compactions);
+        promise_state.sweep_values(compactions);
     }
 }
 
@@ -109,13 +117,16 @@ impl HeapMarkAndSweep for PromiseState {
             PromiseState::Pending {
                 fulfill_reactions,
                 reject_reactions,
-                ..
+                is_resolved: _,
             } => {
                 fulfill_reactions.mark_values(queues);
                 reject_reactions.mark_values(queues);
             }
             PromiseState::Fulfilled { promise_result }
-            | PromiseState::Rejected { promise_result, .. } => {
+            | PromiseState::Rejected {
+                promise_result,
+                is_handled: _,
+            } => {
                 promise_result.mark_values(queues);
             }
         }
@@ -126,13 +137,16 @@ impl HeapMarkAndSweep for PromiseState {
             PromiseState::Pending {
                 fulfill_reactions,
                 reject_reactions,
-                ..
+                is_resolved: _,
             } => {
                 fulfill_reactions.sweep_values(compactions);
                 reject_reactions.sweep_values(compactions);
             }
             PromiseState::Fulfilled { promise_result }
-            | PromiseState::Rejected { promise_result, .. } => {
+            | PromiseState::Rejected {
+                promise_result,
+                is_handled: _,
+            } => {
                 promise_result.sweep_values(compactions);
             }
         }

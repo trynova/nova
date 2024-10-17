@@ -184,6 +184,8 @@ impl CompileContext<'_> {
             eprintln!();
         }
 
+        println!("{:?}", data.params as *const _ as *const ());
+
         function_declaration_instantiation::instantiation(
             self,
             data.params,
@@ -527,35 +529,37 @@ pub(crate) struct Executable {
     pub(crate) class_initializer_bytecodes: Box<[(Option<Executable>, bool)]>,
 }
 
+pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
+    if *ip >= instructions.len() {
+        return None;
+    }
+
+    let kind: Instruction = unsafe { std::mem::transmute::<u8, Instruction>(instructions[*ip]) };
+    *ip += 1;
+
+    let mut args: [Option<IndexType>; 2] = [None, None];
+
+    for item in args.iter_mut().take(kind.argument_count() as usize) {
+        let length = instructions[*ip..].len();
+        if length >= 2 {
+            let bytes = IndexType::from_ne_bytes(unsafe {
+                *std::mem::transmute::<*const u8, *const [u8; 2]>(instructions[*ip..].as_ptr())
+            });
+            *ip += 2;
+            *item = Some(bytes);
+        } else {
+            *ip += 1;
+            *item = None;
+        }
+    }
+
+    Some(Instr { kind, args })
+}
+
 impl Executable {
+    #[inline]
     pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
-        if *ip >= self.instructions.len() {
-            return None;
-        }
-
-        let kind: Instruction =
-            unsafe { std::mem::transmute::<u8, Instruction>(self.instructions[*ip]) };
-        *ip += 1;
-
-        let mut args: [Option<IndexType>; 2] = [None, None];
-
-        for item in args.iter_mut().take(kind.argument_count() as usize) {
-            let length = self.instructions[*ip..].len();
-            if length >= 2 {
-                let bytes = IndexType::from_ne_bytes(unsafe {
-                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
-                        self.instructions[*ip..].as_ptr(),
-                    )
-                });
-                *ip += 2;
-                *item = Some(bytes);
-            } else {
-                *ip += 1;
-                *item = None;
-            }
-        }
-
-        Some(Instr { kind, args })
+        get_instruction(&self.instructions, ip)
     }
 
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
@@ -3075,10 +3079,30 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
 
 impl HeapMarkAndSweep for Executable {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.constants.mark_values(queues);
+        let Self {
+            instructions: _,
+            constants,
+            function_expressions: _,
+            arrow_function_expressions: _,
+            class_initializer_bytecodes,
+        } = self;
+        constants.mark_values(queues);
+        for ele in class_initializer_bytecodes {
+            ele.0.mark_values(queues);
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.constants.sweep_values(compactions);
+        let Self {
+            instructions: _,
+            constants,
+            function_expressions: _,
+            arrow_function_expressions: _,
+            class_initializer_bytecodes,
+        } = self;
+        constants.sweep_values(compactions);
+        for ele in class_initializer_bytecodes {
+            ele.0.sweep_values(compactions);
+        }
     }
 }
