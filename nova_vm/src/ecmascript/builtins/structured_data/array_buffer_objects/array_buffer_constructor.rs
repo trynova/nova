@@ -64,7 +64,7 @@ impl ArrayBufferConstructor {
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "Constructor ArrayBuffe requires 'new'",
+                "Constructor ArrayBuffer requires 'new'",
             ));
         };
         // 2. Let byteLength be ? ToIndex(length).
