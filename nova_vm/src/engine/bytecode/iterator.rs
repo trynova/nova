@@ -235,17 +235,29 @@ impl ArrayValuesIterator {
 
 impl HeapMarkAndSweep for ObjectPropertiesIterator {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object.mark_values(queues);
-        self.visited_keys.as_slice().mark_values(queues);
-        for key in self.remaining_keys.iter() {
+        let Self {
+            object,
+            object_was_visited: _,
+            visited_keys,
+            remaining_keys,
+        } = self;
+        object.mark_values(queues);
+        visited_keys.as_slice().mark_values(queues);
+        for key in remaining_keys.iter() {
             key.mark_values(queues);
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object.sweep_values(compactions);
-        self.visited_keys.as_mut_slice().sweep_values(compactions);
-        for key in self.remaining_keys.iter_mut() {
+        let Self {
+            object,
+            object_was_visited: _,
+            visited_keys,
+            remaining_keys,
+        } = self;
+        object.sweep_values(compactions);
+        visited_keys.as_mut_slice().sweep_values(compactions);
+        for key in remaining_keys.iter_mut() {
             key.sweep_values(compactions);
         }
     }

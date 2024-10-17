@@ -184,7 +184,7 @@ impl CompileContext<'_> {
             eprintln!();
         }
 
-        println!("{:?}", data.params);
+        println!("{:?}", data.params as *const _ as *const ());
 
         function_declaration_instantiation::instantiation(
             self,
@@ -3079,10 +3079,30 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
 
 impl HeapMarkAndSweep for Executable {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.constants.mark_values(queues);
+        let Self {
+            instructions: _,
+            constants,
+            function_expressions: _,
+            arrow_function_expressions: _,
+            class_initializer_bytecodes,
+        } = self;
+        constants.mark_values(queues);
+        for ele in class_initializer_bytecodes {
+            ele.0.mark_values(queues);
+        }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.constants.sweep_values(compactions);
+        let Self {
+            instructions: _,
+            constants,
+            function_expressions: _,
+            arrow_function_expressions: _,
+            class_initializer_bytecodes,
+        } = self;
+        constants.sweep_values(compactions);
+        for ele in class_initializer_bytecodes {
+            ele.0.sweep_values(compactions);
+        }
     }
 }

@@ -1776,11 +1776,19 @@ impl HeapMarkAndSweep for Intrinsics {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        OrdinaryObject(self.object_index_base).sweep_values(compactions);
-        BuiltinFunction(self.builtin_function_index_base).sweep_values(compactions);
+        let Self {
+            object_index_base,
+            primitive_object_index_base,
+            array_prototype,
+            builtin_function_index_base,
+        } = self;
+        compactions.objects.shift_index(object_index_base);
         compactions
             .primitive_objects
-            .shift_index(&mut self.primitive_object_index_base);
-        self.array_prototype.sweep_values(compactions);
+            .shift_index(primitive_object_index_base);
+        array_prototype.sweep_values(compactions);
+        compactions
+            .builtin_functions
+            .shift_index(builtin_function_index_base);
     }
 }

@@ -450,20 +450,40 @@ impl HeapMarkAndSweep for BuiltinConstructorFunction {
 
 impl HeapMarkAndSweep for BuiltinConstructorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.realm.mark_values(queues);
-        self.object_index.mark_values(queues);
-        self.environment.mark_values(queues);
-        self.private_environment.mark_values(queues);
-        self.source_code.mark_values(queues);
-        self.compiled_initializer_bytecode.mark_values(queues);
+        let Self {
+            object_index,
+            realm,
+            is_derived: _,
+            compiled_initializer_bytecode,
+            environment,
+            private_environment,
+            source_text: _,
+            source_code,
+        } = self;
+        realm.mark_values(queues);
+        object_index.mark_values(queues);
+        environment.mark_values(queues);
+        private_environment.mark_values(queues);
+        source_code.mark_values(queues);
+        compiled_initializer_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.realm.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-        self.environment.sweep_values(compactions);
-        self.private_environment.sweep_values(compactions);
-        self.source_code.sweep_values(compactions);
-        self.compiled_initializer_bytecode.sweep_values(compactions);
+        let Self {
+            object_index,
+            realm,
+            is_derived: _,
+            compiled_initializer_bytecode,
+            environment,
+            private_environment,
+            source_text: _,
+            source_code,
+        } = self;
+        realm.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+        environment.sweep_values(compactions);
+        private_environment.sweep_values(compactions);
+        source_code.sweep_values(compactions);
+        compiled_initializer_bytecode.sweep_values(compactions);
     }
 }

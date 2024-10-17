@@ -295,11 +295,11 @@ where
 {
     fn root(self, agent: &Agent) -> Local<Self> {
         let value = self.into_value();
-        let stack_values = agent.stack_values.borrow_mut();
+        let mut stack_values = agent.stack_values.borrow_mut();
         let Ok(index) = u32::try_from(stack_values.len()) else {
             handle_index_overflow();
         };
-        agent.stack_values.borrow_mut().push(value);
+        stack_values.push(value);
         let inner = LocalInner::ScopedValue(index);
 
         Local {
@@ -308,6 +308,8 @@ where
         }
     }
 }
+
+impl<T> ObjectScopeRoot for T where T: Sized + IntoObject + TryFrom<Value> {}
 
 #[cold]
 #[inline(never)]

@@ -1038,37 +1038,74 @@ impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction> for Heap {
 
 impl HeapMarkAndSweep for ECMAScriptFunctionHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.name.mark_values(queues);
-        self.object_index.mark_values(queues);
-
-        self.ecmascript_function.environment.mark_values(queues);
-        self.ecmascript_function
-            .private_environment
-            .mark_values(queues);
-        self.ecmascript_function.realm.mark_values(queues);
-        self.ecmascript_function
-            .script_or_module
-            .mark_values(queues);
-        self.ecmascript_function.home_object.mark_values(queues);
-        self.compiled_bytecode.mark_values(queues);
+        let Self {
+            object_index,
+            length: _,
+            ecmascript_function,
+            compiled_bytecode,
+            name,
+        } = self;
+        let ECMAScriptFunctionObjectHeapData {
+            environment,
+            private_environment,
+            formal_parameters: _,
+            ecmascript_code: _,
+            is_concise_arrow_function: _,
+            is_async: _,
+            is_generator: _,
+            constructor_status: _,
+            realm,
+            script_or_module,
+            this_mode: _,
+            strict: _,
+            home_object,
+            source_text: _,
+            source_code,
+        } = ecmascript_function;
+        object_index.mark_values(queues);
+        compiled_bytecode.mark_values(queues);
+        name.mark_values(queues);
+        environment.mark_values(queues);
+        private_environment.mark_values(queues);
+        realm.mark_values(queues);
+        script_or_module.mark_values(queues);
+        home_object.mark_values(queues);
+        source_code.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.name.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-        self.ecmascript_function
-            .environment
-            .sweep_values(compactions);
-        self.ecmascript_function
-            .private_environment
-            .sweep_values(compactions);
-        self.ecmascript_function.realm.sweep_values(compactions);
-        self.ecmascript_function
-            .script_or_module
-            .sweep_values(compactions);
-        self.ecmascript_function
-            .home_object
-            .sweep_values(compactions);
-        self.compiled_bytecode.sweep_values(compactions);
+        let Self {
+            object_index,
+            length: _,
+            ecmascript_function,
+            compiled_bytecode,
+            name,
+        } = self;
+        let ECMAScriptFunctionObjectHeapData {
+            environment,
+            private_environment,
+            formal_parameters: _,
+            ecmascript_code: _,
+            is_concise_arrow_function: _,
+            is_async: _,
+            is_generator: _,
+            constructor_status: _,
+            realm,
+            script_or_module,
+            this_mode: _,
+            strict: _,
+            home_object,
+            source_text: _,
+            source_code,
+        } = ecmascript_function;
+        object_index.sweep_values(compactions);
+        compiled_bytecode.sweep_values(compactions);
+        name.sweep_values(compactions);
+        environment.sweep_values(compactions);
+        private_environment.sweep_values(compactions);
+        realm.sweep_values(compactions);
+        script_or_module.sweep_values(compactions);
+        home_object.sweep_values(compactions);
+        source_code.sweep_values(compactions);
     }
 }

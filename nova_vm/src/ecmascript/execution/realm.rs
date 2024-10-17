@@ -175,7 +175,7 @@ impl Realm {
 
 impl HeapMarkAndSweep for Realm {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Realm {
+        let Self {
             agent_signifier: _,
             intrinsics,
             global_object,
@@ -190,7 +190,7 @@ impl HeapMarkAndSweep for Realm {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Realm {
+        let Self {
             agent_signifier: _,
             intrinsics,
             global_object,

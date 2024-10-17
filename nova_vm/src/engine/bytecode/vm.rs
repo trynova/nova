@@ -2311,11 +2311,19 @@ pub(crate) fn instanceof_operator(
 
 impl HeapMarkAndSweep for ExceptionJumpTarget {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.lexical_environment.mark_values(queues);
+        let Self {
+            ip: _,
+            lexical_environment,
+        } = self;
+        lexical_environment.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.lexical_environment.sweep_values(compactions);
+        let Self {
+            ip: _,
+            lexical_environment,
+        } = self;
+        lexical_environment.sweep_values(compactions);
     }
 }
 
@@ -2365,16 +2373,30 @@ impl HeapMarkAndSweep for Vm {
 
 impl HeapMarkAndSweep for SuspendedVm {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.stack.mark_values(queues);
-        self.reference_stack.mark_values(queues);
-        self.iterator_stack.mark_values(queues);
-        self.exception_jump_target_stack.mark_values(queues);
+        let Self {
+            ip: _,
+            stack,
+            reference_stack,
+            iterator_stack,
+            exception_jump_target_stack,
+        } = self;
+        stack.mark_values(queues);
+        reference_stack.mark_values(queues);
+        iterator_stack.mark_values(queues);
+        exception_jump_target_stack.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.stack.sweep_values(compactions);
-        self.reference_stack.sweep_values(compactions);
-        self.iterator_stack.sweep_values(compactions);
-        self.exception_jump_target_stack.sweep_values(compactions);
+        let Self {
+            ip: _,
+            stack,
+            reference_stack,
+            iterator_stack,
+            exception_jump_target_stack,
+        } = self;
+        stack.sweep_values(compactions);
+        reference_stack.sweep_values(compactions);
+        iterator_stack.sweep_values(compactions);
+        exception_jump_target_stack.sweep_values(compactions);
     }
 }

@@ -32,14 +32,27 @@ impl ErrorHeapData {
 
 impl HeapMarkAndSweep for ErrorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.message.mark_values(queues);
-        self.cause.mark_values(queues);
+        let Self {
+            object_index,
+            kind: _,
+            message,
+            cause,
+        } = self;
+
+        object_index.mark_values(queues);
+        message.mark_values(queues);
+        cause.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.message.sweep_values(compactions);
-        self.cause.sweep_values(compactions);
+        let Self {
+            object_index,
+            kind: _,
+            message,
+            cause,
+        } = self;
+        object_index.sweep_values(compactions);
+        message.sweep_values(compactions);
+        cause.sweep_values(compactions);
     }
 }

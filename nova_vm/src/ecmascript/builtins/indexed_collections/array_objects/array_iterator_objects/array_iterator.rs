@@ -180,12 +180,24 @@ pub struct ArrayIteratorHeapData {
 
 impl HeapMarkAndSweep for ArrayIteratorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.array.mark_values(queues);
+        let Self {
+            object_index,
+            array,
+            next_index: _,
+            kind: _,
+        } = self;
+        object_index.mark_values(queues);
+        array.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.array.sweep_values(compactions);
+        let Self {
+            object_index,
+            array,
+            next_index: _,
+            kind: _,
+        } = self;
+        object_index.sweep_values(compactions);
+        array.sweep_values(compactions);
     }
 }

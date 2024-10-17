@@ -528,8 +528,9 @@ impl PrimitiveObjectHeapData {
 
 impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        match self.data {
+        let Self { object_index, data } = self;
+        object_index.mark_values(queues);
+        match data {
             PrimitiveObjectData::String(data) => data.mark_values(queues),
             PrimitiveObjectData::Symbol(data) => data.mark_values(queues),
             PrimitiveObjectData::Number(data) => data.mark_values(queues),
@@ -539,8 +540,9 @@ impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        match &mut self.data {
+        let Self { object_index, data } = self;
+        object_index.sweep_values(compactions);
+        match data {
             PrimitiveObjectData::String(data) => data.sweep_values(compactions),
             PrimitiveObjectData::Symbol(data) => data.sweep_values(compactions),
             PrimitiveObjectData::Number(data) => data.sweep_values(compactions),
