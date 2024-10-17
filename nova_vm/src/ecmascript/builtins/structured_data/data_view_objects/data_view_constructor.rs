@@ -4,7 +4,20 @@
 
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_index, builders::builtin_function_builder::BuiltinFunctionBuilder, builtins::{array_buffer::{array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer, Ordering}, data_view::DataView, ordinary::ordinary_create_from_constructor, structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor}, execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier}, types::{Function, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY}
+        abstract_operations::type_conversion::to_index,
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            array_buffer::{
+                array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer,
+                Ordering,
+            },
+            data_view::DataView,
+            ordinary::ordinary_create_from_constructor,
+            structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        types::{Function, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -97,11 +110,7 @@ impl DataViewConstructor {
         };
 
         // 10. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DataView.prototype%", « [[DataView]], [[ViewedArrayBuffer]], [[ByteLength]], [[ByteOffset]] »).
-        let o = ordinary_create_from_constructor(
-            agent,
-            new_target,
-            ProtoIntrinsics::DataView,
-        )?;
+        let o = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::DataView)?;
 
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {

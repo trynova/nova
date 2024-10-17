@@ -5,7 +5,17 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{array_buffer::Ordering, data_view::{abstract_operations::{get_view_byte_length, is_view_out_of_bounds, make_data_view_with_buffer_witness_record}, DataView}, ArgumentsList, Behaviour, Builtin, BuiltinGetter},
+        builtins::{
+            array_buffer::Ordering,
+            data_view::{
+                abstract_operations::{
+                    get_view_byte_length, is_view_out_of_bounds,
+                    make_data_view_with_buffer_witness_record,
+                },
+                DataView,
+            },
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
+        },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -161,7 +171,7 @@ impl Builtin for DataViewPrototypeSetUint32 {
 
 impl DataViewPrototype {
     /// ### [25.3.4.1 get DataView.prototype.buffer](https://tc39.es/ecma262/#sec-get-dataview.prototype.buffer)
-    /// 
+    ///
     /// DataView.prototype.buffer is an accessor property whose set accessor
     /// function is undefined.
     fn get_buffer(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
@@ -176,14 +186,10 @@ impl DataViewPrototype {
     }
 
     /// ### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
-    /// 
+    ///
     /// DataView.prototype.byteLength is an accessor property whose set accessor
     /// function is undefined.
-    fn get_byte_length(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_byte_length(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let o = require_internal_slot_data_view(agent, this_value)?;
@@ -204,14 +210,10 @@ impl DataViewPrototype {
     }
 
     /// ### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
-    /// 
+    ///
     /// DataView.prototype.byteOffset is an accessor property whose set accessor
     /// function is undefined.
-    fn get_byte_offset(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn get_byte_offset(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
         let o = require_internal_slot_data_view(agent, this_value)?;
@@ -230,7 +232,11 @@ impl DataViewPrototype {
         Ok(Number::from_f64(agent, agent[o].byte_offset as f64).into_value())
     }
 
-    fn get_big_int64(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn get_big_int64(
+        _agent: &mut Agent,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
@@ -354,7 +360,6 @@ impl DataViewPrototype {
             .build();
     }
 }
-
 
 #[inline]
 fn require_internal_slot_data_view(agent: &mut Agent, o: Value) -> JsResult<DataView> {

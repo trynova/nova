@@ -13,7 +13,7 @@ pub struct DataViewHeapData {
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-dataview-instances)
     pub(crate) viewed_array_buffer: Option<ArrayBuffer>,
     /// ### [\[\[ByteLength\]\]](https://tc39.es/ecma262/#sec-properties-of-dataview-instances)
-    /// 
+    ///
     /// NOTE: A `None` value indicates that the byte length is `AUTO`.
     pub(crate) byte_length: Option<usize>,
     /// ### [\[\[ByteOffset\]\]](https://tc39.es/ecma262/#sec-properties-of-dataview-instances)
