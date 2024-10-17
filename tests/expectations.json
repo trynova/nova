@@ -17763,7 +17763,6 @@
   "language/expressions/new.target/value-via-super-property.js": "CRASH",
   "language/expressions/new.target/value-via-tagged-template.js": "CRASH",
   "language/expressions/new/non-ctor-err-realm.js": "FAIL",
-  "language/expressions/object/__proto__-fn-name.js": "FAIL",
   "language/expressions/object/computed-property-name-topropertykey-before-value-evaluation.js": "FAIL",
   "language/expressions/object/concise-generator.js": "CRASH",
   "language/expressions/object/cpn-obj-lit-computed-property-name-from-assignment-expression-logical-and.js": "FAIL",
