@@ -982,17 +982,19 @@ pub(crate) fn set_default_global_bindings(
     // 19.4 Other Properties of the Global Object
     {
         // 19.4.1 Atomics
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Atomics);
-        let value = agent.get_realm(realm_id).intrinsics().atomics();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "atomics")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Atomics);
+            let value = agent.get_realm(realm_id).intrinsics().atomics();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.4.2 JSON
         #[cfg(feature = "json")]
         {
