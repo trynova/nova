@@ -331,10 +331,6 @@ pub fn perform_eval(
 
     // 29. If result is a normal completion, then
     let result = if result.is_ok() {
-        // TODO: We have a problem here. First, we're forcing an extra heap
-        // allocation for no good reason.
-        // Second, this executable is not accessible by the heap and will thus
-        // break if garbage collection triggers within the eval.
         let exe = Executable::compile_eval_body(agent, &script.body);
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
