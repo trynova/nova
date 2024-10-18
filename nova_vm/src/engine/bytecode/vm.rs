@@ -1167,8 +1167,7 @@ impl Vm {
                 } else if cfg!(feature = "interleaved-gc") {
                     let mut vm = NonNull::from(vm);
                     agent.vm_stack.push(vm);
-                    let result =
-                        call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
+                    let result = call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. We have an
