@@ -16,6 +16,9 @@ use crate::{
 
 use self::data::DataViewHeapData;
 
+use super::ArrayBuffer;
+
+pub(crate) mod abstract_operations;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -23,6 +26,21 @@ pub mod data;
 pub struct DataView(pub(crate) DataViewIndex);
 
 impl DataView {
+    #[inline]
+    pub fn byte_length(self, agent: &Agent) -> Option<usize> {
+        agent[self].byte_length
+    }
+
+    #[inline]
+    pub fn byte_offset(self, agent: &Agent) -> usize {
+        agent[self].byte_offset
+    }
+
+    #[inline]
+    pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer {
+        agent[self].viewed_array_buffer.unwrap()
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(DataViewIndex::from_u32_index(0))
     }
@@ -59,6 +77,17 @@ impl From<DataView> for Value {
 impl From<DataView> for Object {
     fn from(val: DataView) -> Self {
         Object::DataView(val)
+    }
+}
+
+impl TryFrom<Object> for DataView {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::DataView(data) => Ok(data),
+            _ => Err(()),
+        }
     }
 }
 
