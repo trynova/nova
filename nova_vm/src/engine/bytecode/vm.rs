@@ -56,7 +56,7 @@ use super::{
     executable::{ArrowFunctionExpression, SendableRef},
     instructions::Instr,
     iterator::{ObjectPropertiesIterator, VmIterator},
-    Executable, ExecutableHeapData, FunctionExpression, IndexType, Instruction, InstructionIter,
+    Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
     NamedEvaluationParameter,
 };
 
@@ -206,15 +206,6 @@ impl Vm {
             exception: None,
             reference: None,
         }
-    }
-
-    fn fetch_identifier(&self, exe: &ExecutableHeapData, index: usize) -> String {
-        String::try_from(exe.constants[index])
-            .expect("Invalid identifier index: Value was not a String")
-    }
-
-    fn fetch_constant(&self, exe: &ExecutableHeapData, index: usize) -> Value {
-        exe.constants[index]
     }
 
     /// Executes an executable using the virtual machine.

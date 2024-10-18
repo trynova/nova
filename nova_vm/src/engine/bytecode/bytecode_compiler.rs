@@ -186,8 +186,6 @@ impl CompileContext<'_> {
             eprintln!();
         }
 
-        println!("{:?}", data.params as *const _ as *const ());
-
         function_declaration_instantiation::instantiation(
             self,
             data.params,

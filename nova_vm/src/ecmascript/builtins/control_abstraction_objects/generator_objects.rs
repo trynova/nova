@@ -96,7 +96,6 @@ impl Generator {
         // 11. Return ? result.
         match execution_result {
             ExecutionResult::Return(result_value) => {
-                println!("Generator: {:?}", self);
                 // GeneratorStart step 4:
                 // g. Set acGenerator.[[GeneratorState]] to completed.
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its

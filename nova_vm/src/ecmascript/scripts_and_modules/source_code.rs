@@ -151,7 +151,6 @@ impl Debug for SourceCodeHeapData {
 
 impl Drop for SourceCodeHeapData {
     fn drop(&mut self) {
-        println!("Dropping SourceCode {:?}", self.source);
         // SAFETY: All references to this SourceCode should have been dropped
         // before we drop this.
         drop(unsafe { Box::from_raw(self.allocator.as_mut()) });
