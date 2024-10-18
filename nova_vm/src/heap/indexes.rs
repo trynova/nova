@@ -4,6 +4,8 @@
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
@@ -30,7 +32,6 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObjectHeapData,
         promise::data::PromiseHeapData,
         proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
         set::data::SetHeapData,
         ArrayHeapData,
     },
@@ -187,6 +188,7 @@ pub type ObjectIndex = BaseIndex<ObjectHeapData>;
 pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
 pub type PromiseIndex = BaseIndex<PromiseHeapData>;
 pub type ProxyIndex = BaseIndex<ProxyHeapData>;
+#[cfg(feature = "regexp")]
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
 pub type SetIndex = BaseIndex<SetHeapData>;
 pub type SetIteratorIndex = BaseIndex<SetIteratorHeapData>;

@@ -11,6 +11,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
@@ -44,7 +46,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            regexp::RegExp,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
@@ -159,6 +160,7 @@ pub enum Value {
     Map(Map),
     Promise(Promise),
     Proxy(Proxy),
+    #[cfg(feature = "regexp")]
     RegExp(RegExp),
     Set(Set),
     #[cfg(feature = "shared-array-buffer")]
@@ -259,6 +261,7 @@ pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_def()));
 pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BoundFunction(BoundFunction::_def()));
+#[cfg(feature = "regexp")]
 pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_def()));
 
 pub(crate) const BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
@@ -645,6 +648,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -865,6 +869,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1093,6 +1098,7 @@ impl HeapMarkAndSweep for Value {
             Value::BoundFunction(data) => data.mark_values(queues),
             Value::BuiltinFunction(data) => data.mark_values(queues),
             Value::ECMAScriptFunction(data) => data.mark_values(queues),
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => data.mark_values(queues),
             Value::PrimitiveObject(data) => data.mark_values(queues),
             Value::Arguments(data) => data.mark_values(queues),
@@ -1175,6 +1181,7 @@ impl HeapMarkAndSweep for Value {
             Value::BoundFunction(data) => data.sweep_values(compactions),
             Value::BuiltinFunction(data) => data.sweep_values(compactions),
             Value::ECMAScriptFunction(data) => data.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => data.sweep_values(compactions),
             Value::PrimitiveObject(data) => data.sweep_values(compactions),
             Value::Arguments(data) => data.sweep_values(compactions),

@@ -811,17 +811,19 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, global, name, desc)?;
 
         // 19.3.26 RegExp ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RegExp);
-        let value = agent.get_realm(realm_id).intrinsics().reg_exp();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "regexp")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RegExp);
+            let value = agent.get_realm(realm_id).intrinsics().reg_exp();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.3.27 Set ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Set);
         let value = agent.get_realm(realm_id).intrinsics().set();
@@ -1127,7 +1129,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent) {
 
 #[cfg(test)]
 mod test {
-
+    #[allow(unused_imports)]
     use crate::heap::{
         IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
         LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX,
@@ -1175,6 +1177,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(feature = "regexp")]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
         use crate::ecmascript::execution::{agent::Options, Agent, DefaultHostHooks};

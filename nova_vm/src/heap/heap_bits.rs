@@ -14,6 +14,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -44,7 +46,6 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
-        regexp::RegExp,
         set::Set,
         Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
@@ -105,6 +106,7 @@ pub struct HeapBits {
     pub promises: Box<[bool]>,
     pub proxys: Box<[bool]>,
     pub realms: Box<[bool]>,
+    #[cfg(feature = "regexp")]
     pub regexps: Box<[bool]>,
     pub scripts: Box<[bool]>,
     pub sets: Box<[bool]>,
@@ -168,6 +170,7 @@ pub(crate) struct WorkQueues {
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction>,
     pub proxys: Vec<Proxy>,
     pub realms: Vec<RealmIdentifier>,
+    #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp>,
     pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<Set>,
@@ -231,6 +234,7 @@ impl HeapBits {
         let promises = vec![false; heap.promises.len()];
         let proxys = vec![false; heap.proxys.len()];
         let realms = vec![false; heap.realms.len()];
+        #[cfg(feature = "regexp")]
         let regexps = vec![false; heap.regexps.len()];
         let scripts = vec![false; heap.scripts.len()];
         let sets = vec![false; heap.sets.len()];
@@ -291,6 +295,7 @@ impl HeapBits {
             promises: promises.into_boxed_slice(),
             proxys: proxys.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
+            #[cfg(feature = "regexp")]
             regexps: regexps.into_boxed_slice(),
             scripts: scripts.into_boxed_slice(),
             sets: sets.into_boxed_slice(),
@@ -359,6 +364,7 @@ impl WorkQueues {
             promises: Vec::with_capacity(heap.promises.len() / 4),
             proxys: Vec::with_capacity(heap.proxys.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
+            #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             sets: Vec::with_capacity(heap.sets.len() / 4),
@@ -446,6 +452,7 @@ impl WorkQueues {
             promise_resolving_functions,
             proxys,
             realms,
+            #[cfg(feature = "regexp")]
             regexps,
             scripts,
             sets,
@@ -480,6 +487,8 @@ impl WorkQueues {
         let weak_refs: &[bool; 0] = &[];
         #[cfg(not(feature = "weak-refs"))]
         let weak_sets: &[bool; 0] = &[];
+        #[cfg(not(feature = "regexp"))]
+        let regexps: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -731,6 +740,7 @@ pub(crate) struct CompactionLists {
     pub promises: CompactionList,
     pub proxys: CompactionList,
     pub realms: CompactionList,
+    #[cfg(feature = "regexp")]
     pub regexps: CompactionList,
     pub scripts: CompactionList,
     pub sets: CompactionList,
@@ -807,6 +817,7 @@ impl CompactionLists {
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
+            #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             sets: CompactionList::from_mark_bits(&bits.sets),
             set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),

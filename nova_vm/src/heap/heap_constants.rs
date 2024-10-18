@@ -32,6 +32,7 @@ pub(crate) enum IntrinsicObjectIndexes {
     DatePrototype,
 
     // Text processing
+    #[cfg(feature = "regexp")]
     RegExpPrototype,
 
     // Indexed collections
@@ -155,6 +156,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
 
     // Text processing
     String,
+    #[cfg(feature = "regexp")]
     RegExp,
 
     // Indexed collections
@@ -249,6 +251,7 @@ pub(crate) enum IntrinsicFunctionIndexes {
     ObjectPrototypeToString,
     ParseFloat,
     ParseInt,
+    #[cfg(feature = "regexp")]
     RegExpPrototypeExec,
     SetPrototypeValues,
     StringPrototypeTrimEnd,

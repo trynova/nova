@@ -178,6 +178,7 @@ impl ObjectPrototype {
             // TODO: Check for [[Call]] slot of EmbedderObject
             Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
+            #[cfg(feature = "regexp")]
             Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
             Value::PrimitiveObject(idx) => match &agent[idx].data {
                 PrimitiveObjectData::Boolean(_) => {
