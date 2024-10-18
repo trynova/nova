@@ -68,7 +68,6 @@ use crate::{
 };
 
 pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
-    println!("Performing GC");
     let Agent {
         heap,
         execution_context_stack,
