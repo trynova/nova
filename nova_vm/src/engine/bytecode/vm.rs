@@ -1164,33 +1164,31 @@ impl Vm {
                         // v. Return ? PerformEval(evalArg, strictCaller, true).
                         vm.result = Some(perform_eval(agent, eval_arg, true, strict_caller)?);
                     }
+                } else if cfg!(feature = "interleaved-gc") {
+                    let mut vm = NonNull::from(vm);
+                    agent.vm_stack.push(vm);
+                    let result =
+                        call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
+                    let return_vm = agent.vm_stack.pop().unwrap();
+                    assert_eq!(vm, return_vm, "VM Stack was misused");
+                    // SAFETY: This is fairly bonkers-unsafe. We have an
+                    // exclusive reference to `Vm` so turning that to a NonNull
+                    // and making the `&mut Vm` unreachable here isn't wrong.
+                    // Passing that NonNull into a stack isn't wrong.
+                    // Popping from that stack isn't wrong.
+                    // Turning that back into a `&mut Vm` is probably wrong.
+                    // Even though we can't reach the `vm: &mut Vm` in this
+                    // scope anymore, it's still there. Hence we have two
+                    // exclusive references alive at the same time. That's not
+                    // a good look. I'm sorry.
+                    unsafe { vm.as_mut() }.result = Some(result?);
                 } else {
-                    if cfg!(feature = "interleaved-gc") {
-                        let mut vm = NonNull::from(vm);
-                        agent.vm_stack.push(vm);
-                        let result =
-                            call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
-                        let return_vm = agent.vm_stack.pop().unwrap();
-                        assert_eq!(vm, return_vm, "VM Stack was misused");
-                        // SAFETY: This is fairly bonkers-unsafe. We have an
-                        // exclusive reference to `Vm` so turning that to a NonNull
-                        // and making the `&mut Vm` unreachable here isn't wrong.
-                        // Passing that NonNull into a stack isn't wrong.
-                        // Popping from that stack isn't wrong.
-                        // Turning that back into a `&mut Vm` is probably wrong.
-                        // Even though we can't reach the `vm: &mut Vm` in this
-                        // scope anymore, it's still there. Hence we have two
-                        // exclusive references alive at the same time. That's not
-                        // a good look. I'm sorry.
-                        unsafe { vm.as_mut() }.result = Some(result?);
-                    } else {
-                        vm.result = Some(call(
-                            agent,
-                            func,
-                            Value::Undefined,
-                            Some(ArgumentsList(&args)),
-                        )?);
-                    }
+                    vm.result = Some(call(
+                        agent,
+                        func,
+                        Value::Undefined,
+                        Some(ArgumentsList(&args)),
+                    )?);
                 }
             }
             Instruction::EvaluateCall => {
