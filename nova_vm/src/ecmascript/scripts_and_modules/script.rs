@@ -19,7 +19,7 @@ use crate::{
         },
         types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{Executable, HeapAllocatedBytecode, Vm},
+    engine::{Executable, Vm},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHashSet;
@@ -141,7 +141,7 @@ pub struct Script {
     pub(crate) ecmascript_code: ManuallyDrop<Program<'static>>,
 
     /// Stores the compiled bytecode of a Script.
-    pub(crate) compiled_bytecode: Option<HeapAllocatedBytecode>,
+    pub(crate) compiled_bytecode: Option<Executable>,
 
     /// ### \[\[LoadedModules]]
     ///
@@ -306,7 +306,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
-        let bytecode = HeapAllocatedBytecode::new(Executable::compile_script(agent, script));
+        let bytecode = Executable::compile_script(agent, script);
         agent[script].compiled_bytecode = Some(bytecode);
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then

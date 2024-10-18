@@ -53,10 +53,11 @@ use crate::{
 };
 
 use super::{
-    executable::{NamedEvaluationParameter, SendableRef},
+    executable::{ArrowFunctionExpression, SendableRef},
     instructions::Instr,
     iterator::{ObjectPropertiesIterator, VmIterator},
-    Executable, HeapAllocatedBytecode, IndexType, Instruction, InstructionIter,
+    Executable, ExecutableHeapData, FunctionExpression, IndexType, Instruction, InstructionIter,
+    NamedEvaluationParameter,
 };
 
 struct EmptyParametersList(ast::FormalParameters<'static>);
@@ -146,7 +147,7 @@ impl SuspendedVm {
     pub(crate) fn resume(
         self,
         agent: &mut Agent,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         value: Value,
     ) -> ExecutionResult {
         let vm = Vm::from_suspended(self);
@@ -156,7 +157,7 @@ impl SuspendedVm {
     pub(crate) fn resume_throw(
         self,
         agent: &mut Agent,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         err: Value,
     ) -> ExecutionResult {
         // Optimisation: Avoid unsuspending the Vm if we're just going to throw
@@ -207,19 +208,19 @@ impl Vm {
         }
     }
 
-    fn fetch_identifier(&self, exe: &Executable, index: usize) -> String {
+    fn fetch_identifier(&self, exe: &ExecutableHeapData, index: usize) -> String {
         String::try_from(exe.constants[index])
             .expect("Invalid identifier index: Value was not a String")
     }
 
-    fn fetch_constant(&self, exe: &Executable, index: usize) -> Value {
+    fn fetch_constant(&self, exe: &ExecutableHeapData, index: usize) -> Value {
         exe.constants[index]
     }
 
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute(
         agent: &mut Agent,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         arguments: Option<&[Value]>,
     ) -> ExecutionResult {
         let mut vm = Vm::new();
@@ -235,11 +236,11 @@ impl Vm {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Executing Executable ===");
-            eprintln!("Constants: {:?}", executable.get_constants());
+            eprintln!("Constants: {:?}", executable.get_constants(agent));
             eprintln!();
 
             eprintln!("Instructions:");
-            let iter = InstructionIter::new(executable.get_instructions());
+            let iter = InstructionIter::new(executable.get_instructions(agent));
             for (ip, instr) in iter {
                 match instr.kind.argument_count() {
                     0 => {
@@ -266,7 +267,7 @@ impl Vm {
     pub fn resume(
         mut self,
         agent: &mut Agent,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         value: Value,
     ) -> ExecutionResult {
         self.result = Some(value);
@@ -276,7 +277,7 @@ impl Vm {
     pub fn resume_throw(
         mut self,
         agent: &mut Agent,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         err: Value,
     ) -> ExecutionResult {
         let err = JsError::new(err);
@@ -286,14 +287,10 @@ impl Vm {
         self.inner_execute(agent, executable)
     }
 
-    fn inner_execute(
-        mut self,
-        agent: &mut Agent,
-        executable: HeapAllocatedBytecode,
-    ) -> ExecutionResult {
+    fn inner_execute(mut self, agent: &mut Agent, executable: Executable) -> ExecutionResult {
         let do_gc = !agent.options.disable_gc;
         let mut instr_count = 0u8;
-        while let Some(instr) = executable.get_instruction(&mut self.ip) {
+        while let Some(instr) = executable.get_instruction(agent, &mut self.ip) {
             if do_gc {
                 instr_count = instr_count.wrapping_add(1);
                 if instr_count == 0 {
@@ -365,7 +362,7 @@ impl Vm {
     fn execute_instruction(
         agent: &mut Agent,
         vm: &mut Vm,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         instr: &Instr,
     ) -> JsResult<ContinuationKind> {
         if agent.options.print_internals {
@@ -426,7 +423,8 @@ impl Vm {
                 }
             }
             Instruction::ResolveBinding => {
-                let identifier = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                let identifier =
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
 
                 let reference = resolve_binding(agent, identifier, None)?;
 
@@ -444,7 +442,7 @@ impl Vm {
                 });
             }
             Instruction::LoadConstant => {
-                let constant = executable.fetch_constant(instr.args[0].unwrap() as usize);
+                let constant = executable.fetch_constant(agent, instr.args[0].unwrap() as usize);
                 vm.stack.push(constant);
             }
             Instruction::Load => {
@@ -471,7 +469,7 @@ impl Vm {
                 vm.result = Some(*vm.stack.last().expect("Trying to get from empty stack"));
             }
             Instruction::StoreConstant => {
-                let constant = executable.fetch_constant(instr.args[0].unwrap() as usize);
+                let constant = executable.fetch_constant(agent, instr.args[0].unwrap() as usize);
                 vm.result = Some(constant);
             }
             Instruction::UnaryMinus => {
@@ -517,8 +515,9 @@ impl Vm {
                 create_data_property_or_throw(agent, object, key, value).unwrap()
             }
             Instruction::ObjectDefineMethod => {
-                let function_expression =
-                    executable.fetch_function_expression(instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
@@ -545,12 +544,12 @@ impl Vm {
                     function_prototype: None,
                     source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.get().span,
-                    parameters_list: &function_expression.expression.get().params,
-                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    source_text: function_expression.span,
+                    parameters_list: &function_expression.params,
+                    body: function_expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    is_async: function_expression.expression.get().r#async,
-                    is_generator: function_expression.expression.get().generator,
+                    is_async: function_expression.r#async,
+                    is_generator: function_expression.generator,
                     lexical_this: false,
                     env,
                     private_env,
@@ -602,8 +601,9 @@ impl Vm {
                 // c. Return unused.
             }
             Instruction::ObjectDefineGetter => {
-                let function_expression =
-                    executable.fetch_function_expression(instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
@@ -637,11 +637,11 @@ impl Vm {
                     function_prototype: None,
                     source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.get().span,
+                    source_text: function_expression.span,
                     parameters_list: &empty_parameters.0,
-                    body: function_expression.expression.get().body.as_ref().unwrap(),
-                    is_async: function_expression.expression.get().r#async,
-                    is_generator: function_expression.expression.get().generator,
+                    body: function_expression.body.as_ref().unwrap(),
+                    is_async: function_expression.r#async,
+                    is_generator: function_expression.generator,
                     is_concise_arrow_function: false,
                     lexical_this: false,
                     env,
@@ -679,8 +679,9 @@ impl Vm {
                 // c. Return unused.
             }
             Instruction::ObjectDefineSetter => {
-                let function_expression =
-                    executable.fetch_function_expression(instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } =
+                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
                 let prop_key = to_property_key(agent, vm.stack.pop().unwrap())?;
@@ -699,12 +700,12 @@ impl Vm {
                     function_prototype: None,
                     source_code: None,
                     // 4. Let sourceText be the source text matched by MethodDefinition.
-                    source_text: function_expression.expression.get().span,
-                    parameters_list: &function_expression.expression.get().params,
-                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    source_text: function_expression.span,
+                    parameters_list: &function_expression.params,
+                    body: function_expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    is_async: function_expression.expression.get().r#async,
-                    is_generator: function_expression.expression.get().generator,
+                    is_async: function_expression.r#async,
+                    is_generator: function_expression.generator,
                     lexical_this: false,
                     env,
                     private_env,
@@ -829,8 +830,13 @@ impl Vm {
             }
             Instruction::InstantiateArrowFunctionExpression => {
                 // ArrowFunction : ArrowParameters => ConciseBody
-                let function_expression =
-                    executable.fetch_arrow_function_expression(instr.args[0].unwrap() as usize);
+                let ArrowFunctionExpression {
+                    expression,
+                    identifier,
+                } = executable
+                    .fetch_arrow_function_expression(agent, instr.args[0].unwrap() as usize);
+                let function_expression = expression.get();
+                let identifier = *identifier;
                 // 2. Let env be the LexicalEnvironment of the running execution context.
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
                 // 4. Let sourceText be the source text matched by ArrowFunction.
@@ -850,18 +856,18 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     source_code: None,
-                    source_text: function_expression.expression.get().span,
-                    parameters_list: &function_expression.expression.get().params,
-                    body: &function_expression.expression.get().body,
-                    is_concise_arrow_function: function_expression.expression.get().expression,
-                    is_async: function_expression.expression.get().r#async,
+                    source_text: function_expression.span,
+                    parameters_list: &function_expression.params,
+                    body: &function_expression.body,
+                    is_concise_arrow_function: function_expression.expression,
+                    is_async: function_expression.r#async,
                     is_generator: false,
                     lexical_this: true,
                     env: lexical_environment,
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
-                let name = if let Some(parameter) = function_expression.identifier {
+                let name = if let Some(parameter) = &identifier {
                     match parameter {
                         NamedEvaluationParameter::Result => {
                             to_property_key(agent, vm.result.unwrap())?
@@ -883,8 +889,14 @@ impl Vm {
                 vm.result = Some(function.into_value());
             }
             Instruction::InstantiateOrdinaryFunctionExpression => {
-                let function_expression =
-                    executable.fetch_function_expression(instr.args[0].unwrap() as usize);
+                let FunctionExpression {
+                    expression,
+                    identifier,
+                    compiled_bytecode,
+                } = executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let function_expression = expression.get();
+                let identifier = *identifier;
+                let compiled_bytecode = *compiled_bytecode;
                 let ECMAScriptCodeEvaluationState {
                     lexical_environment,
                     private_environment,
@@ -895,10 +907,8 @@ impl Vm {
                     .as_ref()
                     .unwrap();
 
-                let (name, env, init_binding) = if let Some(parameter) =
-                    function_expression.identifier
-                {
-                    debug_assert!(function_expression.expression.get().id.is_none());
+                let (name, env, init_binding) = if let Some(parameter) = identifier {
+                    debug_assert!(function_expression.id.is_none());
                     let name = match parameter {
                         NamedEvaluationParameter::Result => {
                             to_property_key(agent, vm.result.unwrap())?
@@ -914,7 +924,7 @@ impl Vm {
                         }
                     };
                     (name, lexical_environment, false)
-                } else if let Some(binding_identifier) = &function_expression.expression.get().id {
+                } else if let Some(binding_identifier) = &function_expression.id {
                     let name = String::from_str(agent, &binding_identifier.name);
                     let func_env = new_declarative_environment(agent, Some(lexical_environment));
                     func_env.create_immutable_binding(agent, name, false);
@@ -925,29 +935,26 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     source_code: None,
-                    source_text: function_expression.expression.get().span,
-                    parameters_list: &function_expression.expression.get().params,
-                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    source_text: function_expression.span,
+                    parameters_list: &function_expression.params,
+                    body: function_expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    is_async: function_expression.expression.get().r#async,
-                    is_generator: function_expression.expression.get().generator,
+                    is_async: function_expression.r#async,
+                    is_generator: function_expression.generator,
                     lexical_this: false,
                     env,
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
-                if let Some(compiled_bytecode) = &function_expression.compiled_bytecode {
-                    agent[function].compiled_bytecode =
-                        Some(HeapAllocatedBytecode::new(compiled_bytecode.clone()));
+                if let Some(compiled_bytecode) = compiled_bytecode {
+                    agent[function].compiled_bytecode = Some(compiled_bytecode);
                 }
                 set_function_name(agent, function, name, None);
-                if !function_expression.expression.get().r#async
-                    && !function_expression.expression.get().generator
-                {
+                if !function_expression.r#async && !function_expression.generator {
                     make_constructor(agent, function, None, None);
                 }
 
-                if function_expression.expression.get().generator {
+                if function_expression.generator {
                     // InstantiateGeneratorFunctionExpression
                     // 7. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
                     // NOTE: Although `prototype` has the generator prototype, it doesn't have the generator
@@ -992,8 +999,13 @@ impl Vm {
                 vm.result = Some(function.into_value());
             }
             Instruction::ClassDefineConstructor => {
-                let function_expression =
-                    executable.fetch_function_expression(instr.args[0].unwrap() as usize);
+                let FunctionExpression {
+                    expression,
+                    compiled_bytecode,
+                    ..
+                } = executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let function_expression = expression.get();
+                let compiled_bytecode = *compiled_bytecode;
                 let has_constructor_parent = instr.args[1].unwrap();
                 assert!(has_constructor_parent <= 1);
                 let has_constructor_parent = has_constructor_parent == 1;
@@ -1022,20 +1034,19 @@ impl Vm {
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype,
                     source_code: None,
-                    source_text: function_expression.expression.get().span,
-                    parameters_list: &function_expression.expression.get().params,
-                    body: function_expression.expression.get().body.as_ref().unwrap(),
+                    source_text: function_expression.span,
+                    parameters_list: &function_expression.params,
+                    body: function_expression.body.as_ref().unwrap(),
                     is_concise_arrow_function: false,
-                    is_async: function_expression.expression.get().r#async,
-                    is_generator: function_expression.expression.get().generator,
+                    is_async: function_expression.r#async,
+                    is_generator: function_expression.generator,
                     lexical_this: false,
                     env: lexical_environment,
                     private_env: private_environment,
                 };
                 let function = ordinary_function_create(agent, params);
-                if let Some(compiled_bytecode) = &function_expression.compiled_bytecode {
-                    agent[function].compiled_bytecode =
-                        Some(HeapAllocatedBytecode::new(compiled_bytecode.clone()));
+                if let Some(compiled_bytecode) = compiled_bytecode {
+                    agent[function].compiled_bytecode = Some(compiled_bytecode);
                 }
                 set_function_name(agent, function, class_name.into(), None);
                 make_constructor(agent, function, Some(false), Some(proto));
@@ -1066,9 +1077,10 @@ impl Vm {
             Instruction::ClassDefineDefaultConstructor => {
                 let class_initializer_bytecode_index = instr.args[0].unwrap();
                 let (compiled_initializer_bytecode, has_constructor_parent) = executable
-                    .fetch_class_initializer_bytecode(class_initializer_bytecode_index as usize);
-                let has_constructor_parent = *has_constructor_parent;
-                let compiled_initializer_bytecode = compiled_initializer_bytecode.clone();
+                    .fetch_class_initializer_bytecode(
+                        agent,
+                        class_initializer_bytecode_index as usize,
+                    );
 
                 let class_name = String::try_from(vm.stack.pop().unwrap()).unwrap();
                 let function_prototype = if has_constructor_parent {
@@ -1301,7 +1313,7 @@ impl Vm {
             }
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
                 let property_name_string =
-                    executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 let base_value = vm.result.take().unwrap();
                 let strict = agent
                     .running_execution_context()
@@ -1572,7 +1584,7 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env.create_mutable_binding(agent, name, false).unwrap();
             }
             Instruction::CreateImmutableBinding => {
@@ -1582,7 +1594,7 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env.create_immutable_binding(agent, name, true).unwrap();
             }
             Instruction::CreateCatchBinding => {
@@ -1592,7 +1604,7 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env.create_mutable_binding(agent, name, false).unwrap();
                 lex_env
                     .initialize_binding(agent, name, vm.exception.unwrap())
@@ -1872,14 +1884,14 @@ impl Vm {
     fn execute_simple_array_binding(
         agent: &mut Agent,
         vm: &mut Vm,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         mut iterator: VmIterator,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
         let mut iterator_is_done = false;
 
         loop {
-            let instr = executable.get_instruction(&mut vm.ip).unwrap();
+            let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
             let mut break_after_bind = false;
 
             let value = match instr.kind {
@@ -1923,7 +1935,8 @@ impl Vm {
 
             match instr.kind {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
-                    let binding_id = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                    let binding_id =
+                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     if environment.is_none() {
                         put_value(agent, &lhs, value)?;
@@ -1958,21 +1971,23 @@ impl Vm {
     fn execute_simple_object_binding(
         agent: &mut Agent,
         vm: &mut Vm,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         object: Object,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
         let mut excluded_names = AHashSet::new();
 
         loop {
-            let instr = executable.get_instruction(&mut vm.ip).unwrap();
+            let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
             match instr.kind {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
-                    let binding_id = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                    let binding_id =
+                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                     let property_key = if instr.kind == Instruction::BindingPatternBind {
                         binding_id.into()
                     } else {
-                        let key_value = executable.fetch_constant(instr.args[1].unwrap() as usize);
+                        let key_value =
+                            executable.fetch_constant(agent, instr.args[1].unwrap() as usize);
                         PropertyKey::try_from(key_value).unwrap()
                     };
                     excluded_names.insert(property_key);
@@ -1988,7 +2003,7 @@ impl Vm {
                 Instruction::BindingPatternGetValueNamed => {
                     let property_key = PropertyKey::from_value(
                         agent,
-                        executable.fetch_constant(instr.args[0].unwrap() as usize),
+                        executable.fetch_constant(agent, instr.args[0].unwrap() as usize),
                     )
                     .unwrap();
                     excluded_names.insert(property_key);
@@ -1997,7 +2012,8 @@ impl Vm {
                 }
                 Instruction::BindingPatternBindRest => {
                     // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
-                    let binding_id = executable.fetch_identifier(instr.args[0].unwrap() as usize);
+                    let binding_id =
+                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                     let lhs = resolve_binding(agent, binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
@@ -2023,11 +2039,11 @@ impl Vm {
     fn execute_nested_simple_binding(
         agent: &mut Agent,
         vm: &mut Vm,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         value: Value,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let instr = executable.get_instruction(&mut vm.ip).unwrap();
+        let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
         match instr.kind {
             Instruction::BeginSimpleArrayBindingPattern => {
                 let new_iterator = VmIterator::from_value(agent, value)?;

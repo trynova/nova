@@ -26,7 +26,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    engine::{Executable, HeapAllocatedBytecode},
+    engine::Executable,
     heap::{
         indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
@@ -411,17 +411,13 @@ pub(crate) fn create_builtin_constructor(
         agent.heap.create_null_object(&entries)
     };
 
-    let compiled_initializer_bytecode = args
-        .compiled_initializer_bytecode
-        .map(HeapAllocatedBytecode::new);
-
     // 13. Return func.
     agent.heap.create(BuiltinConstructorHeapData {
         // 10. Perform SetFunctionLength(func, length).
         // Skipped as length of builtin constructors is always 0.
         // 8. Set func.[[Realm]] to realm.
         realm,
-        compiled_initializer_bytecode,
+        compiled_initializer_bytecode: args.compiled_initializer_bytecode,
         is_derived: args.is_derived,
         object_index: Some(backing_object),
         environment: args.env,

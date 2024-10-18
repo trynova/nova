@@ -11,7 +11,7 @@ use crate::{
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
-    engine::HeapAllocatedBytecode,
+    engine::Executable,
     heap::element_array::ElementsVector,
 };
 
@@ -66,7 +66,7 @@ pub struct BuiltinConstructorHeapData {
     /// Base.
     pub(crate) is_derived: bool,
     /// Stores the compiled bytecode of class field initializers.
-    pub(crate) compiled_initializer_bytecode: Option<HeapAllocatedBytecode>,
+    pub(crate) compiled_initializer_bytecode: Option<Executable>,
     /// ### \[\[Environment]]
     ///
     /// This is required for class field initializers.
@@ -85,38 +85,14 @@ pub struct BuiltinConstructorHeapData {
     pub(crate) source_code: SourceCode,
 }
 
-// SAFETY: We promise not to ever mutate the Executable, especially not from
-// foreign threads.
-unsafe impl Send for BuiltinConstructorHeapData {}
-
-impl Drop for BuiltinConstructorHeapData {
-    fn drop(&mut self) {
-        if let Some(exe) = self.compiled_initializer_bytecode.take() {
-            // SAFETY: No references to this compiled bytecode should exist as
-            // otherwise we should not have been garbage collected.
-            unsafe { exe.drop() };
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct ECMAScriptFunctionHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     /// Stores the compiled bytecode of an ECMAScript function.
-    pub(crate) compiled_bytecode: Option<HeapAllocatedBytecode>,
+    pub(crate) compiled_bytecode: Option<Executable>,
     pub(crate) name: Option<String>,
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData {}
-
-impl Drop for ECMAScriptFunctionHeapData {
-    fn drop(&mut self) {
-        if let Some(exe) = self.compiled_bytecode.take() {
-            // SAFETY: No references to this compiled bytecode should exist as
-            // otherwise we should not have been garbage collected.
-            unsafe { exe.drop() };
-        }
-    }
-}

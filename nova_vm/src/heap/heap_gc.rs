@@ -25,42 +25,46 @@ use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-use crate::ecmascript::{
-    builtins::{
-        bound_function::BoundFunction,
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReactionIdentifier,
-            generator_objects::Generator,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+use crate::{
+    ecmascript::{
+        builtins::{
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReactionIdentifier,
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReaction,
+                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                },
             },
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIterator,
+                set_objects::set_iterator_objects::set_iterator::SetIterator,
+            },
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            regexp::RegExp,
+            set::Set,
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
-        embedder_object::EmbedderObject,
-        error::Error,
-        finalization_registry::FinalizationRegistry,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIterator,
-            set_objects::set_iterator_objects::set_iterator::SetIterator,
+        execution::{
+            Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
+            GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
         },
-        map::Map,
-        module::Module,
-        primitive_objects::PrimitiveObject,
-        promise::Promise,
-        proxy::Proxy,
-        regexp::RegExp,
-        set::Set,
-        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
+        types::{
+            bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
+            BUILTIN_STRINGS_LIST,
+        },
     },
-    execution::{
-        Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
-        GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
-    },
-    scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
-    types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, BUILTIN_STRINGS_LIST,
-    },
+    engine::Executable,
 };
 
 pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
@@ -145,6 +149,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
             embedder_objects,
             environments,
             errors,
+            executables,
             source_codes,
             finalization_registrys,
             generators,
@@ -401,6 +406,19 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 errors.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut executable_marks: Box<[Executable]> = queues.executables.drain(..).collect();
+        executable_marks.sort();
+        executable_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.executables.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                executables.get(index).mark_values(&mut queues);
             }
         });
         let mut source_code_marks: Box<[SourceCode]> = queues.source_codes.drain(..).collect();
@@ -992,6 +1010,7 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         embedder_objects,
         environments,
         errors,
+        executables,
         source_codes,
         finalization_registrys,
         generators,
@@ -1235,6 +1254,11 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         if !errors.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(errors, &compactions, &bits.errors);
+            });
+        }
+        if !executables.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(executables, &compactions, &bits.executables);
             });
         }
         if !finalization_registrys.is_empty() {

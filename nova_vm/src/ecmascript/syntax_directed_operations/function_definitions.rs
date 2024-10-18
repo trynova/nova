@@ -34,7 +34,7 @@ use crate::{
             Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::{Executable, ExecutionResult, FunctionExpression, HeapAllocatedBytecode, Vm},
+    engine::{Executable, ExecutionResult, FunctionExpression, Vm},
     heap::CreateHeapData,
 };
 use oxc_ast::ast::{self};
@@ -271,7 +271,7 @@ pub(crate) fn evaluate_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = HeapAllocatedBytecode::new(Executable::compile_function_body(agent, data));
+        let exe = Executable::compile_function_body(agent, data);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
@@ -298,7 +298,7 @@ pub(crate) fn evaluate_async_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = HeapAllocatedBytecode::new(Executable::compile_function_body(agent, data));
+        let exe = Executable::compile_function_body(agent, data);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
@@ -375,7 +375,7 @@ pub(crate) fn evaluate_generator_body(
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, function_object);
-    let executable = HeapAllocatedBytecode::new(Executable::compile_function_body(agent, data));
+    let executable = Executable::compile_function_body(agent, data);
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,

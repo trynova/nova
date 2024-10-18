@@ -15,9 +15,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{
-        local_value::ObjectScopeRoot, ExecutionResult, HeapAllocatedBytecode, SuspendedVm, Vm,
-    },
+    engine::{local_value::ObjectScopeRoot, Executable, ExecutionResult, SuspendedVm, Vm},
     heap::{
         indexes::{BaseIndex, GeneratorIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -365,7 +363,7 @@ pub(crate) enum GeneratorState {
     // SUSPENDED-START has `vm_or_args` set to Arguments, SUSPENDED-YIELD has it set to Vm.
     Suspended {
         vm_or_args: VmOrArguments,
-        executable: HeapAllocatedBytecode,
+        executable: Executable,
         execution_context: ExecutionContext,
     },
     Executing,
