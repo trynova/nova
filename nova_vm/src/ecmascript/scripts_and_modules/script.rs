@@ -166,13 +166,27 @@ pub type ScriptOrErrors = Result<Script, Vec<OxcDiagnostic>>;
 
 impl HeapMarkAndSweep for Script {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.realm.mark_values(queues);
-        self.source_code.mark_values(queues);
+        let Self {
+            realm,
+            ecmascript_code: _,
+            loaded_modules: _,
+            host_defined: _,
+            source_code,
+        } = self;
+        realm.mark_values(queues);
+        source_code.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.realm.sweep_values(compactions);
-        self.source_code.sweep_values(compactions);
+        let Self {
+            realm,
+            ecmascript_code: _,
+            loaded_modules: _,
+            host_defined: _,
+            source_code,
+        } = self;
+        realm.sweep_values(compactions);
+        source_code.sweep_values(compactions);
     }
 }
 
@@ -284,11 +298,15 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
-        let exe = Executable::compile_script(agent, script);
+        let bytecode = Executable::compile_script(agent, script);
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe, None).into_js_result()
+        let result = Vm::execute(agent, bytecode, None).into_js_result();
+        // SAFETY: The bytecode is not accessible by anyone and no one will try
+        // to re-run it.
+        unsafe { bytecode.try_drop(agent) };
+        result
     } else {
         Err(result.err().unwrap())
     };

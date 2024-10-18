@@ -25,45 +25,59 @@ use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-use crate::ecmascript::{
-    builtins::{
-        bound_function::BoundFunction,
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReactionIdentifier,
-            generator_objects::Generator,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+use crate::{
+    ecmascript::{
+        builtins::{
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReactionIdentifier,
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReaction,
+                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                },
             },
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIterator,
+                set_objects::set_iterator_objects::set_iterator::SetIterator,
+            },
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            regexp::RegExp,
+            set::Set,
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
-        embedder_object::EmbedderObject,
-        error::Error,
-        finalization_registry::FinalizationRegistry,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIterator,
-            set_objects::set_iterator_objects::set_iterator::SetIterator,
+        execution::{
+            Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
+            GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
         },
-        map::Map,
-        module::Module,
-        primitive_objects::PrimitiveObject,
-        promise::Promise,
-        proxy::Proxy,
-        regexp::RegExp,
-        set::Set,
-        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
+        types::{
+            bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
+            BUILTIN_STRINGS_LIST,
+        },
     },
-    execution::{
-        DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
-        GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
-    },
-    scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
-    types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, BUILTIN_STRINGS_LIST,
-    },
+    engine::Executable,
 };
 
-pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
+pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
+    let Agent {
+        heap,
+        execution_context_stack,
+        stack_values,
+        vm_stack,
+        options: _,
+        symbol_id: _,
+        global_symbol_registry: _,
+        host_hooks: _,
+    } = agent;
     let mut bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 
@@ -73,6 +87,16 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         }
     });
 
+    execution_context_stack.iter().for_each(|ctx| {
+        ctx.mark_values(&mut queues);
+    });
+    stack_values
+        .borrow()
+        .iter()
+        .for_each(|value| value.mark_values(&mut queues));
+    vm_stack.iter().for_each(|vm_ptr| {
+        unsafe { vm_ptr.as_ref() }.mark_values(&mut queues);
+    });
     let mut last_filled_global_value = None;
     heap.globals.iter().enumerate().for_each(|(i, &value)| {
         if let Some(value) = value {
@@ -124,6 +148,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             embedder_objects,
             environments,
             errors,
+            executables,
             source_codes,
             finalization_registrys,
             generators,
@@ -380,6 +405,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 }
                 *marked = true;
                 errors.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut executable_marks: Box<[Executable]> = queues.executables.drain(..).collect();
+        executable_marks.sort();
+        executable_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.executables.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                executables.get(index).mark_values(&mut queues);
             }
         });
         let mut source_code_marks: Box<[SourceCode]> = queues.source_codes.drain(..).collect();
@@ -931,15 +969,26 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         });
     }
 
-    sweep(heap, &bits, root_realms);
+    sweep(agent, &bits, root_realms);
 }
 
-fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdentifier>]) {
+fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIdentifier>]) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     for realm in root_realms {
         realm.sweep_values(&compactions);
     }
+
+    let Agent {
+        heap,
+        execution_context_stack,
+        stack_values,
+        vm_stack,
+        options: _,
+        symbol_id: _,
+        global_symbol_registry: _,
+        host_hooks: _,
+    } = agent;
 
     let Heap {
         #[cfg(feature = "array-buffer")]
@@ -960,6 +1009,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         embedder_objects,
         environments,
         errors,
+        executables,
         source_codes,
         finalization_registrys,
         generators,
@@ -1205,6 +1255,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(errors, &compactions, &bits.errors);
             });
         }
+        if !executables.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(executables, &compactions, &bits.executables);
+            });
+        }
         if !finalization_registrys.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(
@@ -1366,22 +1421,44 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
             });
         }
+        if !execution_context_stack.is_empty() {
+            s.spawn(|| {
+                execution_context_stack
+                    .iter_mut()
+                    .for_each(|entry| entry.sweep_values(&compactions));
+            });
+        }
+        if !stack_values.borrow().is_empty() {
+            stack_values
+                .borrow_mut()
+                .iter_mut()
+                .for_each(|entry| entry.sweep_values(&compactions));
+        }
+        if !vm_stack.is_empty() {
+            vm_stack
+                .iter_mut()
+                .for_each(|entry| unsafe { entry.as_mut().sweep_values(&compactions) });
+        }
     });
 }
 
 #[test]
 fn test_heap_gc() {
-    use crate::ecmascript::types::Value;
+    use crate::ecmascript::{
+        execution::{agent::Options, DefaultHostHooks},
+        types::Value,
+    };
 
-    let mut heap: Heap = Default::default();
-    assert!(heap.objects.is_empty());
-    let obj = Value::Object(heap.create_null_object(&[]));
+    let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+
+    assert!(agent.heap.objects.is_empty());
+    let obj = Value::Object(agent.heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
-    heap.globals.push(Some(obj));
-    heap_gc(&mut heap, &mut []);
-    println!("Objects: {:#?}", heap.objects);
-    assert_eq!(heap.objects.len(), 1);
-    assert_eq!(heap.elements.e2pow4.values.len(), 0);
-    assert!(heap.globals.last().is_some());
-    println!("Global #1: {:#?}", heap.globals.last().unwrap());
+    agent.heap.globals.push(Some(obj));
+    heap_gc(&mut agent, &mut []);
+    println!("Objects: {:#?}", agent.heap.objects);
+    assert_eq!(agent.heap.objects.len(), 1);
+    assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);
+    assert!(agent.heap.globals.last().is_some());
+    println!("Global #1: {:#?}", agent.heap.globals.last().unwrap());
 }

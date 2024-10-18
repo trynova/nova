@@ -175,15 +175,33 @@ impl Realm {
 
 impl HeapMarkAndSweep for Realm {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.intrinsics().mark_values(queues);
-        self.global_env.mark_values(queues);
-        self.global_object.mark_values(queues);
+        let Self {
+            agent_signifier: _,
+            intrinsics,
+            global_object,
+            global_env,
+            template_map: _,
+            loaded_modules: _,
+            host_defined: _,
+        } = self;
+        intrinsics.mark_values(queues);
+        global_env.mark_values(queues);
+        global_object.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.intrinsics_mut().sweep_values(compactions);
-        self.global_env.sweep_values(compactions);
-        self.global_object.sweep_values(compactions);
+        let Self {
+            agent_signifier: _,
+            intrinsics,
+            global_object,
+            global_env,
+            template_map: _,
+            loaded_modules: _,
+            host_defined: _,
+        } = self;
+        intrinsics.sweep_values(compactions);
+        global_env.sweep_values(compactions);
+        global_object.sweep_values(compactions);
     }
 }
 

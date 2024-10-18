@@ -152,25 +152,33 @@ impl DeclarativeEnvironment {
 
 impl HeapMarkAndSweep for DeclarativeEnvironment {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.outer_env.mark_values(queues);
-        for binding in self.bindings.values() {
+        let Self {
+            outer_env,
+            bindings,
+        } = self;
+        outer_env.mark_values(queues);
+        for binding in bindings.values() {
             binding.value.mark_values(queues);
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.outer_env.sweep_values(compactions);
-        for binding in self.bindings.values_mut() {
+        let Self {
+            outer_env,
+            bindings,
+        } = self;
+        outer_env.sweep_values(compactions);
+        for binding in bindings.values_mut() {
             binding.value.sweep_values(compactions);
         }
-        let keys = self.bindings.keys().copied().collect::<Box<[_]>>();
+        let keys = bindings.keys().copied().collect::<Box<[_]>>();
         for key in keys.iter() {
             let mut new_key = *key;
             new_key.sweep_values(compactions);
             if *key != new_key {
-                let mut binding = self.bindings.remove(key).unwrap();
+                let mut binding = bindings.remove(key).unwrap();
                 binding.value.sweep_values(compactions);
-                self.bindings.insert(new_key, binding);
+                bindings.insert(new_key, binding);
             }
         }
     }

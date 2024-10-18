@@ -21,7 +21,7 @@ use crate::{
         },
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{bytecode::executable::CompileContext, Instruction},
+    engine::{bytecode::bytecode_compiler::CompileContext, Instruction},
 };
 
 use super::{complex_array_pattern, simple_array_pattern, CompileEvaluation};

@@ -75,13 +75,23 @@ impl ObjectEnvironment {
 
 impl HeapMarkAndSweep for ObjectEnvironment {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.outer_env.mark_values(queues);
-        self.binding_object.mark_values(queues);
+        let Self {
+            binding_object,
+            is_with_environment: _,
+            outer_env,
+        } = self;
+        outer_env.mark_values(queues);
+        binding_object.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.outer_env.sweep_values(compactions);
-        self.binding_object.sweep_values(compactions);
+        let Self {
+            binding_object,
+            is_with_environment: _,
+            outer_env,
+        } = self;
+        outer_env.sweep_values(compactions);
+        binding_object.sweep_values(compactions);
     }
 }
 

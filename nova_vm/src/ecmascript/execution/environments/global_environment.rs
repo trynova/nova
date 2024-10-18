@@ -100,19 +100,31 @@ impl GlobalEnvironment {
 
 impl HeapMarkAndSweep for GlobalEnvironment {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.declarative_record.mark_values(queues);
-        self.global_this_value.mark_values(queues);
-        self.object_record.mark_values(queues);
-        for ele in &self.var_names {
+        let Self {
+            object_record,
+            global_this_value,
+            declarative_record,
+            var_names,
+        } = self;
+        declarative_record.mark_values(queues);
+        global_this_value.mark_values(queues);
+        object_record.mark_values(queues);
+        for ele in var_names {
             ele.mark_values(queues);
         }
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.declarative_record.sweep_values(compactions);
-        self.global_this_value.sweep_values(compactions);
-        self.object_record.sweep_values(compactions);
-        for key in self.var_names.clone() {
+        let Self {
+            object_record,
+            global_this_value,
+            declarative_record,
+            var_names,
+        } = self;
+        declarative_record.sweep_values(compactions);
+        global_this_value.sweep_values(compactions);
+        object_record.sweep_values(compactions);
+        for key in var_names.clone() {
             let mut new_key = key;
             new_key.sweep_values(compactions);
             if key != new_key {

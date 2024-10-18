@@ -18,11 +18,9 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    },
-    heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable},
-    Heap,
+    }, engine::Vm, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
-use std::{any::Any, cell::RefCell};
+use std::{any::Any, cell::RefCell, ptr::NonNull};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -236,6 +234,8 @@ impl GcAgent {
         assert!(self.agent.execution_context_stack.is_empty());
         let result = self.agent.run_in_realm(realm, func);
         assert!(self.agent.execution_context_stack.is_empty());
+        assert!(self.agent.vm_stack.is_empty());
+        self.agent.stack_values.borrow_mut().clear();
         result
     }
 
@@ -244,7 +244,7 @@ impl GcAgent {
             // GC is disabled; no-op
             return;
         }
-        heap_gc(&mut self.agent.heap, &mut self.realm_roots);
+        heap_gc(&mut self.agent, &mut self.realm_roots);
     }
 }
 
@@ -253,8 +253,6 @@ impl GcAgent {
 pub struct Agent {
     pub(crate) heap: Heap,
     pub(crate) options: Options,
-    // pre_allocated: PreAllocated,
-    pub(crate) exception: Option<Value>,
     pub(crate) symbol_id: usize,
     pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol>,
     pub(crate) host_hooks: &'static dyn HostHooks,
@@ -264,6 +262,8 @@ pub struct Agent {
     /// TODO: With Realm-specific heaps we'll need a side-table to define which
     /// Realm a particular stack value points to.
     pub(crate) stack_values: RefCell<Vec<Value>>,
+    /// Temporary storage for on-stack VMs.
+    pub(crate) vm_stack: Vec<NonNull<Vm>>,
 }
 
 impl Agent {
@@ -271,12 +271,12 @@ impl Agent {
         Self {
             heap: Heap::new(),
             options,
-            exception: None,
             symbol_id: 0,
             global_symbol_registry: AHashMap::default(),
             host_hooks,
             execution_context_stack: Vec::new(),
             stack_values: RefCell::new(Vec::with_capacity(64)),
+            vm_stack: Vec::with_capacity(16),
         }
     }
 

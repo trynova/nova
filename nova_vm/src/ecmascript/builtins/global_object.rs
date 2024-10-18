@@ -335,7 +335,10 @@ pub fn perform_eval(
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe, None).into_js_result()
+        let result = Vm::execute(agent, exe, None).into_js_result();
+        // SAFETY: No one can access the bytecode anymore.
+        unsafe { exe.try_drop(agent) };
+        result
     } else {
         Err(result.err().unwrap())
     };

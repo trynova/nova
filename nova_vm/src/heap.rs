@@ -42,49 +42,53 @@ use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
 };
-use crate::ecmascript::{
-    builtins::ArrayHeapData,
-    execution::{Environments, Realm, RealmIdentifier},
-    scripts_and_modules::{
-        module::ModuleIdentifier,
-        script::{Script, ScriptIdentifier},
-    },
-    types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
-    },
-};
-use crate::ecmascript::{
-    builtins::{
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReaction,
-            generator_objects::GeneratorHeapData,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReactionRecord,
-                promise_resolving_functions::PromiseResolvingFunctionHeapData,
+use crate::{
+    ecmascript::{
+        builtins::{
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReaction,
+                generator_objects::GeneratorHeapData,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReactionRecord,
+                    promise_resolving_functions::PromiseResolvingFunctionHeapData,
+                },
             },
+            map::data::MapHeapData,
+            module::data::ModuleHeapData,
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            regexp::RegExpHeapData,
+            set::data::SetHeapData,
         },
-        embedder_object::data::EmbedderObjectHeapData,
-        error::ErrorHeapData,
-        finalization_registry::data::FinalizationRegistryHeapData,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-            set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+        builtins::{
+            embedder_object::data::EmbedderObjectHeapData,
+            error::ErrorHeapData,
+            finalization_registry::data::FinalizationRegistryHeapData,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+                set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+            },
+            ArrayHeapData,
         },
-        map::data::MapHeapData,
-        module::data::ModuleHeapData,
-        primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
-        set::data::SetHeapData,
+        execution::{Environments, Realm, RealmIdentifier},
+        scripts_and_modules::source_code::SourceCodeHeapData,
+        scripts_and_modules::{
+            module::ModuleIdentifier,
+            script::{Script, ScriptIdentifier},
+        },
+        types::{
+            bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
+            BUILTIN_STRINGS_LIST,
+        },
+        types::{
+            BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
+            ECMAScriptFunctionHeapData, NumberHeapData, Object, ObjectHeapData, String,
+            StringHeapData, SymbolHeapData, Value,
+        },
     },
-    scripts_and_modules::source_code::SourceCodeHeapData,
-    types::{
-        bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
-        BUILTIN_STRINGS_LIST,
-    },
+    engine::ExecutableHeapData,
 };
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
@@ -111,6 +115,8 @@ pub struct Heap {
     pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
     pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
+    /// Stores compiled bytecodes
+    pub(crate) executables: Vec<ExecutableHeapData>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
     pub generators: Vec<Option<GeneratorHeapData>>,
     pub globals: Vec<Option<Value>>,
@@ -206,6 +212,7 @@ impl Heap {
             embedder_objects: Vec::with_capacity(0),
             environments: Default::default(),
             errors: Vec::with_capacity(1024),
+            executables: Vec::with_capacity(1024),
             source_codes: Vec::with_capacity(0),
             finalization_registrys: Vec::with_capacity(0),
             generators: Vec::with_capacity(1024),

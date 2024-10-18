@@ -127,14 +127,12 @@ pub struct ArrayHeapData {
 
 impl HeapMarkAndSweep for SealableElementsVector {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let item = *self;
-        let elements: ElementsVector = item.into();
+        let elements: ElementsVector = (*self).into();
         elements.mark_values(queues)
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let item = *self;
-        let mut elements: ElementsVector = item.into();
+        let mut elements: ElementsVector = (*self).into();
         elements.sweep_values(compactions);
         self.elements_index = elements.elements_index;
     }
@@ -142,12 +140,20 @@ impl HeapMarkAndSweep for SealableElementsVector {
 
 impl HeapMarkAndSweep for ArrayHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.elements.mark_values(queues);
+        let Self {
+            object_index,
+            elements,
+        } = self;
+        object_index.mark_values(queues);
+        elements.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.elements.sweep_values(compactions);
+        let Self {
+            object_index,
+            elements,
+        } = self;
+        object_index.sweep_values(compactions);
+        elements.sweep_values(compactions);
     }
 }
