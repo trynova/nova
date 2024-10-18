@@ -13,6 +13,8 @@ use std::hash::Hash;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
+#[cfg(feature = "regexp")]
+use super::value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use super::value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
@@ -36,13 +38,15 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
         FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
         MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
-        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
-        REGEXP_DISCRIMINANT, SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT,
+        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, SET_DISCRIMINANT,
+        SET_ITERATOR_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
@@ -73,7 +77,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            regexp::RegExp,
             set::Set,
             ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
@@ -124,6 +127,7 @@ pub enum Object {
     Map(Map) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
+    #[cfg(feature = "regexp")]
     RegExp(RegExp) = REGEXP_DISCRIMINANT,
     Set(Set) = SET_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
@@ -198,6 +202,7 @@ impl IntoValue for Object {
             Object::Map(data) => Value::Map(data),
             Object::Promise(data) => Value::Promise(data),
             Object::Proxy(data) => Value::Proxy(data),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => Value::RegExp(data),
             Object::Set(data) => Value::Set(data),
             #[cfg(feature = "shared-array-buffer")]
@@ -392,6 +397,7 @@ impl From<Object> for Value {
             Object::Map(data) => Value::Map(data),
             Object::Promise(data) => Value::Promise(data),
             Object::Proxy(data) => Value::Proxy(data),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => Value::RegExp(data),
             Object::Set(data) => Value::Set(data),
             #[cfg(feature = "shared-array-buffer")]
@@ -477,6 +483,7 @@ impl TryFrom<Value> for Object {
             Value::Map(data) => Ok(Object::Map(data)),
             Value::Promise(data) => Ok(Object::Promise(data)),
             Value::Proxy(data) => Ok(Object::Proxy(data)),
+            #[cfg(feature = "regexp")]
             Value::RegExp(idx) => Ok(Object::RegExp(idx)),
             Value::Set(data) => Ok(Object::Set(data)),
             #[cfg(feature = "shared-array-buffer")]
@@ -559,6 +566,7 @@ impl Hash for Object {
             Object::Map(data) => data.get_index().hash(state),
             Object::Promise(data) => data.get_index().hash(state),
             Object::Proxy(data) => data.get_index().hash(state),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.get_index().hash(state),
             Object::Set(data) => data.get_index().hash(state),
             #[cfg(feature = "shared-array-buffer")]
@@ -642,6 +650,7 @@ impl InternalSlots for Object {
             Object::Map(data) => data.internal_extensible(agent),
             Object::Promise(data) => data.internal_extensible(agent),
             Object::Proxy(data) => data.internal_extensible(agent),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_extensible(agent),
             Object::Set(data) => data.internal_extensible(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -719,6 +728,7 @@ impl InternalSlots for Object {
             Object::Map(data) => data.internal_set_extensible(agent, value),
             Object::Promise(data) => data.internal_set_extensible(agent, value),
             Object::Proxy(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set_extensible(agent, value),
             Object::Set(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "shared-array-buffer")]
@@ -810,6 +820,7 @@ impl InternalSlots for Object {
             Object::Map(data) => data.internal_prototype(agent),
             Object::Promise(data) => data.internal_prototype(agent),
             Object::Proxy(data) => data.internal_prototype(agent),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_prototype(agent),
             Object::Set(data) => data.internal_prototype(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -889,6 +900,7 @@ impl InternalSlots for Object {
             Object::Map(data) => data.internal_set_prototype(agent, prototype),
             Object::Promise(data) => data.internal_set_prototype(agent, prototype),
             Object::Proxy(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set_prototype(agent, prototype),
             Object::Set(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "shared-array-buffer")]
@@ -982,6 +994,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_get_prototype_of(agent),
             Object::Promise(data) => data.internal_get_prototype_of(agent),
             Object::Proxy(data) => data.internal_get_prototype_of(agent),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_get_prototype_of(agent),
             Object::Set(data) => data.internal_get_prototype_of(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -1079,6 +1092,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Promise(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Proxy(data) => data.internal_set_prototype_of(agent, prototype),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set_prototype_of(agent, prototype),
             Object::Set(data) => data.internal_set_prototype_of(agent, prototype),
             #[cfg(feature = "shared-array-buffer")]
@@ -1170,6 +1184,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_is_extensible(agent),
             Object::Promise(data) => data.internal_is_extensible(agent),
             Object::Proxy(data) => data.internal_is_extensible(agent),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_is_extensible(agent),
             Object::Set(data) => data.internal_is_extensible(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -1255,6 +1270,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_prevent_extensions(agent),
             Object::Promise(data) => data.internal_prevent_extensions(agent),
             Object::Proxy(data) => data.internal_prevent_extensions(agent),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_prevent_extensions(agent),
             Object::Set(data) => data.internal_prevent_extensions(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -1356,6 +1372,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_get_own_property(agent, property_key),
             Object::Promise(data) => data.internal_get_own_property(agent, property_key),
             Object::Proxy(data) => data.internal_get_own_property(agent, property_key),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_get_own_property(agent, property_key),
             Object::Set(data) => data.internal_get_own_property(agent, property_key),
             #[cfg(feature = "shared-array-buffer")]
@@ -1486,6 +1503,7 @@ impl InternalMethods for Object {
             Object::Proxy(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor)
             }
@@ -1606,6 +1624,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_has_property(agent, property_key),
             Object::Promise(data) => data.internal_has_property(agent, property_key),
             Object::Proxy(data) => data.internal_has_property(agent, property_key),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_has_property(agent, property_key),
             Object::Set(data) => data.internal_has_property(agent, property_key),
             #[cfg(feature = "shared-array-buffer")]
@@ -1706,6 +1725,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_get(agent, property_key, receiver),
             Object::Promise(data) => data.internal_get(agent, property_key, receiver),
             Object::Proxy(data) => data.internal_get(agent, property_key, receiver),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_get(agent, property_key, receiver),
             Object::Set(data) => data.internal_get(agent, property_key, receiver),
             #[cfg(feature = "shared-array-buffer")]
@@ -1815,6 +1835,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Promise(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Proxy(data) => data.internal_set(agent, property_key, value, receiver),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set(agent, property_key, value, receiver),
             Object::Set(data) => data.internal_set(agent, property_key, value, receiver),
             #[cfg(feature = "shared-array-buffer")]
@@ -1913,6 +1934,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_delete(agent, property_key),
             Object::Promise(data) => data.internal_delete(agent, property_key),
             Object::Proxy(data) => data.internal_delete(agent, property_key),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_delete(agent, property_key),
             Object::Set(data) => data.internal_delete(agent, property_key),
             #[cfg(feature = "shared-array-buffer")]
@@ -2004,6 +2026,7 @@ impl InternalMethods for Object {
             Object::Map(data) => data.internal_own_property_keys(agent),
             Object::Promise(data) => data.internal_own_property_keys(agent),
             Object::Proxy(data) => data.internal_own_property_keys(agent),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_own_property_keys(agent),
             Object::Set(data) => data.internal_own_property_keys(agent),
             #[cfg(feature = "shared-array-buffer")]
@@ -2134,6 +2157,7 @@ impl HeapMarkAndSweep for Object {
             Object::Map(data) => data.mark_values(queues),
             Object::Promise(data) => data.mark_values(queues),
             Object::Proxy(data) => data.mark_values(queues),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.mark_values(queues),
             Object::Set(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
@@ -2203,6 +2227,7 @@ impl HeapMarkAndSweep for Object {
             Object::Map(data) => data.sweep_values(compactions),
             Object::Promise(data) => data.sweep_values(compactions),
             Object::Proxy(data) => data.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.sweep_values(compactions),
             Object::Set(data) => data.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]

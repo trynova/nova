@@ -31,6 +31,8 @@ use self::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
@@ -58,7 +60,6 @@ use crate::{
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
-            regexp::RegExpHeapData,
             set::data::SetHeapData,
         },
         builtins::{
@@ -130,6 +131,7 @@ pub struct Heap {
     pub promises: Vec<Option<PromiseHeapData>>,
     pub proxys: Vec<Option<ProxyHeapData>>,
     pub realms: Vec<Option<Realm>>,
+    #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData>>,
     pub sets: Vec<Option<SetHeapData>>,
     pub set_iterators: Vec<Option<SetIteratorHeapData>>,
@@ -228,6 +230,7 @@ impl Heap {
             promises: Vec::with_capacity(0),
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),
+            #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(1024),
             scripts: Vec::with_capacity(1),
             sets: Vec::with_capacity(128),

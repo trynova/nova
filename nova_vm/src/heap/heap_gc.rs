@@ -19,6 +19,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -50,7 +52,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            regexp::RegExp,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
@@ -164,6 +165,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
             promises,
             proxys,
             realms,
+            #[cfg(feature = "regexp")]
             regexps,
             scripts,
             sets,
@@ -656,19 +658,22 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
                 primitive_objects.get(index).mark_values(&mut queues);
             }
         });
-        let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
-        regexp_marks.sort();
-        regexp_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.regexps.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "regexp")]
+        {
+            let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
+            regexp_marks.sort();
+            regexp_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.regexps.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    regexps.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                regexps.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
         set_marks.sort();
         set_marks.iter().for_each(|&idx| {
@@ -1025,6 +1030,7 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         promises,
         proxys,
         realms,
+        #[cfg(feature = "regexp")]
         regexps,
         scripts,
         sets,
@@ -1352,6 +1358,7 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
                 sweep_heap_vector_values(realms, &compactions, &bits.realms);
             });
         }
+        #[cfg(feature = "regexp")]
         if !regexps.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
