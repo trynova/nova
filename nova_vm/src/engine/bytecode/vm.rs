@@ -9,6 +9,8 @@ use oxc_ast::ast;
 use oxc_span::Span;
 use oxc_syntax::operator::BinaryOperator;
 
+#[cfg(feature = "interleaved-gc")]
+use crate::{ecmascript::execution::RealmIdentifier, heap::heap_gc::heap_gc};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -38,7 +40,7 @@ use crate::{
             agent::{resolve_binding, ExceptionType, JsError},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            JsResult, ProtoIntrinsics, RealmIdentifier,
+            JsResult, ProtoIntrinsics,
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
@@ -47,9 +49,7 @@ use crate::{
             Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    heap::{
-        heap_gc::heap_gc, CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues,
-    },
+    heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 use super::{
@@ -288,9 +288,12 @@ impl Vm {
     }
 
     fn inner_execute(mut self, agent: &mut Agent, executable: Executable) -> ExecutionResult {
+        #[cfg(feature = "interleaved-gc")]
         let do_gc = !agent.options.disable_gc;
+        #[cfg(feature = "interleaved-gc")]
         let mut instr_count = 0u8;
         while let Some(instr) = executable.get_instruction(agent, &mut self.ip) {
+            #[cfg(feature = "interleaved-gc")]
             if do_gc {
                 instr_count = instr_count.wrapping_add(1);
                 if instr_count == 0 {
@@ -1171,22 +1174,32 @@ impl Vm {
                         vm.result = Some(perform_eval(agent, eval_arg, true, strict_caller)?);
                     }
                 } else {
-                    let mut vm = NonNull::from(vm);
-                    agent.vm_stack.push(vm);
-                    let result = call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
-                    let return_vm = agent.vm_stack.pop().unwrap();
-                    assert_eq!(vm, return_vm, "VM Stack was misused");
-                    // SAFETY: This is fairly bonkers-unsafe. We have an
-                    // exclusive reference to `Vm` so turning that to a NonNull
-                    // and making the `&mut Vm` unreachable here isn't wrong.
-                    // Passing that NonNull into a stack isn't wrong.
-                    // Popping from that stack isn't wrong.
-                    // Turning that back into a `&mut Vm` is probably wrong.
-                    // Even though we can't reach the `vm: &mut Vm` in this
-                    // scope anymore, it's still there. Hence we have two
-                    // exclusive references alive at the same time. That's not
-                    // a good look. I'm sorry.
-                    unsafe { vm.as_mut() }.result = Some(result?);
+                    if cfg!(feature = "interleaved-gc") {
+                        let mut vm = NonNull::from(vm);
+                        agent.vm_stack.push(vm);
+                        let result =
+                            call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
+                        let return_vm = agent.vm_stack.pop().unwrap();
+                        assert_eq!(vm, return_vm, "VM Stack was misused");
+                        // SAFETY: This is fairly bonkers-unsafe. We have an
+                        // exclusive reference to `Vm` so turning that to a NonNull
+                        // and making the `&mut Vm` unreachable here isn't wrong.
+                        // Passing that NonNull into a stack isn't wrong.
+                        // Popping from that stack isn't wrong.
+                        // Turning that back into a `&mut Vm` is probably wrong.
+                        // Even though we can't reach the `vm: &mut Vm` in this
+                        // scope anymore, it's still there. Hence we have two
+                        // exclusive references alive at the same time. That's not
+                        // a good look. I'm sorry.
+                        unsafe { vm.as_mut() }.result = Some(result?);
+                    } else {
+                        vm.result = Some(call(
+                            agent,
+                            func,
+                            Value::Undefined,
+                            Some(ArgumentsList(&args)),
+                        )?);
+                    }
                 }
             }
             Instruction::EvaluateCall => {
@@ -1215,13 +1228,17 @@ impl Vm {
                     Value::Undefined
                 };
                 let func = vm.stack.pop().unwrap();
-                let mut vm = NonNull::from(vm);
-                agent.vm_stack.push(vm);
-                let result = call(agent, func, this_value, Some(ArgumentsList(&args)));
-                let return_vm = agent.vm_stack.pop().unwrap();
-                assert_eq!(vm, return_vm, "VM Stack was misused");
-                // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
-                unsafe { vm.as_mut() }.result = Some(result?);
+                if cfg!(feature = "interleaved-gc") {
+                    let mut vm = NonNull::from(vm);
+                    agent.vm_stack.push(vm);
+                    let result = call(agent, func, this_value, Some(ArgumentsList(&args)));
+                    let return_vm = agent.vm_stack.pop().unwrap();
+                    assert_eq!(vm, return_vm, "VM Stack was misused");
+                    // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
+                    unsafe { vm.as_mut() }.result = Some(result?);
+                } else {
+                    vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
+                }
             }
             Instruction::EvaluateNew => {
                 let args = vm.get_call_args(instr);
@@ -1233,14 +1250,22 @@ impl Vm {
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
-                let mut vm = NonNull::from(vm);
-                agent.vm_stack.push(vm);
-                let result = construct(agent, constructor, Some(ArgumentsList(&args)), None)
-                    .map(|result| result.into_value());
-                let return_vm = agent.vm_stack.pop().unwrap();
-                assert_eq!(vm, return_vm, "VM Stack was misused");
-                // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
-                unsafe { vm.as_mut() }.result = Some(result?);
+
+                if cfg!(feature = "interleaved-gc") {
+                    let mut vm = NonNull::from(vm);
+                    agent.vm_stack.push(vm);
+                    let result = construct(agent, constructor, Some(ArgumentsList(&args)), None)
+                        .map(|result| result.into_value());
+                    let return_vm = agent.vm_stack.pop().unwrap();
+                    assert_eq!(vm, return_vm, "VM Stack was misused");
+                    // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
+                    unsafe { vm.as_mut() }.result = Some(result?);
+                } else {
+                    vm.result = Some(
+                        construct(agent, constructor, Some(ArgumentsList(&args)), None)?
+                            .into_value(),
+                    );
+                }
             }
             Instruction::EvaluateSuper => {
                 let EnvironmentIndex::Function(this_env) = get_this_environment(agent) else {
@@ -1640,13 +1665,17 @@ impl Vm {
             Instruction::InstanceofOperator => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let mut vm = NonNull::from(vm);
-                agent.vm_stack.push(vm);
-                let result = instanceof_operator(agent, lval, rval);
-                let return_vm = agent.vm_stack.pop().unwrap();
-                assert_eq!(vm, return_vm, "VM Stack was misused");
-                // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
-                unsafe { vm.as_mut() }.result = Some(result?.into());
+                if cfg!(feature = "interleaved-gc") {
+                    let mut vm = NonNull::from(vm);
+                    agent.vm_stack.push(vm);
+                    let result = instanceof_operator(agent, lval, rval);
+                    let return_vm = agent.vm_stack.pop().unwrap();
+                    assert_eq!(vm, return_vm, "VM Stack was misused");
+                    // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
+                    unsafe { vm.as_mut() }.result = Some(result?.into());
+                } else {
+                    vm.result = Some(instanceof_operator(agent, lval, rval)?.into());
+                }
             }
             Instruction::BeginSimpleArrayBindingPattern => {
                 let lexical = instr.args[1].unwrap() == 1;
