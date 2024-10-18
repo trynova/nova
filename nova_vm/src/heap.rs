@@ -42,32 +42,25 @@ use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
 };
-use crate::ecmascript::{
-    builtins::{
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReaction,
-            generator_objects::GeneratorHeapData,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReactionRecord,
-                promise_resolving_functions::PromiseResolvingFunctionHeapData,
-            },
-        },
-        map::data::MapHeapData,
-        module::data::ModuleHeapData,
-        primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
-        set::data::SetHeapData,
-    },
-    scripts_and_modules::source_code::SourceCodeHeapData,
-    types::{
-        bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
-        BUILTIN_STRINGS_LIST,
-    },
-};
 use crate::{
     ecmascript::{
+        builtins::{
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReaction,
+                generator_objects::GeneratorHeapData,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReactionRecord,
+                    promise_resolving_functions::PromiseResolvingFunctionHeapData,
+                },
+            },
+            map::data::MapHeapData,
+            module::data::ModuleHeapData,
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            regexp::RegExpHeapData,
+            set::data::SetHeapData,
+        },
         builtins::{
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
@@ -80,9 +73,14 @@ use crate::{
             ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
+        scripts_and_modules::source_code::SourceCodeHeapData,
         scripts_and_modules::{
             module::ModuleIdentifier,
             script::{Script, ScriptIdentifier},
+        },
+        types::{
+            bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
+            BUILTIN_STRINGS_LIST,
         },
         types::{
             BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
