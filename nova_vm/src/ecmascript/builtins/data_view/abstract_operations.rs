@@ -9,11 +9,11 @@ use super::DataView;
 struct ByteLength(pub usize);
 
 impl ByteLength {
-    pub fn value(value: usize) -> Self {
+    pub const fn value(value: usize) -> Self {
         Self(value)
     }
 
-    pub fn detached() -> Self {
+    pub const fn detached() -> Self {
         Self(usize::MAX)
     }
 

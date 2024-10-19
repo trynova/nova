@@ -147,21 +147,25 @@ impl DataViewConstructor {
 
         let o = DataView::try_from(o).unwrap();
 
-        // 15. Set O.[[ViewedArrayBuffer]] to buffer.
-        agent[o].viewed_array_buffer = buffer;
-        // 16. Set O.[[ByteLength]] to viewByteLength.
-        agent[o].byte_length = view_byte_length.into();
-        // 17. Set O.[[ByteOffset]] to offset.
-        agent[o].byte_offset = offset.into();
+        let heap_data = &mut agent[o];
 
-        if agent[o].byte_length == DataViewByteLength::heap() {
+        // 15. Set O.[[ViewedArrayBuffer]] to buffer.
+        heap_data.viewed_array_buffer = buffer;
+        // 16. Set O.[[ByteLength]] to viewByteLength.
+        let byte_length = view_byte_length.into();
+        heap_data.byte_length = byte_length;
+        // 17. Set O.[[ByteOffset]] to offset.
+        let byte_offset = offset.into();
+        heap_data.byte_offset = byte_offset;
+
+        if byte_length == DataViewByteLength::heap() {
             agent
                 .heap
                 .data_view_byte_lengths
                 .insert(o, view_byte_length.unwrap());
         }
 
-        if agent[o].byte_offset == DataViewByteOffset::heap() {
+        if byte_offset == DataViewByteOffset::heap() {
             agent.heap.data_view_byte_offsets.insert(o, offset);
         }
 

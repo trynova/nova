@@ -12,20 +12,20 @@ use crate::{
 pub(crate) struct DataViewByteLength(pub u32);
 
 impl DataViewByteLength {
-    pub fn value(value: u32) -> Self {
+    pub const fn value(value: u32) -> Self {
         Self(value)
     }
 
     /// A sentinel value of `u32::MAX - 1` means that the byte length is stored in an
     /// associated map in the heap. This will most likely be a very rare case,
     /// only applicable for 4GB+ buffers.
-    pub fn heap() -> Self {
+    pub const fn heap() -> Self {
         Self(u32::MAX - 1)
     }
 
     /// A sentinel value of `u32::MAX` means that the byte length is the
     /// `AUTO` value used in the spec.
-    pub fn auto() -> Self {
+    pub const fn auto() -> Self {
         Self(u32::MAX)
     }
 }
@@ -51,33 +51,19 @@ impl From<Option<usize>> for DataViewByteLength {
     }
 }
 
-impl HeapMarkAndSweep for DataViewByteLength {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
-        if *self == Self::heap() {
-            todo!()
-        }
-    }
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        if *self == Self::heap() {
-            todo!()
-        }
-    }
-}
-
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) struct DataViewByteOffset(pub u32);
 
 impl DataViewByteOffset {
-    pub fn value(value: u32) -> Self {
+    pub const fn value(value: u32) -> Self {
         Self(value)
     }
 
     /// A sentinel value of `u32::MAX` means that the byte offset is stored in
     /// an associated map in the heap. This will most likely be a very rare
     /// case, only applicable for 4GB+ buffers.
-    pub fn heap() -> Self {
+    pub const fn heap() -> Self {
         Self(u32::MAX)
     }
 }
@@ -94,20 +80,6 @@ impl From<usize> for DataViewByteOffset {
             Self::heap()
         } else {
             Self::value(value as u32)
-        }
-    }
-}
-
-impl HeapMarkAndSweep for DataViewByteOffset {
-    fn mark_values(&self, _queues: &mut WorkQueues) {
-        if *self == Self::heap() {
-            todo!()
-        }
-    }
-
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {
-        if *self == Self::heap() {
-            todo!()
         }
     }
 }
@@ -141,25 +113,21 @@ impl HeapMarkAndSweep for DataViewHeapData {
         let Self {
             object_index,
             viewed_array_buffer,
-            byte_length,
-            byte_offset,
+            byte_length: _,
+            byte_offset: _,
         } = self;
         object_index.mark_values(queues);
         viewed_array_buffer.mark_values(queues);
-        byte_length.mark_values(queues);
-        byte_offset.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
             viewed_array_buffer,
-            byte_length,
-            byte_offset,
+            byte_length: _,
+            byte_offset: _,
         } = self;
         object_index.sweep_values(compactions);
         viewed_array_buffer.sweep_values(compactions);
-        byte_length.sweep_values(compactions);
-        byte_offset.sweep_values(compactions);
     }
 }
