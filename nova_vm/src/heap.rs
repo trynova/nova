@@ -53,15 +53,7 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            map::data::MapHeapData,
-            module::data::ModuleHeapData,
-            primitive_objects::PrimitiveObjectHeapData,
-            promise::data::PromiseHeapData,
-            proxy::data::ProxyHeapData,
-            regexp::RegExpHeapData,
-            set::data::SetHeapData,
-        },
-        builtins::{
+            data_view::DataView,
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -70,37 +62,29 @@ use crate::{
                 map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
                 set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
             },
+            map::data::MapHeapData,
+            module::data::ModuleHeapData,
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            regexp::RegExpHeapData,
+            set::data::SetHeapData,
             ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
-        scripts_and_modules::source_code::SourceCodeHeapData,
         scripts_and_modules::{
             module::ModuleIdentifier,
             script::{Script, ScriptIdentifier},
+            source_code::SourceCodeHeapData,
         },
         types::{
-            bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
-            BUILTIN_STRINGS_LIST,
-        },
-        types::{
-            BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
-            ECMAScriptFunctionHeapData, NumberHeapData, Object, ObjectHeapData, String,
-            StringHeapData, SymbolHeapData, Value,
+            bigint::HeapBigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
+            BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, HeapNumber, HeapString,
+            NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String, StringHeapData,
+            SymbolHeapData, Value, BUILTIN_STRINGS_LIST,
         },
     },
     engine::ExecutableHeapData,
-};
-use crate::ecmascript::{
-    builtins::{data_view::DataView, ArrayHeapData},
-    execution::{Environments, Realm, RealmIdentifier},
-    scripts_and_modules::{
-        module::ModuleIdentifier,
-        script::{Script, ScriptIdentifier},
-    },
-    types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
-    },
 };
 use ahash::AHashMap;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};

@@ -142,9 +142,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
             #[cfg(feature = "array-buffer")]
             data_views,
             #[cfg(feature = "array-buffer")]
-            data_view_byte_lengths: _,
+                data_view_byte_lengths: _,
             #[cfg(feature = "array-buffer")]
-            data_view_byte_offsets: _,
+                data_view_byte_offsets: _,
             #[cfg(feature = "date")]
             dates,
             ecmascript_functions,
@@ -1007,9 +1007,9 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         #[cfg(feature = "array-buffer")]
         data_views,
         #[cfg(feature = "array-buffer")]
-        data_view_byte_lengths: _,
+            data_view_byte_lengths: _,
         #[cfg(feature = "array-buffer")]
-        data_view_byte_offsets: _,
+            data_view_byte_offsets: _,
         #[cfg(feature = "date")]
         dates,
         ecmascript_functions,
