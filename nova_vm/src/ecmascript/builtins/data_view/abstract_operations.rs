@@ -36,7 +36,7 @@ pub(crate) struct DataViewWithBufferWitnessRecord {
     cached_buffer_byte_length: ByteLength,
 }
 
-/// [25.3.1.2 MakeDataViewWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-makedataviewwithbufferwitnessrecord)
+/// ### [25.3.1.2 MakeDataViewWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-makedataviewwithbufferwitnessrecord)
 ///
 /// The abstract operation MakeDataViewWithBufferWitnessRecord takes arguments
 /// obj (a DataView) and order (seq-cst or unordered) and returns a DataView
