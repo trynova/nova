@@ -315,15 +315,27 @@ pub(crate) enum Base {
 
 impl HeapMarkAndSweep for Reference {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.base.mark_values(queues);
-        self.referenced_name.mark_values(queues);
-        self.this_value.mark_values(queues);
+        let Self {
+            base,
+            referenced_name,
+            strict: _,
+            this_value,
+        } = self;
+        base.mark_values(queues);
+        referenced_name.mark_values(queues);
+        this_value.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.base.sweep_values(compactions);
-        self.referenced_name.sweep_values(compactions);
-        self.this_value.sweep_values(compactions);
+        let Self {
+            base,
+            referenced_name,
+            strict: _,
+            this_value,
+        } = self;
+        base.sweep_values(compactions);
+        referenced_name.sweep_values(compactions);
+        this_value.sweep_values(compactions);
     }
 }
 

@@ -98,33 +98,59 @@ impl ExecutionContext {
 
 impl HeapMarkAndSweep for ECMAScriptCodeEvaluationState {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.lexical_environment.mark_values(queues);
-        self.variable_environment.mark_values(queues);
-        self.private_environment.mark_values(queues);
-        self.source_code.mark_values(queues);
+        let Self {
+            lexical_environment,
+            variable_environment,
+            private_environment,
+            is_strict_mode: _,
+            source_code,
+        } = self;
+        lexical_environment.mark_values(queues);
+        variable_environment.mark_values(queues);
+        private_environment.mark_values(queues);
+        source_code.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.lexical_environment.sweep_values(compactions);
-        self.variable_environment.sweep_values(compactions);
-        self.private_environment.sweep_values(compactions);
-        self.source_code.sweep_values(compactions);
+        let Self {
+            lexical_environment,
+            variable_environment,
+            private_environment,
+            is_strict_mode: _,
+            source_code,
+        } = self;
+        lexical_environment.sweep_values(compactions);
+        variable_environment.sweep_values(compactions);
+        private_environment.sweep_values(compactions);
+        source_code.sweep_values(compactions);
     }
 }
 
 impl HeapMarkAndSweep for ExecutionContext {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.ecmascript_code.mark_values(queues);
-        self.function.mark_values(queues);
-        self.realm.mark_values(queues);
-        self.script_or_module.mark_values(queues);
+        let Self {
+            ecmascript_code,
+            function,
+            realm,
+            script_or_module,
+        } = self;
+        ecmascript_code.mark_values(queues);
+        function.mark_values(queues);
+        realm.mark_values(queues);
+        script_or_module.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.ecmascript_code.sweep_values(compactions);
-        self.function.sweep_values(compactions);
-        self.realm.sweep_values(compactions);
-        self.script_or_module.sweep_values(compactions);
+        let Self {
+            ecmascript_code,
+            function,
+            realm,
+            script_or_module,
+        } = self;
+        ecmascript_code.sweep_values(compactions);
+        function.sweep_values(compactions);
+        realm.sweep_values(compactions);
+        script_or_module.sweep_values(compactions);
     }
 }
 

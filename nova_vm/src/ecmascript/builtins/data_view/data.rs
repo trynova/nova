@@ -138,16 +138,12 @@ impl Default for DataViewHeapData {
 
 impl HeapMarkAndSweep for DataViewHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.viewed_array_buffer.mark_values(queues);
-        self.byte_length.mark_values(queues);
-        self.byte_offset.mark_values(queues);
+        let Self { object_index } = self;
+        object_index.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        self.viewed_array_buffer.sweep_values(compactions);
-        self.byte_length.sweep_values(compactions);
-        self.byte_offset.sweep_values(compactions);
+        let Self { object_index } = self;
+        object_index.sweep_values(compactions);
     }
 }

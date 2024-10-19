@@ -242,7 +242,17 @@ impl StringHeapData {
 }
 
 impl HeapMarkAndSweep for StringHeapData {
-    fn mark_values(&self, _queues: &mut WorkQueues) {}
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        let Self {
+            data: _,
+            mapping: _,
+        } = self;
+    }
 
-    fn sweep_values(&mut self, _compactions: &CompactionLists) {}
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        let Self {
+            data: _,
+            mapping: _,
+        } = self;
+    }
 }

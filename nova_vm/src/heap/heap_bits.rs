@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use ahash::AHashMap;
 
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -56,6 +58,7 @@ use crate::ecmascript::{
         BUILTIN_STRINGS_LIST,
     },
 };
+use crate::engine::Executable;
 
 #[derive(Debug)]
 pub struct HeapBits {
@@ -84,6 +87,7 @@ pub struct HeapBits {
     pub ecmascript_functions: Box<[bool]>,
     pub embedder_objects: Box<[bool]>,
     pub errors: Box<[bool]>,
+    pub executables: Box<[bool]>,
     pub source_codes: Box<[bool]>,
     pub finalization_registrys: Box<[bool]>,
     pub function_environments: Box<[bool]>,
@@ -147,6 +151,7 @@ pub(crate) struct WorkQueues {
     pub embedder_objects: Vec<EmbedderObject>,
     pub source_codes: Vec<SourceCode>,
     pub errors: Vec<Error>,
+    pub executables: Vec<Executable>,
     pub finalization_registrys: Vec<FinalizationRegistry>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
     pub generators: Vec<Generator>,
@@ -208,6 +213,7 @@ impl HeapBits {
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let embedder_objects = vec![false; heap.embedder_objects.len()];
         let errors = vec![false; heap.errors.len()];
+        let executables = vec![false; heap.executables.len()];
         let source_codes = vec![false; heap.source_codes.len()];
         let finalization_registrys = vec![false; heap.finalization_registrys.len()];
         let function_environments = vec![false; heap.environments.function.len()];
@@ -267,6 +273,7 @@ impl HeapBits {
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
             embedder_objects: embedder_objects.into_boxed_slice(),
             errors: errors.into_boxed_slice(),
+            executables: executables.into_boxed_slice(),
             source_codes: source_codes.into_boxed_slice(),
             finalization_registrys: finalization_registrys.into_boxed_slice(),
             function_environments: function_environments.into_boxed_slice(),
@@ -332,6 +339,7 @@ impl WorkQueues {
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
+            executables: Vec::with_capacity(heap.executables.len() / 4),
             source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
             finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
@@ -421,6 +429,7 @@ impl WorkQueues {
             embedder_objects,
             source_codes,
             errors,
+            executables,
             finalization_registrys,
             function_environments,
             generators,
@@ -494,6 +503,7 @@ impl WorkQueues {
             && ecmascript_functions.is_empty()
             && embedder_objects.is_empty()
             && errors.is_empty()
+            && executables.is_empty()
             && source_codes.is_empty()
             && finalization_registrys.is_empty()
             && function_environments.is_empty()
@@ -545,6 +555,20 @@ impl CompactionList {
     pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
         let base_index = index.into_u32_index();
         *index = BaseIndex::from_u32_index(base_index - self.get_shift_for_index(base_index));
+    }
+
+    pub(crate) fn shift_u32_index(&self, index: &mut u32) {
+        *index -= self.get_shift_for_index(*index);
+    }
+
+    pub(crate) fn shift_non_zero_u32_index(&self, index: &mut NonZeroU32) {
+        // 1-indexed value
+        let base_index: u32 = (*index).into();
+        // 0-indexed value
+        let base_index = base_index - 1;
+        let shifted_base_index = base_index - self.get_shift_for_index(base_index);
+        // SAFETY: Shifted base index can be 0, adding 1 makes it non-zero.
+        *index = unsafe { NonZeroU32::new_unchecked(shifted_base_index + 1) };
     }
 
     fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
@@ -690,6 +714,7 @@ pub(crate) struct CompactionLists {
     pub embedder_objects: CompactionList,
     pub source_codes: CompactionList,
     pub errors: CompactionList,
+    pub executables: CompactionList,
     pub finalization_registrys: CompactionList,
     pub function_environments: CompactionList,
     pub generators: CompactionList,
@@ -769,6 +794,7 @@ impl CompactionLists {
             #[cfg(feature = "date")]
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
+            executables: CompactionList::from_mark_bits(&bits.executables),
             maps: CompactionList::from_mark_bits(&bits.maps),
             map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
             numbers: CompactionList::from_mark_bits(&bits.numbers),

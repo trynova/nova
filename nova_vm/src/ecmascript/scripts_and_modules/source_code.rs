@@ -179,11 +179,19 @@ impl CreateHeapData<SourceCodeHeapData, SourceCode> for Heap {
 
 impl HeapMarkAndSweep for SourceCodeHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.source.mark_values(queues);
+        let Self {
+            source,
+            allocator: _,
+        } = self;
+        source.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.source.sweep_values(compactions);
+        let Self {
+            source,
+            allocator: _,
+        } = self;
+        source.sweep_values(compactions);
     }
 }
 

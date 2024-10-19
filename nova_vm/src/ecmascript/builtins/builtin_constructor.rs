@@ -2,10 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    ops::{Index, IndexMut},
-    ptr::NonNull,
-};
+use std::ops::{Index, IndexMut};
 
 use oxc_span::Span;
 
@@ -339,7 +336,7 @@ pub(crate) struct BuiltinConstructorArgs {
     pub(crate) class_name: String,
     pub(crate) prototype: Option<Object>,
     pub(crate) prototype_property: Object,
-    pub(crate) compiled_initializer_bytecode: Option<Box<Executable>>,
+    pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: EnvironmentIndex,
     pub(crate) private_env: Option<PrivateEnvironmentIndex>,
     pub(crate) source_code: SourceCode,
@@ -414,17 +411,13 @@ pub(crate) fn create_builtin_constructor(
         agent.heap.create_null_object(&entries)
     };
 
-    let compiled_initializer_bytecode = args
-        .compiled_initializer_bytecode
-        .map(|bytecode| NonNull::from(Box::leak(bytecode)));
-
     // 13. Return func.
     agent.heap.create(BuiltinConstructorHeapData {
         // 10. Perform SetFunctionLength(func, length).
         // Skipped as length of builtin constructors is always 0.
         // 8. Set func.[[Realm]] to realm.
         realm,
-        compiled_initializer_bytecode,
+        compiled_initializer_bytecode: args.compiled_initializer_bytecode,
         is_derived: args.is_derived,
         object_index: Some(backing_object),
         environment: args.env,
@@ -453,34 +446,40 @@ impl HeapMarkAndSweep for BuiltinConstructorFunction {
 
 impl HeapMarkAndSweep for BuiltinConstructorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.realm.mark_values(queues);
-        self.object_index.mark_values(queues);
-        self.environment.mark_values(queues);
-        self.private_environment.mark_values(queues);
-        self.source_code.mark_values(queues);
-        if let Some(exe) = &self.compiled_initializer_bytecode {
-            // SAFETY: This is a valid, non-null pointer to an owned Executable
-            // that cannot have any live mutable references to it.
-            unsafe { exe.as_ref() }.mark_values(queues);
-        }
+        let Self {
+            object_index,
+            realm,
+            is_derived: _,
+            compiled_initializer_bytecode,
+            environment,
+            private_environment,
+            source_text: _,
+            source_code,
+        } = self;
+        realm.mark_values(queues);
+        object_index.mark_values(queues);
+        environment.mark_values(queues);
+        private_environment.mark_values(queues);
+        source_code.mark_values(queues);
+        compiled_initializer_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.realm.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-        self.environment.sweep_values(compactions);
-        self.private_environment.sweep_values(compactions);
-        self.source_code.sweep_values(compactions);
-        if let Some(exe) = &mut self.compiled_initializer_bytecode {
-            // SAFETY: This is a valid, non-null pointer to an owned Executable
-            // that cannot have any live references to it.
-            // References to this Executable are only created above for marking
-            // and in function_definition for running the function. Both of the
-            // references only live for the duration of a synchronous call and
-            // no longer. Sweeping cannot run concurrently with marking or with
-            // ECMAScript code execution. Hence we can be sure that this is not
-            // an aliasing violation.
-            unsafe { exe.as_mut() }.sweep_values(compactions);
-        }
+        let Self {
+            object_index,
+            realm,
+            is_derived: _,
+            compiled_initializer_bytecode,
+            environment,
+            private_environment,
+            source_text: _,
+            source_code,
+        } = self;
+        realm.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+        environment.sweep_values(compactions);
+        private_environment.sweep_values(compactions);
+        source_code.sweep_values(compactions);
+        compiled_initializer_bytecode.sweep_values(compactions);
     }
 }

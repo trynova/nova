@@ -451,12 +451,22 @@ pub(crate) fn iterator_to_list(
 
 impl HeapMarkAndSweep for IteratorRecord {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.iterator.mark_values(queues);
-        self.next_method.mark_values(queues);
+        let Self {
+            iterator,
+            next_method,
+            done: _,
+        } = self;
+        iterator.mark_values(queues);
+        next_method.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.iterator.sweep_values(compactions);
-        self.next_method.sweep_values(compactions);
+        let Self {
+            iterator,
+            next_method,
+            done: _,
+        } = self;
+        iterator.sweep_values(compactions);
+        next_method.sweep_values(compactions);
     }
 }

@@ -175,15 +175,33 @@ impl Realm {
 
 impl HeapMarkAndSweep for Realm {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.intrinsics().mark_values(queues);
-        self.global_env.mark_values(queues);
-        self.global_object.mark_values(queues);
+        let Self {
+            agent_signifier: _,
+            intrinsics,
+            global_object,
+            global_env,
+            template_map: _,
+            loaded_modules: _,
+            host_defined: _,
+        } = self;
+        intrinsics.mark_values(queues);
+        global_env.mark_values(queues);
+        global_object.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.intrinsics_mut().sweep_values(compactions);
-        self.global_env.sweep_values(compactions);
-        self.global_object.sweep_values(compactions);
+        let Self {
+            agent_signifier: _,
+            intrinsics,
+            global_object,
+            global_env,
+            template_map: _,
+            loaded_modules: _,
+            host_defined: _,
+        } = self;
+        intrinsics.sweep_values(compactions);
+        global_env.sweep_values(compactions);
+        global_object.sweep_values(compactions);
     }
 }
 
@@ -982,17 +1000,19 @@ pub(crate) fn set_default_global_bindings(
     // 19.4 Other Properties of the Global Object
     {
         // 19.4.1 Atomics
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Atomics);
-        let value = agent.get_realm(realm_id).intrinsics().atomics();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc)?;
-
+        #[cfg(feature = "atomics")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Atomics);
+            let value = agent.get_realm(realm_id).intrinsics().atomics();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc)?;
+        }
         // 19.4.2 JSON
         #[cfg(feature = "json")]
         {
