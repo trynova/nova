@@ -58,7 +58,7 @@ pub(crate) fn make_data_view_with_buffer_witness_record(
     }
 }
 
-/// [25.3.1.3 GetViewByteLength ( viewRecord )](https://tc39.es/ecma262/#sec-getviewbytelength)
+/// ### [25.3.1.3 GetViewByteLength ( viewRecord )](https://tc39.es/ecma262/#sec-getviewbytelength)
 ///
 /// The abstract operation GetViewByteLength takes argument viewRecord
 /// (a DataView With Buffer Witness Record) and returns a non-negative integer.
@@ -97,7 +97,7 @@ pub(crate) fn get_view_byte_length(
     (byte_length - byte_offset) as i64
 }
 
-/// [25.3.1.4 IsViewOutOfBounds ( viewRecord )](https://tc39.es/ecma262/#sec-isviewoutofbounds)
+/// ### [25.3.1.4 IsViewOutOfBounds ( viewRecord )](https://tc39.es/ecma262/#sec-isviewoutofbounds)
 ///
 /// The abstract operation IsViewOutOfBounds takes argument viewRecord
 /// (a DataView With Buffer Witness Record) and returns a Boolean.
