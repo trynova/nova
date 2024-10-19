@@ -43,18 +43,6 @@ use crate::ecmascript::builtins::{
     weak_set::data::WeakSetHeapData,
 };
 use crate::ecmascript::{
-    builtins::ArrayHeapData,
-    execution::{Environments, Realm, RealmIdentifier},
-    scripts_and_modules::{
-        module::ModuleIdentifier,
-        script::{Script, ScriptIdentifier},
-    },
-    types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
-    },
-};
-use crate::ecmascript::{
     builtins::{
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReaction,
@@ -86,6 +74,19 @@ use crate::ecmascript::{
         BUILTIN_STRINGS_LIST,
     },
 };
+use crate::ecmascript::{
+    builtins::{data_view::DataView, ArrayHeapData},
+    execution::{Environments, Realm, RealmIdentifier},
+    scripts_and_modules::{
+        module::ModuleIdentifier,
+        script::{Script, ScriptIdentifier},
+    },
+    types::{
+        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
+    },
+};
+use ahash::AHashMap;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
@@ -101,6 +102,10 @@ pub struct Heap {
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
+    #[cfg(feature = "array-buffer")]
+    pub data_view_byte_lengths: AHashMap<DataView, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub data_view_byte_offsets: AHashMap<DataView, usize>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
@@ -190,6 +195,10 @@ impl Heap {
             builtin_functions: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_offsets: AHashMap::with_capacity(0),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),

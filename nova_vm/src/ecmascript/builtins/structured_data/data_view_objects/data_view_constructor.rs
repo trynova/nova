@@ -11,13 +11,16 @@ use crate::{
                 array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer,
                 Ordering,
             },
-            data_view::DataView,
+            data_view::{
+                data::{DataViewByteLength, DataViewByteOffset},
+                DataView,
+            },
             ordinary::ordinary_create_from_constructor,
             structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer,
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
-        types::{Function, IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -47,7 +50,7 @@ impl DataViewConstructor {
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "class constructors must be invoked with 'new'",
+                "calling a builtin DataView constructor without new is forbidden",
             ));
         };
         let new_target = Function::try_from(new_target).unwrap();
@@ -142,12 +145,25 @@ impl DataViewConstructor {
             }
         }
 
+        let o = DataView::try_from(o).unwrap();
+
         // 15. Set O.[[ViewedArrayBuffer]] to buffer.
-        agent[DataView::try_from(o).unwrap()].viewed_array_buffer = Some(buffer);
+        agent[o].viewed_array_buffer = buffer;
         // 16. Set O.[[ByteLength]] to viewByteLength.
-        agent[DataView::try_from(o).unwrap()].byte_length = view_byte_length;
+        agent[o].byte_length = view_byte_length.into();
         // 17. Set O.[[ByteOffset]] to offset.
-        agent[DataView::try_from(o).unwrap()].byte_offset = offset;
+        agent[o].byte_offset = offset.into();
+
+        if agent[o].byte_length == DataViewByteLength::heap() {
+            agent
+                .heap
+                .data_view_byte_lengths
+                .insert(o, view_byte_length.unwrap());
+        }
+
+        if agent[o].byte_offset == DataViewByteOffset::heap() {
+            agent.heap.data_view_byte_offsets.insert(o, offset);
+        }
 
         // 18. Return O.
         Ok(o.into_value())

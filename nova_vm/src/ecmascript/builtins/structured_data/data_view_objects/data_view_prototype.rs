@@ -20,6 +20,7 @@ use crate::{
         types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
+    SmallInteger,
 };
 
 pub(crate) struct DataViewPrototype;
@@ -180,9 +181,8 @@ impl DataViewPrototype {
         let o = require_internal_slot_data_view(agent, this_value)?;
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
         // 4. Let buffer be O.[[ViewedArrayBuffer]].
-        let buffer = agent[o].viewed_array_buffer.unwrap();
         // 5. Return buffer.
-        Ok(buffer.into_value())
+        Ok(agent[o].viewed_array_buffer.into_value())
     }
 
     /// ### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
@@ -206,7 +206,7 @@ impl DataViewPrototype {
         // 6. Let size be GetViewByteLength(viewRecord).
         let size = get_view_byte_length(agent, &view_record);
         // 7. Return 𝔽(size).
-        Ok(Number::from_f64(agent, size as f64).into_value())
+        Ok(Number::from(SmallInteger::try_from(size).unwrap()).into_value())
     }
 
     /// ### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
@@ -229,7 +229,7 @@ impl DataViewPrototype {
         }
         // 6. Let offset be O.[[ByteOffset]].
         // 7. Return 𝔽(offset).
-        Ok(Number::from_f64(agent, agent[o].byte_offset as f64).into_value())
+        Ok(Number::from(SmallInteger::try_from(o.byte_offset(agent) as i64).unwrap()).into_value())
     }
 
     fn get_big_int64(

@@ -356,7 +356,10 @@ impl ArrayBufferPrototype {
 }
 
 #[inline]
-pub fn require_internal_slot_array_buffer(agent: &mut Agent, o: Value) -> JsResult<ArrayBuffer> {
+pub(crate) fn require_internal_slot_array_buffer(
+    agent: &mut Agent,
+    o: Value,
+) -> JsResult<ArrayBuffer> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
