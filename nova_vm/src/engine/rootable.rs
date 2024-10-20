@@ -8,26 +8,35 @@ mod scoped;
 use private::RootableSealed;
 
 #[cfg(feature = "date")]
+use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "shared-array-buffer")]
+use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+#[cfg(feature = "weak-refs")]
+use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+#[cfg(feature = "date")]
 use crate::ecmascript::types::DATE_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::types::{
-    BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT, DATA_VIEW_DISCRIMINANT,
-    FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
-    INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-    UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+    DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
+    INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
+    UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
 };
+#[cfg(feature = "array-buffer")]
+use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
         builtins::{
             bound_function::BoundFunction,
-            data_view::DataView,
-            date::Date,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -45,17 +54,13 @@ use crate::{
             proxy::Proxy,
             regexp::RegExp,
             set::Set,
-            shared_array_buffer::SharedArrayBuffer,
-            weak_map::WeakMap,
-            weak_ref::WeakRef,
-            weak_set::WeakSet,
-            Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
             bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
-            ARGUMENTS_DISCRIMINANT, ARRAY_BUFFER_DISCRIMINANT, ARRAY_DISCRIMINANT,
-            ARRAY_ITERATOR_DISCRIMINANT, ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-            ASYNC_ITERATOR_DISCRIMINANT, BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
+            ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
+            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
+            BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
             BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
             BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
@@ -67,15 +72,21 @@ use crate::{
             SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         },
     },
-    heap::{indexes::TypedArrayIndex, HeapMarkAndSweep},
+    heap::HeapMarkAndSweep,
 };
 
 mod private {
+    #[cfg(feature = "date")]
+    use crate::ecmascript::builtins::date::Date;
+    #[cfg(feature = "shared-array-buffer")]
+    use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+    #[cfg(feature = "array-buffer")]
+    use crate::ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer};
+    #[cfg(feature = "weak-refs")]
+    use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::ecmascript::{
         builtins::{
             bound_function::BoundFunction,
-            data_view::DataView,
-            date::Date,
             embedder_object::EmbedderObject,
             error::Error,
             finalization_registry::FinalizationRegistry,
@@ -93,12 +104,7 @@ mod private {
             proxy::Proxy,
             regexp::RegExp,
             set::Set,
-            shared_array_buffer::SharedArrayBuffer,
-            typed_array::TypedArray,
-            weak_map::WeakMap,
-            weak_ref::WeakRef,
-            weak_set::WeakSet,
-            Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
             BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, String, Symbol,
@@ -109,6 +115,7 @@ mod private {
     /// Marker trait to make Rootable not implementable outside of nova_vm.
     pub trait RootableSealed {}
     impl RootableSealed for Array {}
+    #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer {}
     impl RootableSealed for ArrayIterator {}
     impl RootableSealed for BigInt {}
@@ -116,7 +123,9 @@ mod private {
     impl RootableSealed for BuiltinConstructorFunction {}
     impl RootableSealed for BuiltinFunction {}
     impl RootableSealed for BuiltinPromiseResolvingFunction {}
+    #[cfg(feature = "array-buffer")]
     impl RootableSealed for DataView {}
+    #[cfg(feature = "date")]
     impl RootableSealed for Date {}
     impl RootableSealed for ECMAScriptFunction {}
     impl RootableSealed for EmbedderObject {}
@@ -138,13 +147,18 @@ mod private {
     impl RootableSealed for RegExp {}
     impl RootableSealed for Set {}
     impl RootableSealed for SetIterator {}
+    #[cfg(feature = "shared-array-buffer")]
     impl RootableSealed for SharedArrayBuffer {}
     impl RootableSealed for String {}
     impl RootableSealed for Symbol {}
+    #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray {}
     impl RootableSealed for Value {}
+    #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakMap {}
+    #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakRef {}
+    #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakSet {}
 }
 
@@ -331,8 +345,11 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::PrimitiveObject(primitive_object) => primitive_object.mark_values(queues),
             HeapRootData::Arguments(ordinary_object) => ordinary_object.mark_values(queues),
             HeapRootData::Array(array) => array.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::ArrayBuffer(array_buffer) => array_buffer.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::DataView(data_view) => data_view.mark_values(queues),
+            #[cfg(feature = "date")]
             HeapRootData::Date(date) => date.mark_values(queues),
             HeapRootData::Error(error) => error.mark_values(queues),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
@@ -343,22 +360,37 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Proxy(proxy) => proxy.mark_values(queues),
             HeapRootData::RegExp(reg_exp) => reg_exp.mark_values(queues),
             HeapRootData::Set(set) => set.mark_values(queues),
+            #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
                 shared_array_buffer.mark_values(queues)
             }
+            #[cfg(feature = "weak-refs")]
             HeapRootData::WeakMap(weak_map) => weak_map.mark_values(queues),
+            #[cfg(feature = "weak-refs")]
             HeapRootData::WeakRef(weak_ref) => weak_ref.mark_values(queues),
+            #[cfg(feature = "weak-refs")]
             HeapRootData::WeakSet(weak_set) => weak_set.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Int8Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint8Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint8ClampedArray(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Int16Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint16Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Int32Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint32Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::BigInt64Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
             HeapRootData::AsyncFromSyncIterator => todo!(),
             HeapRootData::AsyncIterator => todo!(),
@@ -404,6 +436,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::ArrayBuffer(array_buffer) => array_buffer.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::DataView(data_view) => data_view.sweep_values(compactions),
+            #[cfg(feature = "date")]
             HeapRootData::Date(date) => date.sweep_values(compactions),
             HeapRootData::Error(error) => error.sweep_values(compactions),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
