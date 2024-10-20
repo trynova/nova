@@ -164,10 +164,10 @@ impl Rootable for Symbol {
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         if value.0.into_u32_index() <= LAST_WELL_KNOWN_SYMBOL_INDEX {
-            // SAFETY: Value is within the maximum number of well-known symbol indexes.
-            Ok(SymbolRootRepr(SymbolRootReprInner::WellKnown(unsafe {
-                std::mem::transmute(value.0.into_u32_index())
-            })))
+            Ok(SymbolRootRepr(SymbolRootReprInner::WellKnown(
+                // SAFETY: Value is within the maximum number of well-known symbol indexes.
+                unsafe { std::mem::transmute(value.0.into_u32_index()) },
+            )))
         } else {
             Err(HeapRootData::Symbol(value))
         }
