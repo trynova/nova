@@ -2304,6 +2304,81 @@ impl ElementArrays {
                 .contains(&Some(element)),
         }
     }
+
+    /// This method creates a "shallow clone" of the elements of a trivial/dense array.
+    /// It does not do anything with descriptors and assumes there is a previous validation in place.
+    pub fn shallow_clone(&mut self, elements_vector: ElementsVector) -> SealableElementsVector {
+        let new_len = usize::try_from(elements_vector.len()).unwrap();
+        let new_key = ElementArrayKey::from(new_len);
+        let ElementArrays {
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+        } = self;
+        let new_index = match new_key {
+            ElementArrayKey::Empty => ElementIndex::from_u32_index(0),
+            ElementArrayKey::E4 => {
+                let elements = e2pow4;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E6 => {
+                let elements = e2pow6;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E8 => {
+                let elements = e2pow8;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E10 => {
+                let elements = e2pow10;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E12 => {
+                let elements = e2pow12;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E16 => {
+                let elements = e2pow16;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E24 => {
+                let elements = e2pow24;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E32 => {
+                let elements = e2pow32;
+                let index = ElementIndex::last_element_index(&elements.values).into_index();
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+        };
+
+        SealableElementsVector {
+            cap: new_key,
+            elements_index: new_index,
+            len: new_len as u32,
+            len_writable: true,
+        }
+    }
 }
 
 impl HeapMarkAndSweep for ElementDescriptor {

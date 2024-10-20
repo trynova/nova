@@ -2838,6 +2838,17 @@ impl ArrayPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
+        if let Value::Array(array) = this_value {
+            // Fast path: Array is dense and contains no descriptors. No JS
+            // functions can thus be called by to_reversed.
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                if let Ok(cloned_array) = array.shallow_clone(agent) {
+                    cloned_array.as_mut_slice(agent).reverse();
+                    return Ok(cloned_array.into_value());
+                }
+            }
+        }
+
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
