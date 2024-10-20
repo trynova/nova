@@ -643,19 +643,19 @@ pub(crate) trait EnumerablePropertiesKind {
 pub(crate) mod enumerable_properties_kind {
     use super::{EnumPropKind, EnumerablePropertiesKind};
 
-    pub(crate) struct Key;
-    pub(crate) struct Value;
-    pub(crate) struct KeyValue;
+    pub(crate) struct EnumerateKeys;
+    pub(crate) struct EnumerateValues;
+    pub(crate) struct EnumerateKeysAndValues;
 
-    impl EnumerablePropertiesKind for Key {
+    impl EnumerablePropertiesKind for EnumerateKeys {
         const KIND: EnumPropKind = EnumPropKind::Key;
     }
 
-    impl EnumerablePropertiesKind for Value {
+    impl EnumerablePropertiesKind for EnumerateValues {
         const KIND: EnumPropKind = EnumPropKind::Value;
     }
 
-    impl EnumerablePropertiesKind for KeyValue {
+    impl EnumerablePropertiesKind for EnumerateKeysAndValues {
         const KIND: EnumPropKind = EnumPropKind::KeyValue;
     }
 }

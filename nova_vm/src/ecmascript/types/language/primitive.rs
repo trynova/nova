@@ -4,7 +4,13 @@
 
 use small_string::SmallString;
 
-use crate::{engine::small_f64::SmallF64, SmallInteger};
+use crate::{
+    engine::{
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_f64::SmallF64,
+    },
+    SmallInteger,
+};
 
 use super::{
     bigint::{HeapBigInt, SmallBigInt},
@@ -64,6 +70,19 @@ pub enum Primitive {
     ///
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum PrimitiveRootRepr {
+    Undefined = UNDEFINED_DISCRIMINANT,
+    Null = NULL_DISCRIMINANT,
+    Boolean(bool) = BOOLEAN_DISCRIMINANT,
+    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
 }
 
 /// A primitive value that is stored on the heap.
@@ -184,6 +203,57 @@ impl TryFrom<Value> for Primitive {
             Value::BigInt(data) => Ok(Primitive::BigInt(data)),
             Value::SmallBigInt(data) => Ok(Primitive::SmallBigInt(data)),
             _ => Err(()),
+        }
+    }
+}
+
+impl Rootable for Primitive {
+    type RootRepr = PrimitiveRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::Undefined => Ok(Self::RootRepr::Undefined),
+            Self::Null => Ok(Self::RootRepr::Null),
+            Self::Boolean(bool) => Ok(Self::RootRepr::Boolean(bool)),
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
+            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
+            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::Undefined => Ok(Self::Undefined),
+            Self::RootRepr::Null => Ok(Self::Null),
+            Self::RootRepr::Boolean(bool) => Ok(Self::Boolean(bool)),
+            Self::RootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
+            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
+            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
+            HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
+            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
+            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+            _ => None,
         }
     }
 }

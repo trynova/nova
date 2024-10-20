@@ -223,7 +223,8 @@ pub(crate) fn internalize_json_property(
         } else {
             // c. Else,
             // i. Let keys be ? EnumerableOwnProperties(val, key).
-            let keys = enumerable_own_properties::<enumerable_properties_kind::Key>(agent, val)?;
+            let keys =
+                enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(agent, val)?;
 
             // ii. For each String P of keys, do
             for p in keys {

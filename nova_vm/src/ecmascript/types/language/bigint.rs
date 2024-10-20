@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
+    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
     heap::{
         indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -187,6 +188,13 @@ impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
 pub enum BigInt {
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum BigIntRootRepr {
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
 }
 
 impl BigInt {
@@ -665,5 +673,38 @@ impl HeapMarkAndSweep for HeapBigInt {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.bigints.shift_index(&mut self.0);
+    }
+}
+
+impl Rootable for BigInt {
+    type RootRepr = BigIntRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+            _ => None,
+        }
     }
 }
