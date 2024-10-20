@@ -2285,8 +2285,11 @@ impl Rootable for Object {
             }
             Self::Arguments(ordinary_object) => Err(HeapRootData::Arguments(ordinary_object)),
             Self::Array(array) => Err(HeapRootData::Array(array)),
+            #[cfg(feature = "array-buffer")]
             Self::ArrayBuffer(array_buffer) => Err(HeapRootData::ArrayBuffer(array_buffer)),
+            #[cfg(feature = "array-buffer")]
             Self::DataView(data_view) => Err(HeapRootData::DataView(data_view)),
+            #[cfg(feature = "date")]
             Self::Date(date) => Err(HeapRootData::Date(date)),
             Self::Error(error) => Err(HeapRootData::Error(error)),
             Self::FinalizationRegistry(finalization_registry) => {
@@ -2297,22 +2300,37 @@ impl Rootable for Object {
             Self::Proxy(proxy) => Err(HeapRootData::Proxy(proxy)),
             Self::RegExp(reg_exp) => Err(HeapRootData::RegExp(reg_exp)),
             Self::Set(set) => Err(HeapRootData::Set(set)),
+            #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(shared_array_buffer) => {
                 Err(HeapRootData::SharedArrayBuffer(shared_array_buffer))
             }
+            #[cfg(feature = "weak-refs")]
             Self::WeakMap(weak_map) => Err(HeapRootData::WeakMap(weak_map)),
+            #[cfg(feature = "weak-refs")]
             Self::WeakRef(weak_ref) => Err(HeapRootData::WeakRef(weak_ref)),
+            #[cfg(feature = "weak-refs")]
             Self::WeakSet(weak_set) => Err(HeapRootData::WeakSet(weak_set)),
+            #[cfg(feature = "array-buffer")]
             Self::Int8Array(base_index) => Err(HeapRootData::Int8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Uint8Array(base_index) => Err(HeapRootData::Uint8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Uint8ClampedArray(base_index) => Err(HeapRootData::Uint8ClampedArray(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Int16Array(base_index) => Err(HeapRootData::Int16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Uint16Array(base_index) => Err(HeapRootData::Uint16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Int32Array(base_index) => Err(HeapRootData::Int32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Uint32Array(base_index) => Err(HeapRootData::Uint32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::BigInt64Array(base_index) => Err(HeapRootData::BigInt64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::BigUint64Array(base_index) => Err(HeapRootData::BigUint64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Float32Array(base_index) => Err(HeapRootData::Float32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index)),
             Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
             Self::AsyncIterator => Err(HeapRootData::AsyncIterator),
@@ -2372,8 +2390,11 @@ impl Rootable for Object {
             }
             HeapRootData::Arguments(ordinary_object) => Some(Self::Arguments(ordinary_object)),
             HeapRootData::Array(array) => Some(Self::Array(array)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::ArrayBuffer(array_buffer) => Some(Self::ArrayBuffer(array_buffer)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::DataView(data_view) => Some(Self::DataView(data_view)),
+            #[cfg(feature = "date")]
             HeapRootData::Date(date) => Some(Self::Date(date)),
             HeapRootData::Error(error) => Some(Self::Error(error)),
             HeapRootData::FinalizationRegistry(finalization_registry) => {
@@ -2384,24 +2405,39 @@ impl Rootable for Object {
             HeapRootData::Proxy(proxy) => Some(Self::Proxy(proxy)),
             HeapRootData::RegExp(reg_exp) => Some(Self::RegExp(reg_exp)),
             HeapRootData::Set(set) => Some(Self::Set(set)),
+            #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
                 Some(Self::SharedArrayBuffer(shared_array_buffer))
             }
+            #[cfg(feature = "weak-refs")]
             HeapRootData::WeakMap(weak_map) => Some(Self::WeakMap(weak_map)),
+            #[cfg(feature = "weak-refs")]
             HeapRootData::WeakRef(weak_ref) => Some(Self::WeakRef(weak_ref)),
+            #[cfg(feature = "weak-refs")]
             HeapRootData::WeakSet(weak_set) => Some(Self::WeakSet(weak_set)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Int8Array(base_index) => Some(Self::Int8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint8Array(base_index) => Some(Self::Uint8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint8ClampedArray(base_index) => {
                 Some(Self::Uint8ClampedArray(base_index))
             }
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Int16Array(base_index) => Some(Self::Int16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint16Array(base_index) => Some(Self::Uint16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Int32Array(base_index) => Some(Self::Int32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Uint32Array(base_index) => Some(Self::Uint32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::BigInt64Array(base_index) => Some(Self::BigInt64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => Some(Self::BigUint64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => Some(Self::Float32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
             HeapRootData::AsyncIterator => Some(Self::AsyncIterator),
