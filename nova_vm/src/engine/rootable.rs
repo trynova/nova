@@ -72,19 +72,80 @@ use crate::{
 
 mod private {
     use crate::ecmascript::{
-        builtins::generator_objects::Generator,
-        types::{BigInt, Number, Numeric, Object, Primitive, String, Value},
+        builtins::{
+            bound_function::BoundFunction,
+            data_view::DataView,
+            date::Date,
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            generator_objects::Generator,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIterator,
+                set_objects::set_iterator_objects::set_iterator::SetIterator,
+            },
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            proxy::Proxy,
+            regexp::RegExp,
+            set::Set,
+            shared_array_buffer::SharedArrayBuffer,
+            typed_array::TypedArray,
+            weak_map::WeakMap,
+            weak_ref::WeakRef,
+            weak_set::WeakSet,
+            Array, ArrayBuffer, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        },
+        types::{
+            BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, String, Symbol,
+            Value,
+        },
     };
 
+    /// Marker trait to make Rootable not implementable outside of nova_vm.
     pub trait RootableSealed {}
+    impl RootableSealed for Array {}
+    impl RootableSealed for ArrayBuffer {}
+    impl RootableSealed for ArrayIterator {}
     impl RootableSealed for BigInt {}
+    impl RootableSealed for BoundFunction {}
+    impl RootableSealed for BuiltinConstructorFunction {}
+    impl RootableSealed for BuiltinFunction {}
+    impl RootableSealed for BuiltinPromiseResolvingFunction {}
+    impl RootableSealed for DataView {}
+    impl RootableSealed for Date {}
+    impl RootableSealed for ECMAScriptFunction {}
+    impl RootableSealed for EmbedderObject {}
+    impl RootableSealed for Error {}
+    impl RootableSealed for FinalizationRegistry {}
+    impl RootableSealed for Function {}
     impl RootableSealed for Generator {}
+    impl RootableSealed for Map {}
+    impl RootableSealed for MapIterator {}
+    impl RootableSealed for Module {}
     impl RootableSealed for Number {}
     impl RootableSealed for Numeric {}
     impl RootableSealed for Object {}
+    impl RootableSealed for OrdinaryObject {}
     impl RootableSealed for Primitive {}
+    impl RootableSealed for PrimitiveObject {}
+    impl RootableSealed for Promise {}
+    impl RootableSealed for Proxy {}
+    impl RootableSealed for RegExp {}
+    impl RootableSealed for Set {}
+    impl RootableSealed for SetIterator {}
+    impl RootableSealed for SharedArrayBuffer {}
     impl RootableSealed for String {}
+    impl RootableSealed for Symbol {}
+    impl RootableSealed for TypedArray {}
     impl RootableSealed for Value {}
+    impl RootableSealed for WeakMap {}
+    impl RootableSealed for WeakRef {}
+    impl RootableSealed for WeakSet {}
 }
 
 pub use global::Global;

@@ -14,12 +14,11 @@ use std::{cell::RefCell, ops::Index};
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
+    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
-    LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
