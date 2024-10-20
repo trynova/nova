@@ -80,7 +80,7 @@ use crate::{
             bigint::HeapBigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
             BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, HeapNumber, HeapString,
             NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String, StringHeapData,
-            SymbolHeapData, Value, BUILTIN_STRINGS_LIST,
+            SymbolHeapData, BUILTIN_STRINGS_LIST,
         },
     },
     engine::{rootable::HeapRootData, ExecutableHeapData},
