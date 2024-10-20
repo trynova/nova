@@ -81,6 +81,19 @@ impl Array {
     }
 
     #[inline]
+    pub(crate) fn shallow_clone(self, agent: &mut Agent) -> Result<Array, ()> {
+        let elements = agent[self].elements;
+        let object_index = self.get_backing_object(agent);
+        let cloned_elements = agent.heap.elements.shallow_clone(elements.into());
+        let data = ArrayHeapData {
+            object_index,
+            elements: cloned_elements,
+        };
+        agent.heap.arrays.push(Some(data));
+        Ok(Array(ArrayIndex::last(&agent.heap.arrays)))
+    }
+
+    #[inline]
     fn internal_get_backing(
         self,
         agent: &mut Agent,
