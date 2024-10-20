@@ -266,7 +266,7 @@ pub enum HeapRootData {
     // not accept those "recirculated" values.
     //
     // The order here shouldn't be important at all, feel free to eg. keep
-    // these in alpabetical order.
+    // these in alphabetical order.
 }
 
 /// Internal type that is used to refer from user-controlled memory (stack or
