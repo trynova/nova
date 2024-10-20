@@ -1067,6 +1067,7 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
     }
 }
 
+#[cfg(feature = "array-buffer")]
 pub(crate) fn sweep_data_view_side_table_values<V: Copy>(
     // TODO: Figure out a generic way to handle all types which wrap `BaseIndex`
     side_table: &mut AHashMap<DataView, V>,
