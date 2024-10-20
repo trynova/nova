@@ -71,7 +71,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
     let Agent {
         heap,
         execution_context_stack,
-        stack_refs: stack_values,
+        stack_refs,
         vm_stack,
         options: _,
         symbol_id: _,
@@ -90,7 +90,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
     execution_context_stack.iter().for_each(|ctx| {
         ctx.mark_values(&mut queues);
     });
-    stack_values
+    stack_refs
         .borrow()
         .iter()
         .for_each(|value| value.mark_values(&mut queues));
@@ -988,7 +988,7 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
     let Agent {
         heap,
         execution_context_stack,
-        stack_refs: stack_values,
+        stack_refs,
         vm_stack,
         options: _,
         symbol_id: _,
@@ -1436,8 +1436,8 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
                     .for_each(|entry| entry.sweep_values(&compactions));
             });
         }
-        if !stack_values.borrow().is_empty() {
-            stack_values
+        if !stack_refs.borrow().is_empty() {
+            stack_refs
                 .borrow_mut()
                 .iter_mut()
                 .for_each(|entry| entry.sweep_values(&compactions));
