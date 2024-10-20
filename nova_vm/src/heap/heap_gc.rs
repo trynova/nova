@@ -9,10 +9,10 @@ use super::indexes::TypedArrayIndex;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
-        mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
-        sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
-        HeapMarkAndSweep, WorkQueues,
+        mark_array_with_u32_length, mark_descriptors, sweep_data_view_side_table_values,
+        sweep_heap_elements_vector_descriptors, sweep_heap_u16_elements_vector_values,
+        sweep_heap_u32_elements_vector_values, sweep_heap_u8_elements_vector_values,
+        sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
@@ -1013,9 +1013,9 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         #[cfg(feature = "array-buffer")]
         data_views,
         #[cfg(feature = "array-buffer")]
-            data_view_byte_lengths: _,
+        data_view_byte_lengths,
         #[cfg(feature = "array-buffer")]
-            data_view_byte_offsets: _,
+        data_view_byte_offsets,
         #[cfg(feature = "date")]
         dates,
         ecmascript_functions,
@@ -1239,6 +1239,8 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         if !data_views.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
+                sweep_data_view_side_table_values(data_view_byte_lengths, &compactions.data_views);
+                sweep_data_view_side_table_values(data_view_byte_offsets, &compactions.data_views);
             });
         }
         #[cfg(feature = "date")]

@@ -34,7 +34,9 @@ use crate::ecmascript::builtins::date::data::DateHeapData;
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+    data_view::{data::DataViewHeapData, DataView},
+    typed_array::data::TypedArrayHeapData,
+    ArrayBufferHeapData,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
@@ -52,7 +54,6 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            data_view::DataView,
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -85,6 +86,7 @@ use crate::{
     },
     engine::{rootable::HeapRootData, ExecutableHeapData},
 };
+#[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 

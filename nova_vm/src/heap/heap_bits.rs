@@ -16,8 +16,6 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::ecmascript::{
@@ -59,6 +57,11 @@ use crate::ecmascript::{
     },
 };
 use crate::engine::Executable;
+#[cfg(feature = "array-buffer")]
+use crate::{
+    ecmascript::builtins::{data_view::DataView, ArrayBuffer},
+    heap::indexes::DataViewIndex,
+};
 
 #[derive(Debug)]
 pub struct HeapBits {
@@ -1061,5 +1064,31 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
         // the key must necessarily exist in the descriptors hash map.
         let descriptor = unsafe { descriptors.remove(&old_key).unwrap_unchecked() };
         descriptors.insert(new_key, descriptor);
+    }
+}
+
+pub(crate) fn sweep_data_view_side_table_values<V: Copy>(
+    // TODO: Figure out a generic way to handle all types which wrap `BaseIndex`
+    side_table: &mut AHashMap<DataView, V>,
+    compaction_list: &CompactionList,
+) {
+    let mut moved_byte_lengths = side_table
+        .iter()
+        .map(|(&data_view, &value)| {
+            let data_view_index = data_view.0.into_u32_index();
+            (
+                data_view_index,
+                data_view_index - compaction_list.get_shift_for_index(data_view_index),
+                value,
+            )
+        })
+        .filter(|(old_index, new_index, _)| old_index != new_index)
+        .collect::<Vec<_>>();
+
+    moved_byte_lengths.sort_by_key(|(old_index, _, _)| *old_index);
+
+    for (old_index, new_index, value) in moved_byte_lengths {
+        side_table.insert(DataViewIndex::from_u32_index(new_index).into(), value);
+        side_table.remove(&DataViewIndex::from_u32_index(old_index).into());
     }
 }
