@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -32,7 +33,13 @@ impl Builtin for MapIteratorPrototypeNext {
 }
 
 impl MapIteratorPrototype {
-    fn next(agent: &mut Agent, this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn next(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {

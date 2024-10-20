@@ -1569,8 +1569,7 @@ impl CompileEvaluation for ast::RegExpLiteral<'_> {
             ast::RegExpPattern::Pattern(_) => unreachable!(),
         };
         let pattern = String::from_str(ctx.agent, pattern);
-        let regexp =
-            reg_exp_create(ctx.agent, pattern.into_value(), Some(self.regex.flags)).unwrap();
+        let regexp = reg_exp_create(ctx.agent, pattern, Some(self.regex.flags)).unwrap();
         ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }
 }

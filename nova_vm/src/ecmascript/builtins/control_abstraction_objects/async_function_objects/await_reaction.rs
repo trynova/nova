@@ -7,6 +7,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{
@@ -56,6 +57,8 @@ impl AwaitReactionIdentifier {
     pub(crate) fn resume(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         reaction_type: PromiseReactionType,
         value: Value,
     ) {
@@ -70,8 +73,8 @@ impl AwaitReactionIdentifier {
         let async_function = agent[self].async_function.unwrap();
         let executable = agent[async_function].compiled_bytecode.unwrap();
         let execution_result = match reaction_type {
-            PromiseReactionType::Fulfill => vm.resume(agent, executable, value),
-            PromiseReactionType::Reject => vm.resume_throw(agent, executable, value),
+            PromiseReactionType::Fulfill => vm.resume(agent, gc.reborrow(), executable, value),
+            PromiseReactionType::Reject => vm.resume_throw(agent, gc.reborrow(), executable, value),
         };
 
         match execution_result {
@@ -83,7 +86,9 @@ impl AwaitReactionIdentifier {
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
                 //    f. Else if result is a return completion, then
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-                agent[self].return_promise_capability.resolve(agent, result);
+                agent[self]
+                    .return_promise_capability
+                    .resolve(agent, gc, result);
             }
             ExecutionResult::Throw(err) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -105,7 +110,7 @@ impl AwaitReactionIdentifier {
                 // which resume execution of the function.
                 let handler = PromiseReactionHandler::Await(self);
                 // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise = Promise::resolve(agent, awaited_value);
+                let promise = Promise::resolve(agent, gc, awaited_value);
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
                 inner_promise_then(agent, promise, handler, handler, None);
             }

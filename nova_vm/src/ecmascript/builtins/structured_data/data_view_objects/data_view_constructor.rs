@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_index,
@@ -42,6 +43,7 @@ impl DataViewConstructor {
     /// ### [25.3.2.1 DataView ( buffer \[ , byteOffset \[ , byteLength \] \] )](https://tc39.es/ecma262/#sec-dataview-buffer-byteoffset-bytelength)
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -63,7 +65,7 @@ impl DataViewConstructor {
         let buffer = require_internal_slot_array_buffer(agent, buffer)?;
 
         // 3. Let offset be ? ToIndex(byteOffset).
-        let offset = to_index(agent, byte_offset)? as usize;
+        let offset = to_index(agent, gc.reborrow(), byte_offset)? as usize;
 
         // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {
@@ -101,7 +103,7 @@ impl DataViewConstructor {
         } else {
             // 9. Else,
             // a. Let viewByteLength be ? ToIndex(byteLength).
-            let view_byte_length = to_index(agent, byte_length)? as usize;
+            let view_byte_length = to_index(agent, gc.reborrow(), byte_length)? as usize;
             // b. If offset + viewByteLength > bufferByteLength, throw a RangeError exception.
             if offset + view_byte_length > buffer_byte_length {
                 return Err(agent.throw_exception_with_static_message(
@@ -113,7 +115,7 @@ impl DataViewConstructor {
         };
 
         // 10. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DataView.prototype%", « [[DataView]], [[ViewedArrayBuffer]], [[ByteLength]], [[ByteOffset]] »).
-        let o = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::DataView)?;
+        let o = ordinary_create_from_constructor(agent, gc, new_target, ProtoIntrinsics::DataView)?;
 
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {

@@ -6,6 +6,7 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -55,6 +56,8 @@ impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -71,6 +74,7 @@ impl SetConstructor {
         let new_target = Function::try_from(new_target).unwrap();
         let set = Set::try_from(ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
             new_target,
             ProtoIntrinsics::Set,
         )?)
@@ -81,7 +85,7 @@ impl SetConstructor {
             return Ok(set.into_value());
         }
         // 5. Let adder be ? Get(set, "add").
-        let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into())?;
+        let adder = get(agent, gc.reborrow(), set, BUILTIN_STRING_MEMORY.add.into())?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder) else {
             return Err(agent.throw_exception_with_static_message(
@@ -94,6 +98,7 @@ impl SetConstructor {
                 && iterable.is_dense(agent)
                 && get_method(
                     agent,
+                    gc.reborrow(),
                     iterable.into_value(),
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 )? == Some(
@@ -162,24 +167,35 @@ impl SetConstructor {
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, iterable, false)?;
+        let mut iterator_record = get_iterator(agent, gc.reborrow(), iterable, false)?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, &mut iterator_record)?;
+            let next = iterator_step_value(agent, gc.reborrow(), &mut iterator_record)?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(set.into_value());
             };
             // c. Let status be Completion(Call(adder, set, « next »)).
-            let status =
-                call_function(agent, adder, set.into_value(), Some(ArgumentsList(&[next])));
+            let status = call_function(
+                agent,
+                gc.reborrow(),
+                adder,
+                set.into_value(),
+                Some(ArgumentsList(&[next])),
+            );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, status, &iterator_record)?;
+            let _ = if_abrupt_close_iterator(agent, gc.reborrow(), status, &iterator_record)?;
         }
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(
+        _: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 

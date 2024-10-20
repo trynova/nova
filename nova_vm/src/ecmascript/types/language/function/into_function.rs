@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::Function;
+use crate::ecmascript::builtins::ordinary::ordinary_get_own_property;
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -78,7 +80,11 @@ pub(crate) fn function_internal_get_own_property(
     property_key: PropertyKey,
 ) -> JsResult<Option<PropertyDescriptor>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_get_own_property(agent, property_key)
+        Ok(ordinary_get_own_property(
+            agent,
+            backing_object.into_object(),
+            property_key,
+        ))
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Ok(Some(PropertyDescriptor {
             value: Some(func.get_length(agent).into()),
@@ -103,30 +109,34 @@ pub(crate) fn function_internal_get_own_property(
 pub(crate) fn function_internal_define_own_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
 ) -> JsResult<bool> {
     let backing_object = func
         .get_backing_object(agent)
         .unwrap_or_else(|| func.create_backing_object(agent));
-    backing_object.internal_define_own_property(agent, property_key, property_descriptor)
+    backing_object.internal_define_own_property(agent, gc, property_key, property_descriptor)
 }
 
 pub(crate) fn function_internal_has_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_has_property(agent, property_key)
+        backing_object.internal_has_property(agent, gc.reborrow(), property_key)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         Ok(true)
     } else {
-        let parent = func.internal_get_prototype_of(agent)?;
+        let parent = func.internal_get_prototype_of(agent, gc.reborrow())?;
         parent.map_or(Ok(false), |parent| {
-            parent.internal_has_property(agent, property_key)
+            parent.internal_has_property(agent, gc, property_key)
         })
     }
 }
@@ -134,19 +144,21 @@ pub(crate) fn function_internal_has_property(
 pub(crate) fn function_internal_get(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     property_key: PropertyKey,
     receiver: Value,
 ) -> JsResult<Value> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_get(agent, property_key, receiver)
+        backing_object.internal_get(agent, gc, property_key, receiver)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Ok(func.get_length(agent).into())
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
         Ok(func.get_name(agent).into_value())
     } else {
-        let parent = func.internal_get_prototype_of(agent)?;
+        let parent = func.internal_get_prototype_of(agent, gc.reborrow())?;
         parent.map_or(Ok(Value::Undefined), |parent| {
-            parent.internal_get(agent, property_key, receiver)
+            parent.internal_get(agent, gc, property_key, receiver)
         })
     }
 }
@@ -154,12 +166,14 @@ pub(crate) fn function_internal_get(
 pub(crate) fn function_internal_set(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_set(agent, property_key, value, receiver)
+        backing_object.internal_set(agent, gc, property_key, value, receiver)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
@@ -167,22 +181,24 @@ pub(crate) fn function_internal_set(
         Ok(false)
     } else {
         func.create_backing_object(agent)
-            .internal_set(agent, property_key, value, receiver)
+            .internal_set(agent, gc, property_key, value, receiver)
     }
 }
 
 pub(crate) fn function_internal_delete(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_delete(agent, property_key)
+        backing_object.internal_delete(agent, gc, property_key)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         let backing_object = func.create_backing_object(agent);
-        backing_object.internal_delete(agent, property_key)
+        backing_object.internal_delete(agent, gc, property_key)
     } else {
         // Non-existing property
         Ok(true)
@@ -192,9 +208,10 @@ pub(crate) fn function_internal_delete(
 pub(crate) fn function_internal_own_property_keys(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<Vec<PropertyKey>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_own_property_keys(agent)
+        backing_object.internal_own_property_keys(agent, gc)
     } else {
         Ok(vec![
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),

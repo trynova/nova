@@ -6,6 +6,7 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -63,6 +64,8 @@ impl BuiltinGetter for MapGetSpecies {}
 impl MapConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -78,6 +81,7 @@ impl MapConstructor {
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%Map.prototype%", « [[MapData]] »).
         let map = Map::try_from(ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
             new_target,
             ProtoIntrinsics::Map,
         )?)
@@ -99,6 +103,7 @@ impl MapConstructor {
             // 5. Let adder be ? Get(map, "set").
             let adder = get(
                 agent,
+                gc.reborrow(),
                 map.into_object(),
                 BUILTIN_STRING_MEMORY.set.to_property_key(),
             )?;
@@ -110,20 +115,28 @@ impl MapConstructor {
                 ));
             };
             // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
-            add_entries_from_iterable_map_constructor(agent, map, iterable, adder)
+            add_entries_from_iterable_map_constructor(agent, gc.reborrow(), map, iterable, adder)
                 .map(|result| result.into_value())
         }
     }
 
     fn group_by(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(
+        _: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 
@@ -147,6 +160,8 @@ impl MapConstructor {
 /// This is a specialization for the `new Map()` use case.
 pub fn add_entries_from_iterable_map_constructor(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     target: Map,
     iterable: Value,
     adder: Function,
@@ -157,6 +172,7 @@ pub fn add_entries_from_iterable_map_constructor(
             if let Value::Array(iterable) = iterable {
                 let using_iterator = get_method(
                     agent,
+                    gc.reborrow(),
                     iterable.into_value(),
                     WellKnownSymbolIndexes::Iterator.into(),
                 )?;
@@ -253,7 +269,7 @@ pub fn add_entries_from_iterable_map_constructor(
         }
     }
 
-    add_entries_from_iterable_map_constructor(agent, target, iterable, adder)
+    add_entries_from_iterable_map_constructor(agent, gc.reborrow(), target, iterable, adder)
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -271,16 +287,18 @@ pub fn add_entries_from_iterable_map_constructor(
 /// > key.
 pub(crate) fn add_entries_from_iterable(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     target: Object,
     iterable: Value,
     adder: Function,
 ) -> JsResult<Object> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable, false)?;
+    let mut iterator_record = get_iterator(agent, gc.reborrow(), iterable, false)?;
     // 2. Repeat,
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record)?;
+        let next = iterator_step_value(agent, gc.reborrow(), &mut iterator_record)?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target);
@@ -293,23 +311,24 @@ pub(crate) fn add_entries_from_iterable(
                 "Invalid iterator next return value",
             );
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error));
+            return iterator_close(agent, gc.reborrow(), &iterator_record, Err(error));
         };
         // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next, 0.into());
+        let k = get(agent, gc.reborrow(), next, 0.into());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
-        let k = if_abrupt_close_iterator(agent, k, &iterator_record)?;
+        let k = if_abrupt_close_iterator(agent, gc.reborrow(), k, &iterator_record)?;
         // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, next, 1.into());
+        let v = get(agent, gc.reborrow(), next, 1.into());
         // g. IfAbruptCloseIterator(v, iteratorRecord).
-        let v = if_abrupt_close_iterator(agent, v, &iterator_record)?;
+        let v = if_abrupt_close_iterator(agent, gc.reborrow(), v, &iterator_record)?;
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         let status = call_function(
             agent,
+            gc.reborrow(),
             adder,
             target.into_value(),
             Some(ArgumentsList(&[k, v])),
         );
-        let _ = if_abrupt_close_iterator(agent, status, &iterator_record)?;
+        let _ = if_abrupt_close_iterator(agent, gc.reborrow(), status, &iterator_record)?;
     }
 }

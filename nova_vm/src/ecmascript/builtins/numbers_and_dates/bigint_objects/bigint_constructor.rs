@@ -29,6 +29,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 
+use crate::engine::context::GcScope;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
@@ -61,6 +62,8 @@ impl Builtin for BigIntAsUintN {
 impl BigIntConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -72,27 +75,29 @@ impl BigIntConstructor {
             ));
         }
         let value = arguments.get(0);
-        let prim = to_primitive(agent, value, Some(PreferredType::Number))?;
+        let prim = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
         if let Ok(prim) = Number::try_from(prim) {
             Ok(prim.into_value())
         } else {
-            to_big_int(agent, value).map(|result| result.into_value())
+            to_big_int(agent, gc.reborrow(), value).map(|result| result.into_value())
         }
     }
 
     fn as_int_n(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let bits = to_index(agent, arguments.get(0))?;
+        let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asIntN",
             ));
         };
-        let bigint = to_big_int(agent, arguments.get(1))?;
+        let bigint = to_big_int(agent, gc.reborrow(), arguments.get(1))?;
         if bits == 0 {
             return Ok(BigInt::zero().into_value());
         }
@@ -158,17 +163,19 @@ impl BigIntConstructor {
 
     fn as_uint_n(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let bits = to_index(agent, arguments.get(0))?;
+        let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asUintN",
             ));
         };
-        let bigint = to_big_int(agent, arguments.get(1))?;
+        let bigint = to_big_int(agent, gc.reborrow(), arguments.get(1))?;
         match bigint {
             BigInt::BigInt(_) => todo!(),
             BigInt::SmallBigInt(int) => {
@@ -192,8 +199,13 @@ impl BigIntConstructor {
     }
 }
 
-fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
-    if !is_integral_number(agent, value) {
+fn number_to_big_int(
+    agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
+    value: Number,
+) -> JsResult<BigInt> {
+    if !is_integral_number(agent, gc.reborrow(), value) {
         Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
     } else {
         match value {

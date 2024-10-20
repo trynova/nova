@@ -20,6 +20,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::SymbolHeapData;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::GcScope;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
@@ -60,6 +61,8 @@ impl Builtin for SymbolKeyFor {
 impl SymbolConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -74,7 +77,7 @@ impl SymbolConstructor {
         let desc_string = if description.is_undefined() {
             None
         } else {
-            Some(to_string(agent, description)?)
+            Some(to_string(agent, gc.reborrow(), description)?)
         };
 
         Ok(agent
@@ -85,12 +88,20 @@ impl SymbolConstructor {
             .into_value())
     }
 
-    fn r#for(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#for(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(arguments.get(0))
     }
 
     fn key_for(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

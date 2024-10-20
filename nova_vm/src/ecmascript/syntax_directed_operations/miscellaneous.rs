@@ -6,10 +6,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    builtins::ECMAScriptFunction,
-    execution::{Agent, EnvironmentIndex, PrivateEnvironmentIndex},
-    syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
+use crate::{
+    ecmascript::{
+        builtins::ECMAScriptFunction,
+        execution::{Agent, EnvironmentIndex, PrivateEnvironmentIndex},
+        syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
+    },
+    engine::context::GcScope,
 };
 use oxc_ast::ast;
 
@@ -20,6 +23,8 @@ use oxc_ast::ast;
 /// null) and returns an ECMAScript function object.
 pub(crate) fn instantiate_function_object(
     agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
@@ -29,14 +34,14 @@ pub(crate) fn instantiate_function_object(
     // function ( FormalParameters ) { FunctionBody }
     if !function.r#async && !function.generator {
         // 1. Return InstantiateOrdinaryFunctionObject of FunctionDeclaration with arguments env and privateEnv.
-        return instantiate_ordinary_function_object(agent, function, env, private_env);
+        return instantiate_ordinary_function_object(agent, gc, function, env, private_env);
     }
     // GeneratorDeclaration :
     // function * BindingIdentifier ( FormalParameters ) { GeneratorBody }
     // function * ( FormalParameters ) { GeneratorBody }
     if !function.r#async && function.generator {
         // 1. Return InstantiateGeneratorFunctionObject of GeneratorDeclaration with arguments env and privateEnv.
-        return instantiate_ordinary_function_object(agent, function, env, private_env);
+        return instantiate_ordinary_function_object(agent, gc, function, env, private_env);
     }
     // AsyncGeneratorDeclaration :
     // async function * BindingIdentifier ( FormalParameters ) { AsyncGeneratorBody }
@@ -50,7 +55,7 @@ pub(crate) fn instantiate_function_object(
     // async function ( FormalParameters ) { AsyncFunctionBody }
     if function.r#async && !function.generator {
         // 1. Return InstantiateAsyncFunctionObject of AsyncFunctionDeclaration with arguments env and privateEnv.
-        return instantiate_ordinary_function_object(agent, function, env, private_env);
+        return instantiate_ordinary_function_object(agent, gc, function, env, private_env);
     }
     unreachable!();
 }

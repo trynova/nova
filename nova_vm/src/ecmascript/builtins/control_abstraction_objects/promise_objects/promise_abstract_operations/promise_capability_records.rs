@@ -4,6 +4,7 @@
 
 //! ## [27.2.1.1 PromiseCapability Records]()
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -62,7 +63,7 @@ impl PromiseCapability {
         self.promise
     }
 
-    fn is_already_resolved(self, agent: &mut Agent) -> bool {
+    fn is_already_resolved(self, agent: &Agent) -> bool {
         // If `self.must_be_unresolved` is true, then `alreadyResolved`
         // corresponds with the `is_resolved` flag in PromiseState::Pending.
         // Otherwise, it corresponds to `promise_state` not being Pending.
@@ -136,7 +137,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn resolve(self, agent: &mut Agent, resolution: Value) {
+    pub fn resolve(self, agent: &mut Agent, gc: GcScope<'_, '_>, resolution: Value) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -173,7 +174,7 @@ impl PromiseCapability {
         };
 
         // 9. Let then be Completion(Get(resolution, "then")).
-        let then_action = match get(agent, resolution, BUILTIN_STRING_MEMORY.then.into()) {
+        let then_action = match get(agent, gc, resolution, BUILTIN_STRING_MEMORY.then.into()) {
             // 11. Let thenAction be then.[[Value]].
             Ok(then_action) => then_action,
             // 10. If then is an abrupt completion, then

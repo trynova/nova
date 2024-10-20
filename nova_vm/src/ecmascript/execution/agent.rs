@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::GcScope, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -42,8 +42,8 @@ impl JsError {
         self.0
     }
 
-    pub fn to_string(self, agent: &mut Agent) -> String {
-        to_string(agent, self.0).unwrap()
+    pub fn to_string(self, agent: &mut Agent, mut gc: GcScope<'_, '_>) -> String {
+        to_string(agent, gc.reborrow(), self.0).unwrap()
     }
 }
 
@@ -65,7 +65,7 @@ impl Job {
         self.realm
     }
 
-    pub fn run(&self, agent: &mut Agent) -> JsResult<()> {
+    pub fn run(&self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm_id() != realm {
@@ -80,8 +80,8 @@ impl Job {
         };
 
         let result = match self.inner {
-            InnerJob::PromiseResolveThenable(job) => job.run(agent),
-            InnerJob::PromiseReaction(job) => job.run(agent),
+            InnerJob::PromiseResolveThenable(job) => job.run(agent, gc),
+            InnerJob::PromiseReaction(job) => job.run(agent, gc),
         };
 
         if pushed_context {
@@ -184,9 +184,9 @@ impl GcAgent {
     /// [`GcAgent::remove_realm`] is called.
     pub fn create_realm(
         &mut self,
-        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
-        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
-        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+        create_global_object: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope, Object)>,
     ) -> RealmRoot {
         let realm = self.agent.create_realm(
             create_global_object,
@@ -221,7 +221,7 @@ impl GcAgent {
 
     pub fn run_in_realm<F, R>(&mut self, realm: &RealmRoot, func: F) -> R
     where
-        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
+        F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
         let index = realm.index;
         let error_message = "Attempted to run in non-existing Realm";
@@ -244,7 +244,9 @@ impl GcAgent {
             // GC is disabled; no-op
             return;
         }
-        heap_gc(&mut self.agent, &mut self.realm_roots);
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let gc = GcScope::new(&mut gc, &mut scope);
+        heap_gc(&mut self.agent, gc, &mut self.realm_roots);
     }
 }
 
@@ -292,12 +294,16 @@ impl Agent {
     /// This is intended for usage within BuiltinFunction calls.
     pub fn create_realm(
         &mut self,
-        create_global_object: Option<impl FnOnce(&mut Agent) -> Object>,
-        create_global_this_value: Option<impl FnOnce(&mut Agent) -> Object>,
-        initialize_global_object: Option<impl FnOnce(&mut Agent, Object)>,
+        create_global_object: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
+        create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope, Object)>,
     ) -> RealmIdentifier {
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let gc = GcScope::new(&mut gc, &mut scope);
+
         initialize_host_defined_realm(
             self,
+            gc,
             create_global_object,
             create_global_this_value,
             initialize_global_object,
@@ -309,13 +315,16 @@ impl Agent {
     ///
     /// This is intended for usage within BuiltinFunction calls.
     pub fn create_default_realm(&mut self) -> RealmIdentifier {
-        initialize_default_realm(self);
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let gc = GcScope::new(&mut gc, &mut scope);
+
+        initialize_default_realm(self, gc);
         self.get_created_realm_root()
     }
 
     pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
     where
-        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
+        F: for<'agent, 'gc, 'scope> FnOnce(&'agent mut Agent, GcScope<'gc, 'scope>) -> R,
     {
         let execution_stack_depth_before_call = self.execution_context_stack.len();
         self.execution_context_stack.push(ExecutionContext {
@@ -324,7 +333,10 @@ impl Agent {
             realm,
             script_or_module: None,
         });
-        let result = func(self);
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+        let gc = GcScope::new(&mut gc, &mut scope);
+
+        let result = func(self, gc);
         assert_eq!(
             self.execution_context_stack.len(),
             execution_stack_depth_before_call + 1
@@ -450,6 +462,8 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// binding.
 pub(crate) fn resolve_binding(
     agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
     name: String,
     env: Option<EnvironmentIndex>,
 ) -> JsResult<Reference> {
@@ -475,7 +489,7 @@ pub(crate) fn resolve_binding(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    get_identifier_reference(agent, Some(env), name, strict)
+    get_identifier_reference(agent, gc, Some(env), name, strict)
 }
 
 #[derive(Debug, Clone, Copy)]

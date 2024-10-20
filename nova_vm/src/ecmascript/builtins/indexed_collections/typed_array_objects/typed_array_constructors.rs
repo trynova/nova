@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::{
@@ -153,6 +154,8 @@ impl BuiltinIntrinsicConstructor for Float64ArrayConstructor {
 impl TypedArrayConstructors {
     fn int8_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -162,6 +165,8 @@ impl TypedArrayConstructors {
 
     fn uint8_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -171,6 +176,8 @@ impl TypedArrayConstructors {
 
     fn uint8_clamped_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -180,6 +187,8 @@ impl TypedArrayConstructors {
 
     fn int16_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -189,6 +198,8 @@ impl TypedArrayConstructors {
 
     fn uint16_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -198,6 +209,8 @@ impl TypedArrayConstructors {
 
     fn int32_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -207,6 +220,8 @@ impl TypedArrayConstructors {
 
     fn uint32_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -216,6 +231,8 @@ impl TypedArrayConstructors {
 
     fn big_int64_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -225,6 +242,8 @@ impl TypedArrayConstructors {
 
     fn big_uint64_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -234,6 +253,8 @@ impl TypedArrayConstructors {
 
     fn float32_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -243,6 +264,8 @@ impl TypedArrayConstructors {
 
     fn float64_array_constructor(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,

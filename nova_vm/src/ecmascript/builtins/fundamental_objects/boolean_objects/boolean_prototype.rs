@@ -2,14 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{
-        primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-        ArgumentsList, Builtin,
+use crate::{
+    ecmascript::{
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
+            ArgumentsList, Builtin,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{String, Value, BUILTIN_STRING_MEMORY},
     },
-    execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{String, Value, BUILTIN_STRING_MEMORY},
+    engine::context::GcScope,
 };
 
 pub(crate) struct BooleanPrototype;
@@ -35,7 +38,13 @@ impl Builtin for BooleanPrototypeValueOf {
 }
 
 impl BooleanPrototype {
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         let b = this_boolean_value(agent, this_value)?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
@@ -44,7 +53,13 @@ impl BooleanPrototype {
         }
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         this_boolean_value(agent, this_value).map(|result| result.into())
     }
 
