@@ -4,8 +4,6 @@
 
 use std::thread;
 
-#[cfg(feature = "array-buffer")]
-use super::indexes::TypedArrayIndex;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
@@ -17,6 +15,8 @@ use super::{
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
 };
+#[cfg(feature = "array-buffer")]
+use super::{heap_bits::sweep_data_view_side_table_values, indexes::TypedArrayIndex};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
@@ -147,6 +147,10 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
             builtin_functions,
             #[cfg(feature = "array-buffer")]
             data_views,
+            #[cfg(feature = "array-buffer")]
+                data_view_byte_lengths: _,
+            #[cfg(feature = "array-buffer")]
+                data_view_byte_offsets: _,
             #[cfg(feature = "date")]
             dates,
             ecmascript_functions,
@@ -1008,6 +1012,10 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         builtin_functions,
         #[cfg(feature = "array-buffer")]
         data_views,
+        #[cfg(feature = "array-buffer")]
+        data_view_byte_lengths,
+        #[cfg(feature = "array-buffer")]
+        data_view_byte_offsets,
         #[cfg(feature = "date")]
         dates,
         ecmascript_functions,
@@ -1231,6 +1239,8 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         if !data_views.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
+                sweep_data_view_side_table_values(data_view_byte_lengths, &compactions.data_views);
+                sweep_data_view_side_table_values(data_view_byte_offsets, &compactions.data_views);
             });
         }
         #[cfg(feature = "date")]
