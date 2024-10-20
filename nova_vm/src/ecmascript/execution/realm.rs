@@ -1217,7 +1217,7 @@ mod test {
         assert_eq!(agent.heap.environments.global.len(), 1);
         assert_eq!(agent.heap.environments.object.len(), 1);
         assert!(agent.heap.errors.is_empty());
-        assert!(agent.heap.globals.is_empty());
+        assert!(agent.heap.globals.borrow().is_empty());
         assert!(agent.heap.modules.is_empty());
         let missing_number = agent
             .heap
