@@ -21,8 +21,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
-    },
-    heap::{indexes::BuiltinFunctionIndex, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    }, engine::rootable::{HeapRootData, HeapRootRef, Rootable}, heap::{indexes::BuiltinFunctionIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}
 };
 
 pub(crate) use data::*;
@@ -519,5 +518,72 @@ impl HeapMarkAndSweep for Function {
 impl Function {
     pub fn call(self, agent: &mut Agent, this_argument: Value, args: &[Value]) -> JsResult<Value> {
         self.internal_call(agent, this_argument, ArgumentsList(args))
+    }
+}
+
+impl Rootable for Function {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::BoundFunction(bound_function) => Err(HeapRootData::BoundFunction(bound_function)),
+            Self::BuiltinFunction(builtin_function) => {
+                Err(HeapRootData::BuiltinFunction(builtin_function))
+            }
+            Self::ECMAScriptFunction(ecmascript_function) => {
+                Err(HeapRootData::ECMAScriptFunction(ecmascript_function))
+            }
+            Self::BuiltinGeneratorFunction => Err(HeapRootData::BuiltinGeneratorFunction),
+            Self::BuiltinConstructorFunction(builtin_constructor_function) => Err(
+                HeapRootData::BuiltinConstructorFunction(builtin_constructor_function),
+            ),
+            Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => Err(
+                HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function),
+            ),
+            Self::BuiltinPromiseCollectorFunction => {
+                Err(HeapRootData::BuiltinPromiseCollectorFunction)
+            }
+            Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinProxyRevokerFunction),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BoundFunction(bound_function) => {
+                Some(Self::BoundFunction(bound_function))
+            }
+            HeapRootData::BuiltinFunction(builtin_function) => {
+                Some(Self::BuiltinFunction(builtin_function))
+            }
+            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
+                Some(Self::ECMAScriptFunction(ecmascript_function))
+            }
+            HeapRootData::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
+            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Some(
+                Self::BuiltinConstructorFunction(builtin_constructor_function),
+            ),
+            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+                Some(Self::BuiltinPromiseResolvingFunction(
+                    builtin_promise_resolving_function,
+                ))
+            }
+            HeapRootData::BuiltinPromiseCollectorFunction => {
+                Some(Self::BuiltinPromiseCollectorFunction)
+            }
+            HeapRootData::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
+            // Note: We use a catch-all here as we expect function variant
+            // additions to be rare.
+            _ => None,
+        }
     }
 }

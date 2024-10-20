@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::Vm, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -235,7 +235,7 @@ impl GcAgent {
         let result = self.agent.run_in_realm(realm, func);
         assert!(self.agent.execution_context_stack.is_empty());
         assert!(self.agent.vm_stack.is_empty());
-        self.agent.stack_values.borrow_mut().clear();
+        self.agent.stack_refs.borrow_mut().clear();
         result
     }
 
@@ -257,11 +257,11 @@ pub struct Agent {
     pub(crate) global_symbol_registry: AHashMap<&'static str, Symbol>,
     pub(crate) host_hooks: &'static dyn HostHooks,
     pub(crate) execution_context_stack: Vec<ExecutionContext>,
-    /// Temporary storage for on-stack values.
+    /// Temporary storage for on-stack heap roots.
     ///
     /// TODO: With Realm-specific heaps we'll need a side-table to define which
     /// Realm a particular stack value points to.
-    pub(crate) stack_values: RefCell<Vec<Value>>,
+    pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
     /// Temporary storage for on-stack VMs.
     pub(crate) vm_stack: Vec<NonNull<Vm>>,
 }
@@ -275,7 +275,7 @@ impl Agent {
             global_symbol_registry: AHashMap::default(),
             host_hooks,
             execution_context_stack: Vec::new(),
-            stack_values: RefCell::new(Vec::with_capacity(64)),
+            stack_refs: RefCell::new(Vec::with_capacity(64)),
             vm_stack: Vec::with_capacity(16),
         }
     }

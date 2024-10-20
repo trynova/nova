@@ -9,17 +9,16 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
-use std::ops::Index;
+use std::{cell::RefCell, ops::Index};
 
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
+    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
-    LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
@@ -53,15 +52,6 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            map::data::MapHeapData,
-            module::data::ModuleHeapData,
-            primitive_objects::PrimitiveObjectHeapData,
-            promise::data::PromiseHeapData,
-            proxy::data::ProxyHeapData,
-            regexp::RegExpHeapData,
-            set::data::SetHeapData,
-        },
-        builtins::{
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -70,25 +60,29 @@ use crate::{
                 map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
                 set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
             },
+            map::data::MapHeapData,
+            module::data::ModuleHeapData,
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            regexp::RegExpHeapData,
+            set::data::SetHeapData,
             ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
-        scripts_and_modules::source_code::SourceCodeHeapData,
         scripts_and_modules::{
             module::ModuleIdentifier,
             script::{Script, ScriptIdentifier},
+            source_code::SourceCodeHeapData,
         },
         types::{
-            bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
-            BUILTIN_STRINGS_LIST,
-        },
-        types::{
-            BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData,
-            ECMAScriptFunctionHeapData, NumberHeapData, Object, ObjectHeapData, String,
-            StringHeapData, SymbolHeapData, Value,
+            bigint::HeapBigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
+            BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, HeapNumber, HeapString,
+            NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String, StringHeapData,
+            SymbolHeapData, BUILTIN_STRINGS_LIST,
         },
     },
-    engine::ExecutableHeapData,
+    engine::{rootable::HeapRootData, ExecutableHeapData},
 };
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
@@ -119,7 +113,7 @@ pub struct Heap {
     pub(crate) executables: Vec<ExecutableHeapData>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
     pub generators: Vec<Option<GeneratorHeapData>>,
-    pub globals: Vec<Option<Value>>,
+    pub(crate) globals: RefCell<Vec<Option<HeapRootData>>>,
     pub maps: Vec<Option<MapHeapData>>,
     pub map_iterators: Vec<Option<MapIteratorHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
@@ -216,7 +210,7 @@ impl Heap {
             source_codes: Vec::with_capacity(0),
             finalization_registrys: Vec::with_capacity(0),
             generators: Vec::with_capacity(1024),
-            globals: Vec::with_capacity(1024),
+            globals: RefCell::new(Vec::with_capacity(1024)),
             maps: Vec::with_capacity(128),
             map_iterators: Vec::with_capacity(128),
             modules: Vec::with_capacity(0),
