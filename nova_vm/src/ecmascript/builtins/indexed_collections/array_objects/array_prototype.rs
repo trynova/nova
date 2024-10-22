@@ -2612,8 +2612,159 @@ impl ArrayPrototype {
         Ok(obj.into_value())
     }
 
-    fn splice(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!();
+    fn splice(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+        let start = arguments.get(0);
+        let delete_count = arguments.get(1);
+        let items = if arguments.len() > 2 {
+            &arguments[2..]
+        } else {
+            &[]
+        };
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, o)?;
+        // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start)?;
+        let actual_start = if relative_start.is_neg_infinity(agent) {
+            // 4. If relativeStart = -∞, let actualStart be 0.
+            0
+        } else if relative_start.into_i64(agent) < 0 {
+            // 5. Else if relativeStart < 0, let actualStart be max(len + relativeStart, 0).
+            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+        } else {
+            // 6. Else, let actualStart be min(relativeStart, len).
+            (relative_start.into_i64(agent).min(len as i64)) as usize
+        };
+        // 7. Let itemCount be the number of elements in items.
+        let item_count = items.len();
+        // 8. If start is not present, then
+        let actual_delete_count = if arguments.len() == 0 {
+            // a. Let actualDeleteCount be 0.
+            0
+        } else if arguments.len() == 1 {
+            // 9. Else if deleteCount is not present, then
+            // a. Let actualDeleteCount be len - actualStart.
+            len as usize - actual_start
+        } else {
+            // 10. Else,
+            //     a. Let dc be ? ToIntegerOrInfinity(deleteCount).
+            let dc = to_integer_or_infinity(agent, delete_count)?;
+            //     b. Let actualDeleteCount be the result of clamping dc between 0 and len - actualStart.
+            dc.into_usize(agent).min(len as usize - actual_start)
+        };
+        // 11. If len + itemCount - actualDeleteCount > 2**53 - 1, throw a TypeError exception.
+        if len as usize + item_count - actual_delete_count > SmallInteger::MAX_NUMBER as usize {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Target index overflowed",
+            ));
+        }
+        // 12. Let A be ? ArraySpeciesCreate(O, actualDeleteCount).
+        let a = array_species_create(agent, o, actual_delete_count)?;
+        // 13. Let k be 0.
+        let mut k = 0;
+        // 14. Repeat, while k < actualDeleteCount,
+        while k < actual_delete_count {
+            //     a. Let from be ! ToString(𝔽(actualStart + k)).
+            let from = (actual_start + k).try_into().unwrap();
+            //     b. If ? HasProperty(O, from) is true, then
+            if has_property(agent, o, from)? {
+                //     i. Let fromValue be ? Get(O, from).
+                let from_value = get(agent, o, from)?;
+                //     ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(k)), fromValue).
+                create_data_property_or_throw(agent, a, k.try_into().unwrap(), from_value)?;
+            }
+            //     c. Set k to k + 1.
+            k += 1;
+        }
+        // 15. Perform ? Set(A, "length", 𝔽(actualDeleteCount), true).
+        set(
+            agent,
+            a,
+            BUILTIN_STRING_MEMORY.length.into(),
+            (actual_delete_count as u32).try_into().unwrap(),
+            true,
+        )?;
+        // 16. If itemCount < actualDeleteCount, then
+        if item_count < actual_delete_count {
+            //     a. Set k to actualStart.
+            k = actual_start;
+            //     b. Repeat, while k < (len - actualDeleteCount),
+            while k < (len as usize - actual_delete_count) {
+                //     i. Let from be ! ToString(𝔽(k + actualDeleteCount)).
+                let from = (k + actual_delete_count).try_into().unwrap();
+                //     ii. Let to be ! ToString(𝔽(k + itemCount)).
+                let to = (k + item_count).try_into().unwrap();
+                //     iii. If ? HasProperty(O, from) is true, then
+                if has_property(agent, o, from)? {
+                    //             1. Let fromValue be ? Get(O, from).
+                    let from_value = get(agent, o, from)?;
+                    //             2. Perform ? Set(O, to, fromValue, true).
+                    set(agent, o, to, from_value, true)?;
+                } else {
+                    //     iv. Else,
+                    //         1. Perform ? DeletePropertyOrThrow(O, to).
+                    delete_property_or_throw(agent, o, to)?;
+                }
+                k += 1;
+                //     v. Set k to k + 1.
+            }
+            //     c. Set k to len.
+            k = len as usize;
+            //     d. Repeat, while k > (len - actualDeleteCount + itemCount),
+            while k > (len as usize - actual_delete_count + item_count) {
+                //     i. Perform ? DeletePropertyOrThrow(O, ! ToString(𝔽(k - 1))).
+                delete_property_or_throw(agent, o, (k - 1).try_into().unwrap())?;
+                //     ii. Set k to k - 1.
+                k -= 1;
+            }
+        } else if item_count > actual_delete_count {
+            // 17. Else if itemCount > actualDeleteCount, then
+            //     a. Set k to (len - actualDeleteCount).
+            k = len as usize - actual_delete_count;
+            //     b. Repeat, while k > actualStart,
+            while k > actual_start {
+                //     i. Let from be ! ToString(𝔽(k + actualDeleteCount - 1)).
+                let from = (k + actual_delete_count - 1).try_into().unwrap();
+                //     ii. Let to be ! ToString(𝔽(k + itemCount - 1)).
+                let to = (k + item_count - 1).try_into().unwrap();
+                //     iii. If ? HasProperty(O, from) is true, then
+                if has_property(agent, o, from)? {
+                    //             1. Let fromValue be ? Get(O, from).
+                    let from_value = get(agent, o, from)?;
+                    //             2. Perform ? Set(O, to, fromValue, true).
+                    set(agent, o, to, from_value, true)?;
+                } else {
+                    //     iv. Else,
+                    //         1. Perform ? DeletePropertyOrThrow(O, to).
+                    delete_property_or_throw(agent, o, to)?;
+                }
+                //     v. Set k to k - 1.
+                k -= 1;
+            }
+        }
+        // 18. Set k to actualStart.
+        k = actual_start;
+        // 19. For each element E of items, do
+        for e in items {
+            //     a. Perform ? Set(O, ! ToString(𝔽(k)), E, true).
+            set(agent, o, k.try_into().unwrap(), *e, true)?;
+            //     b. Set k to k + 1.
+            k += 1;
+        }
+        // 20. Perform ? Set(O, "length", 𝔽(len - actualDeleteCount + itemCount), true).
+        set(
+            agent,
+            o,
+            BUILTIN_STRING_MEMORY.length.into(),
+            (len as i64 - actual_delete_count as i64 + item_count as i64)
+                .try_into()
+                .unwrap(),
+            true,
+        )?;
+        // 21. Return A.
+        Ok(a.into_value())
     }
 
     fn to_locale_string(
