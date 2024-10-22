@@ -2683,67 +2683,71 @@ impl ArrayPrototype {
             agent,
             a,
             BUILTIN_STRING_MEMORY.length.into(),
-            (actual_delete_count as u32).try_into().unwrap(),
+            (actual_delete_count as i64).try_into().unwrap(),
             true,
         )?;
-        // 16. If itemCount < actualDeleteCount, then
-        if item_count < actual_delete_count {
-            //     a. Set k to actualStart.
-            k = actual_start;
-            //     b. Repeat, while k < (len - actualDeleteCount),
-            while k < (len as usize - actual_delete_count) {
-                //     i. Let from be ! ToString(𝔽(k + actualDeleteCount)).
-                let from = (k + actual_delete_count).try_into().unwrap();
-                //     ii. Let to be ! ToString(𝔽(k + itemCount)).
-                let to = (k + item_count).try_into().unwrap();
-                //     iii. If ? HasProperty(O, from) is true, then
-                if has_property(agent, o, from)? {
-                    //             1. Let fromValue be ? Get(O, from).
-                    let from_value = get(agent, o, from)?;
-                    //             2. Perform ? Set(O, to, fromValue, true).
-                    set(agent, o, to, from_value, true)?;
-                } else {
-                    //     iv. Else,
-                    //         1. Perform ? DeletePropertyOrThrow(O, to).
-                    delete_property_or_throw(agent, o, to)?;
+        match item_count.cmp(&actual_delete_count) {
+            // 16. If itemCount < actualDeleteCount, then
+            Ordering::Less => {
+                //     a. Set k to actualStart.
+                k = actual_start;
+                //     b. Repeat, while k < (len - actualDeleteCount),
+                while k < (len as usize - actual_delete_count) {
+                    //     i. Let from be ! ToString(𝔽(k + actualDeleteCount)).
+                    let from = (k + actual_delete_count).try_into().unwrap();
+                    //     ii. Let to be ! ToString(𝔽(k + itemCount)).
+                    let to = (k + item_count).try_into().unwrap();
+                    //     iii. If ? HasProperty(O, from) is true, then
+                    if has_property(agent, o, from)? {
+                        //             1. Let fromValue be ? Get(O, from).
+                        let from_value = get(agent, o, from)?;
+                        //             2. Perform ? Set(O, to, fromValue, true).
+                        set(agent, o, to, from_value, true)?;
+                    } else {
+                        //     iv. Else,
+                        //         1. Perform ? DeletePropertyOrThrow(O, to).
+                        delete_property_or_throw(agent, o, to)?;
+                    }
+                    k += 1;
+                    //     v. Set k to k + 1.
                 }
-                k += 1;
-                //     v. Set k to k + 1.
-            }
-            //     c. Set k to len.
-            k = len as usize;
-            //     d. Repeat, while k > (len - actualDeleteCount + itemCount),
-            while k > (len as usize - actual_delete_count + item_count) {
-                //     i. Perform ? DeletePropertyOrThrow(O, ! ToString(𝔽(k - 1))).
-                delete_property_or_throw(agent, o, (k - 1).try_into().unwrap())?;
-                //     ii. Set k to k - 1.
-                k -= 1;
-            }
-        } else if item_count > actual_delete_count {
-            // 17. Else if itemCount > actualDeleteCount, then
-            //     a. Set k to (len - actualDeleteCount).
-            k = len as usize - actual_delete_count;
-            //     b. Repeat, while k > actualStart,
-            while k > actual_start {
-                //     i. Let from be ! ToString(𝔽(k + actualDeleteCount - 1)).
-                let from = (k + actual_delete_count - 1).try_into().unwrap();
-                //     ii. Let to be ! ToString(𝔽(k + itemCount - 1)).
-                let to = (k + item_count - 1).try_into().unwrap();
-                //     iii. If ? HasProperty(O, from) is true, then
-                if has_property(agent, o, from)? {
-                    //             1. Let fromValue be ? Get(O, from).
-                    let from_value = get(agent, o, from)?;
-                    //             2. Perform ? Set(O, to, fromValue, true).
-                    set(agent, o, to, from_value, true)?;
-                } else {
-                    //     iv. Else,
-                    //         1. Perform ? DeletePropertyOrThrow(O, to).
-                    delete_property_or_throw(agent, o, to)?;
+                //     c. Set k to len.
+                k = len as usize;
+                //     d. Repeat, while k > (len - actualDeleteCount + itemCount),
+                while k > (len as usize - actual_delete_count + item_count) {
+                    //     i. Perform ? DeletePropertyOrThrow(O, ! ToString(𝔽(k - 1))).
+                    delete_property_or_throw(agent, o, (k - 1).try_into().unwrap())?;
+                    //     ii. Set k to k - 1.
+                    k -= 1;
                 }
-                //     v. Set k to k - 1.
-                k -= 1;
             }
-        }
+            Ordering::Greater => {
+                // 17. Else if itemCount > actualDeleteCount, then
+                //     a. Set k to (len - actualDeleteCount).
+                k = len as usize - actual_delete_count;
+                //     b. Repeat, while k > actualStart,
+                while k > actual_start {
+                    //     i. Let from be ! ToString(𝔽(k + actualDeleteCount - 1)).
+                    let from = (k + actual_delete_count - 1).try_into().unwrap();
+                    //     ii. Let to be ! ToString(𝔽(k + itemCount - 1)).
+                    let to = (k + item_count - 1).try_into().unwrap();
+                    //     iii. If ? HasProperty(O, from) is true, then
+                    if has_property(agent, o, from)? {
+                        //             1. Let fromValue be ? Get(O, from).
+                        let from_value = get(agent, o, from)?;
+                        //             2. Perform ? Set(O, to, fromValue, true).
+                        set(agent, o, to, from_value, true)?;
+                    } else {
+                        //     iv. Else,
+                        //         1. Perform ? DeletePropertyOrThrow(O, to).
+                        delete_property_or_throw(agent, o, to)?;
+                    }
+                    //     v. Set k to k - 1.
+                    k -= 1;
+                }
+            }
+            _ => (),
+        };
         // 18. Set k to actualStart.
         k = actual_start;
         // 19. For each element E of items, do
