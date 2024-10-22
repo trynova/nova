@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{Context, GcToken, ScopeToken}, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -221,7 +221,7 @@ impl GcAgent {
 
     pub fn run_in_realm<F, R>(&mut self, realm: &RealmRoot, func: F) -> R
     where
-        F: for<'scope, 'gc, 'agent> FnOnce(Context<'scope, 'gc, 'agent>) -> R,
+        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
     {
         let index = realm.index;
         let error_message = "Attempted to run in non-existing Realm";
@@ -315,7 +315,7 @@ impl Agent {
 
     pub fn run_in_realm<F, R>(&mut self, realm: RealmIdentifier, func: F) -> R
     where
-        F: for<'scope, 'gc, 'agent> FnOnce(Context<'scope, 'gc, 'agent>) -> R,
+        F: for<'agent> FnOnce(&'agent mut Agent) -> R,
     {
         let execution_stack_depth_before_call = self.execution_context_stack.len();
         self.execution_context_stack.push(ExecutionContext {
@@ -324,10 +324,7 @@ impl Agent {
             realm,
             script_or_module: None,
         });
-        let mut gc_token = GcToken;
-        let mut scope_token = ScopeToken;
-        let ctx = Context::new(self, &mut scope_token, &mut gc_token);
-        let result = func(ctx);
+        let result = func(self);
         assert_eq!(
             self.execution_context_stack.len(),
             execution_stack_depth_before_call + 1
