@@ -1832,75 +1832,6 @@ impl ElementArrays {
         elements_vector.elements_index = new_index;
     }
 
-    fn shallow_clone_with_key(
-        &mut self,
-        elements_vector: ElementsVector,
-        new_key: ElementArrayKey,
-        new_len: u32,
-    ) -> SealableElementsVector {
-        let index = elements_vector.elements_index.into_index();
-        let ElementArrays {
-            e2pow4,
-            e2pow6,
-            e2pow8,
-            e2pow10,
-            e2pow12,
-            e2pow16,
-            e2pow24,
-            e2pow32,
-        } = self;
-        let new_index = match new_key {
-            ElementArrayKey::Empty => ElementIndex::from_u32_index(0),
-            ElementArrayKey::E4 => {
-                let elements = e2pow4;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E6 => {
-                let elements = e2pow6;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E8 => {
-                let elements = e2pow8;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E10 => {
-                let elements = e2pow10;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E12 => {
-                let elements = e2pow12;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E16 => {
-                let elements = e2pow16;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E24 => {
-                let elements = e2pow24;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-            ElementArrayKey::E32 => {
-                let elements = e2pow32;
-                elements.values.extend_from_within(index..index + 1);
-                ElementIndex::last_element_index(&elements.values)
-            }
-        };
-
-        SealableElementsVector {
-            cap: new_key,
-            elements_index: new_index,
-            len: new_len,
-            len_writable: true,
-        }
-    }
-
     pub fn allocate_elements_with_capacity(&mut self, capacity: usize) -> ElementsVector {
         let cap = ElementArrayKey::from(capacity);
         ElementsVector {
@@ -2377,12 +2308,66 @@ impl ElementArrays {
     /// This method creates a "shallow clone" of the elements of a trivial/dense array.
     /// It does not do anything with descriptors and assumes there is a previous validation in place.
     pub fn shallow_clone(&mut self, elements_vector: ElementsVector) -> SealableElementsVector {
-        let new_len = usize::try_from(elements_vector.len()).unwrap();
-        let new_key = ElementArrayKey::from(new_len);
-        if new_key == elements_vector.cap {
-            self.shallow_clone_with_key(elements_vector, elements_vector.cap, elements_vector.len())
-        } else {
-            self.shallow_clone_with_key(elements_vector, new_key, new_len as u32)
+        let index = elements_vector.elements_index.into_index();
+        let ElementArrays {
+            e2pow4,
+            e2pow6,
+            e2pow8,
+            e2pow10,
+            e2pow12,
+            e2pow16,
+            e2pow24,
+            e2pow32,
+        } = self;
+        let new_index = match elements_vector.cap {
+            ElementArrayKey::Empty => ElementIndex::from_u32_index(0),
+            ElementArrayKey::E4 => {
+                let elements = e2pow4;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E6 => {
+                let elements = e2pow6;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E8 => {
+                let elements = e2pow8;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E10 => {
+                let elements = e2pow10;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E12 => {
+                let elements = e2pow12;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E16 => {
+                let elements = e2pow16;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E24 => {
+                let elements = e2pow24;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+            ElementArrayKey::E32 => {
+                let elements = e2pow32;
+                elements.values.extend_from_within(index..index + 1);
+                ElementIndex::last_element_index(&elements.values)
+            }
+        };
+
+        SealableElementsVector {
+            cap: elements_vector.cap,
+            elements_index: new_index,
+            len: elements_vector.len(),
+            len_writable: true,
         }
     }
 }
