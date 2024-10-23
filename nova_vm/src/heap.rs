@@ -67,7 +67,6 @@ use crate::{
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
-            regexp::RegExpHeapData,
             set::data::SetHeapData,
             ArrayHeapData,
         },
