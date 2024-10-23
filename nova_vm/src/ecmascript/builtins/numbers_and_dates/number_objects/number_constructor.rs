@@ -114,7 +114,7 @@ impl NumberConstructor {
         agent[o].data = match n {
             Numeric::Number(d) => PrimitiveObjectData::Number(d),
             Numeric::Integer(d) => PrimitiveObjectData::Integer(d),
-            Numeric::Float(d) => PrimitiveObjectData::Float(d),
+            Numeric::SmallF64(d) => PrimitiveObjectData::Float(d),
             _ => unreachable!(),
         };
         // 6. Return O.

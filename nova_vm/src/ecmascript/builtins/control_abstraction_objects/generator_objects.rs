@@ -15,7 +15,10 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{local_value::ObjectScopeRoot, Executable, ExecutionResult, SuspendedVm, Vm},
+    engine::{
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scoped},
+        Executable, ExecutionResult, SuspendedVm, Vm,
+    },
     heap::{
         indexes::{BaseIndex, GeneratorIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -72,7 +75,7 @@ impl Generator {
         // execution context.
         agent.execution_context_stack.push(execution_context);
 
-        let saved = ObjectScopeRoot::root(self, agent);
+        let saved = Scoped::new(agent, self);
 
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
@@ -332,6 +335,34 @@ impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
             .expect("Generator out of bounds")
             .as_mut()
             .expect("Generator slot empty")
+    }
+}
+
+impl Rootable for Generator {
+    type RootRepr = HeapRootRef;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Generator(value))
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        if let HeapRootData::Generator(value) = heap_data {
+            Some(value)
+        } else {
+            None
+        }
     }
 }
 

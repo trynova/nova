@@ -72,7 +72,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
     let Agent {
         heap,
         execution_context_stack,
-        stack_values,
+        stack_refs,
         vm_stack,
         options: _,
         symbol_id: _,
@@ -91,7 +91,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
     execution_context_stack.iter().for_each(|ctx| {
         ctx.mark_values(&mut queues);
     });
-    stack_values
+    stack_refs
         .borrow()
         .iter()
         .for_each(|value| value.mark_values(&mut queues));
@@ -99,15 +99,21 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>]) {
         unsafe { vm_ptr.as_ref() }.mark_values(&mut queues);
     });
     let mut last_filled_global_value = None;
-    heap.globals.iter().enumerate().for_each(|(i, &value)| {
-        if let Some(value) = value {
-            value.mark_values(&mut queues);
-            last_filled_global_value = Some(i);
-        }
-    });
+    heap.globals
+        .borrow()
+        .iter()
+        .enumerate()
+        .for_each(|(i, &value)| {
+            if let Some(value) = value {
+                value.mark_values(&mut queues);
+                last_filled_global_value = Some(i);
+            }
+        });
     // Remove as many `None` global values without moving any `Some(Value)` values.
     if let Some(last_filled_global_value) = last_filled_global_value {
-        heap.globals.drain(last_filled_global_value + 1..);
+        heap.globals
+            .borrow_mut()
+            .drain(last_filled_global_value + 1..);
     }
 
     queues.strings.extend(
@@ -987,7 +993,7 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
     let Agent {
         heap,
         execution_context_stack,
-        stack_values,
+        stack_refs,
         vm_stack,
         options: _,
         symbol_id: _,
@@ -1066,9 +1072,11 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         e2pow32,
     } = elements;
 
+    let mut globals = globals.borrow_mut();
+    let globals_iter = globals.iter_mut();
     thread::scope(|s| {
         s.spawn(|| {
-            for value in globals {
+            for value in globals_iter {
                 value.sweep_values(&compactions);
             }
         });
@@ -1435,8 +1443,8 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
                     .for_each(|entry| entry.sweep_values(&compactions));
             });
         }
-        if !stack_values.borrow().is_empty() {
-            stack_values
+        if !stack_refs.borrow().is_empty() {
+            stack_refs
                 .borrow_mut()
                 .iter_mut()
                 .for_each(|entry| entry.sweep_values(&compactions));
@@ -1451,21 +1459,24 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
 
 #[test]
 fn test_heap_gc() {
-    use crate::ecmascript::{
-        execution::{agent::Options, DefaultHostHooks},
-        types::Value,
+    use crate::{
+        ecmascript::execution::{agent::Options, DefaultHostHooks},
+        engine::rootable::HeapRootData,
     };
 
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
 
     assert!(agent.heap.objects.is_empty());
-    let obj = Value::Object(agent.heap.create_null_object(&[]));
+    let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
-    agent.heap.globals.push(Some(obj));
+    agent.heap.globals.borrow_mut().push(Some(obj));
     heap_gc(&mut agent, &mut []);
     println!("Objects: {:#?}", agent.heap.objects);
     assert_eq!(agent.heap.objects.len(), 1);
     assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);
-    assert!(agent.heap.globals.last().is_some());
-    println!("Global #1: {:#?}", agent.heap.globals.last().unwrap());
+    assert!(agent.heap.globals.borrow().last().is_some());
+    println!(
+        "Global #1: {:#?}",
+        agent.heap.globals.borrow().last().unwrap()
+    );
 }

@@ -7,9 +7,13 @@ mod data;
 
 use std::ops::{Index, IndexMut};
 
-use super::{IntoPrimitive, IntoValue, Primitive, PropertyKey, Value};
+use super::{
+    IntoPrimitive, IntoValue, Primitive, PropertyKey, Value, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT,
+};
 use crate::{
     ecmascript::{execution::Agent, types::PropertyDescriptor},
+    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
     heap::{
         indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -87,8 +91,15 @@ impl IndexMut<HeapString> for Vec<Option<StringHeapData>> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum String {
-    String(HeapString),
-    SmallString(SmallString),
+    String(HeapString) = STRING_DISCRIMINANT,
+    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum StringRootRepr {
+    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
 }
 
 impl IntoValue for HeapString {
@@ -484,5 +495,38 @@ impl HeapMarkAndSweep for HeapString {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.strings.shift_index(&mut self.0);
+    }
+}
+
+impl Rootable for String {
+    type RootRepr = StringRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
+            _ => None,
+        }
     }
 }

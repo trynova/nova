@@ -15,7 +15,10 @@ use crate::{
         abstract_operations::type_conversion::{to_int32, to_uint32},
         execution::{Agent, JsResult},
     },
-    engine::small_f64::SmallF64,
+    engine::{
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_f64::SmallF64,
+    },
     heap::{
         indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -51,6 +54,14 @@ pub enum Number {
     /// 56-bit f64 on the stack. The missing byte is a zero least significant
     /// byte.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum NumberRootRepr {
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
 }
 
 impl IntoValue for HeapNumber {
@@ -108,7 +119,7 @@ impl IntoNumeric for Number {
         match self {
             Number::Number(idx) => Numeric::Number(idx),
             Number::Integer(data) => Numeric::Integer(data),
-            Number::SmallF64(data) => Numeric::Float(data),
+            Number::SmallF64(data) => Numeric::SmallF64(data),
         }
     }
 }
@@ -216,7 +227,7 @@ impl TryFrom<Numeric> for Number {
         match value {
             Numeric::Number(data) => Ok(Number::Number(data)),
             Numeric::Integer(data) => Ok(Number::Integer(data)),
-            Numeric::Float(data) => Ok(Number::SmallF64(data)),
+            Numeric::SmallF64(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -1349,5 +1360,40 @@ impl HeapMarkAndSweep for HeapNumber {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.numbers.shift_index(&mut self.0);
+    }
+}
+
+impl Rootable for Number {
+    type RootRepr = NumberRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
+            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
+            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
+            _ => None,
+        }
     }
 }

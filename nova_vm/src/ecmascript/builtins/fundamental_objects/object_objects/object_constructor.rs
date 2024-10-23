@@ -402,8 +402,9 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
         // 2. Let entryList be ? EnumerableOwnProperties(obj, KEY+VALUE).
-        let entry_list =
-            enumerable_own_properties::<enumerable_properties_kind::KeyValue>(agent, obj)?;
+        let entry_list = enumerable_own_properties::<
+            enumerable_properties_kind::EnumerateKeysAndValues,
+        >(agent, obj)?;
         // 3. Return CreateArrayFromList(entryList).
         Ok(create_array_from_list(agent, &entry_list).into_value())
     }
@@ -710,7 +711,8 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
-        let key_list = enumerable_own_properties::<enumerable_properties_kind::Key>(agent, obj)?;
+        let key_list =
+            enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(agent, obj)?;
         // 3. Return CreateArrayFromList(keyList).
         Ok(create_array_from_list(agent, &key_list).into_value())
     }
@@ -802,7 +804,7 @@ impl ObjectConstructor {
         let obj = to_object(agent, o)?;
         // 2. Let valueList be ? EnumerableOwnProperties(obj, VALUE).
         let value_list =
-            enumerable_own_properties::<enumerable_properties_kind::Value>(agent, obj)?;
+            enumerable_own_properties::<enumerable_properties_kind::EnumerateValues>(agent, obj)?;
         // 3. Return CreateArrayFromList(valueList).
         Ok(create_array_from_list(agent, &value_list).into_value())
     }
