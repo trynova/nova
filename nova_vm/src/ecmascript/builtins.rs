@@ -37,6 +37,7 @@ pub(crate) mod primitive_objects;
 pub(crate) mod promise;
 pub(crate) mod proxy;
 pub(crate) mod reflection;
+#[cfg(feature = "regexp")]
 pub(crate) mod regexp;
 pub(crate) mod set;
 #[cfg(feature = "shared-array-buffer")]
