@@ -16,6 +16,8 @@ use super::{
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::ecmascript::{
@@ -57,8 +59,6 @@ use crate::ecmascript::{
     },
 };
 use crate::engine::Executable;
-#[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 
 #[derive(Debug)]
 pub struct HeapBits {
