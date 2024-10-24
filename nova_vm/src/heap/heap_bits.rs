@@ -58,10 +58,7 @@ use crate::ecmascript::{
 };
 use crate::engine::Executable;
 #[cfg(feature = "array-buffer")]
-use crate::{
-    ecmascript::builtins::{data_view::DataView, ArrayBuffer},
-    heap::indexes::DataViewIndex,
-};
+use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 
 #[derive(Debug)]
 pub struct HeapBits {
@@ -545,6 +542,15 @@ pub(crate) struct CompactionList {
 }
 
 impl CompactionList {
+    pub fn get_shift_for_weak_index(&self, index: u32) -> Option<u32> {
+        self.indexes
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, candidate)| **candidate <= index)
+            .map(|(index, _)| *self.shifts.get(index).unwrap())
+    }
+
     pub fn get_shift_for_index(&self, index: u32) -> u32 {
         self.indexes
             .iter()
@@ -1071,25 +1077,33 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
 pub(crate) fn sweep_data_view_side_table_values<V: Copy>(
     // TODO: Figure out a generic way to handle all types which wrap `BaseIndex`
     side_table: &mut AHashMap<DataView, V>,
-    compaction_list: &CompactionList,
+    compactions: &CompactionList,
+    marks: &[bool],
 ) {
-    let mut moved_byte_lengths = side_table
-        .iter()
-        .map(|(&data_view, &value)| {
-            let data_view_index = data_view.0.into_u32_index();
-            (
-                data_view_index,
-                data_view_index - compaction_list.get_shift_for_index(data_view_index),
-                value,
-            )
-        })
-        .filter(|(old_index, new_index, _)| old_index != new_index)
-        .collect::<Vec<_>>();
-
-    moved_byte_lengths.sort_by_key(|(old_index, _, _)| *old_index);
-
-    for (old_index, new_index, value) in moved_byte_lengths {
-        side_table.insert(DataViewIndex::from_u32_index(new_index).into(), value);
-        side_table.remove(&DataViewIndex::from_u32_index(old_index).into());
+    let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
+    let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
+    for (key, _) in side_table.iter_mut() {
+        let old_key = *key;
+        if !marks.get(key.get_index()).unwrap() {
+            keys_to_remove.push(old_key);
+        } else {
+            let mut new_key = old_key;
+            compactions.shift_index(&mut new_key.0);
+            if new_key != old_key {
+                keys_to_reassign.push((old_key, new_key));
+            }
+        }
+    }
+    keys_to_remove.sort();
+    keys_to_reassign.sort();
+    for old_key in keys_to_remove.iter() {
+        side_table.remove(old_key);
+    }
+    for (old_key, new_key) in keys_to_reassign {
+        // SAFETY: The old key came from iterating the side table, and the same
+        // key cannot appear in both keys to remove and keys to reassign. Thus
+        // the key must necessarily exist in the side table hash map.
+        let value = unsafe { side_table.remove(&old_key).unwrap_unchecked() };
+        side_table.insert(new_key, value);
     }
 }

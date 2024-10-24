@@ -1239,8 +1239,16 @@ fn sweep(agent: &mut Agent, bits: &HeapBits, root_realms: &mut [Option<RealmIden
         if !data_views.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
-                sweep_data_view_side_table_values(data_view_byte_lengths, &compactions.data_views);
-                sweep_data_view_side_table_values(data_view_byte_offsets, &compactions.data_views);
+                sweep_data_view_side_table_values(
+                    data_view_byte_lengths,
+                    &compactions.data_views,
+                    &bits.data_views,
+                );
+                sweep_data_view_side_table_values(
+                    data_view_byte_offsets,
+                    &compactions.data_views,
+                    &bits.data_views,
+                );
             });
         }
         #[cfg(feature = "date")]
