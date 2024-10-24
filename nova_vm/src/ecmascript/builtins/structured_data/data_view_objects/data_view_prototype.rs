@@ -5,11 +5,22 @@
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            array_buffer::Ordering,
+            data_view::{
+                abstract_operations::{
+                    get_view_byte_length, is_view_out_of_bounds,
+                    make_data_view_with_buffer_witness_record,
+                },
+                DataView,
+            },
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
+    SmallInteger,
 };
 
 pub(crate) struct DataViewPrototype;
@@ -160,27 +171,72 @@ impl Builtin for DataViewPrototypeSetUint32 {
 }
 
 impl DataViewPrototype {
-    fn get_buffer(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.1 get DataView.prototype.buffer](https://tc39.es/ecma262/#sec-get-dataview.prototype.buffer)
+    ///
+    /// DataView.prototype.buffer is an accessor property whose set accessor
+    /// function is undefined.
+    fn get_buffer(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
+        let o = require_internal_slot_data_view(agent, this_value)?;
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        // 4. Let buffer be O.[[ViewedArrayBuffer]].
+        // 5. Return buffer.
+        Ok(agent[o].viewed_array_buffer.into_value())
     }
 
-    fn get_byte_length(
+    /// ### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
+    ///
+    /// DataView.prototype.byteLength is an accessor property whose set accessor
+    /// function is undefined.
+    fn get_byte_length(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
+        let o = require_internal_slot_data_view(agent, this_value)?;
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        // 4. Let viewRecord be MakeDataViewWithBufferWitnessRecord(O, seq-cst).
+        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
+        if is_view_out_of_bounds(agent, &view_record) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+            ));
+        }
+        // 6. Let size be GetViewByteLength(viewRecord).
+        let size = get_view_byte_length(agent, &view_record);
+        // 7. Return 𝔽(size).
+        Ok(Number::from(SmallInteger::try_from(size).unwrap()).into_value())
+    }
+
+    /// ### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
+    ///
+    /// DataView.prototype.byteOffset is an accessor property whose set accessor
+    /// function is undefined.
+    fn get_byte_offset(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
+        let o = require_internal_slot_data_view(agent, this_value)?;
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        // 4. Let viewRecord be MakeDataViewWithBufferWitnessRecord(O, seq-cst).
+        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
+        if is_view_out_of_bounds(agent, &view_record) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+            ));
+        }
+        // 6. Let offset be O.[[ByteOffset]].
+        // 7. Return 𝔽(offset).
+        Ok(Number::from(SmallInteger::try_from(o.byte_offset(agent) as i64).unwrap()).into_value())
+    }
+
+    fn get_big_int64(
         _agent: &mut Agent,
         _this_value: Value,
-        _: ArgumentsList,
+        _arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn get_byte_offset(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn get_big_int64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
         todo!()
     }
 
@@ -302,5 +358,17 @@ impl DataViewPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline]
+fn require_internal_slot_data_view(agent: &mut Agent, o: Value) -> JsResult<DataView> {
+    match o {
+        // 1. Perform ? RequireInternalSlot(O, [[DataView]]).
+        Value::DataView(array_buffer) => Ok(array_buffer),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected this to be DataView",
+        )),
     }
 }
