@@ -10,10 +10,7 @@ use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
 };
-use crate::{
-    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::context::{Gc, Scope},
-};
+use crate::ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number};
 use crate::{
     ecmascript::execution::Agent,
     engine::{
@@ -786,7 +783,7 @@ impl Number {
     /// the rules of IEEE 754-2019 binary double-precision arithmetic,
     /// producing the quotient of x and y where x is the dividend and y is the
     /// divisor.
-    pub fn divide(agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>, x: Self, y: Self) -> Self {
+    pub fn divide(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
             return Number::nan();
@@ -1185,7 +1182,8 @@ impl Number {
         // 4. Let rbits be the 32-bit two's complement bit string representing ℝ(rnum).
         let rbits = rnum;
 
-        let result = match op {
+        // 8. Return the Number value for the integer represented by the 32-bit two's complement bit string result.
+        match op {
             // 5. If op is &, then
             BitwiseOp::And => {
                 // a. Let result be the result of applying the bitwise AND operation to lbits and rbits.
@@ -1202,10 +1200,7 @@ impl Number {
                 // b. Let result be the result of applying the bitwise inclusive OR operation to lbits and rbits.
                 lbits | rbits
             }
-        };
-
-        // 8. Return the Number value for the integer represented by the 32-bit two's complement bit string result.
-        result
+        }
     }
 
     /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)

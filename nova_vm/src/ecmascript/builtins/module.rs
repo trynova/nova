@@ -143,8 +143,8 @@ impl InternalMethods for Module {
     fn internal_get_prototype_of(
         self,
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
     ) -> JsResult<Option<Object>> {
         Ok(None)
     }
@@ -157,15 +157,21 @@ impl InternalMethods for Module {
         scope: Scope<'_>,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        set_immutable_prototype(agent, self.into_object(), prototype)
+        set_immutable_prototype(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            self.into_object(),
+            prototype,
+        )
     }
 
     /// ### [10.4.6.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-isextensible)
     fn internal_is_extensible(
         self,
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
     ) -> JsResult<bool> {
         Ok(false)
     }
@@ -174,8 +180,8 @@ impl InternalMethods for Module {
     fn internal_prevent_extensions(
         self,
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
     ) -> JsResult<bool> {
         Ok(true)
     }
@@ -184,7 +190,7 @@ impl InternalMethods for Module {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
@@ -243,6 +249,8 @@ impl InternalMethods for Module {
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
                     ordinary_define_own_property(
                         agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
                         object.into_object(),
                         property_key,
                         property_descriptor,
@@ -316,7 +324,14 @@ impl InternalMethods for Module {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
-                    ordinary_has_property(agent, object.into_object(), property_key).unwrap()
+                    ordinary_has_property(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        object.into_object(),
+                        property_key,
+                    )
+                    .unwrap()
                 }))
             }
         }
@@ -344,7 +359,15 @@ impl InternalMethods for Module {
                 Ok(self
                     .get_backing_object(agent)
                     .map_or(Value::Undefined, |object| {
-                        ordinary_get(agent, object.into_object(), property_key, receiver).unwrap()
+                        ordinary_get(
+                            agent,
+                            gc.reborrow(),
+                            scope.reborrow(),
+                            object.into_object(),
+                            property_key,
+                            receiver,
+                        )
+                        .unwrap()
                     }))
             }
             PropertyKey::Integer(_) => Ok(Value::Undefined),
@@ -403,8 +426,8 @@ impl InternalMethods for Module {
     fn internal_set(
         self,
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -425,7 +448,14 @@ impl InternalMethods for Module {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
                 Ok(self.get_backing_object(agent).map_or(true, |object| {
-                    ordinary_delete(agent, object.into_object(), property_key).unwrap()
+                    ordinary_delete(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        object.into_object(),
+                        property_key,
+                    )
+                    .unwrap()
                 }))
             }
             PropertyKey::Integer(_) => Ok(false),
@@ -452,8 +482,8 @@ impl InternalMethods for Module {
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
     ) -> JsResult<Vec<PropertyKey>> {
         // 1. Let exports be O.[[Exports]].
         let exports = agent[self]

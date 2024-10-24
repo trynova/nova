@@ -113,7 +113,7 @@ impl Array {
     }
 
     #[inline]
-    pub(crate) fn as_mut_slice<'a>(self, agent: &'a mut Agent) -> &'a mut [Option<Value>] {
+    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value>] {
         let elements = agent[self].elements;
         &mut agent[elements]
     }

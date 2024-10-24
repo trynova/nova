@@ -35,8 +35,8 @@ impl Builtin for MapIteratorPrototypeNext {
 impl MapIteratorPrototype {
     fn next(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -107,10 +107,7 @@ impl MapIteratorPrototype {
         Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.map_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();

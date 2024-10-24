@@ -31,8 +31,8 @@ impl Builtin for FinalizationRegistryPrototypeUnregister {
 impl FinalizationRegistryPrototype {
     fn register(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -41,8 +41,8 @@ impl FinalizationRegistryPrototype {
 
     fn unregister(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

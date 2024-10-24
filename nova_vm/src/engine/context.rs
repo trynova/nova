@@ -68,7 +68,7 @@ impl Gc<'_> {
     }
 
     #[inline]
-    pub(crate) fn reborrow(&mut self) -> Self {
+    pub fn reborrow(&mut self) -> Self {
         Self {
             inner: GcToken,
             _marker: PhantomData,
@@ -90,7 +90,7 @@ impl Scope<'_> {
     }
 
     #[inline]
-    pub(crate) fn reborrow(&self) -> Self {
+    pub fn reborrow(&self) -> Self {
         Self {
             inner: ScopeToken,
             _marker: PhantomData,

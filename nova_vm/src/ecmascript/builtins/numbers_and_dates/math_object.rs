@@ -343,7 +343,7 @@ impl MathObject {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         Ok(n.abs(agent).into_value())
     }
 
@@ -355,7 +355,8 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?.into_f64(agent);
+        let n =
+            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?.into_f64(agent);
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
         // 3. If n is 1𝔽, return +0𝔽.
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
@@ -370,7 +371,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -397,7 +398,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -423,7 +424,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -442,7 +443,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -471,7 +472,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -507,9 +508,9 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let ny be ? ToNumber(y).
-        let ny = to_number(agent, arguments.get(0))?;
+        let ny = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. Let nx be ? ToNumber(x).
-        let nx = to_number(agent, arguments.get(1))?;
+        let nx = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
 
         // 3. If ny is NaN or nx is NaN, return NaN.
         if ny.is_nan(agent) || nx.is_nan(agent) {
@@ -635,7 +636,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -654,7 +655,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 4. If n is an integral Number, return n.
         if let Number::Integer(_) = n {
@@ -685,7 +686,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToUint32(x).
-        let n = to_uint32(agent, arguments.get(0))?;
+        let n = to_uint32(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. Let p be the number of leading zero bits in the unsigned 32-bit binary representation of n.
         let p = n.leading_zeros();
@@ -702,7 +703,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite, return NaN.
         if !n.is_finite(agent) {
@@ -726,7 +727,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is NaN, return NaN.
         if n.is_nan(agent) {
@@ -755,7 +756,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         //1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         //2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -784,7 +785,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
@@ -812,7 +813,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 4. If n is an integral Number, return n.
         if let Number::Integer(_) = n {
@@ -843,7 +844,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is NaN, return NaN.
         if n.is_nan(agent) {
@@ -882,7 +883,7 @@ impl MathObject {
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, arg)?;
+            let n = to_number(agent, gc.reborrow(), scope.reborrow(), arg)?;
 
             // b. Append n to coerced.
             coerced.push(n);
@@ -936,10 +937,10 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let a be ℝ(? ToUint32(x)).
-        let a = to_uint32(agent, arguments.get(0))?;
+        let a = to_uint32(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. Let b be ℝ(? ToUint32(y)).
-        let b = to_uint32(agent, arguments.get(1))?;
+        let b = to_uint32(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
 
         // 3. Let product be (a × b) modulo 2**32.
         let product = a.wrapping_mul(b);
@@ -956,7 +957,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -990,7 +991,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
             || n.is_pos_zero(agent)
@@ -1019,7 +1020,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
             return Ok(n.into_value());
@@ -1049,7 +1050,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
             return Ok(n.into_value());
@@ -1085,7 +1086,7 @@ impl MathObject {
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, arg)?;
+            let n = to_number(agent, gc.reborrow(), scope.reborrow(), arg)?;
             // b. Append n to coerced.
             coerced.push(n);
 
@@ -1167,7 +1168,7 @@ impl MathObject {
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, arg)?;
+            let n = to_number(agent, gc.reborrow(), scope.reborrow(), arg)?;
             // b. Append n to coerced.
             coerced.push(n);
 
@@ -1261,15 +1262,15 @@ impl MathObject {
                 return Ok(Value::from_f64(agent, result));
             }
         }
-        let base = to_number(agent, base)?;
-        let exponent = to_number(agent, exponent)?;
+        let base = to_number(agent, gc.reborrow(), scope.reborrow(), base)?;
+        let exponent = to_number(agent, gc.reborrow(), scope.reborrow(), exponent)?;
         Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
     fn random(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1284,7 +1285,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is an integral Number, return n.
         if !n.is_finite(agent) || matches!(n, Number::Integer(_)) {
@@ -1315,7 +1316,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1336,7 +1337,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1357,7 +1358,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1374,7 +1375,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
             || n.is_pos_zero(agent)
@@ -1399,7 +1400,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1420,7 +1421,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1445,7 +1446,7 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -1468,10 +1469,7 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.trunc()))
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();

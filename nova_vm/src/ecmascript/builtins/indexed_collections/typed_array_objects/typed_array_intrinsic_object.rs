@@ -22,6 +22,8 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::Gc;
+use crate::engine::context::Scope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::IntrinsicFunctionIndexes;
 use crate::heap::WellKnownSymbolIndexes;
@@ -60,8 +62,8 @@ impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -74,8 +76,8 @@ impl TypedArrayIntrinsicObject {
 
     fn from(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -84,8 +86,8 @@ impl TypedArrayIntrinsicObject {
 
     fn is_array(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -94,22 +96,25 @@ impl TypedArrayIntrinsicObject {
 
     fn of(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(
+        _: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let typed_array_prototype = intrinsics.typed_array_prototype();
 
@@ -354,8 +359,8 @@ impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {}
 impl TypedArrayPrototype {
     fn at(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -364,8 +369,8 @@ impl TypedArrayPrototype {
 
     fn get_buffer(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -374,8 +379,8 @@ impl TypedArrayPrototype {
 
     fn get_byte_length(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -384,8 +389,8 @@ impl TypedArrayPrototype {
 
     fn get_byte_offset(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -394,8 +399,8 @@ impl TypedArrayPrototype {
 
     fn copy_within(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -404,8 +409,8 @@ impl TypedArrayPrototype {
 
     fn entries(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -414,8 +419,8 @@ impl TypedArrayPrototype {
 
     fn every(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -424,8 +429,8 @@ impl TypedArrayPrototype {
 
     fn fill(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -434,8 +439,8 @@ impl TypedArrayPrototype {
 
     fn filter(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -444,8 +449,8 @@ impl TypedArrayPrototype {
 
     fn find(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -454,8 +459,8 @@ impl TypedArrayPrototype {
 
     fn find_index(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -464,8 +469,8 @@ impl TypedArrayPrototype {
 
     fn find_last(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -474,8 +479,8 @@ impl TypedArrayPrototype {
 
     fn find_last_index(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -484,8 +489,8 @@ impl TypedArrayPrototype {
 
     fn for_each(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -494,8 +499,8 @@ impl TypedArrayPrototype {
 
     fn includes(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -504,8 +509,8 @@ impl TypedArrayPrototype {
 
     fn index_of(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -514,8 +519,8 @@ impl TypedArrayPrototype {
 
     fn join(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -524,8 +529,8 @@ impl TypedArrayPrototype {
 
     fn keys(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -534,8 +539,8 @@ impl TypedArrayPrototype {
 
     fn last_index_of(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -544,8 +549,8 @@ impl TypedArrayPrototype {
 
     fn get_length(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -554,8 +559,8 @@ impl TypedArrayPrototype {
 
     fn map(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -564,8 +569,8 @@ impl TypedArrayPrototype {
 
     fn reduce(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -574,8 +579,8 @@ impl TypedArrayPrototype {
 
     fn reduce_right(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -584,8 +589,8 @@ impl TypedArrayPrototype {
 
     fn reverse(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -594,8 +599,8 @@ impl TypedArrayPrototype {
 
     fn set(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -604,8 +609,8 @@ impl TypedArrayPrototype {
 
     fn slice(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -614,8 +619,8 @@ impl TypedArrayPrototype {
 
     fn some(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -624,8 +629,8 @@ impl TypedArrayPrototype {
 
     fn sort(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -634,8 +639,8 @@ impl TypedArrayPrototype {
 
     fn subarray(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -644,8 +649,8 @@ impl TypedArrayPrototype {
 
     fn to_locale_string(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -654,8 +659,8 @@ impl TypedArrayPrototype {
 
     fn to_reversed(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -664,8 +669,8 @@ impl TypedArrayPrototype {
 
     fn to_sorted(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -674,8 +679,8 @@ impl TypedArrayPrototype {
 
     fn to_spliced(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -684,8 +689,8 @@ impl TypedArrayPrototype {
 
     fn values(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -694,8 +699,8 @@ impl TypedArrayPrototype {
 
     fn with(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -704,18 +709,15 @@ impl TypedArrayPrototype {
 
     fn get_to_string_tag(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.typed_array_prototype();

@@ -152,8 +152,6 @@ pub(crate) fn new_function_environment(
 /// new function environment.
 pub(crate) fn new_class_static_element_environment(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
     class_constructor: Function,
 ) -> FunctionEnvironmentIndex {
     // 1. Let env be a new Function Environment Record containing no bindings.

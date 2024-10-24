@@ -325,6 +325,8 @@ pub fn perform_eval(
     // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
     let result = eval_declaration_instantiation(
         agent,
+        gc.reborrow(),
+        scope.reborrow(),
         &script,
         ecmascript_code.variable_environment,
         ecmascript_code.lexical_environment,
@@ -338,7 +340,8 @@ pub fn perform_eval(
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).
-        let result = Vm::execute(agent, exe, None).into_js_result();
+        let result =
+            Vm::execute(agent, gc.reborrow(), scope.reborrow(), exe, None).into_js_result();
         // SAFETY: No one can access the bytecode anymore.
         unsafe { exe.try_drop(agent) };
         result
@@ -414,7 +417,10 @@ pub fn eval_declaration_instantiation(
                     let name = String::from_str(agent, name.as_str());
                     // a. If ! thisEnv.HasBinding(name) is true, then
                     // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
-                    if this_env.has_binding(agent, name).unwrap() {
+                    if this_env
+                        .has_binding(agent, gc.reborrow(), scope.reborrow(), name)
+                        .unwrap()
+                    {
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
                         return Err(agent.throw_exception(
@@ -478,7 +484,12 @@ pub fn eval_declaration_instantiation(
                 if let EnvironmentIndex::Global(var_env) = var_env {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
                     let function_name = String::from_str(agent, function_name.as_str());
-                    let fn_definable = var_env.can_declare_global_function(agent, function_name)?;
+                    let fn_definable = var_env.can_declare_global_function(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        function_name,
+                    )?;
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
@@ -518,7 +529,12 @@ pub fn eval_declaration_instantiation(
                     // a. If varEnv is a Global Environment Record, then
                     if let EnvironmentIndex::Global(var_env) = var_env {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
-                        let vn_definable = var_env.can_declare_global_var(agent, vn)?;
+                        let vn_definable = var_env.can_declare_global_var(
+                            agent,
+                            gc.reborrow(),
+                            scope.reborrow(),
+                            vn,
+                        )?;
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
                             return Err(agent.throw_exception(
@@ -574,7 +590,7 @@ pub fn eval_declaration_instantiation(
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
-            lex_env.create_mutable_binding(agent, dn, false)?;
+            lex_env.create_mutable_binding(agent, gc.reborrow(), scope.reborrow(), dn, false)?;
         }
     }
 
@@ -589,33 +605,63 @@ pub fn eval_declaration_instantiation(
         let function_name = String::from_str(agent, function_name.unwrap().as_str());
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
-        let fo = instantiate_function_object(agent, f, lex_env, private_env).into_value();
+        let fo = instantiate_function_object(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            f,
+            lex_env,
+            private_env,
+        )
+        .into_value();
 
         // c. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
-            var_env.create_global_function_binding(agent, function_name, fo, true)?;
+            var_env.create_global_function_binding(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                function_name,
+                fo,
+                true,
+            )?;
         } else {
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
-            let binding_exists = var_env.has_binding(agent, function_name).unwrap();
+            let binding_exists = var_env
+                .has_binding(agent, gc.reborrow(), scope.reborrow(), function_name)
+                .unwrap();
 
             // ii. If bindingExists is false, then
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
                 var_env
-                    .create_mutable_binding(agent, function_name, true)
+                    .create_mutable_binding(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        function_name,
+                        true,
+                    )
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 var_env
-                    .initialize_binding(agent, function_name, fo)
+                    .initialize_binding(agent, gc.reborrow(), scope.reborrow(), function_name, fo)
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
                 var_env
-                    .set_mutable_binding(agent, function_name, fo, false)
+                    .set_mutable_binding(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        function_name,
+                        fo,
+                        false,
+                    )
                     .unwrap();
             }
         }
@@ -625,20 +671,30 @@ pub fn eval_declaration_instantiation(
         // a. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-            var_env.create_global_var_binding(agent, vn, true)?;
+            var_env.create_global_var_binding(agent, gc.reborrow(), scope.reborrow(), vn, true)?;
         } else {
             // b. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(vn).
-            let binding_exists = var_env.has_binding(agent, vn).unwrap();
+            let binding_exists = var_env
+                .has_binding(agent, gc.reborrow(), scope.reborrow(), vn)
+                .unwrap();
 
             // ii. If bindingExists is false, then
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
-                var_env.create_mutable_binding(agent, vn, true).unwrap();
+                var_env
+                    .create_mutable_binding(agent, gc.reborrow(), scope.reborrow(), vn, true)
+                    .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
                 var_env
-                    .initialize_binding(agent, vn, Value::Undefined)
+                    .initialize_binding(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        vn,
+                        Value::Undefined,
+                    )
                     .unwrap();
             }
         }
@@ -662,7 +718,7 @@ impl GlobalObject {
         let x = arguments.get(0);
 
         // 1. Return ? PerformEval(x, false, false).
-        perform_eval(agent, x, false, false)
+        perform_eval(agent, gc.reborrow(), scope.reborrow(), x, false, false)
     }
 
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
@@ -706,8 +762,8 @@ impl GlobalObject {
     }
     fn parse_float(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -715,8 +771,8 @@ impl GlobalObject {
     }
     fn parse_int(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -724,8 +780,8 @@ impl GlobalObject {
     }
     fn decode_uri(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -733,8 +789,8 @@ impl GlobalObject {
     }
     fn decode_uri_component(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -742,8 +798,8 @@ impl GlobalObject {
     }
     fn encode_uri(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -751,8 +807,8 @@ impl GlobalObject {
     }
     fn encode_uri_component(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -760,8 +816,8 @@ impl GlobalObject {
     }
     fn escape(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -769,8 +825,8 @@ impl GlobalObject {
     }
     fn unescape(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

@@ -50,7 +50,7 @@ impl Builtin for GeneratorPrototypeThrow {
 impl GeneratorPrototype {
     fn next(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
@@ -71,8 +71,8 @@ impl GeneratorPrototype {
 
     fn r#return(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -120,12 +120,12 @@ impl GeneratorPrototype {
         // 3. If state is completed, then
         //    a. If abruptCompletion is a return completion, then
         //       i. Return CreateIterResultObject(abruptCompletion.[[Value]], true).
-        Ok(create_iter_result_object(agent, gc, scope, arguments.get(0), true).into_value())
+        Ok(create_iter_result_object(agent, arguments.get(0), true).into_value())
     }
 
     fn throw(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,

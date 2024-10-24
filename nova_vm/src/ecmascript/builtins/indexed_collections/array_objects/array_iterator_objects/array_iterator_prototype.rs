@@ -75,7 +75,7 @@ impl ArrayIteratorPrototype {
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),
-            _ => length_of_array_like(agent, array)?,
+            _ => length_of_array_like(agent, gc.reborrow(), scope.reborrow(), array)?,
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
@@ -110,7 +110,13 @@ impl ArrayIteratorPrototype {
                 };
                 match fast_path_result {
                     Some(result) => result,
-                    None => get(agent, array, PropertyKey::from(index))?,
+                    None => get(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        array,
+                        PropertyKey::from(index),
+                    )?,
                 }
             }
             // 4. Else,
@@ -127,7 +133,13 @@ impl ArrayIteratorPrototype {
                 };
                 let value = match fast_path_result {
                     Some(result) => result,
-                    None => get(agent, array, PropertyKey::from(index))?,
+                    None => get(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        array,
+                        PropertyKey::from(index),
+                    )?,
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).
@@ -139,10 +151,7 @@ impl ArrayIteratorPrototype {
         Ok(create_iter_result_object(agent, result, false).into_value())
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.array_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();

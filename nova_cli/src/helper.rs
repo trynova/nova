@@ -16,7 +16,7 @@ pub fn initialize_global_object(
     // `print` function
     fn print(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         _this: Value,
         args: ArgumentsList,
@@ -31,8 +31,8 @@ pub fn initialize_global_object(
     // 'readTextFile' function
     fn read_text_file(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -60,8 +60,8 @@ pub fn initialize_global_object(
     global
         .internal_define_own_property(
             agent,
-            gc,
-            scope,
+            gc.reborrow(),
+            scope.reborrow(),
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
@@ -82,8 +82,8 @@ pub fn initialize_global_object(
     global
         .internal_define_own_property(
             agent,
-            gc,
-            scope,
+            gc.reborrow(),
+            scope.reborrow(),
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),

@@ -247,7 +247,7 @@ impl InternalMethods for Function {
     fn internal_get_prototype_of(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
     ) -> JsResult<Option<Object>> {
         match self {
@@ -269,7 +269,7 @@ impl InternalMethods for Function {
     fn internal_set_prototype_of(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         prototype: Option<Object>,
     ) -> JsResult<bool> {
@@ -296,7 +296,7 @@ impl InternalMethods for Function {
     fn internal_is_extensible(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
     ) -> JsResult<bool> {
         match self {
@@ -316,7 +316,7 @@ impl InternalMethods for Function {
     fn internal_prevent_extensions(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
     ) -> JsResult<bool> {
         match self {
@@ -338,7 +338,7 @@ impl InternalMethods for Function {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
@@ -367,7 +367,7 @@ impl InternalMethods for Function {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
@@ -397,7 +397,7 @@ impl InternalMethods for Function {
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
@@ -422,7 +422,7 @@ impl InternalMethods for Function {
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
         receiver: Value,
@@ -450,7 +450,7 @@ impl InternalMethods for Function {
     fn internal_set(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
         value: Value,
@@ -481,7 +481,7 @@ impl InternalMethods for Function {
     fn internal_delete(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
@@ -504,7 +504,7 @@ impl InternalMethods for Function {
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
     ) -> JsResult<Vec<PropertyKey>> {
         match self {
@@ -526,7 +526,7 @@ impl InternalMethods for Function {
     fn internal_call(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_argument: Value,
         arguments_list: ArgumentsList,
@@ -556,7 +556,7 @@ impl InternalMethods for Function {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         arguments_list: ArgumentsList,
         new_target: Function,
@@ -616,7 +616,7 @@ impl Function {
     pub fn call(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_argument: Value,
         args: &[Value],

@@ -8,13 +8,12 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     heap::{
         indexes::{BaseIndex, MapIndex},
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry, WorkQueues,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
     },
     Heap,
 };

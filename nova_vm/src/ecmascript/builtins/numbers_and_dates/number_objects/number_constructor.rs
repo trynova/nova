@@ -83,7 +83,7 @@ impl NumberConstructor {
         // 1. If value is present, then
         let n = if !value.is_undefined() {
             // a. Let prim be ? ToNumeric(value).
-            let prim = value.to_numeric(agent)?;
+            let prim = value.to_numeric(agent, gc.reborrow(), scope.reborrow())?;
 
             // b. If prim is a BigInt, let n be 𝔽(ℝ(prim)).
             if prim.is_bigint() {
@@ -130,8 +130,8 @@ impl NumberConstructor {
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn is_finite(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -164,8 +164,8 @@ impl NumberConstructor {
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
     fn is_nan(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -184,8 +184,8 @@ impl NumberConstructor {
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
     fn is_safe_integer(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

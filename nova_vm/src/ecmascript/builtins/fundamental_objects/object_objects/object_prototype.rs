@@ -88,9 +88,9 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        has_own_property(agent, o, p).map(|result| result.into())
+        has_own_property(agent, gc.reborrow(), scope.reborrow(), o, p).map(|result| result.into())
     }
 
     fn is_prototype_of(
@@ -106,7 +106,7 @@ impl ObjectPrototype {
         };
         let o = to_object(agent, this_value)?;
         loop {
-            let proto = v.internal_get_prototype_of(agent, gc, scope)?;
+            let proto = v.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
             if let Some(proto) = proto {
                 v = proto;
                 if same_value(agent, o, v) {
@@ -125,7 +125,7 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
         let o = to_object(agent, this_value)?;
         let desc = o.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), p)?;
         if let Some(desc) = desc {
@@ -144,7 +144,7 @@ impl ObjectPrototype {
     ) -> JsResult<Value> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
-        invoke(agent, o, p, None)
+        invoke(agent, gc.reborrow(), scope.reborrow(), o, p, None)
     }
 
     fn to_string(
@@ -209,7 +209,13 @@ impl ObjectPrototype {
                 | PrimitiveObjectData::BigInt(_)
                 | PrimitiveObjectData::SmallBigInt(_) => {
                     let o = to_object(agent, this_value).unwrap();
-                    let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
+                    let tag = get(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        o,
+                        WellKnownSymbolIndexes::ToStringTag.into(),
+                    )?;
                     if let Ok(tag) = String::try_from(tag) {
                         let str = format!("[object {}]", tag.as_str(agent));
                         Ok(Value::from_string(agent, str))
@@ -225,7 +231,13 @@ impl ObjectPrototype {
                 // 15. Let tag be ? Get(O, @@toStringTag).
                 // 16. If tag is not a String, set tag to builtinTag.
                 let o = to_object(agent, this_value).unwrap();
-                let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
+                let tag = get(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    o,
+                    WellKnownSymbolIndexes::ToStringTag.into(),
+                )?;
                 if let Ok(tag) = String::try_from(tag) {
                     let str = format!("[object {}]", tag.as_str(agent));
                     Ok(Value::from_string(agent, str))
@@ -240,8 +252,8 @@ impl ObjectPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

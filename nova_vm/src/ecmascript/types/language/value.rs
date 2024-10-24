@@ -52,6 +52,7 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     engine::{
+        context::{Gc, Scope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
@@ -471,46 +472,31 @@ impl Value {
         }
     }
 
-    pub fn to_number(
-        self,
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> JsResult<Number> {
-        to_number(agent, gc.reborrow(), scope.reborrow(), gc, scope, self)
+    pub fn to_number(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<Number> {
+        to_number(agent, gc, scope, self)
     }
 
-    pub fn to_bigint(
-        self,
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> JsResult<BigInt> {
+    pub fn to_bigint(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<BigInt> {
         to_big_int(agent, gc, scope, self)
     }
 
-    pub fn to_numeric(
-        self,
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> JsResult<Numeric> {
+    pub fn to_numeric(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<Numeric> {
         to_numeric(agent, gc, scope, self)
     }
 
-    pub fn to_int32(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<i32> {
+    pub fn to_int32(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<i32> {
         to_int32(agent, gc, scope, self)
     }
 
-    pub fn to_uint32(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<u32> {
-        to_uint32(agent, gc.reborrow(), scope.reborrow(), gc, scope, self)
+    pub fn to_uint32(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<u32> {
+        to_uint32(agent, gc, scope, self)
     }
 
-    pub fn to_int16(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<i16> {
+    pub fn to_int16(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<i16> {
         to_int16(agent, gc, scope, self)
     }
 
-    pub fn to_uint16(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<u16> {
+    pub fn to_uint16(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<u16> {
         to_uint16(agent, gc, scope, self)
     }
 

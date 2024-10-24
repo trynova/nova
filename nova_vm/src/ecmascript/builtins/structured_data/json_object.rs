@@ -215,7 +215,7 @@ pub(crate) fn internalize_json_property(
     reviver: Function,
 ) -> JsResult<Value> {
     // 1. Let val be ? Get(holder, name).
-    let val = get(agent, holder, name)?;
+    let val = get(agent, gc.reborrow(), scope.reborrow(), holder, name)?;
     // 2. If val is an Object, then
     if let Ok(val) = Object::try_from(val) {
         // a. Let isArray be ? IsArray(val).
@@ -263,14 +263,25 @@ pub(crate) fn internalize_json_property(
         } else {
             // c. Else,
             // i. Let keys be ? EnumerableOwnProperties(val, key).
-            let keys =
-                enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(agent, val)?;
+            let keys = enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                val,
+            )?;
 
             // ii. For each String P of keys, do
             for p in keys {
                 let p = PropertyKey::try_from(p).unwrap();
                 // 1. Let newElement be ? InternalizeJSONProperty(val, P, reviver).
-                let new_element = internalize_json_property(agent, val, p, reviver)?;
+                let new_element = internalize_json_property(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    val,
+                    p,
+                    reviver,
+                )?;
 
                 // 2. If newElement is undefined, then
                 if new_element.is_undefined() {
@@ -279,7 +290,14 @@ pub(crate) fn internalize_json_property(
                 } else {
                     // 3. Else,
                     // a. Perform ? CreateDataProperty(val, P, newElement).
-                    create_data_property(agent, gc, scope, val, p, new_element)?;
+                    create_data_property(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        val,
+                        p,
+                        new_element,
+                    )?;
                 }
             }
         }
@@ -288,6 +306,8 @@ pub(crate) fn internalize_json_property(
     // 3. Return ? Call(reviver, holder, « name, val »).
     call_function(
         agent,
+        gc.reborrow(),
+        scope.reborrow(),
         reviver,
         holder.into_value(),
         Some(ArgumentsList(&[name.into_value(), val])),
@@ -311,8 +331,15 @@ pub(crate) fn value_from_json(
             let array_obj = array_create(agent, len, len, None)?;
             for (i, value) in json_array.iter().enumerate() {
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
-                let js_value = value_from_json(agent, value)?;
-                create_data_property(agent, gc, scope, array_obj, prop, js_value)?;
+                let js_value = value_from_json(agent, gc.reborrow(), scope.reborrow(), value)?;
+                create_data_property(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    array_obj,
+                    prop,
+                    js_value,
+                )?;
             }
             Ok(array_obj.into())
         }
@@ -322,8 +349,15 @@ pub(crate) fn value_from_json(
                 ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
             for (key, value) in json_object.iter() {
                 let prop = PropertyKey::from_str(agent, key);
-                let js_value = value_from_json(agent, value)?;
-                create_data_property(agent, gc, scope, object, prop, js_value)?;
+                let js_value = value_from_json(agent, gc.reborrow(), scope.reborrow(), value)?;
+                create_data_property(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    object,
+                    prop,
+                    js_value,
+                )?;
             }
             Ok(object.into())
         }

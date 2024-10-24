@@ -10,10 +10,7 @@ use crate::ecmascript::{
 
 pub(crate) struct NativeErrorPrototypes;
 impl NativeErrorPrototypes {
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let error_prototype = intrinsics.error_prototype();
         let eval_constructor = intrinsics.eval_error();

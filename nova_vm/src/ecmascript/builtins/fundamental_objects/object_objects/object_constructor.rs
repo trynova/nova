@@ -344,9 +344,17 @@ impl ObjectConstructor {
                     continue;
                 }
                 // a. Let propValue be ? Get(from, nextKey).
-                let prop_value = get(agent, from, next_key)?;
+                let prop_value = get(agent, gc.reborrow(), scope.reborrow(), from, next_key)?;
                 // b. Perform ? Set(to, nextKey, propValue, true).
-                set(agent, to, next_key, prop_value, true)?;
+                set(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    to,
+                    next_key,
+                    prop_value,
+                    true,
+                )?;
             }
         }
         // 4. Return to.
@@ -375,7 +383,7 @@ impl ObjectConstructor {
         };
         let properties = arguments.get(1);
         if properties != Value::Undefined {
-            object_define_properties(agent, obj, properties)?;
+            object_define_properties(agent, gc.reborrow(), scope.reborrow(), obj, properties)?;
         }
         Ok(obj.into_value())
     }
@@ -403,7 +411,8 @@ impl ObjectConstructor {
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
-        let result = object_define_properties(agent, o, properties)?;
+        let result =
+            object_define_properties(agent, gc.reborrow(), scope.reborrow(), o, properties)?;
         Ok(result.into_value())
     }
 
@@ -431,7 +440,7 @@ impl ObjectConstructor {
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 2. Let key be ? ToPropertyKey(P).
-        let key = to_property_key(agent, p)?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), p)?;
         // 3. Let desc be ? ToPropertyDescriptor(Attributes).
         let desc = PropertyDescriptor::to_property_descriptor(
             agent,
@@ -440,7 +449,7 @@ impl ObjectConstructor {
             attributes,
         )?;
         // 4. Perform ? DefinePropertyOrThrow(O, key, desc).
-        define_property_or_throw(agent, o, key, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), o, key, desc)?;
         // 5. Return O.
         Ok(o.into_value())
     }
@@ -702,14 +711,14 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
-        let keys = get_own_symbol_property_keys(agent, o)?;
+        let keys = get_own_symbol_property_keys(agent, gc.reborrow(), scope.reborrow(), o)?;
         Ok(create_array_from_list(agent, &keys).into_value())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
     fn get_prototype_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -731,7 +740,7 @@ impl ObjectConstructor {
         let callback_fn = arguments.get(1);
 
         // 1. Let groups be ? GroupBy(items, callback, property).
-        let groups = group_by_property(agent, items, callback_fn)?;
+        let groups = group_by_property(agent, gc.reborrow(), scope.reborrow(), items, callback_fn)?;
 
         // 2. Let obj be OrdinaryObjectCreate(null).
         let object =
@@ -765,14 +774,15 @@ impl ObjectConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let obj = to_object(agent, arguments.get(0))?;
-        let key = to_property_key(agent, arguments.get(1))?;
-        has_own_property(agent, obj, key).map(|result| result.into())
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        has_own_property(agent, gc.reborrow(), scope.reborrow(), obj, key)
+            .map(|result| result.into())
     }
 
     fn is(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -788,7 +798,7 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
-            Ok(o) => o.internal_is_extensible(agent)?,
+            Ok(o) => o.internal_is_extensible(agent, gc.reborrow(), scope.reborrow())?,
             Err(_) => false,
         };
         Ok(result.into())
@@ -803,7 +813,7 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
-            Ok(o) => test_integrity_level::<Frozen>(agent, o)?,
+            Ok(o) => test_integrity_level::<Frozen>(agent, gc.reborrow(), scope.reborrow(), o)?,
             Err(_) => true,
         };
         Ok(result.into())
@@ -818,7 +828,7 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
-            Ok(o) => test_integrity_level::<Sealed>(agent, o)?,
+            Ok(o) => test_integrity_level::<Sealed>(agent, gc.reborrow(), scope.reborrow(), o)?,
             Err(_) => true,
         };
         Ok(result.into())
@@ -837,8 +847,12 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o)?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
-        let key_list =
-            enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(agent, obj)?;
+        let key_list = enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            obj,
+        )?;
         // 3. Return CreateArrayFromList(keyList).
         Ok(create_array_from_list(agent, &key_list).into_value())
     }
@@ -857,7 +871,7 @@ impl ObjectConstructor {
             return Ok(o);
         };
         // 2. Let status be ? O.[[PreventExtensions]]().
-        let status = o.internal_prevent_extensions(agent)?;
+        let status = o.internal_prevent_extensions(agent, gc.reborrow(), scope.reborrow())?;
         // 3. If status is false, throw a TypeError exception.
         if !status {
             Err(agent.throw_exception_with_static_message(
@@ -884,7 +898,7 @@ impl ObjectConstructor {
             return Ok(o);
         };
         // 2. Let status be ? SetIntegrityLevel(O, SEALED).
-        let status = set_integrity_level::<Sealed>(agent, o)?;
+        let status = set_integrity_level::<Sealed>(agent, gc.reborrow(), scope.reborrow(), o)?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
             Err(agent.throw_exception_with_static_message(
@@ -1026,7 +1040,7 @@ fn object_define_properties<T: InternalMethods>(
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = get(agent, props, next_key)?;
+        let desc_obj = get(agent, gc.reborrow(), scope.reborrow(), props, next_key)?;
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
         let desc = PropertyDescriptor::to_property_descriptor(
             agent,
@@ -1040,7 +1054,14 @@ fn object_define_properties<T: InternalMethods>(
     // 5. For each element property of descriptors, do
     for (property_key, property_descriptor) in descriptors {
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        define_property_or_throw(agent, o, property_key, property_descriptor)?;
+        define_property_or_throw(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            o,
+            property_key,
+            property_descriptor,
+        )?;
     }
     // 6. Return O.
     Ok(o)
@@ -1073,12 +1094,14 @@ pub fn add_entries_from_iterable_from_entries(
     iterable: Value,
 ) -> JsResult<OrdinaryObject> {
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable, false)?;
+    let mut iterator_record =
+        get_iterator(agent, gc.reborrow(), scope.reborrow(), iterable, false)?;
 
     // 2. Repeat,
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record)?;
+        let next =
+            iterator_step_value(agent, gc.reborrow(), scope.reborrow(), &mut iterator_record)?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target);
@@ -1093,27 +1116,43 @@ pub fn add_entries_from_iterable_from_entries(
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message);
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            iterator_close(agent, &iterator_record, Err(error))?;
+            iterator_close(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                &iterator_record,
+                Err(error),
+            )?;
             return Ok(target);
         };
         // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next, 0.into());
+        let k = get(agent, gc.reborrow(), scope.reborrow(), next, 0.into());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
-        let k = if_abrupt_close_iterator(agent, k, &iterator_record)?;
+        let k =
+            if_abrupt_close_iterator(agent, gc.reborrow(), scope.reborrow(), k, &iterator_record)?;
         // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, next, 1.into());
+        let v = get(agent, gc.reborrow(), scope.reborrow(), next, 1.into());
         // g. IfAbruptCloseIterator(v, iteratorRecord).
-        let v = if_abrupt_close_iterator(agent, v, &iterator_record)?;
+        let v =
+            if_abrupt_close_iterator(agent, gc.reborrow(), scope.reborrow(), v, &iterator_record)?;
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         {
             // a. Let propertyKey be ? ToPropertyKey(key).
-            let property_key = to_property_key(agent, k);
+            let property_key = to_property_key(agent, gc.reborrow(), scope.reborrow(), k);
             // i. IfAbruptCloseIterator(status, iteratorRecord).
-            let property_key = if_abrupt_close_iterator(agent, property_key, &iterator_record)?;
+            let property_key = if_abrupt_close_iterator(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                property_key,
+                &iterator_record,
+            )?;
             // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
             target
                 .internal_define_own_property(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     property_key,
                     PropertyDescriptor::new_data_descriptor(v),
                 )

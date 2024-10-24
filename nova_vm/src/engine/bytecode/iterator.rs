@@ -44,7 +44,7 @@ impl VmIterator {
     ) -> JsResult<Option<Value>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
-                let result = iter.next(agent)?;
+                let result = iter.next(agent, gc.reborrow(), scope.reborrow())?;
                 if let Some(result) = result {
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
@@ -58,12 +58,12 @@ impl VmIterator {
                     Ok(None)
                 }
             }
-            VmIterator::ArrayValues(iter) => iter.next(agent),
+            VmIterator::ArrayValues(iter) => iter.next(agent, gc.reborrow(), scope.reborrow()),
             VmIterator::GenericIterator(iter) => {
                 let result = call(
                     agent,
-                    gc,
-                    scope,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     iter.next_method,
                     iter.iterator.into_value(),
                     None,
@@ -75,13 +75,25 @@ impl VmIterator {
                     ));
                 };
                 // 1. Return ToBoolean(? Get(iterResult, "done")).
-                let done = get(agent, result, BUILTIN_STRING_MEMORY.done.into())?;
+                let done = get(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    result,
+                    BUILTIN_STRING_MEMORY.done.into(),
+                )?;
                 let done = to_boolean(agent, done);
                 if done {
                     Ok(None)
                 } else {
                     // 1. Return ? Get(iterResult, "value").
-                    let value = get(agent, result, BUILTIN_STRING_MEMORY.value.into())?;
+                    let value = get(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        result,
+                        BUILTIN_STRING_MEMORY.value.into(),
+                    )?;
                     Ok(Some(value))
                 }
             }
@@ -98,12 +110,7 @@ impl VmIterator {
         }
     }
 
-    pub(super) fn remaining_length_estimate(
-        &self,
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> Option<usize> {
+    pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
         match self {
             VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
             VmIterator::ArrayValues(iter) => {
@@ -123,6 +130,8 @@ impl VmIterator {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             value,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
         )?;
@@ -139,6 +148,8 @@ impl VmIterator {
             Value::Array(array)
                 if get_method(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     value,
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 )? == Some(
@@ -152,7 +163,7 @@ impl VmIterator {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, value, method)?;
+                let js_iterator = get_iterator_from_method(agent, gc, scope, value, method)?;
                 Ok(VmIterator::GenericIterator(js_iterator))
             }
         }
@@ -186,7 +197,8 @@ impl ObjectPropertiesIterator {
         loop {
             let object = self.object;
             if !self.object_was_visited {
-                let keys = object.internal_own_property_keys(agent)?;
+                let keys =
+                    object.internal_own_property_keys(agent, gc.reborrow(), scope.reborrow())?;
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
@@ -209,7 +221,8 @@ impl ObjectPropertiesIterator {
                     }
                 }
             }
-            let prototype = object.internal_get_prototype_of(agent, gc, scope)?;
+            let prototype =
+                object.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype;
@@ -260,7 +273,13 @@ impl ArrayValuesIterator {
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        let element_value = get(agent, self.array, index.into())?;
+        let element_value = get(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            self.array,
+            index.into(),
+        )?;
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))

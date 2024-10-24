@@ -28,8 +28,8 @@ impl Builtin for StringIteratorPrototypeNext {
 impl StringIteratorPrototype {
     fn next(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

@@ -23,6 +23,8 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::Gc;
+use crate::engine::context::Scope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallString;
 
@@ -88,6 +90,8 @@ impl StringConstructor {
         let value = s;
         let prototype = get_prototype_from_constructor(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::String,
         )?;
@@ -138,7 +142,9 @@ impl StringConstructor {
 
         // fast path: only a single valid code unit
         if code_units.len() == 1 {
-            let cu = code_units.get(0).to_uint16(agent)?;
+            let cu = code_units
+                .get(0)
+                .to_uint16(agent, gc.reborrow(), scope.reborrow())?;
             if let Some(cu) = char::from_u32(cu as u32) {
                 return Ok(SmallString::from(cu).into());
             }
@@ -147,7 +153,7 @@ impl StringConstructor {
         let mut buf = Vec::with_capacity(code_units.len());
 
         for next in code_units.iter() {
-            let code_unit = next.to_uint16(agent)?;
+            let code_unit = next.to_uint16(agent, gc.reborrow(), scope.reborrow())?;
             buf.push(code_unit);
         }
         let result = std::string::String::from_utf16_lossy(&buf);
@@ -161,8 +167,8 @@ impl StringConstructor {
     /// the rest parameter `codePoints`.
     fn from_code_point(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -180,8 +186,8 @@ impl StringConstructor {
 
     fn raw(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

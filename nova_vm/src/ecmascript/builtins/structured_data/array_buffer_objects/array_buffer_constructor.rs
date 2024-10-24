@@ -92,8 +92,8 @@ impl ArrayBufferConstructor {
     /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
     fn is_view(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -131,8 +131,8 @@ impl ArrayBufferConstructor {
     /// > `%Symbol.species%` property.
     fn species(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

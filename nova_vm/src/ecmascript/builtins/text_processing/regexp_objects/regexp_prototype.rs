@@ -156,8 +156,8 @@ impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 impl RegExpPrototype {
     fn exec(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -166,8 +166,8 @@ impl RegExpPrototype {
 
     fn get_dot_all(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -176,8 +176,8 @@ impl RegExpPrototype {
 
     fn get_flags(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -186,8 +186,8 @@ impl RegExpPrototype {
 
     fn get_global(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -196,8 +196,8 @@ impl RegExpPrototype {
 
     fn get_has_indices(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -206,8 +206,8 @@ impl RegExpPrototype {
 
     fn get_ignore_case(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -216,8 +216,8 @@ impl RegExpPrototype {
 
     fn r#match(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -226,8 +226,8 @@ impl RegExpPrototype {
 
     fn match_all(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -236,8 +236,8 @@ impl RegExpPrototype {
 
     fn get_multiline(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -246,8 +246,8 @@ impl RegExpPrototype {
 
     fn replace(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -256,8 +256,8 @@ impl RegExpPrototype {
 
     fn search(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -266,8 +266,8 @@ impl RegExpPrototype {
 
     fn get_source(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -276,8 +276,8 @@ impl RegExpPrototype {
 
     fn split(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -286,8 +286,8 @@ impl RegExpPrototype {
 
     fn get_sticky(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -296,8 +296,8 @@ impl RegExpPrototype {
 
     fn test(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -323,7 +323,9 @@ impl RegExpPrototype {
         let Ok(r) = Object::try_from(this_value) else {
             let error_message = format!(
                 "{} is not an object",
-                this_value.string_repr(agent, gc.reborrow(), scope.reborrow()).as_str(agent)
+                this_value
+                    .string_repr(agent, gc.reborrow(), scope.reborrow())
+                    .as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
@@ -344,10 +346,22 @@ impl RegExpPrototype {
             return Ok(String::from_string(agent, regexp_string).into_value());
         }
         // 3. Let pattern be ? ToString(? Get(R, "source")).
-        let pattern = get(agent, r, BUILTIN_STRING_MEMORY.source.into())?;
+        let pattern = get(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            r,
+            BUILTIN_STRING_MEMORY.source.into(),
+        )?;
         let pattern = to_string(agent, gc.reborrow(), scope.reborrow(), pattern)?;
         // 4. Let flags be ? ToString(? Get(R, "flags")).
-        let flags = get(agent, r, BUILTIN_STRING_MEMORY.flags.into())?;
+        let flags = get(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            r,
+            BUILTIN_STRING_MEMORY.flags.into(),
+        )?;
         let flags = to_string(agent, gc.reborrow(), scope.reborrow(), flags)?;
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!("/{}/{}", pattern.as_str(agent), flags.as_str(agent));
@@ -358,8 +372,8 @@ impl RegExpPrototype {
 
     fn get_unicode(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -368,8 +382,8 @@ impl RegExpPrototype {
 
     fn get_unicode_sets(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

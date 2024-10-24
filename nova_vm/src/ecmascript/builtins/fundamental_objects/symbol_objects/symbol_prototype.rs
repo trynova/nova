@@ -71,8 +71,8 @@ impl SymbolPrototype {
     /// function is undefined.
     fn get_description(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -87,8 +87,8 @@ impl SymbolPrototype {
 
     fn to_string(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -98,18 +98,15 @@ impl SymbolPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.symbol_prototype();
@@ -180,12 +177,7 @@ impl SymbolPrototype {
 }
 
 #[inline(always)]
-fn this_symbol_value(
-    agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    value: Value,
-) -> JsResult<Symbol> {
+fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
     match value {
         Value::Symbol(symbol) => Ok(symbol),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
@@ -201,12 +193,7 @@ fn this_symbol_value(
 ///
 /// The abstract operation SymbolDescriptiveString takes argument sym (a Symbol)
 /// and returns a String.
-fn symbol_descriptive_string(
-    agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    sym: Symbol,
-) -> String {
+fn symbol_descriptive_string(agent: &mut Agent, sym: Symbol) -> String {
     // 1. Let desc be sym's [[Description]] value.
     let desc = agent[sym].descriptor;
     // 2. If desc is undefined, set desc to the empty String.

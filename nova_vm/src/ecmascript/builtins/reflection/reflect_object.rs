@@ -247,7 +247,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
         // 3. Let desc be ? ToPropertyDescriptor(attributes).
         let desc = PropertyDescriptor::to_property_descriptor(
             agent,
@@ -256,7 +256,13 @@ impl ReflectObject {
             arguments.get(2),
         )?;
         // 4. Return ? target.[[DefineOwnProperty]](key, desc).
-        let ret = target.internal_define_own_property(agent, key, desc)?;
+        let ret = target.internal_define_own_property(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            key,
+            desc,
+        )?;
         Ok(ret.into())
     }
 
@@ -278,7 +284,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
         // 3. Return ? target.[[Delete]](key).
         let ret = target.internal_delete(agent, gc.reborrow(), scope.reborrow(), key)?;
         Ok(ret.into())
@@ -302,7 +308,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
         let receiver = if arguments.len() > 2 {
             arguments.get(2)
         } else {
@@ -311,7 +317,7 @@ impl ReflectObject {
             target.into_value()
         };
         // 4. Return ? target.[[Get]](key, receiver).
-        target.internal_get(agent, key, receiver)
+        target.internal_get(agent, gc.reborrow(), scope.reborrow(), key, receiver)
     }
 
     /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
@@ -332,7 +338,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
         // 3. Let desc be ? target.[[GetOwnProperty]](key).
         let desc = target.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), key)?;
         // 4. Return FromPropertyDescriptor(desc).
@@ -345,7 +351,7 @@ impl ReflectObject {
     /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
     fn get_prototype_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -383,7 +389,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
         // 3. Return ? target.[[HasProperty]](key).
         let ret = target.internal_has_property(agent, gc.reborrow(), scope.reborrow(), key)?;
         Ok(ret.into())
@@ -406,7 +412,7 @@ impl ReflectObject {
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[IsExtensible]]().
-        let ret = target.internal_is_extensible(agent)?;
+        let ret = target.internal_is_extensible(agent, gc.reborrow(), scope.reborrow())?;
         Ok(ret.into())
     }
 
@@ -430,7 +436,7 @@ impl ReflectObject {
         // TODO: `PropertyKey::into_value` might not do the right thing for
         // integer keys.
         let keys: Vec<Value> = target
-            .internal_own_property_keys(agent)?
+            .internal_own_property_keys(agent, gc.reborrow(), scope.reborrow())?
             .into_iter()
             .map(PropertyKey::into_value)
             .collect();
@@ -455,7 +461,7 @@ impl ReflectObject {
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[PreventExtensions]]().
-        let ret = target.internal_prevent_extensions(agent)?;
+        let ret = target.internal_prevent_extensions(agent, gc.reborrow(), scope.reborrow())?;
         Ok(ret.into())
     }
 
@@ -477,7 +483,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
 
         let v = arguments.get(2);
         let receiver = if arguments.len() > 3 {
@@ -489,7 +495,7 @@ impl ReflectObject {
         };
 
         // 4. Return ? target.[[Set]](key, V, receiver).
-        let ret = target.internal_set(agent, key, v, receiver)?;
+        let ret = target.internal_set(agent, gc.reborrow(), scope.reborrow(), key, v, receiver)?;
         Ok(ret.into())
     }
 

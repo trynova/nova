@@ -28,8 +28,8 @@ impl BuiltinIntrinsicConstructor for WeakRefConstructor {
 impl WeakRefConstructor {
     fn behaviour(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,

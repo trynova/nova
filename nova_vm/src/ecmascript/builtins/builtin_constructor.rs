@@ -193,8 +193,8 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -295,8 +295,8 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -325,9 +325,9 @@ impl InternalMethods for BuiltinConstructorFunction {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(
             agent,
-            self,
             gc.reborrow(),
             scope.reborrow(),
+            self,
             arguments_list,
             new_target,
         )
@@ -434,8 +434,6 @@ pub(crate) struct BuiltinConstructorArgs {
 /// built-in function object.
 pub(crate) fn create_builtin_constructor(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
     args: BuiltinConstructorArgs,
 ) -> BuiltinConstructorFunction {
     // 1. If realm is not present, set realm to the current Realm Record.

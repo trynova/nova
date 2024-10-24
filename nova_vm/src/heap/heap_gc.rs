@@ -64,7 +64,7 @@ use crate::{
             BUILTIN_STRINGS_LIST,
         },
     },
-    engine::Executable,
+    engine::{context::Gc, Executable},
 };
 
 pub fn heap_gc(agent: &mut Agent, gc: Gc<'_>, root_realms: &mut [Option<RealmIdentifier>]) {

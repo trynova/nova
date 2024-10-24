@@ -88,8 +88,8 @@ impl ArrayBufferPrototype {
     /// accessor function is undefined.
     fn get_byte_length(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -111,8 +111,8 @@ impl ArrayBufferPrototype {
     /// ArrayBuffer.prototype.detached is an accessor property whose set accessor function is undefined.
     fn get_detached(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -129,8 +129,8 @@ impl ArrayBufferPrototype {
     /// ArrayBuffer.prototype.maxByteLength is an accessor property whose set accessor function is undefined.
     fn get_max_byte_length(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -152,8 +152,8 @@ impl ArrayBufferPrototype {
     /// ArrayBuffer.prototype.resizable is an accessor property whose set accessor function is undefined.
     fn get_resizable(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -170,7 +170,7 @@ impl ArrayBufferPrototype {
     /// This method performs the following steps when called:
     fn resize(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,

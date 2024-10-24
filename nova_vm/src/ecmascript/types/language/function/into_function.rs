@@ -109,7 +109,7 @@ pub(crate) fn function_internal_get_own_property(
 pub(crate) fn function_internal_define_own_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
-    mut gc: Gc<'_>,
+    gc: Gc<'_>,
     scope: Scope<'_>,
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
@@ -128,14 +128,7 @@ pub(crate) fn function_internal_has_property(
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_has_property(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            gcr,
-            scope,
-            property_key,
-        )
+        backing_object.internal_has_property(agent, gc.reborrow(), scope.reborrow(), property_key)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {

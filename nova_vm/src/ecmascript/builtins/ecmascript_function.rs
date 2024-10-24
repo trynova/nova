@@ -16,9 +16,7 @@ use oxc_span::Span;
 use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_objects::define_property_or_throw, type_conversion::to_object,
-        },
+        abstract_operations::type_conversion::to_object,
         execution::{
             agent::{
                 get_active_script_or_module,
@@ -435,7 +433,7 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
@@ -443,8 +441,7 @@ impl InternalMethods for ECMAScriptFunction {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
-        let callee_context =
-            prepare_for_ordinary_call(agent, gc.reborrow(), scope.reborrow(), self, None);
+        let callee_context = prepare_for_ordinary_call(agent, self, None);
         // This is step 4. or OrdinaryCallBindThis:
         // "Let localEnv be the LexicalEnvironment of calleeContext."
         let local_env = callee_context
@@ -515,13 +512,7 @@ impl InternalMethods for ECMAScriptFunction {
         };
 
         // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
-        let callee_context = prepare_for_ordinary_call(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            self,
-            Some(new_target.into_object()),
-        );
+        let callee_context = prepare_for_ordinary_call(agent, self, Some(new_target.into_object()));
         // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
         let constructor_env = callee_context
             .ecmascript_code
@@ -604,8 +595,6 @@ impl InternalMethods for ECMAScriptFunction {
 /// returns an execution context.
 pub(crate) fn prepare_for_ordinary_call(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
     f: ECMAScriptFunction,
     new_target: Option<Object>,
 ) -> &ExecutionContext {
@@ -916,9 +905,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
 /// UNUSED. It converts F into a constructor.
 pub(crate) fn make_constructor(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    function: impl IntoFunction,
+    function: impl IntoFunction + InternalMethods,
     writable_prototype: Option<bool>,
     prototype: Option<Object>,
 ) {
@@ -953,11 +940,8 @@ pub(crate) fn make_constructor(
             ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
-        define_property_or_throw(
+        prototype.property_storage().set(
             agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            prototype,
             key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
@@ -966,17 +950,17 @@ pub(crate) fn make_constructor(
                 configurable: Some(true),
                 ..Default::default()
             },
-        )
-        .unwrap();
+        );
         prototype
     });
     // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: false }).
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
-    define_property_or_throw(
+    let backing_object = function
+        .get_backing_object(agent)
+        .unwrap_or_else(|| function.create_backing_object(agent))
+        .into_object();
+    backing_object.property_storage().set(
         agent,
-        gc.reborrow(),
-        scope.reborrow(),
-        function.into_object(),
         key,
         PropertyDescriptor {
             value: Some(prototype.into_value()),
@@ -985,8 +969,7 @@ pub(crate) fn make_constructor(
             configurable: Some(false),
             ..Default::default()
         },
-    )
-    .unwrap();
+    );
     // 7. Return UNUSED.
 }
 

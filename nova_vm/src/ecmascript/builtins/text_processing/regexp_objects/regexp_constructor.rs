@@ -18,6 +18,8 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::Gc;
+use crate::engine::context::Scope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -44,8 +46,8 @@ impl BuiltinGetter for RegExpGetSpecies {}
 impl RegExpConstructor {
     fn behaviour(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -53,14 +55,17 @@ impl RegExpConstructor {
         todo!();
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(
+        _: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let regexp_prototype = intrinsics.reg_exp_prototype();
 

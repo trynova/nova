@@ -351,7 +351,7 @@ pub(crate) fn initialize_referenced_binding(
         _ => unreachable!(),
     };
     // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
-    base.initialize_binding(agent, referenced_name, w)
+    base.initialize_binding(agent, gc.reborrow(), scope.reborrow(), referenced_name, w)
 }
 
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)

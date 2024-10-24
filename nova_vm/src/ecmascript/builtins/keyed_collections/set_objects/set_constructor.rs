@@ -86,7 +86,13 @@ impl SetConstructor {
             return Ok(set.into_value());
         }
         // 5. Let adder be ? Get(set, "add").
-        let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into())?;
+        let adder = get(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            set,
+            BUILTIN_STRING_MEMORY.add.into(),
+        )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder) else {
             return Err(agent.throw_exception_with_static_message(
@@ -99,6 +105,8 @@ impl SetConstructor {
                 && iterable.is_dense(agent)
                 && get_method(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     iterable.into_value(),
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 )? == Some(
@@ -167,11 +175,13 @@ impl SetConstructor {
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, iterable, false)?;
+        let mut iterator_record =
+            get_iterator(agent, gc.reborrow(), scope.reborrow(), iterable, false)?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, &mut iterator_record)?;
+            let next =
+                iterator_step_value(agent, gc.reborrow(), scope.reborrow(), &mut iterator_record)?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(set.into_value());
@@ -179,18 +189,30 @@ impl SetConstructor {
             // c. Let status be Completion(Call(adder, set, « next »)).
             let status = call_function(
                 agent,
-                gc,
-                scope,
+                gc.reborrow(),
+                scope.reborrow(),
                 adder,
                 set.into_value(),
                 Some(ArgumentsList(&[next])),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, status, &iterator_record)?;
+            let _ = if_abrupt_close_iterator(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                status,
+                &iterator_record,
+            )?;
         }
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(
+        _: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 

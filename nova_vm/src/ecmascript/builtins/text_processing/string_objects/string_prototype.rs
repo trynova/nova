@@ -266,7 +266,9 @@ impl StringPrototype {
         // 3. Let len be the length of S.
         let len = i64::try_from(s.utf16_len(agent)).unwrap();
         // 4. Let relativeIndex be ? ToIntegerOrInfinity(pos).
-        let relative_index = to_integer_or_infinity(agent, args.get(0))?.into_i64(agent);
+        let relative_index =
+            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?
+                .into_i64(agent);
         // 5. If relativeIndex ≥ 0, then
         let k = if relative_index >= 0 {
             // a. Let k be relativeIndex.
@@ -298,7 +300,8 @@ impl StringPrototype {
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), scope.reborrow(), o)?;
         // 3. Let position be ? ToIntegerOrInfinity(pos).
-        let position = to_integer_or_infinity(agent, args.get(0))?.into_i64(agent);
+        let position = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?
+            .into_i64(agent);
         // 4. Let size be the length of S.
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return the empty String.
@@ -323,7 +326,8 @@ impl StringPrototype {
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), scope.reborrow(), o)?;
         // 3. Let position be ? ToIntegerOrInfinity(pos).
-        let position = to_integer_or_infinity(agent, args.get(0))?.into_i64(agent);
+        let position = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?
+            .into_i64(agent);
         // 4. Let size be the length of S.
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return NaN.
@@ -349,7 +353,8 @@ impl StringPrototype {
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), scope.reborrow(), o)?;
         // 3. Let position be ? ToIntegerOrInfinity(pos).
-        let position = to_integer_or_infinity(agent, args.get(0))?.into_i64(agent);
+        let position = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?
+            .into_i64(agent);
         // 4. Let size be the length of S.
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return undefined.
@@ -417,7 +422,8 @@ impl StringPrototype {
         let haystack_str = if end_position.is_undefined() {
             s.as_str(agent)
         } else {
-            let pos = to_integer_or_infinity(agent, end_position)?.into_usize(agent);
+            let pos = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), end_position)?
+                .into_usize(agent);
             let end = if pos != 0 {
                 // NOTE: `pos` was already clamped to 0 by `Number::into_usize`.
                 pos.min(s.utf16_len(agent))
@@ -464,7 +470,8 @@ impl StringPrototype {
         // 8. Let len be the length of S.
         // 9. Let start be the result of clamping pos between 0 and len.
         let haystack_str = {
-            let pos = to_integer_or_infinity(agent, args.get(0))?.into_usize(agent);
+            let pos = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?
+                .into_usize(agent);
             let start = if pos != 0 {
                 // NOTE: `pos` was already clamped to 0 by `Number::into_usize`.
                 pos.min(s.utf16_len(agent))
@@ -495,7 +502,8 @@ impl StringPrototype {
         let search_str = to_string(agent, gc.reborrow(), scope.reborrow(), args.get(0))?;
         // 4. Let pos be ? ToIntegerOrInfinity(position).
         // 5. Assert: If position is undefined, then pos is 0.
-        let pos = to_integer_or_infinity(agent, args.get(1))?.into_usize(agent);
+        let pos = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(1))?
+            .into_usize(agent);
 
         // 6. Let len be the length of S.
         // 7. Let start be the result of clamping pos between 0 and len.
@@ -581,7 +589,7 @@ impl StringPrototype {
                 usize::MAX
             } else {
                 // otherwise, let pos be! ToIntegerOrInfinity(numPos).
-                to_integer_or_infinity(agent, num_pos.into_value())
+                to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), num_pos.into_value())
                     .unwrap()
                     .into_usize(agent)
             }
@@ -621,8 +629,8 @@ impl StringPrototype {
 
     fn locale_compare(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -631,8 +639,8 @@ impl StringPrototype {
 
     fn r#match(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -641,8 +649,8 @@ impl StringPrototype {
 
     fn match_all(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -706,7 +714,15 @@ impl StringPrototype {
         let o = require_object_coercible(agent, this_value)?;
 
         // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, end).
-        string_padding_builtins_impl(agent, o, max_length, fill_string, false)
+        string_padding_builtins_impl(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            o,
+            max_length,
+            fill_string,
+            false,
+        )
     }
 
     /// ### [22.1.3.17 String.prototype.padStart ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padstart)
@@ -724,7 +740,15 @@ impl StringPrototype {
         let o = require_object_coercible(agent, this_value)?;
 
         // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, start).
-        string_padding_builtins_impl(agent, o, max_length, fill_string, true)
+        string_padding_builtins_impl(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            o,
+            max_length,
+            fill_string,
+            true,
+        )
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
@@ -744,7 +768,7 @@ impl StringPrototype {
         let s = to_string(agent, gc.reborrow(), scope.reborrow(), o)?;
 
         // 3. Let n be ? ToIntegerOrInfinity(count).
-        let n = to_integer_or_infinity(agent, count)?;
+        let n = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), count)?;
 
         // 4. If n < 0 or n = +∞, throw a RangeError exception.
         if n.is_pos_infinity(agent) {
@@ -797,12 +821,15 @@ impl StringPrototype {
         if !search_value.is_null() && !search_value.is_undefined() {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value, symbol)?;
+            let replacer =
+                get_method(agent, gc.reborrow(), scope.reborrow(), search_value, symbol)?;
 
             // b. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
             if let Some(replacer) = replacer {
                 return call_function(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     replacer,
                     search_value,
                     Some(ArgumentsList(&[o, replace_value])),
@@ -833,6 +860,8 @@ impl StringPrototype {
             // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
             let result = call_function(
                 agent,
+                gc.reborrow(),
+                scope.reborrow(),
                 functional_replace,
                 Value::Undefined,
                 Some(ArgumentsList(&[
@@ -893,12 +922,15 @@ impl StringPrototype {
 
             // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value, symbol)?;
+            let replacer =
+                get_method(agent, gc.reborrow(), scope.reborrow(), search_value, symbol)?;
 
             // d. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
             if let Some(replacer) = replacer {
                 return call_function(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     replacer,
                     search_value,
                     Some(ArgumentsList(&[o, replace_value])),
@@ -950,6 +982,8 @@ impl StringPrototype {
                 // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     functional_replace,
                     Value::Undefined,
                     Some(ArgumentsList(&[
@@ -992,8 +1026,8 @@ impl StringPrototype {
 
     fn search(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1014,7 +1048,8 @@ impl StringPrototype {
 
         // 3. Let len be the length of S.
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
-        let int_start = to_integer_or_infinity(agent, args.get(0))?;
+        let int_start =
+            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?;
         // 5. If intStart = -∞, let from be 0.
         // NOTE: We use `None` when `from` would be `len` in the spec.
         let from = if int_start.is_neg_infinity(agent) {
@@ -1040,7 +1075,8 @@ impl StringPrototype {
         let to = if args.get(1).is_undefined() {
             None
         } else {
-            let int_end = to_integer_or_infinity(agent, args.get(1))?;
+            let int_end =
+                to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(1))?;
             // 9. If intEnd = -∞, let to be 0.
             if int_end.is_neg_infinity(agent) {
                 Some(0)
@@ -1101,9 +1137,13 @@ impl StringPrototype {
             let symbol = WellKnownSymbolIndexes::Split.into();
 
             // If splitter is not undefined, then return ? Call(splitter, separator, « O, limit »).
-            if let Ok(Some(splitter)) = get_method(agent, separator, symbol) {
+            if let Ok(Some(splitter)) =
+                get_method(agent, gc.reborrow(), scope.reborrow(), separator, symbol)
+            {
                 return call_function(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     splitter,
                     separator,
                     Some(ArgumentsList(&[o, args.get(1)])),
@@ -1210,7 +1250,7 @@ impl StringPrototype {
         let haystack_str = if position.is_undefined() {
             s.as_str(agent)
         } else {
-            let pos = to_integer_or_infinity(agent, position)?;
+            let pos = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), position)?;
             if pos.is_sign_negative(agent) || pos.is_pos_zero(agent) {
                 s.as_str(agent)
             } else {
@@ -1251,12 +1291,18 @@ impl StringPrototype {
 
         // 3. Let len be the length of S.
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
-        let int_start = to_integer_or_infinity(agent, args.get(0))?;
+        let int_start =
+            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), args.get(0))?;
         // 5. If end is undefined, let intEnd be len; else let intEnd be ? ToIntegerOrInfinity(end).
         let int_end = if args.get(1).is_undefined() {
             None
         } else {
-            Some(to_integer_or_infinity(agent, args.get(1))?)
+            Some(to_integer_or_infinity(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                args.get(1),
+            )?)
         };
 
         // Fast path: can we return `s` without computing the UTF-16 length?
@@ -1305,8 +1351,8 @@ impl StringPrototype {
 
     fn to_locale_lower_case(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1315,8 +1361,8 @@ impl StringPrototype {
 
     fn to_locale_upper_case(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1398,7 +1444,7 @@ impl StringPrototype {
     /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
     fn trim(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
@@ -1449,7 +1495,7 @@ impl StringPrototype {
     /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
     fn trim_end(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
@@ -1462,7 +1508,7 @@ impl StringPrototype {
     /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
     fn trim_start(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
@@ -1479,8 +1525,8 @@ impl StringPrototype {
     /// > different functions but have the exact same steps.
     fn value_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

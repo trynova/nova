@@ -235,8 +235,8 @@ impl InternalMethods for BuiltinFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -245,7 +245,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
@@ -263,7 +263,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
@@ -273,7 +273,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
         receiver: Value,
@@ -284,7 +284,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_set(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
         value: Value,
@@ -296,7 +296,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_delete(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
@@ -306,7 +306,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
     ) -> JsResult<Vec<PropertyKey>> {
         function_internal_own_property_keys(self, agent, gc, scope)
@@ -322,7 +322,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         this_argument: Value,
         arguments_list: ArgumentsList,
@@ -348,7 +348,7 @@ impl InternalMethods for BuiltinFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         arguments_list: ArgumentsList,
         new_target: Function,
@@ -376,7 +376,7 @@ impl InternalMethods for BuiltinFunction {
 /// completion containing an ECMAScript language value or a throw completion.
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
+    gc: Gc<'_>,
     scope: Scope<'_>,
     f: BuiltinFunction,
     this_argument: Option<Value>,
@@ -553,33 +553,6 @@ pub fn create_builtin_function(
         realm,
         object_index,
     })
-}
-
-pub fn define_builtin_function(
-    agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    _object: Object,
-    name: &'static str,
-    behaviour: RegularFn,
-    length: u32,
-    realm: RealmIdentifier,
-) -> JsResult<()> {
-    let _function = create_builtin_function(
-        agent,
-        Behaviour::Regular(behaviour),
-        BuiltinFunctionArgs::new(length, name, realm),
-    );
-
-    Ok(())
-}
-
-pub fn define_builtin_property(
-    _object: Object,
-    _name: &'static str,
-    _descriptor: PropertyDescriptor,
-) -> JsResult<()> {
-    Ok(())
 }
 
 impl CreateHeapData<BuiltinFunctionHeapData, BuiltinFunction> for Heap {

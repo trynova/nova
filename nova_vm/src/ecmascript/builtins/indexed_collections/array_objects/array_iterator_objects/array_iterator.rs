@@ -4,7 +4,6 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -34,8 +33,6 @@ impl ArrayIterator {
 
     pub(crate) fn from_object(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
         array: Object,
         kind: CollectionIteratorKind,
     ) -> Self {

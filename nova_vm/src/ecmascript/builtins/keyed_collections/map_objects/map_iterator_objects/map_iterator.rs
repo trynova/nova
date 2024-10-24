@@ -4,7 +4,6 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builtins::{
@@ -36,13 +35,7 @@ impl MapIterator {
         self.0.into_index()
     }
 
-    pub(crate) fn from_map(
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-        map: Map,
-        kind: CollectionIteratorKind,
-    ) -> Self {
+    pub(crate) fn from_map(agent: &mut Agent, map: Map, kind: CollectionIteratorKind) -> Self {
         agent.heap.create(MapIteratorHeapData {
             object_index: None,
             map: Some(map),

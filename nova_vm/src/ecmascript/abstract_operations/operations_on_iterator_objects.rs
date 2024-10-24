@@ -8,12 +8,13 @@ use super::{
     operations_on_objects::{call, get},
     type_conversion::{to_boolean, to_object},
 };
-use crate::engine::context::{Gc, Scope};
+use crate::{
+    ecmascript::types::PropertyDescriptor,
+    engine::context::{Gc, Scope},
+};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{
-            call_function, create_data_property_or_throw, get_method,
-        },
+        abstract_operations::operations_on_objects::{call_function, get_method},
         builtins::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList},
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
@@ -422,7 +423,7 @@ pub(crate) fn iterator_close<T>(
 #[inline(always)]
 pub(crate) fn if_abrupt_close_iterator<T>(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
+    gc: Gc<'_>,
     scope: Scope<'_>,
     value: JsResult<T>,
     iterator_record: &IteratorRecord,
@@ -430,13 +431,7 @@ pub(crate) fn if_abrupt_close_iterator<T>(
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
     if value.is_err() {
-        iterator_close(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            iterator_record,
-            value,
-        )
+        iterator_close(agent, gc, scope, iterator_record, value)
     } else {
         // 3. Else, set value to value.[[Value]].
         value
@@ -478,35 +473,21 @@ pub(crate) fn async_iterator_close(
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
 /// conforms to the IteratorResult interface. It creates an object that
 /// conforms to the IteratorResult interface.
-pub(crate) fn create_iter_result_object(
-    agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    value: Value,
-    done: bool,
-) -> Object {
+pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: bool) -> Object {
     // 1. Let obj be OrdinaryObjectCreate(%Object.prototype%).
     let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
     // 2. Perform ! CreateDataPropertyOrThrow(obj, "value", value).
-    create_data_property_or_throw(
+    obj.property_storage().set(
         agent,
-        gc.reborrow(),
-        scope.reborrow(),
-        obj,
         BUILTIN_STRING_MEMORY.value.to_property_key(),
-        value,
-    )
-    .unwrap();
+        PropertyDescriptor::new_data_descriptor(value),
+    );
     // 3. Perform ! CreateDataPropertyOrThrow(obj, "done", done).
-    create_data_property_or_throw(
+    obj.property_storage().set(
         agent,
-        gc.reborrow(),
-        scope.reborrow(),
-        obj,
         BUILTIN_STRING_MEMORY.done.to_property_key(),
-        done.into(),
-    )
-    .unwrap();
+        PropertyDescriptor::new_data_descriptor(done.into()),
+    );
     // 4. Return obj.
     obj
 }

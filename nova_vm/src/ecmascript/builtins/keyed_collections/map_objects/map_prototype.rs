@@ -103,8 +103,8 @@ impl MapPrototype {
     /// > iterating over that List.
     fn clear(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -127,8 +127,8 @@ impl MapPrototype {
     /// > such as physically removing the entry from internal data structures.
     fn delete(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -183,8 +183,8 @@ impl MapPrototype {
 
     fn entries(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -260,6 +260,8 @@ impl MapPrototype {
                 // i. Perform ? Call(callbackfn, thisArg, « e.[[Value]], e.[[Key]], M »).
                 call_function(
                     agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[v, k, m.into_value()])),
@@ -276,8 +278,8 @@ impl MapPrototype {
     /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
     fn get(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -327,8 +329,8 @@ impl MapPrototype {
     /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
     fn has(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -370,8 +372,8 @@ impl MapPrototype {
 
     fn keys(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -387,8 +389,8 @@ impl MapPrototype {
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
     fn set(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -456,8 +458,8 @@ impl MapPrototype {
 
     fn get_size(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -468,8 +470,8 @@ impl MapPrototype {
 
     fn values(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -482,10 +484,7 @@ impl MapPrototype {
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
@@ -527,12 +526,7 @@ impl MapPrototype {
 }
 
 #[inline(always)]
-fn require_map_data_internal_slot(
-    agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    value: Value,
-) -> JsResult<Map> {
+fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
     match value {
         Value::Map(map) => Ok(map),
         _ => Err(agent

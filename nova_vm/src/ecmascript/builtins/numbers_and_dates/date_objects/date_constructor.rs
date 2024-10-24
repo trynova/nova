@@ -23,6 +23,8 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::Gc;
+use crate::engine::context::Scope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
@@ -114,6 +116,8 @@ impl DateConstructor {
         // 6. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Date.prototype%", « [[DateValue]] »).
         let o = ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Date,
         )?;
@@ -126,8 +130,8 @@ impl DateConstructor {
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn now(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -146,8 +150,8 @@ impl DateConstructor {
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn parse(
         _agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

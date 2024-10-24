@@ -64,8 +64,8 @@ impl BigIntPrototype {
 
     fn to_string(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -81,8 +81,8 @@ impl BigIntPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -119,12 +119,7 @@ impl BigIntPrototype {
 /// The abstract operation ThisBigIntValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion.
-fn this_big_int_value(
-    agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    value: Value,
-) -> JsResult<BigInt> {
+fn this_big_int_value(agent: &mut Agent, value: Value) -> JsResult<BigInt> {
     match value {
         // 1. If value is a BigInt, return value.
         Value::BigInt(value) => Ok(value.into()),

@@ -166,7 +166,7 @@ impl InternalMethods for Error {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
@@ -198,7 +198,7 @@ impl InternalMethods for Error {
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
@@ -241,7 +241,9 @@ impl InternalMethods for Error {
                     };
                 if let Some(property_value) = property_value {
                     Ok(property_value)
-                } else if let Some(parent) = self.internal_get_prototype_of(agent, gc, scope)? {
+                } else if let Some(parent) =
+                    self.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?
+                {
                     // c. Return ? parent.[[Get]](P, Receiver).
                     parent.internal_get(agent, gc, scope, property_key, receiver)
                 } else {
@@ -254,7 +256,7 @@ impl InternalMethods for Error {
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
     ) -> JsResult<Vec<PropertyKey>> {
         match self.get_backing_object(agent) {

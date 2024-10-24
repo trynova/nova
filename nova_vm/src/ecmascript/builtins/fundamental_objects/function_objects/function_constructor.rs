@@ -39,7 +39,7 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 impl FunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
-        gc: Gc<'_>,
+        mut gc: Gc<'_>,
         scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -61,8 +61,8 @@ impl FunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, normal, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
-            gc,
-            scope,
+            gc.reborrow(),
+            scope.reborrow(),
             constructor,
             DynamicFunctionKind::Normal,
             parameter_args,

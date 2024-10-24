@@ -23,7 +23,7 @@ use oxc_ast::ast;
 /// null) and returns an ECMAScript function object.
 pub(crate) fn instantiate_function_object(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
+    gc: Gc<'_>,
     scope: Scope<'_>,
     function: &ast::Function<'_>,
     env: EnvironmentIndex,

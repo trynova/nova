@@ -193,7 +193,14 @@ impl InternalMethods for BoundFunction {
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc.reborrow(), scope.reborrow(), property_key, receiver)
+        function_internal_get(
+            self,
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            property_key,
+            receiver,
+        )
     }
 
     fn internal_set(
@@ -205,7 +212,15 @@ impl InternalMethods for BoundFunction {
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc.reborrow(), scope.reborrow(), property_key, value, receiver)
+        function_internal_set(
+            self,
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            property_key,
+            value,
+            receiver,
+        )
     }
 
     fn internal_delete(
@@ -237,7 +252,7 @@ impl InternalMethods for BoundFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
+        gc: Gc<'_>,
         scope: Scope<'_>,
         _: Value,
         arguments_list: ArgumentsList,
@@ -312,7 +327,14 @@ impl InternalMethods for BoundFunction {
             .for_each(|item| args.push(item.unwrap()));
         args.extend_from_slice(&arguments_list);
         // 6. Return ? Construct(target, args, newTarget).
-        construct(agent, target, Some(ArgumentsList(&args)), Some(new_target))
+        construct(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            target,
+            Some(ArgumentsList(&args)),
+            Some(new_target),
+        )
     }
 }
 

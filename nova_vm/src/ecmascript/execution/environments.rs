@@ -419,12 +419,7 @@ impl EnvironmentIndex {
     ///
     /// Determine if an Environment Record establishes a super method binding.
     /// Return true if it does and false if it does not.
-    pub(crate) fn has_super_binding(
-        self,
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> bool {
+    pub(crate) fn has_super_binding(self, agent: &mut Agent) -> bool {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.has_super_binding(),
             EnvironmentIndex::Function(idx) => idx.has_super_binding(agent),
@@ -437,12 +432,7 @@ impl EnvironmentIndex {
     ///
     /// If this Environment Record is associated with a with statement, return
     /// the with object. Otherwise, return undefined.
-    pub(crate) fn with_base_object(
-        self,
-        agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> Option<Object> {
+    pub(crate) fn with_base_object(self, agent: &mut Agent) -> Option<Object> {
         match self {
             EnvironmentIndex::Declarative(idx) => idx.with_base_object(),
             EnvironmentIndex::Function(idx) => idx.with_base_object(),
