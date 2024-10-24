@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -160,12 +161,20 @@ impl Builtin for DataViewPrototypeSetUint32 {
 }
 
 impl DataViewPrototype {
-    fn get_buffer(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_buffer(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
     fn get_byte_length(
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -174,89 +183,211 @@ impl DataViewPrototype {
 
     fn get_byte_offset(
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_big_int64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_big_int64(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_big_uint64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_big_uint64(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_float32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_float32(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_float64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_float64(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_int8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_int8(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_int16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_int16(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_int32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_int32(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_uint8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_uint8(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_uint16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_uint16(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_uint32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_uint32(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_big_int64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_big_int64(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_big_uint64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_big_uint64(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_float32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_float32(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_float64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_float64(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_int8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_int8(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_int16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_int16(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_int32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_int32(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_uint8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_uint8(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_uint16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_uint16(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn set_uint32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn set_uint32(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 

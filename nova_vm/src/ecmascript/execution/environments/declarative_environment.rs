@@ -5,6 +5,7 @@
 use ahash::AHashMap;
 
 use super::{DeclarativeEnvironmentIndex, OuterEnv};
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult},
@@ -404,6 +405,8 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
 /// Record.
 pub(crate) fn new_declarative_environment(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     outer_env: OuterEnv,
 ) -> DeclarativeEnvironmentIndex {
     // 1. Let env be a new Declarative Environment Record containing no bindings.

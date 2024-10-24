@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -23,7 +24,13 @@ impl Builtin for IteratorPrototypeIterator {
 }
 
 impl IteratorPrototype {
-    fn iterator(_agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn iterator(
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 

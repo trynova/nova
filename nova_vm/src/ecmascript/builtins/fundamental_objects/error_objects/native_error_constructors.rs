@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
@@ -91,6 +92,8 @@ impl NativeErrorConstructors {
     #[inline(always)]
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         error_kind: ExceptionType,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -118,15 +121,17 @@ impl NativeErrorConstructors {
         });
         let o = ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             Function::try_from(new_target).unwrap(),
             intrinsic,
         )?;
         let msg = if !message.is_undefined() {
-            Some(to_string(agent, message)?)
+            Some(to_string(agent, gc.reborrow(), scope.reborrow(), message)?)
         } else {
             None
         };
-        let cause = get_error_cause(agent, options)?;
+        let cause = get_error_cause(agent, gc.reborrow(), scope.reborrow(), options)?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let heap_data = &mut agent[o];
@@ -138,56 +143,110 @@ impl NativeErrorConstructors {
 
     fn eval_behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::EvalError, arguments, new_target)
+        Self::behaviour(
+            agent,
+            gc,
+            scope,
+            ExceptionType::EvalError,
+            arguments,
+            new_target,
+        )
     }
 
     fn range_behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::RangeError, arguments, new_target)
+        Self::behaviour(
+            agent,
+            gc,
+            scope,
+            ExceptionType::RangeError,
+            arguments,
+            new_target,
+        )
     }
 
     fn reference_behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::ReferenceError, arguments, new_target)
+        Self::behaviour(
+            agent,
+            gc,
+            scope,
+            ExceptionType::ReferenceError,
+            arguments,
+            new_target,
+        )
     }
 
     fn syntax_behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::SyntaxError, arguments, new_target)
+        Self::behaviour(
+            agent,
+            gc,
+            scope,
+            ExceptionType::SyntaxError,
+            arguments,
+            new_target,
+        )
     }
 
     fn type_behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::TypeError, arguments, new_target)
+        Self::behaviour(
+            agent,
+            gc,
+            scope,
+            ExceptionType::TypeError,
+            arguments,
+            new_target,
+        )
     }
 
     fn uri_behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::UriError, arguments, new_target)
+        Self::behaviour(
+            agent,
+            gc,
+            scope,
+            ExceptionType::UriError,
+            arguments,
+            new_target,
+        )
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

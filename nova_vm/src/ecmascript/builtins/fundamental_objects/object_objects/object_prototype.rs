@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -82,6 +83,8 @@ impl Builtin for ObjectPrototypeValueOf {
 impl ObjectPrototype {
     fn has_own_property(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -92,6 +95,8 @@ impl ObjectPrototype {
 
     fn is_prototype_of(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -101,7 +106,7 @@ impl ObjectPrototype {
         };
         let o = to_object(agent, this_value)?;
         loop {
-            let proto = v.internal_get_prototype_of(agent)?;
+            let proto = v.internal_get_prototype_of(agent, gc, scope)?;
             if let Some(proto) = proto {
                 v = proto;
                 if same_value(agent, o, v) {
@@ -115,12 +120,14 @@ impl ObjectPrototype {
 
     fn property_is_enumerable(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let p = to_property_key(agent, arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        let desc = o.internal_get_own_property(agent, p)?;
+        let desc = o.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), p)?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -130,6 +137,8 @@ impl ObjectPrototype {
 
     fn to_locale_string(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -140,6 +149,8 @@ impl ObjectPrototype {
 
     fn to_string(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -229,6 +240,8 @@ impl ObjectPrototype {
 
     fn value_of(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

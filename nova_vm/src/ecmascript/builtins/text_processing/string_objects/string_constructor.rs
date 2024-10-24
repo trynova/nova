@@ -58,6 +58,8 @@ impl Builtin for StringRaw {
 impl StringConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -76,7 +78,7 @@ impl StringConstructor {
                 }
             }
             // b. Let s be ? ToString(value).
-            to_string(agent, value)?
+            to_string(agent, gc.reborrow(), scope.reborrow(), value)?
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
@@ -119,6 +121,8 @@ impl StringConstructor {
     /// the rest parameter `codeUnits`.
     fn from_char_code(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         code_units: ArgumentsList,
     ) -> JsResult<Value> {
@@ -157,6 +161,8 @@ impl StringConstructor {
     /// the rest parameter `codePoints`.
     fn from_code_point(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -172,7 +178,13 @@ impl StringConstructor {
         todo!()
     }
 
-    fn raw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn raw(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!();
     }
 

@@ -5,6 +5,7 @@
 use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -151,6 +152,8 @@ pub(crate) fn new_function_environment(
 /// new function environment.
 pub(crate) fn new_class_static_element_environment(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     class_constructor: Function,
 ) -> FunctionEnvironmentIndex {
     // 1. Let env be a new Function Environment Record containing no bindings.
@@ -429,7 +432,12 @@ impl FunctionEnvironmentIndex {
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined, or a throw completion.
-    pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
+    pub(crate) fn get_super_base(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Value> {
         let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
@@ -450,7 +458,7 @@ impl FunctionEnvironmentIndex {
         // 3. Assert: home is an Object.
         // Type guarantees Objectness.
         // 4. Return ? home.[[GetPrototypeOf]]().
-        home.internal_get_prototype_of(agent)
+        home.internal_get_prototype_of(agent, gc, scope)
             .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
     }
 }

@@ -6,6 +6,7 @@ use std::{hash::Hasher, ops::Index};
 
 use ahash::AHasher;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -100,7 +101,13 @@ impl MapPrototype {
     /// > The existing \[\[MapData]] List is preserved because there may be
     /// > existing Map Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn clear(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
@@ -118,7 +125,13 @@ impl MapPrototype {
     /// > The value EMPTY is used as a specification device to indicate that an
     /// > entry has been deleted. Actual implementations may take other actions
     /// > such as physically removing the entry from internal data structures.
-    fn delete(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn delete(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
@@ -168,7 +181,13 @@ impl MapPrototype {
         }
     }
 
-    fn entries(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn entries(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY+VALUE).
 
@@ -203,7 +222,13 @@ impl MapPrototype {
     /// > after the call to `forEach` begins and before being visited are not
     /// > visited unless the key is added again before the `forEach` call
     /// > completes.
-    fn for_each(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn for_each(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
@@ -249,7 +274,13 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
-    fn get(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn get(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
@@ -294,7 +325,13 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
-    fn has(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn has(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let m = require_map_data_internal_slot(agent, this_value)?;
@@ -331,7 +368,13 @@ impl MapPrototype {
         Ok(found.into())
     }
 
-    fn keys(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn keys(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY).
 
@@ -342,7 +385,13 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
-    fn set(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn set(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let value = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -405,13 +454,25 @@ impl MapPrototype {
         Ok(m.into_value())
     }
 
-    fn get_size(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_size(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         let m = require_map_data_internal_slot(agent, this_value)?;
         let count = agent[m].size();
         Ok(count.into())
     }
 
-    fn values(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn values(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, VALUE).
 
@@ -421,7 +482,10 @@ impl MapPrototype {
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier,
+    ) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.map_prototype();
@@ -463,7 +527,12 @@ impl MapPrototype {
 }
 
 #[inline(always)]
-fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
+fn require_map_data_internal_slot(
+    agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
+    value: Value,
+) -> JsResult<Map> {
     match value {
         Value::Map(map) => Ok(map),
         _ => Err(agent

@@ -9,6 +9,7 @@ use oxc_ast::{
 };
 use oxc_span::SourceType;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,
@@ -144,6 +145,8 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// or a throw completion.
 pub fn perform_eval(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     x: Value,
     direct: bool,
     strict_caller: bool,
@@ -362,6 +365,8 @@ pub fn perform_eval(
 /// containing UNUSED or a throw completion.
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     script: &Program,
     var_env: EnvironmentIndex,
     lex_env: EnvironmentIndex,
@@ -647,7 +652,13 @@ impl GlobalObject {
     /// ### [19.2.1 eval ( x )](https://tc39.es/ecma262/#sec-eval-x)
     ///
     /// This function is the %eval% intrinsic object.
-    fn eval(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn eval(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let x = arguments.get(0);
 
         // 1. Return ? PerformEval(x, false, false).
@@ -657,7 +668,13 @@ impl GlobalObject {
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
     ///
     /// This function is the %isFinite% intrinsic object.
-    fn is_finite(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_finite(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number)?;
@@ -673,7 +690,13 @@ impl GlobalObject {
     /// > NOTE: A reliable way for ECMAScript code to test if a value X is NaN
     /// > is an expression of the form X !== X. The result will be true if and
     /// > only if X is NaN.
-    fn is_nan(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_nan(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number)?;
@@ -681,36 +704,76 @@ impl GlobalObject {
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())
     }
-    fn parse_float(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn parse_float(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
-    fn parse_int(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn parse_int(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
-    fn decode_uri(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn decode_uri(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
     fn decode_uri_component(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
-    fn encode_uri(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn encode_uri(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
     fn encode_uri_component(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
-    fn escape(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn escape(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
-    fn unescape(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn unescape(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 

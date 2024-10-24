@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -40,23 +41,40 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 }
 
 impl AsyncGeneratorPrototype {
-    fn next(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn r#return(
+    fn next(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
 
-    fn throw(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#return(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    fn throw(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        todo!()
+    }
+
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier,
+    ) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let async_iterator_prototype = intrinsics.async_iterator_prototype();
         let async_generator_function_prototype = intrinsics.async_generator_function_prototype();

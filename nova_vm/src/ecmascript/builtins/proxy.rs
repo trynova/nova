@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -104,23 +105,40 @@ impl InternalSlots for Proxy {
 }
 
 impl InternalMethods for Proxy {
-    fn internal_get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(
+        self,
+        agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+    ) -> JsResult<Option<Object>> {
         Ok(self.internal_prototype(agent))
     }
 
     fn internal_set_prototype_of(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _prototype: Option<Object>,
     ) -> JsResult<bool> {
         todo!();
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(
+        self,
+        agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+    ) -> JsResult<bool> {
         Ok(self.internal_extensible(agent))
     }
 
-    fn internal_prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(
+        self,
+        agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+    ) -> JsResult<bool> {
         self.internal_set_extensible(agent, false);
         Ok(true)
     }
@@ -128,6 +146,8 @@ impl InternalMethods for Proxy {
     fn internal_get_own_property(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
@@ -136,6 +156,8 @@ impl InternalMethods for Proxy {
     fn internal_define_own_property(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _property_key: PropertyKey,
         _property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -145,6 +167,8 @@ impl InternalMethods for Proxy {
     fn internal_has_property(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();
@@ -153,6 +177,8 @@ impl InternalMethods for Proxy {
     fn internal_get(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _property_key: PropertyKey,
         _receiver: Value,
     ) -> JsResult<Value> {
@@ -162,6 +188,8 @@ impl InternalMethods for Proxy {
     fn internal_set(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -169,17 +197,30 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn internal_delete(self, _agent: &mut Agent, _property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(
+        self,
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+        _property_key: PropertyKey,
+    ) -> JsResult<bool> {
         todo!();
     }
 
-    fn internal_own_property_keys(self, _agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(
+        self,
+        _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+    ) -> JsResult<Vec<PropertyKey>> {
         todo!();
     }
 
     fn internal_call(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments_list: super::ArgumentsList,
     ) -> JsResult<Value> {
@@ -189,6 +230,8 @@ impl InternalMethods for Proxy {
     fn internal_construct(
         self,
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _arguments_list: super::ArgumentsList,
         _new_target: crate::ecmascript::types::Function,
     ) -> JsResult<Object> {

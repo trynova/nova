@@ -6,6 +6,7 @@ use std::ops::{Index, IndexMut};
 
 use oxc_span::Span;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         execution::{
@@ -192,6 +193,8 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -200,41 +203,86 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        function_internal_define_own_property(self, agent, property_key, property_descriptor)
+        function_internal_define_own_property(
+            self,
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            property_key,
+            property_descriptor,
+        )
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        function_internal_has_property(self, agent, property_key)
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
+        function_internal_has_property(self, agent, gc.reborrow(), scope.reborrow(), property_key)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, property_key, receiver)
+        function_internal_get(
+            self,
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            property_key,
+            receiver,
+        )
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, property_key, value, receiver)
+        function_internal_set(
+            self,
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            property_key,
+            value,
+            receiver,
+        )
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        function_internal_delete(self, agent, property_key)
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
+        function_internal_delete(self, agent, gc.reborrow(), scope.reborrow(), property_key)
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent)
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Vec<PropertyKey>> {
+        function_internal_own_property_keys(self, agent, gc.reborrow(), scope.reborrow())
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
@@ -244,7 +292,14 @@ impl InternalMethods for BuiltinConstructorFunction {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(self, agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn internal_call(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -262,11 +317,20 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, self, arguments_list, new_target)
+        builtin_call_or_construct(
+            agent,
+            self,
+            gc.reborrow(),
+            scope.reborrow(),
+            arguments_list,
+            new_target,
+        )
     }
 }
 
@@ -279,6 +343,8 @@ impl InternalMethods for BuiltinConstructorFunction {
 /// completion containing an ECMAScript language value or a throw completion.
 fn builtin_call_or_construct(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     f: BuiltinConstructorFunction,
     arguments_list: ArgumentsList,
     new_target: Function,
@@ -315,9 +381,20 @@ fn builtin_call_or_construct(
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
     let result = if heap_data.is_derived {
-        derived_class_default_constructor(agent, arguments_list, new_target.into_object())
+        derived_class_default_constructor(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            arguments_list,
+            new_target.into_object(),
+        )
     } else {
-        base_class_default_constructor(agent, new_target.into_object())
+        base_class_default_constructor(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            new_target.into_object(),
+        )
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.
@@ -357,6 +434,8 @@ pub(crate) struct BuiltinConstructorArgs {
 /// built-in function object.
 pub(crate) fn create_builtin_constructor(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     args: BuiltinConstructorArgs,
 ) -> BuiltinConstructorFunction {
     // 1. If realm is not present, set realm to the current Realm Record.

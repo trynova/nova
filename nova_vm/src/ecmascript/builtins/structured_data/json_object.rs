@@ -4,6 +4,7 @@
 
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -82,12 +83,18 @@ impl JSONObject {
     /// > likewise does not apply during JSON.parse, means that not all texts
     /// > accepted by JSON.parse are valid as a PrimaryExpression, despite
     /// > matching the grammar.
-    fn parse(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn parse(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let text = arguments.get(0);
         let reviver = arguments.get(1);
 
         // 1. Let jsonString be ? ToString(text).
-        let json_string = to_string(agent, text)?;
+        let json_string = to_string(agent, gc.reborrow(), scope.reborrow(), text)?;
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
         let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
@@ -102,7 +109,7 @@ impl JSONObject {
         // 5. NOTE: The early error rules defined in 13.2.5.1 have special handling for the above invocation of ParseText.
         // 6. Assert: script is a Parse Node.
         // 7. Let completion be Completion(Evaluation of script).
-        let completion = value_from_json(agent, &json_value);
+        let completion = value_from_json(agent, gc.reborrow(), scope.reborrow(), &json_value);
 
         // 8. NOTE: The PropertyDefinitionEvaluation semantics defined in 13.2.5.5 have special handling for the above evaluation.
         // 9. Let unfiltered be completion.[[Value]].
@@ -127,10 +134,25 @@ impl JSONObject {
             let root_name = String::EMPTY_STRING.to_property_key();
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
-            create_data_property_or_throw(agent, root, root_name, unfiltered).unwrap();
+            create_data_property_or_throw(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                root,
+                root_name,
+                unfiltered,
+            )
+            .unwrap();
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
-            return internalize_json_property(agent, root, root_name, reviver);
+            return internalize_json_property(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                root,
+                root_name,
+                reviver,
+            );
         }
 
         // 12. Else,
@@ -140,6 +162,8 @@ impl JSONObject {
 
     fn stringify(
         _agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -184,6 +208,8 @@ impl JSONObject {
 /// > lexically preceding values for the same key shall be overwritten.
 pub(crate) fn internalize_json_property(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     holder: Object,
     name: PropertyKey,
     reviver: Function,
@@ -196,7 +222,7 @@ pub(crate) fn internalize_json_property(
         // b. If isArray is true, then
         if is_array(agent, val.into_value())? {
             // i. Let len be ? LengthOfArrayLike(val).
-            let len = length_of_array_like(agent, val)?;
+            let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), val)?;
             // ii. Let I be 0.
             let mut i = 0;
             // iii. Repeat, while I < len,
@@ -205,16 +231,30 @@ pub(crate) fn internalize_json_property(
                 let prop = PropertyKey::from(SmallInteger::try_from(i).unwrap());
 
                 // 2. Let newElement be ? InternalizeJSONProperty(val, prop, reviver).
-                let new_element = internalize_json_property(agent, val, prop, reviver)?;
+                let new_element = internalize_json_property(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    val,
+                    prop,
+                    reviver,
+                )?;
 
                 // 3. If newElement is undefined, then
                 if new_element.is_undefined() {
                     // a. Perform ? val.[[Delete]](prop).
-                    val.internal_delete(agent, prop)?;
+                    val.internal_delete(agent, gc.reborrow(), scope.reborrow(), prop)?;
                 } else {
                     // 4. Else,
                     // a. Perform ? CreateDataProperty(val, prop, newElement).
-                    create_data_property(agent, val, prop, new_element)?;
+                    create_data_property(
+                        agent,
+                        gc.reborrow(),
+                        scope.reborrow(),
+                        val,
+                        prop,
+                        new_element,
+                    )?;
                 }
 
                 // 5. Set I to I + 1.
@@ -235,11 +275,11 @@ pub(crate) fn internalize_json_property(
                 // 2. If newElement is undefined, then
                 if new_element.is_undefined() {
                     // a. Perform ? val.[[Delete]](P).
-                    val.internal_delete(agent, p)?;
+                    val.internal_delete(agent, gc.reborrow(), scope.reborrow(), p)?;
                 } else {
                     // 3. Else,
                     // a. Perform ? CreateDataProperty(val, P, newElement).
-                    create_data_property(agent, val, p, new_element)?;
+                    create_data_property(agent, gc, scope, val, p, new_element)?;
                 }
             }
         }
@@ -254,7 +294,12 @@ pub(crate) fn internalize_json_property(
     )
 }
 
-pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value) -> JsResult<Value> {
+pub(crate) fn value_from_json(
+    agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
+    json: &sonic_rs::Value,
+) -> JsResult<Value> {
     match json.get_type() {
         sonic_rs::JsonType::Null => Ok(Value::Null),
         sonic_rs::JsonType::Boolean => Ok(Value::Boolean(json.is_true())),
@@ -267,7 +312,7 @@ pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value) -> JsRe
             for (i, value) in json_array.iter().enumerate() {
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
                 let js_value = value_from_json(agent, value)?;
-                create_data_property(agent, array_obj, prop, js_value)?;
+                create_data_property(agent, gc, scope, array_obj, prop, js_value)?;
             }
             Ok(array_obj.into())
         }
@@ -278,7 +323,7 @@ pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value) -> JsRe
             for (key, value) in json_object.iter() {
                 let prop = PropertyKey::from_str(agent, key);
                 let js_value = value_from_json(agent, value)?;
-                create_data_property(agent, object, prop, js_value)?;
+                create_data_property(agent, gc, scope, object, prop, js_value)?;
             }
             Ok(object.into())
         }

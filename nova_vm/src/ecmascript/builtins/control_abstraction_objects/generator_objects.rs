@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -38,7 +39,13 @@ impl Generator {
     }
 
     /// [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
-    pub(crate) fn resume(mut self, agent: &mut Agent, value: Value) -> JsResult<Object> {
+    pub(crate) fn resume(
+        mut self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        value: Value,
+    ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended { .. } => {
@@ -52,7 +59,13 @@ impl Generator {
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
-                return Ok(create_iter_result_object(agent, Value::Undefined, true));
+                return Ok(create_iter_result_object(
+                    agent,
+                    gc,
+                    scope,
+                    Value::Undefined,
+                    true,
+                ));
             }
         };
 
@@ -81,8 +94,16 @@ impl Generator {
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
-            VmOrArguments::Arguments(args) => Vm::execute(agent, executable, Some(&args)),
-            VmOrArguments::Vm(vm) => vm.resume(agent, executable, value),
+            VmOrArguments::Arguments(args) => Vm::execute(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                executable,
+                Some(&args),
+            ),
+            VmOrArguments::Vm(vm) => {
+                vm.resume(agent, gc.reborrow(), scope.reborrow(), executable, value)
+            }
         };
 
         self = saved.get(agent);
@@ -110,7 +131,13 @@ impl Generator {
                 // j. Else if result is a return completion, then
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
-                Ok(create_iter_result_object(agent, result_value, true))
+                Ok(create_iter_result_object(
+                    agent,
+                    gc,
+                    scope,
+                    result_value,
+                    true,
+                ))
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -136,7 +163,13 @@ impl Generator {
                 });
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
                 // NOTE: `callerContext` here is the `GeneratorResume` execution context.
-                Ok(create_iter_result_object(agent, yielded_value, false))
+                Ok(create_iter_result_object(
+                    agent,
+                    gc,
+                    scope,
+                    yielded_value,
+                    false,
+                ))
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -144,7 +177,13 @@ impl Generator {
 
     /// [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts throw completions.
-    pub(crate) fn resume_throw(self, agent: &mut Agent, value: Value) -> JsResult<Object> {
+    pub(crate) fn resume_throw(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        value: Value,
+    ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended {
@@ -201,7 +240,8 @@ impl Generator {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume_throw(agent, executable, value);
+        let execution_result =
+            vm.resume_throw(agent, gc.reborrow(), scope.reborrow(), executable, value);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -216,7 +256,7 @@ impl Generator {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(agent, result, true))
+                Ok(create_iter_result_object(agent, gc, scope, result, true))
             }
             ExecutionResult::Throw(err) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
@@ -228,7 +268,13 @@ impl Generator {
                     executable,
                     execution_context,
                 });
-                Ok(create_iter_result_object(agent, yielded_value, false))
+                Ok(create_iter_result_object(
+                    agent,
+                    gc,
+                    scope,
+                    yielded_value,
+                    false,
+                ))
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }

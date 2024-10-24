@@ -4,6 +4,7 @@
 
 use std::collections::VecDeque;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -35,7 +36,12 @@ impl VmIterator {
     /// function implements much the same intent. It does the IteratorNext
     /// step, followed by a completion check, and finally extracts the value
     /// if the iterator did not complete yet.
-    pub(super) fn step_value(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
+    pub(super) fn step_value(
+        &mut self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Option<Value>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
                 let result = iter.next(agent)?;
@@ -54,7 +60,14 @@ impl VmIterator {
             }
             VmIterator::ArrayValues(iter) => iter.next(agent),
             VmIterator::GenericIterator(iter) => {
-                let result = call(agent, iter.next_method, iter.iterator.into_value(), None)?;
+                let result = call(
+                    agent,
+                    gc,
+                    scope,
+                    iter.next_method,
+                    iter.iterator.into_value(),
+                    None,
+                )?;
                 let Ok(result) = Object::try_from(result) else {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
@@ -85,7 +98,12 @@ impl VmIterator {
         }
     }
 
-    pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
+    pub(super) fn remaining_length_estimate(
+        &self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> Option<usize> {
         match self {
             VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
             VmIterator::ArrayValues(iter) => {
@@ -96,7 +114,12 @@ impl VmIterator {
         }
     }
 
-    pub(super) fn from_value(agent: &mut Agent, value: Value) -> JsResult<Self> {
+    pub(super) fn from_value(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        value: Value,
+    ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
@@ -154,7 +177,12 @@ impl ObjectPropertiesIterator {
         }
     }
 
-    pub(super) fn next(&mut self, agent: &mut Agent) -> JsResult<Option<PropertyKey>> {
+    pub(super) fn next(
+        &mut self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Option<PropertyKey>> {
         loop {
             let object = self.object;
             if !self.object_was_visited {
@@ -172,7 +200,8 @@ impl ObjectPropertiesIterator {
                 if self.visited_keys.contains(&r) {
                     continue;
                 }
-                let desc = object.internal_get_own_property(agent, r)?;
+                let desc =
+                    object.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), r)?;
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
                     if desc.enumerable == Some(true) {
@@ -180,7 +209,7 @@ impl ObjectPropertiesIterator {
                     }
                 }
             }
-            let prototype = object.internal_get_prototype_of(agent)?;
+            let prototype = object.internal_get_prototype_of(agent, gc, scope)?;
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype;
@@ -206,7 +235,12 @@ impl ArrayValuesIterator {
         }
     }
 
-    pub(super) fn next(&mut self, agent: &mut Agent) -> JsResult<Option<Value>> {
+    pub(super) fn next(
+        &mut self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Option<Value>> {
         // b. Repeat,
         let array = self.array;
         // iv. Let indexNumber be 𝔽(index).

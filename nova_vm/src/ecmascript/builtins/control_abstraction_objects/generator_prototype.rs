@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -47,7 +48,13 @@ impl Builtin for GeneratorPrototypeThrow {
 }
 
 impl GeneratorPrototype {
-    fn next(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn next(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
@@ -57,10 +64,18 @@ impl GeneratorPrototype {
         };
 
         // 1. Return ? GeneratorResume(this value, value, empty).
-        Ok(generator.resume(agent, arguments.get(0))?.into_value())
+        Ok(generator
+            .resume(agent, gc, scope, arguments.get(0))?
+            .into_value())
     }
 
-    fn r#return(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#return(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
@@ -105,10 +120,16 @@ impl GeneratorPrototype {
         // 3. If state is completed, then
         //    a. If abruptCompletion is a return completion, then
         //       i. Return CreateIterResultObject(abruptCompletion.[[Value]], true).
-        Ok(create_iter_result_object(agent, arguments.get(0), true).into_value())
+        Ok(create_iter_result_object(agent, gc, scope, arguments.get(0), true).into_value())
     }
 
-    fn throw(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn throw(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
@@ -121,7 +142,7 @@ impl GeneratorPrototype {
         // 2. Let C be ThrowCompletion(exception).
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
         Ok(generator
-            .resume_throw(agent, arguments.get(0))?
+            .resume_throw(agent, gc, scope, arguments.get(0))?
             .into_value())
     }
 

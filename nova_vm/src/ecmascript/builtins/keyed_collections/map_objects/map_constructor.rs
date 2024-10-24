@@ -6,6 +6,7 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -63,6 +64,8 @@ impl BuiltinGetter for MapGetSpecies {}
 impl MapConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -117,6 +120,8 @@ impl MapConstructor {
 
     fn group_by(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -127,7 +132,10 @@ impl MapConstructor {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier,
+    ) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let map_prototype = intrinsics.map_prototype();
 
@@ -147,6 +155,8 @@ impl MapConstructor {
 /// This is a specialization for the `new Map()` use case.
 pub fn add_entries_from_iterable_map_constructor(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     target: Map,
     iterable: Value,
     adder: Function,
@@ -271,6 +281,8 @@ pub fn add_entries_from_iterable_map_constructor(
 /// > key.
 pub(crate) fn add_entries_from_iterable(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     target: Object,
     iterable: Value,
     adder: Function,

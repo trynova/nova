@@ -21,6 +21,8 @@ use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::Gc;
+use crate::engine::context::Scope;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct BooleanConstructor;
@@ -39,6 +41,8 @@ impl BuiltinIntrinsicConstructor for BooleanConstructor {
 impl BooleanConstructor {
     fn behaviour(
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -51,6 +55,8 @@ impl BooleanConstructor {
         let new_target = Function::try_from(new_target).unwrap();
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
+            gc,
+            scope,
             new_target,
             ProtoIntrinsics::Boolean,
         )?)

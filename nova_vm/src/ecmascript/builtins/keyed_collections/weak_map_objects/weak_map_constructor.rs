@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -27,6 +28,8 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
 impl WeakMapConstructor {
     fn behaviour(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -34,7 +37,10 @@ impl WeakMapConstructor {
         todo!()
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier,
+    ) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let weak_map_prototype = intrinsics.weak_map_prototype();
 

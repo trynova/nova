@@ -60,6 +60,8 @@ impl Builtin for SymbolKeyFor {
 impl SymbolConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -74,7 +76,12 @@ impl SymbolConstructor {
         let desc_string = if description.is_undefined() {
             None
         } else {
-            Some(to_string(agent, description)?)
+            Some(to_string(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                description,
+            )?)
         };
 
         Ok(agent
@@ -85,12 +92,20 @@ impl SymbolConstructor {
             .into_value())
     }
 
-    fn r#for(_agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#for(
+        _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(arguments.get(0))
     }
 
     fn key_for(
         _agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

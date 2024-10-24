@@ -91,6 +91,8 @@ impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -177,7 +179,15 @@ impl ArrayConstructor {
             let item_k = arguments.get(k as usize);
 
             // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
-            create_data_property_or_throw(agent, array, pk, item_k).unwrap();
+            create_data_property_or_throw(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                array,
+                pk,
+                item_k,
+            )
+            .unwrap();
 
             // iv. Set k to k + 1.
             k += 1;
@@ -191,7 +201,13 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.1 Array.from ( items \[ , mapfn \[ , thisArg \] \] )](https://tc39.es/ecma262/#sec-array.from)
-    fn from(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn from(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let items = arguments.get(0);
         let mapfn = arguments.get(1);
         let this_arg = arguments.get(2);
@@ -276,8 +292,14 @@ impl ArrayConstructor {
                 // v. If mapping is true, then
                 let mapped_value = if let Some(mapping) = mapping {
                     // 1. Let mappedValue be Completion(Call(mapfn, thisArg, « next, 𝔽(k) »)).
-                    let mapped_value =
-                        call_function(agent, mapping, this_arg, Some(ArgumentsList(&[next, fk])));
+                    let mapped_value = call_function(
+                        agent,
+                        gc,
+                        scope,
+                        mapping,
+                        this_arg,
+                        Some(ArgumentsList(&[next, fk])),
+                    );
 
                     // 2. IfAbruptCloseIterator(mappedValue, iteratorRecord).
                     let _ = if_abrupt_close_iterator(agent, mapped_value, &iterator_record);
@@ -290,7 +312,14 @@ impl ArrayConstructor {
                 };
 
                 // vii. Let defineStatus be Completion(CreateDataPropertyOrThrow(A, Pk, mappedValue)).
-                let define_status = create_data_property_or_throw(agent, a, pk, mapped_value);
+                let define_status = create_data_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    a,
+                    pk,
+                    mapped_value,
+                );
 
                 // viii. IfAbruptCloseIterator(defineStatus, iteratorRecord).
                 let _ = if_abrupt_close_iterator(
@@ -353,7 +382,14 @@ impl ArrayConstructor {
             };
 
             // e. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
-            create_data_property_or_throw(agent, a, pk, mapped_value)?;
+            create_data_property_or_throw(
+                agent,
+                gc.reborrow(),
+                scope.reborrow(),
+                a,
+                pk,
+                mapped_value,
+            )?;
 
             // f. Set k to k + 1.
             k += 1;
@@ -375,6 +411,8 @@ impl ArrayConstructor {
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
     fn is_array(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -382,7 +420,13 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
-    fn of(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn of(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let len be the number of elements in items.
         let len = arguments.len();
 
@@ -413,7 +457,7 @@ impl ArrayConstructor {
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
 
             // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
-            create_data_property_or_throw(agent, a, pk, k_value)?;
+            create_data_property_or_throw(agent, gc.reborrow(), scope.reborrow(), a, pk, k_value)?;
 
             // d. Set k to k + 1.
             k += 1;

@@ -6,6 +6,7 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -55,6 +56,8 @@ impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -172,8 +175,14 @@ impl SetConstructor {
                 return Ok(set.into_value());
             };
             // c. Let status be Completion(Call(adder, set, « next »)).
-            let status =
-                call_function(agent, adder, set.into_value(), Some(ArgumentsList(&[next])));
+            let status = call_function(
+                agent,
+                gc,
+                scope,
+                adder,
+                set.into_value(),
+                Some(ArgumentsList(&[next])),
+            );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
             let _ = if_abrupt_close_iterator(agent, status, &iterator_record)?;
         }

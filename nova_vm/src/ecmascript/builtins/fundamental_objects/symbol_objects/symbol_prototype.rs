@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -68,7 +69,13 @@ impl SymbolPrototype {
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
-    fn get_description(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_description(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
         let sym = this_symbol_value(agent, this_value)?;
@@ -78,16 +85,31 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         let symb = this_symbol_value(agent, this_value)?;
         Ok(symbol_descriptive_string(agent, symb).into_value())
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier,
+    ) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.symbol_prototype();
@@ -158,7 +180,12 @@ impl SymbolPrototype {
 }
 
 #[inline(always)]
-fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
+fn this_symbol_value(
+    agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
+    value: Value,
+) -> JsResult<Symbol> {
     match value {
         Value::Symbol(symbol) => Ok(symbol),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
@@ -174,7 +201,12 @@ fn this_symbol_value(agent: &mut Agent, value: Value) -> JsResult<Symbol> {
 ///
 /// The abstract operation SymbolDescriptiveString takes argument sym (a Symbol)
 /// and returns a String.
-fn symbol_descriptive_string(agent: &mut Agent, sym: Symbol) -> String {
+fn symbol_descriptive_string(
+    agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
+    sym: Symbol,
+) -> String {
     // 1. Let desc be sym's [[Description]] value.
     let desc = agent[sym].descriptor;
     // 2. If desc is undefined, set desc to the empty String.

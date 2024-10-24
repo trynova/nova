@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -32,7 +33,13 @@ impl Builtin for MapIteratorPrototypeNext {
 }
 
 impl MapIteratorPrototype {
-    fn next(agent: &mut Agent, this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn next(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
@@ -100,7 +107,10 @@ impl MapIteratorPrototype {
         Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(
+        agent: &mut Agent,
+        realm: RealmIdentifier,
+    ) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let this = intrinsics.map_iterator_prototype();
         let iterator_prototype = intrinsics.iterator_prototype();

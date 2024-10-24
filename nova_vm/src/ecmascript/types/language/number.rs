@@ -11,10 +11,11 @@ use super::{
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
 };
 use crate::{
-    ecmascript::{
-        abstract_operations::type_conversion::{to_int32, to_uint32},
-        execution::{Agent, JsResult},
-    },
+    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
+    engine::context::{Gc, Scope},
+};
+use crate::{
+    ecmascript::execution::Agent,
     engine::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
@@ -550,12 +551,12 @@ impl Number {
     }
 
     /// ### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
-    pub fn bitwise_not(agent: &mut Agent, x: Self) -> JsResult<Self> {
+    pub fn bitwise_not(agent: &mut Agent, x: Self) -> Self {
         // 1. Let oldValue be ! ToInt32(x).
-        let old_value = to_int32(agent, x.into_value())?;
+        let old_value = to_int32_number(agent, x);
 
         // 2. Return the result of applying bitwise complement to oldValue. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
-        Ok(Number::from(!old_value))
+        Number::from(!old_value)
     }
 
     /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
@@ -785,7 +786,7 @@ impl Number {
     /// the rules of IEEE 754-2019 binary double-precision arithmetic,
     /// producing the quotient of x and y where x is the dividend and y is the
     /// divisor.
-    pub fn divide(agent: &mut Agent, x: Self, y: Self) -> Self {
+    pub fn divide(agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>, x: Self, y: Self) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
             return Number::nan();
@@ -971,7 +972,7 @@ impl Number {
     /// and y (a Number) and returns a Number. It performs subtraction,
     /// producing the difference of its operands; x is the minuend and y is the
     /// subtrahend.
-    pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
+    pub(crate) fn subtract(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Return Number::add(x, Number::unaryMinus(y)).
         let negated_y = Number::unary_minus(agent, y);
         Number::add(agent, x, negated_y)
@@ -983,9 +984,9 @@ impl Number {
     /// (a Number) and y (a Number) and returns an integral Number.
     pub fn left_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToInt32(x).
-        let lnum = to_int32(agent, x.into_value()).unwrap();
+        let lnum = to_int32_number(agent, x);
         // 2. Let rnum be ! ToUint32(y).
-        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        let rnum = to_uint32_number(agent, y);
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
         let shift_count = rnum % 32;
         // 4. Return the result of left shifting lnum by shiftCount bits. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
@@ -998,9 +999,9 @@ impl Number {
     /// (a Number) and y (a Number) and returns an integral Number.
     pub fn signed_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToInt32(x).
-        let lnum = to_int32(agent, x.into_value()).unwrap();
+        let lnum = to_int32_number(agent, x);
         // 2. Let rnum be ! ToUint32(y).
-        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        let rnum = to_uint32_number(agent, y);
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
         let shift_count = rnum % 32;
         // 4. Return the result of performing a sign-extending right shift of lnum by shiftCount bits. The most significant bit is propagated. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
@@ -1013,9 +1014,9 @@ impl Number {
     /// and y (a Number) and returns a Boolean or undefined.
     pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToUint32(x).
-        let lnum = to_uint32(agent, x.into_value()).unwrap();
+        let lnum = to_uint32_number(agent, x);
         // 2. Let rnum be ! ToUint32(y).
-        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        let rnum = to_uint32_number(agent, y);
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
         let shift_count = rnum % 32;
         // 4. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled with zero. The mathematical value of the result is exactly representable as a 32-bit unsigned bit string.
@@ -1023,7 +1024,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
-    pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
+    pub fn less_than(agent: &Agent, x: Self, y: Self) -> Option<bool> {
         // 1. If x is NaN, return undefined.
         if x.is_nan(agent) {
             return None;
@@ -1171,12 +1172,12 @@ impl Number {
 
     /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
     #[inline(always)]
-    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> JsResult<i32> {
+    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> i32 {
         // 1. Let lnum be ! ToInt32(x).
-        let lnum = x.into_value().to_int32(agent)?;
+        let lnum = to_int32_number(agent, x);
 
         // 2. Let rnum be ! ToInt32(y).
-        let rnum = y.into_value().to_int32(agent)?;
+        let rnum = to_int32_number(agent, y);
 
         // 3. Let lbits be the 32-bit two's complement bit string representing ℝ(lnum).
         let lbits = lnum;
@@ -1204,23 +1205,23 @@ impl Number {
         };
 
         // 8. Return the Number value for the integer represented by the 32-bit two's complement bit string result.
-        Ok(result)
+        result
     }
 
     /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
-    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(&, x, y).
         Number::bitwise_op(agent, BitwiseOp::And, x, y)
     }
 
     /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
-    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(^, x, y).
         Number::bitwise_op(agent, BitwiseOp::Xor, x, y)
     }
 
     /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
-    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
     }

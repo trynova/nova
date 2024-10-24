@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builtins::{
@@ -35,7 +36,13 @@ impl SetIterator {
         self.0.into_index()
     }
 
-    pub(crate) fn from_set(agent: &mut Agent, set: Set, kind: CollectionIteratorKind) -> Self {
+    pub(crate) fn from_set(
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        set: Set,
+        kind: CollectionIteratorKind,
+    ) -> Self {
         agent.heap.create(SetIteratorHeapData {
             object_index: None,
             set: Some(set),

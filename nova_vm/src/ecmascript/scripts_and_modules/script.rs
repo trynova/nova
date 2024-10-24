@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         execution::{
@@ -248,7 +249,12 @@ pub fn parse_script(
 /// The abstract operation ScriptEvaluation takes argument scriptRecord (a
 /// Script Record) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
+pub fn script_evaluation(
+    agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
+    script: Script,
+) -> JsResult<Value> {
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.is_strict();
     let source_code = script.source_code;
@@ -294,7 +300,13 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
     // NOTE: We cannot define the script here due to reference safety.
 
     // 12. Let result be Completion(GlobalDeclarationInstantiation(script, globalEnv)).
-    let result = global_declaration_instantiation(agent, script, global_env.unwrap());
+    let result = global_declaration_instantiation(
+        agent,
+        gc.reborrow(),
+        scope.reborrow(),
+        script,
+        global_env.unwrap(),
+    );
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
@@ -302,7 +314,7 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).
-        let result = Vm::execute(agent, bytecode, None).into_js_result();
+        let result = Vm::execute(agent, gc, scope, bytecode, None).into_js_result();
         // SAFETY: The bytecode is not accessible by anyone and no one will try
         // to re-run it.
         unsafe { bytecode.try_drop(agent) };
@@ -335,6 +347,8 @@ pub fn script_evaluation(agent: &mut Agent, script: Script) -> JsResult<Value> {
 /// env is the global environment in which bindings are to be created.
 pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     script: ScriptIdentifier,
     env: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
@@ -373,7 +387,7 @@ pub(crate) fn global_declaration_instantiation(
             || env.has_lexical_declaration(agent, name)
             // c. Let hasRestrictedGlobal be ? env.HasRestrictedGlobalProperty(name).
             // d. If hasRestrictedGlobal is true, throw a SyntaxError exception.
-            || env.has_restricted_global_property(agent, name)?
+            || env.has_restricted_global_property(agent, gc.reborrow(), scope.reborrow(), name)?
         {
             let error_message = format!(
                 "Redeclaration of restricted global property '{}'.",
@@ -415,7 +429,12 @@ pub(crate) fn global_declaration_instantiation(
             if declared_function_names.insert(function_name.clone()) {
                 // 1. Let fnDefinable be ? env.CanDeclareGlobalFunction(fn).
                 let function_name = String::from_str(agent, function_name.as_str());
-                let fn_definable = env.can_declare_global_function(agent, function_name)?;
+                let fn_definable = env.can_declare_global_function(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    function_name,
+                )?;
                 // 2. If fnDefinable is false, throw a TypeError exception.
                 if !fn_definable {
                     let error_message = format!(
@@ -447,7 +466,8 @@ pub(crate) fn global_declaration_instantiation(
                 if !declared_function_names.contains(&vn) {
                     // a. Let vnDefinable be ? env.CanDeclareGlobalVar(vn).
                     let vn = String::from_str(agent, vn.as_str());
-                    let vn_definable = env.can_declare_global_var(agent, vn)?;
+                    let vn_definable =
+                        env.can_declare_global_var(agent, gc.reborrow(), scope.reborrow(), vn)?;
                     // b. If vnDefinable is false, throw a TypeError exception.
                     if !vn_definable {
                         let error_message =
@@ -517,15 +537,29 @@ pub(crate) fn global_declaration_instantiation(
         });
         let function_name = String::from_str(agent, function_name.unwrap().as_str());
         // b. Let fo be InstantiateFunctionObject of f with arguments env and privateEnv.
-        let fo = instantiate_function_object(agent, f, EnvironmentIndex::Global(env), private_env);
+        let fo = instantiate_function_object(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            f,
+            EnvironmentIndex::Global(env),
+            private_env,
+        );
         // c. Perform ? env.CreateGlobalFunctionBinding(fn, fo, false).
-        env.create_global_function_binding(agent, function_name, fo.into_value(), false)?;
+        env.create_global_function_binding(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            function_name,
+            fo.into_value(),
+            false,
+        )?;
     }
 
     // 17. For each String vn of declaredVarNames, do
     for vn in declared_var_names {
         // a. Perform ? env.CreateGlobalVarBinding(vn, false).
-        env.create_global_var_binding(agent, vn, false)?;
+        env.create_global_var_binding(agent, gc.reborrow(), scope.reborrow(), vn, false)?;
     }
     // 18. Return UNUSED.
     Ok(())
@@ -533,6 +567,7 @@ pub(crate) fn global_declaration_instantiation(
 
 #[cfg(test)]
 mod test {
+    use crate::engine::context::{Gc, GcToken, Scope, ScopeToken};
     use crate::{
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,
@@ -550,6 +585,10 @@ mod test {
 
     #[test]
     fn empty_script() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -557,13 +596,18 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, Value::Undefined);
     }
 
     #[test]
     fn basic_constants() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -571,13 +615,18 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "true");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, true.into());
     }
 
     #[test]
     fn unary_minus() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -585,13 +634,18 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "-2");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, (-2).into());
     }
 
     #[test]
     fn unary_void() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -599,13 +653,18 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "void (2 + 2 + 6)");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, Value::Undefined);
     }
 
     #[test]
     fn unary_plus() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -613,13 +672,18 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "+(54)");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, (54).into());
     }
 
     #[test]
     fn logical_not() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -627,13 +691,18 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "!true");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, (false).into());
     }
 
     #[test]
     fn bitwise_not() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -641,65 +710,83 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "~0b1111");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, (-16).into());
     }
 
     #[test]
     fn unary_typeof() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "typeof undefined");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "undefined"));
 
         let source_text = String::from_static_str(&mut agent, "typeof null");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
         let source_text = String::from_static_str(&mut agent, "typeof \"string\"");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "string"));
 
         let source_text = String::from_static_str(&mut agent, "typeof Symbol()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "symbol"));
 
         let source_text = String::from_static_str(&mut agent, "typeof true");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "boolean"));
 
         let source_text = String::from_static_str(&mut agent, "typeof 3");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "number"));
 
         let source_text = String::from_static_str(&mut agent, "typeof 3n");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "bigint"));
 
         let source_text = String::from_static_str(&mut agent, "typeof {}");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "object"));
 
         let source_text = String::from_static_str(&mut agent, "typeof (function() {})");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "function"));
     }
 
     #[test]
     fn binary_add() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -707,38 +794,49 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "2 + 2 + 6");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
 
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         assert_eq!(result, (10).into());
     }
 
     #[test]
     fn var_assign() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "var foo = 3;");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
 
     #[test]
     fn empty_object() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "var foo = {};");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_object
-            .internal_get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, gc.reborrow(), scope.reborrow(), key)
             .unwrap()
             .unwrap()
             .value
@@ -746,26 +844,31 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         assert!(result
-            .internal_own_property_keys(&mut agent)
+            .internal_own_property_keys(&mut agent, gc, scope)
             .unwrap()
             .is_empty());
     }
 
     #[test]
     fn non_empty_object() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 };");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
         let key = PropertyKey::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_object
-            .internal_get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, gc.reborrow(), scope.reborrow(), key)
             .unwrap()
             .unwrap()
             .value
@@ -773,10 +876,12 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_static_str(&mut agent, "a");
-        assert!(result.internal_has_property(&mut agent, key).unwrap());
+        assert!(result
+            .internal_has_property(&mut agent, gc.reborrow(), scope.reborrow(), key)
+            .unwrap());
         assert_eq!(
             result
-                .internal_get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, gc, scope, key)
                 .unwrap()
                 .unwrap()
                 .value,
@@ -786,6 +891,10 @@ mod test {
 
     #[test]
     fn empty_array() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -799,57 +908,67 @@ mod test {
 
         let source_text = String::from_static_str(&mut agent, "var foo = [];");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_env
             .unwrap()
-            .get_binding_value(&mut agent, foo_key, true)
+            .get_binding_value(&mut agent, gc.reborrow(), scope.reborrow(), foo_key, true)
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         assert!(result
-            .internal_own_property_keys(&mut agent)
+            .internal_own_property_keys(&mut agent, gc, scope)
             .unwrap()
             .is_empty());
     }
 
     #[test]
     fn non_empty_array() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "var foo = [ 'a', 3 ];");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
         let foo_key = String::from_static_str(&mut agent, "foo");
         let foo = agent
             .get_realm(realm)
             .global_env
             .unwrap()
-            .get_binding_value(&mut agent, foo_key, true)
+            .get_binding_value(&mut agent, gc.reborrow(), scope.reborrow(), foo_key, true)
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::Integer(0.into());
-        assert!(result.internal_has_property(&mut agent, key).unwrap());
+        assert!(result
+            .internal_has_property(&mut agent, gc.reborrow(), scope.reborrow(), key)
+            .unwrap());
         assert_eq!(
             result
-                .internal_get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, gc.reborrow(), scope.reborrow(), key)
                 .unwrap()
                 .unwrap()
                 .value,
             Some(Value::from_static_str(&mut agent, "a"))
         );
         let key = PropertyKey::Integer(1.into());
-        assert!(result.internal_has_property(&mut agent, key).unwrap());
+        assert!(result
+            .internal_has_property(&mut agent, gc.reborrow(), scope.reborrow(), key)
+            .unwrap());
         assert_eq!(
             result
-                .internal_get_own_property(&mut agent, key)
+                .internal_get_own_property(&mut agent, gc, scope, key)
                 .unwrap()
                 .unwrap()
                 .value,
@@ -859,66 +978,95 @@ mod test {
 
     #[test]
     fn empty_function() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_function());
     }
 
     #[test]
     fn empty_iife_function_call() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "(function() {})()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
     }
 
     #[test]
     fn empty_named_function_call() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "var f = function() {}; f();");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
     }
 
     #[test]
     fn empty_declared_function_call() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "function f() {}; f();");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_undefined());
     }
 
     #[test]
     fn non_empty_iife_function_call() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "(function() { return 3 })()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
     #[test]
     fn builtin_function_call() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -940,56 +1088,82 @@ mod test {
 
             const LENGTH: u8 = 1;
 
-            const BEHAVIOUR: Behaviour =
-                Behaviour::Regular(|_: &mut Agent, _: Value, arguments_list: ArgumentsList| {
+            const BEHAVIOUR: Behaviour = Behaviour::Regular(
+                |_: &mut Agent,
+                 _: Gc<'_>,
+                 _: Scope<'_>,
+                 _: Value,
+                 arguments_list: ArgumentsList| {
                     let arg_0 = arguments_list.get(0);
                     if Value::Boolean(true) == arg_0 {
                         Ok(Value::from(3))
                     } else {
                         Ok(Value::Null)
                     }
-                });
+                },
+            );
         }
 
         let func = BuiltinFunctionBuilder::new::<TestBuiltinFunction>(&mut agent, realm).build();
 
-        create_data_property_or_throw(&mut agent, global, key, func.into_value()).unwrap();
+        create_data_property_or_throw(
+            &mut agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            global,
+            key,
+            func.into_value(),
+        )
+        .unwrap();
 
         let source_text = String::from_static_str(&mut agent, "test(true)");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from(3));
 
         let source_text = String::from_static_str(&mut agent, "test()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Null);
 
         let source_text = String::from_static_str(&mut agent, "test({})");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Null);
     }
 
     #[test]
     fn if_statement() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "if (true) 3");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
         let source_text = String::from_static_str(&mut agent, "if (false) 3");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
 
     #[test]
     fn if_else_statement() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -999,7 +1173,8 @@ mod test {
             "var foo = function() { if (true) { return 3; } else { return 5; } }; foo()",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
 
         let source_text = String::from_static_str(
@@ -1007,24 +1182,34 @@ mod test {
             "var bar = function() { if (false) { return 3; } else { return 5; } }; bar()",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(5).into_value());
     }
 
     #[test]
     fn static_property_access() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, "var foo = { a: 3 }; foo.a");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
     #[test]
     fn deep_static_property_access() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -1034,12 +1219,17 @@ mod test {
             "var fn = function() { return 3; }; var foo = { a: { b: fn } }; foo.a.b()",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
 
     #[test]
     fn computed_property_access() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
@@ -1047,23 +1237,29 @@ mod test {
         let source_text =
             String::from_static_str(&mut agent, "var foo = { a: 3 }; var prop = 'a'; foo[prop]");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Number::from(3).into_value());
     }
     #[test]
     fn for_loop() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let realm = create_realm(&mut agent);
         set_realm_global_object(&mut agent, realm, None, None);
         let source_text = String::from_static_str(&mut agent, "var i = 0; for (; i < 3; i++) {}");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
         let key = PropertyKey::from_static_str(&mut agent, "i");
         let i: Value = agent
             .get_realm(realm)
             .global_object
-            .internal_get_own_property(&mut agent, key)
+            .internal_get_own_property(&mut agent, gc, scope, key)
             .unwrap()
             .unwrap()
             .value
@@ -1073,28 +1269,36 @@ mod test {
 
     #[test]
     fn lexical_declarations() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "let i = 0; const a = 'foo'; i = 3;");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        script_evaluation(&mut agent, script).unwrap();
+        script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         let global_env = agent.get_realm(realm).global_env.unwrap();
         let a_key = String::from_static_str(&mut agent, "a");
         let i_key = String::from_static_str(&mut agent, "i");
-        assert!(global_env.has_binding(&mut agent, a_key).unwrap());
-        assert!(global_env.has_binding(&mut agent, i_key).unwrap());
+        assert!(global_env
+            .has_binding(&mut agent, gc.reborrow(), scope.reborrow(), a_key)
+            .unwrap());
+        assert!(global_env
+            .has_binding(&mut agent, gc.reborrow(), scope.reborrow(), i_key)
+            .unwrap());
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, a_key, true)
+                .get_binding_value(&mut agent, gc.reborrow(), scope.reborrow(), a_key, true)
                 .unwrap(),
             String::from_small_string("foo").into_value()
         );
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, i_key, true)
+                .get_binding_value(&mut agent, gc.reborrow(), scope.reborrow(), i_key, true)
                 .unwrap(),
             Value::from(3)
         );
@@ -1102,14 +1306,19 @@ mod test {
 
     #[test]
     fn lexical_declarations_in_block() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text =
             String::from_static_str(&mut agent, "{ let i = 0; const a = 'foo'; i = 3; }");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
 
         let a_key = String::from_static_str(&mut agent, "a");
@@ -1121,19 +1330,24 @@ mod test {
 
     #[test]
     fn object_property_assignment() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "var foo = {}; foo.a = 42; foo");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         let object = Object::try_from(result).unwrap();
 
         let pk = PropertyKey::from_static_str(&mut agent, "a");
         assert_eq!(
             object
-                .internal_get(&mut agent, pk, object.into_value())
+                .internal_get(&mut agent, gc, scope, pk, object.into_value())
                 .unwrap(),
             Value::Integer(SmallInteger::from(42))
         );
@@ -1141,8 +1355,12 @@ mod test {
 
     #[test]
     fn try_catch_not_thrown() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
@@ -1150,14 +1368,18 @@ mod test {
             "let a = 0; try { a++; } catch { a = 500; }; a++; a",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result = script_evaluation(&mut agent, gc, scope, script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(2)));
     }
 
     #[test]
     fn try_catch_thrown() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
@@ -1165,14 +1387,19 @@ mod test {
             "let a = 0; try { throw null; a = 500 } catch { a++; }; a++; a",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(2)));
     }
 
     #[test]
     fn catch_binding() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
@@ -1180,14 +1407,19 @@ mod test {
             "let err; try { throw 'thrown'; } catch(e) { err = e; }; err",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "thrown"));
     }
 
     #[test]
     fn throwing_in_try_restores_lexical_environment() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
@@ -1195,14 +1427,19 @@ mod test {
             "let a = 42; try { let a = 62; throw 'thrown'; } catch { }; a",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
     }
 
     #[test]
     fn function_argument_bindings() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
@@ -1210,80 +1447,106 @@ mod test {
             "const foo = function (a) { return a + 10; }; foo(32)",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
     }
 
     #[test]
     fn logical_and() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "true && true");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Boolean(true));
 
         let source_text = String::from_static_str(&mut agent, "true && false && true");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Boolean(false));
     }
 
     #[test]
     fn logical_or() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "false || false");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Boolean(false));
 
         let source_text = String::from_static_str(&mut agent, "true || false || true");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Boolean(true));
     }
 
     #[test]
     fn nullish_coalescing() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "null ?? 42");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
         let source_text = String::from_static_str(&mut agent, "'foo' ?? 12");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
         let source_text = String::from_static_str(&mut agent, "undefined ?? null");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Null);
     }
 
     #[test]
     fn string_concat() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "'foo' + '' + 'bar'");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foobar"));
 
         let source_text = String::from_static_str(&mut agent, "'foo' + ' a heap string'");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(
             result,
             Value::from_static_str(&mut agent, "foo a heap string")
@@ -1292,7 +1555,8 @@ mod test {
         let source_text =
             String::from_static_str(&mut agent, "'Concatenating ' + 'two heap strings'");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(
             result,
             Value::from_static_str(&mut agent, "Concatenating two heap strings")
@@ -1301,81 +1565,111 @@ mod test {
 
     #[test]
     fn property_access_on_functions() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}; foo.bar");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
 
         let source_text = String::from_static_str(&mut agent, "foo.bar = 42; foo.bar");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
         let source_text = String::from_static_str(&mut agent, "foo.name");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "foo"));
 
         let source_text = String::from_static_str(&mut agent, "foo.length");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::zero()));
 
         let source_text = String::from_static_str(&mut agent, "foo.prototype");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert!(result.is_object())
     }
 
     #[test]
     fn name_and_length_on_builtin_functions() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "TypeError.name");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::from_static_str(&mut agent, "TypeError"));
 
         let source_text = String::from_static_str(&mut agent, "TypeError.length");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(1)));
     }
 
     #[test]
     fn constructor() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "function foo() {}; foo.prototype");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         let foo_prototype = Object::try_from(result).unwrap();
 
         let source_text = String::from_static_str(&mut agent, "new foo()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = match script_evaluation(&mut agent, script) {
+        let result = match script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script) {
             Ok(result) => result,
-            Err(err) => panic!("{}", err.to_string(&mut agent).as_str(&agent)),
+            Err(err) => panic!(
+                "{}",
+                err.to_string(&mut agent, gc.reborrow(), scope.reborrow())
+                    .as_str(&agent)
+            ),
         };
         let instance = Object::try_from(result).unwrap();
         assert_eq!(
-            instance.internal_get_prototype_of(&mut agent).unwrap(),
+            instance
+                .internal_get_prototype_of(&mut agent, gc, scope)
+                .unwrap(),
             Some(foo_prototype)
         );
     }
 
     #[test]
     fn this_expression() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(
@@ -1383,7 +1677,8 @@ mod test {
             "function foo() { this.bar = 42; }; new foo().bar",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(42)));
 
         let source_text = String::from_static_str(
@@ -1391,75 +1686,106 @@ mod test {
             "foo.prototype.baz = function() { return this.bar + 10; }; (new foo()).baz()",
         );
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Integer(SmallInteger::from(52)));
     }
 
     #[test]
     fn symbol_stringification() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "+Symbol()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert!(script_evaluation(&mut agent, script).is_err());
+        assert!(script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).is_err());
 
         let source_text = String::from_static_str(&mut agent, "+Symbol('foo')");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert!(script_evaluation(&mut agent, script).is_err());
+        assert!(script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).is_err());
 
         let source_text = String::from_static_str(&mut agent, "String(Symbol())");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let value = script_evaluation(&mut agent, script).unwrap();
+        let value = script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(value, Value::from_static_str(&mut agent, "Symbol()"));
 
         let source_text = String::from_static_str(&mut agent, "String(Symbol('foo'))");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let value = script_evaluation(&mut agent, script).unwrap();
+        let value = script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(value, Value::from_static_str(&mut agent, "Symbol(foo)"));
     }
 
     #[test]
     fn instanceof() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "3 instanceof Number");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+        assert_eq!(
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap(),
+            false.into()
+        );
 
         let source_text = String::from_static_str(&mut agent, "'foo' instanceof String");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+        assert_eq!(
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap(),
+            false.into()
+        );
 
         let source_text = String::from_static_str(&mut agent, "({}) instanceof Object");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+        assert_eq!(
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap(),
+            true.into()
+        );
 
         let source_text = String::from_static_str(&mut agent, "({}) instanceof Array");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert_eq!(script_evaluation(&mut agent, script).unwrap(), false.into());
+        assert_eq!(
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap(),
+            false.into()
+        );
 
         let source_text = String::from_static_str(&mut agent, "([]) instanceof Object");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+        assert_eq!(
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap(),
+            true.into()
+        );
 
         let source_text = String::from_static_str(&mut agent, "([]) instanceof Array");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        assert_eq!(script_evaluation(&mut agent, script).unwrap(), true.into());
+        assert_eq!(
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap(),
+            true.into()
+        );
     }
 
     #[test]
     fn array_binding_pattern() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "const [a, b, , c] = [1, 2, 3, 4];");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        script_evaluation(&mut agent, script).unwrap();
+        script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         let a_key = String::from_static_str(&mut agent, "a");
         let b_key = String::from_static_str(&mut agent, "b");
         let c_key = String::from_static_str(&mut agent, "c");
@@ -1469,19 +1795,19 @@ mod test {
         assert!(global_env.has_lexical_declaration(&agent, c_key));
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, a_key, true)
+                .get_binding_value(&mut agent, gc.reborrow(), scope.reborrow(), a_key, true)
                 .unwrap(),
             1.into()
         );
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, b_key, true)
+                .get_binding_value(&mut agent, gc.reborrow(), scope.reborrow(), b_key, true)
                 .unwrap(),
             2.into()
         );
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, c_key, true)
+                .get_binding_value(&mut agent, gc, scope, c_key, true)
                 .unwrap(),
             4.into()
         );
@@ -1489,21 +1815,25 @@ mod test {
 
     #[test]
     fn do_while() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text =
             String::from_static_str(&mut agent, "let i = 0; do { i++ } while(i < 10)");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        script_evaluation(&mut agent, script).unwrap();
+        script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
 
         let i_key = String::from_static_str(&mut agent, "i");
         let global_env = agent.get_realm(realm).global_env.unwrap();
         assert!(global_env.has_lexical_declaration(&agent, i_key));
         assert_eq!(
             global_env
-                .get_binding_value(&mut agent, i_key, true)
+                .get_binding_value(&mut agent, gc, scope, i_key, true)
                 .unwrap(),
             10.into()
         );
@@ -1511,13 +1841,18 @@ mod test {
 
     #[test]
     fn no_implicit_return() {
+        let mut gc_token = unsafe { GcToken::new() };
+        let mut scope_token = unsafe { ScopeToken::new() };
+        let mut gc = Gc::new(&mut gc_token);
+        let scope = Scope::new(&mut scope_token);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        initialize_default_realm(&mut agent);
+        initialize_default_realm(&mut agent, gc.reborrow(), scope.reborrow());
         let realm = agent.current_realm_id();
 
         let source_text = String::from_static_str(&mut agent, "function foo() { 42; }; foo()");
         let script = parse_script(&mut agent, source_text, realm, false, None).unwrap();
-        let result = script_evaluation(&mut agent, script).unwrap();
+        let result =
+            script_evaluation(&mut agent, gc.reborrow(), scope.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
     }
 }

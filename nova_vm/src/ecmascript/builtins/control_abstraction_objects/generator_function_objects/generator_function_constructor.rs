@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -37,6 +38,8 @@ impl BuiltinIntrinsicConstructor for GeneratorFunctionConstructor {
 impl GeneratorFunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -57,6 +60,8 @@ impl GeneratorFunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, generator, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             constructor,
             DynamicFunctionKind::Generator,
             parameter_args,
@@ -79,6 +84,8 @@ impl GeneratorFunctionConstructor {
         //   b. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
         define_property_or_throw(
             agent,
+            gc,
+            scope,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {

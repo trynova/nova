@@ -4,6 +4,7 @@
 
 use oxc_ast::ast::RegExpFlags;
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
@@ -46,10 +47,17 @@ fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
 /// The abstract operation RegExpAlloc takes argument newTarget (a constructor)
 /// and returns either a normal completion containing an Object or a throw
 /// completion.
-pub(crate) fn reg_exp_alloc(agent: &mut Agent, new_target: Function) -> JsResult<RegExp> {
+pub(crate) fn reg_exp_alloc(
+    agent: &mut Agent,
+    gc: Gc<'_>,
+    scope: Scope<'_>,
+    new_target: Function,
+) -> JsResult<RegExp> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
         agent,
+        gc,
+        scope,
         new_target,
         ProtoIntrinsics::RegExp,
     )?)
@@ -68,6 +76,8 @@ pub(crate) fn reg_exp_alloc(agent: &mut Agent, new_target: Function) -> JsResult
 /// throw completion.
 pub(crate) fn reg_exp_initialize(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     obj: RegExp,
     pattern: Value,
     flags: Option<RegExpFlags>,
@@ -77,7 +87,7 @@ pub(crate) fn reg_exp_initialize(
         String::EMPTY_STRING
     } else {
         // 2. Else, let P be ? ToString(pattern).
-        to_string(agent, pattern)?
+        to_string(agent, gc.reborrow(), scope.reborrow(), pattern)?
     };
     //     3. If flags is undefined, let F be the empty String.
     let f = flags.unwrap_or(RegExpFlags::empty());

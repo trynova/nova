@@ -471,47 +471,62 @@ impl Value {
         }
     }
 
-    pub fn to_number(self, agent: &mut Agent) -> JsResult<Number> {
-        to_number(agent, self)
+    pub fn to_number(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Number> {
+        to_number(agent, gc, scope, self)
     }
 
-    pub fn to_bigint(self, agent: &mut Agent) -> JsResult<BigInt> {
-        to_big_int(agent, self)
+    pub fn to_bigint(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<BigInt> {
+        to_big_int(agent, gc, scope, self)
     }
 
-    pub fn to_numeric(self, agent: &mut Agent) -> JsResult<Numeric> {
-        to_numeric(agent, self)
+    pub fn to_numeric(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Numeric> {
+        to_numeric(agent, gc, scope, self)
     }
 
-    pub fn to_int32(self, agent: &mut Agent) -> JsResult<i32> {
-        to_int32(agent, self)
+    pub fn to_int32(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<i32> {
+        to_int32(agent, gc, scope, self)
     }
 
-    pub fn to_uint32(self, agent: &mut Agent) -> JsResult<u32> {
-        to_uint32(agent, self)
+    pub fn to_uint32(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<u32> {
+        to_uint32(agent, gc, scope, self)
     }
 
-    pub fn to_int16(self, agent: &mut Agent) -> JsResult<i16> {
-        to_int16(agent, self)
+    pub fn to_int16(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<i16> {
+        to_int16(agent, gc, scope, self)
     }
 
-    pub fn to_uint16(self, agent: &mut Agent) -> JsResult<u16> {
-        to_uint16(agent, self)
+    pub fn to_uint16(self, agent: &mut Agent, mut gc: Gc<'_>, scope: Scope<'_>) -> JsResult<u16> {
+        to_uint16(agent, gc, scope, self)
     }
 
-    pub fn to_string(self, agent: &mut Agent) -> JsResult<String> {
-        to_string(agent, self)
+    pub fn to_string(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<String> {
+        to_string(agent, gc, scope, self)
     }
 
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
-    pub fn string_repr(self, agent: &mut Agent) -> String {
+    pub fn string_repr(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> String {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
             return symbol_idx.descriptive_string(agent);
         };
-        match self.to_string(agent) {
+        match self.to_string(agent, gc, scope) {
             Ok(result) => result,
             Err(_) => {
                 debug_assert!(self.is_object());
@@ -521,13 +536,13 @@ impl Value {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
+    pub fn to_real(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<f64> {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, self)?.into_f64(agent),
+            _ => to_number(agent, gc, scope, self)?.into_f64(agent),
         })
     }
 

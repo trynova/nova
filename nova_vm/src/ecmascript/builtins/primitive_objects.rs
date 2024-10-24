@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builtins::ordinary::{
@@ -205,6 +206,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
@@ -231,6 +234,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -255,10 +260,23 @@ impl InternalMethods for PrimitiveObject {
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_define_own_property(agent, backing_object, property_key, property_descriptor)
+        ordinary_define_own_property(
+            agent,
+            gc,
+            scope,
+            backing_object,
+            property_key,
+            property_descriptor,
+        )
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -271,16 +289,17 @@ impl InternalMethods for PrimitiveObject {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_has_property(agent, backing_object.into_object(), property_key)
+                ordinary_has_property(agent, gc, scope, backing_object.into_object(), property_key)
             }
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = self.internal_get_prototype_of(agent)?;
+                let parent =
+                    self.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, property_key)
+                    parent.internal_has_property(agent, gc, scope, property_key)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -292,6 +311,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_get(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -303,18 +324,25 @@ impl InternalMethods for PrimitiveObject {
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_get(agent, backing_object.into_object(), property_key, receiver)
-            }
+            Some(backing_object) => ordinary_get(
+                agent,
+                gc,
+                scope,
+                backing_object.into_object(),
+                property_key,
+                receiver,
+            ),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = self.internal_get_prototype_of(agent)? else {
+                let Some(parent) =
+                    self.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?
+                else {
                     // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, property_key, receiver)
+                parent.internal_get(agent, gc, scope, property_key, receiver)
             }
         }
     }
@@ -322,6 +350,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_set(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -340,10 +370,24 @@ impl InternalMethods for PrimitiveObject {
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_set(agent, backing_object, property_key, value, receiver)
+        ordinary_set(
+            agent,
+            gc,
+            scope,
+            backing_object,
+            property_key,
+            value,
+            receiver,
+        )
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -356,13 +400,18 @@ impl InternalMethods for PrimitiveObject {
         // 1. Return ? OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_delete(agent, backing_object.into_object(), property_key)
+                ordinary_delete(agent, gc, scope, backing_object.into_object(), property_key)
             }
             None => Ok(true),
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        _gc: Gc<'_>,
+        _scope: Scope<'_>,
+    ) -> JsResult<Vec<PropertyKey>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);

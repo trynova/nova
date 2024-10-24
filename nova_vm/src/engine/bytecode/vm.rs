@@ -147,6 +147,8 @@ impl SuspendedVm {
     pub(crate) fn resume(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         executable: Executable,
         value: Value,
     ) -> ExecutionResult {
@@ -157,6 +159,8 @@ impl SuspendedVm {
     pub(crate) fn resume_throw(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         executable: Executable,
         err: Value,
     ) -> ExecutionResult {
@@ -211,6 +215,8 @@ impl Vm {
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         executable: Executable,
         arguments: Option<&[Value]>,
     ) -> ExecutionResult {
@@ -258,6 +264,8 @@ impl Vm {
     pub fn resume(
         mut self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         executable: Executable,
         value: Value,
     ) -> ExecutionResult {
@@ -268,6 +276,8 @@ impl Vm {
     pub fn resume_throw(
         mut self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         executable: Executable,
         err: Value,
     ) -> ExecutionResult {
@@ -278,7 +288,13 @@ impl Vm {
         self.inner_execute(agent, executable)
     }
 
-    fn inner_execute(mut self, agent: &mut Agent, executable: Executable) -> ExecutionResult {
+    fn inner_execute(
+        mut self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        executable: Executable,
+    ) -> ExecutionResult {
         #[cfg(feature = "interleaved-gc")]
         let do_gc = !agent.options.disable_gc;
         #[cfg(feature = "interleaved-gc")]
@@ -337,7 +353,13 @@ impl Vm {
     }
 
     #[must_use]
-    fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
+    fn handle_error(
+        &mut self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        err: JsError,
+    ) -> bool {
         if let Some(ejt) = self.exception_jump_target_stack.pop() {
             self.ip = ejt.ip;
             agent
@@ -355,6 +377,8 @@ impl Vm {
 
     fn execute_instruction(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         vm: &mut Vm,
         executable: Executable,
         instr: &Instr,
@@ -376,7 +400,14 @@ impl Vm {
                 };
                 let len = array.len(agent);
                 let key = PropertyKey::Integer(len.into());
-                create_data_property_or_throw(agent, array, key, value)?
+                create_data_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    array,
+                    key,
+                    value,
+                )?
             }
             Instruction::ArrayElision => {
                 let array = *vm.stack.last().unwrap();
@@ -506,7 +537,15 @@ impl Vm {
                 let key = to_property_key(agent, vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
-                create_data_property_or_throw(agent, object, key, value).unwrap()
+                create_data_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    object,
+                    key,
+                    value,
+                )
+                .unwrap()
             }
             Instruction::ObjectDefineMethod => {
                 let FunctionExpression { expression, .. } =
@@ -749,7 +788,12 @@ impl Vm {
                 };
                 // i. Perform ! object.[[SetPrototypeOf]](propValue).
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
-                object.internal_set_prototype_of(agent, prop_value)?;
+                object.internal_set_prototype_of(
+                    agent,
+                    gc.reborrow(),
+                    scope.reborrow(),
+                    prop_value,
+                )?;
                 // b. Return unused.
             }
             Instruction::PushReference => {
@@ -1013,7 +1057,10 @@ impl Vm {
                 let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
                 let is_null_derived_class = !has_constructor_parent
-                    && proto.internal_get_prototype_of(agent).unwrap().is_none();
+                    && proto
+                        .internal_get_prototype_of(agent, gc, scope)
+                        .unwrap()
+                        .is_none();
 
                 let ECMAScriptCodeEvaluationState {
                     lexical_environment,
@@ -1167,7 +1214,14 @@ impl Vm {
                 } else if cfg!(feature = "interleaved-gc") {
                     let mut vm = NonNull::from(vm);
                     agent.vm_stack.push(vm);
-                    let result = call(agent, func, Value::Undefined, Some(ArgumentsList(&args)));
+                    let result = call(
+                        agent,
+                        gc,
+                        scope,
+                        func,
+                        Value::Undefined,
+                        Some(ArgumentsList(&args)),
+                    );
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. We have an
@@ -1219,13 +1273,27 @@ impl Vm {
                 if cfg!(feature = "interleaved-gc") {
                     let mut vm = NonNull::from(vm);
                     agent.vm_stack.push(vm);
-                    let result = call(agent, func, this_value, Some(ArgumentsList(&args)));
+                    let result = call(
+                        agent,
+                        gc,
+                        scope,
+                        func,
+                        this_value,
+                        Some(ArgumentsList(&args)),
+                    );
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
                     unsafe { vm.as_mut() }.result = Some(result?);
                 } else {
-                    vm.result = Some(call(agent, func, this_value, Some(ArgumentsList(&args)))?);
+                    vm.result = Some(call(
+                        agent,
+                        gc,
+                        scope,
+                        func,
+                        this_value,
+                        Some(ArgumentsList(&args)),
+                    )?);
                 }
             }
             Instruction::EvaluateNew => {
@@ -1234,7 +1302,9 @@ impl Vm {
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let error_message = format!(
                         "'{}' is not a constructor.",
-                        constructor.string_repr(agent).as_str(agent)
+                        constructor
+                            .string_repr(agent, gc.reborrow(), scope.reborrow())
+                            .as_str(agent)
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
@@ -1267,7 +1337,7 @@ impl Vm {
                     (
                         Function::try_from(data.new_target.unwrap()).unwrap(),
                         data.function_object
-                            .internal_get_prototype_of(agent)
+                            .internal_get_prototype_of(agent, gc, scope)
                             .unwrap(),
                     )
                 };
@@ -1278,7 +1348,7 @@ impl Vm {
                     let error_message = format!(
                         "'{}' is not a constructor.",
                         func.map_or(Value::Null, |func| func.into_value())
-                            .string_repr(agent)
+                            .string_repr(agent, gc.reborrow(), scope.reborrow())
                             .as_str(agent)
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
@@ -1418,7 +1488,8 @@ impl Vm {
                 let Ok(rval) = Object::try_from(rval) else {
                     let error_message = format!(
                         "The right-hand side of an `in` expression must be an object, got '{}'.",
-                        rval.string_repr(agent).as_str(agent)
+                        rval.string_repr(agent, gc.reborrow(), scope.reborrow())
+                            .as_str(agent)
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
@@ -1719,7 +1790,8 @@ impl Vm {
                 let mut length = 0;
                 for ele in vm.stack[last_item..].iter_mut() {
                     if !ele.is_string() {
-                        *ele = to_string(agent, *ele)?.into_value();
+                        *ele =
+                            to_string(agent, gc.reborrow(), scope.reborrow(), *ele)?.into_value();
                     }
                     let string = String::try_from(*ele).unwrap();
                     length += string.len(agent);
@@ -1759,8 +1831,12 @@ impl Vm {
                         // TODO: Is this relevant?
                         // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
                         // e. Let deleteStatus be ? baseObj.[[Delete]](ref.[[ReferencedName]]).
-                        let delete_status =
-                            base_obj.internal_delete(agent, refer.referenced_name)?;
+                        let delete_status = base_obj.internal_delete(
+                            agent,
+                            gc.reborrow(),
+                            scope.reborrow(),
+                            refer.referenced_name,
+                        )?;
                         // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
                         if !delete_status && refer.strict {
                             return Err(agent.throw_exception_with_static_message(
@@ -1854,7 +1930,7 @@ impl Vm {
                 let mut idx: u32 = 0;
                 while let Some(value) = iterator.step_value(agent)? {
                     let key = PropertyKey::Integer(idx.into());
-                    create_data_property(agent, array, key, value).unwrap();
+                    create_data_property(agent, gc, scope, array, key, value).unwrap();
                     idx += 1;
                 }
                 vm.result = Some(array.into_value());
@@ -1900,6 +1976,8 @@ impl Vm {
 
     fn execute_simple_array_binding(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         vm: &mut Vm,
         executable: Executable,
         mut iterator: VmIterator,
@@ -1987,6 +2065,8 @@ impl Vm {
 
     fn execute_simple_object_binding(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         vm: &mut Vm,
         executable: Executable,
         object: Object,
@@ -2055,6 +2135,8 @@ impl Vm {
 
     fn execute_nested_simple_binding(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         vm: &mut Vm,
         executable: Executable,
         value: Value,
@@ -2085,6 +2167,8 @@ impl Vm {
 #[inline]
 fn apply_string_or_numeric_binary_operator(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
@@ -2102,10 +2186,10 @@ fn apply_string_or_numeric_binary_operator(
         // c. If lprim is a String or rprim is a String, then
         if lprim.is_string() || rprim.is_string() {
             // i. Let lstr be ? ToString(lprim).
-            let lstr = to_string(agent, lprim)?;
+            let lstr = to_string(agent, gc.reborrow(), scope.reborrow(), lprim)?;
 
             // ii. Let rstr be ? ToString(rprim).
-            let rstr = to_string(agent, rprim)?;
+            let rstr = to_string(agent, gc.reborrow(), scope.reborrow(), rprim)?;
 
             // iii. Return the string-concatenation of lstr and rstr.
             return Ok(String::concat(agent, [lstr, rstr]).into_value());
@@ -2301,6 +2385,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 /// > the default instanceof semantics.
 pub(crate) fn instanceof_operator(
     agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
     value: impl IntoValue,
     target: impl IntoValue,
 ) -> JsResult<bool> {
@@ -2308,7 +2394,10 @@ pub(crate) fn instanceof_operator(
     let Ok(target) = Object::try_from(target.into_value()) else {
         let error_message = format!(
             "Invalid instanceof target {}.",
-            target.into_value().string_repr(agent).as_str(agent)
+            target
+                .into_value()
+                .string_repr(agent, gc.reborrow(), scope.reborrow())
+                .as_str(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
     };
@@ -2333,7 +2422,10 @@ pub(crate) fn instanceof_operator(
         let Some(target) = is_callable(target) else {
             let error_message = format!(
                 "Invalid instanceof target {} is not a function.",
-                target.into_value().string_repr(agent).as_str(agent)
+                target
+                    .into_value()
+                    .string_repr(agent, gc.reborrow(), scope.reborrow())
+                    .as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };

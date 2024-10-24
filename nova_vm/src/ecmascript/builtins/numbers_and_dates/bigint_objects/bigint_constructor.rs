@@ -61,6 +61,8 @@ impl Builtin for BigIntAsUintN {
 impl BigIntConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -82,6 +84,8 @@ impl BigIntConstructor {
 
     fn as_int_n(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -158,6 +162,8 @@ impl BigIntConstructor {
 
     fn as_uint_n(
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -192,7 +198,12 @@ impl BigIntConstructor {
     }
 }
 
-fn number_to_big_int(agent: &mut Agent, value: Number) -> JsResult<BigInt> {
+fn number_to_big_int(
+    agent: &mut Agent,
+    mut gc: Gc<'_>,
+    scope: Scope<'_>,
+    value: Number,
+) -> JsResult<BigInt> {
     if !is_integral_number(agent, value) {
         Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
     } else {

@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
@@ -118,6 +119,8 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
+        _: Gc<'_>,
+        _: Scope<'_>,
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -126,53 +129,87 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        function_internal_define_own_property(self, agent, property_key, property_descriptor)
+        function_internal_define_own_property(
+            self,
+            agent,
+            gc,
+            scope,
+            property_key,
+            property_descriptor,
+        )
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        function_internal_has_property(self, agent, property_key)
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
+        function_internal_has_property(self, agent, gc, scope, property_key)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, property_key, receiver)
+        function_internal_get(self, agent, gc, scope, property_key, receiver)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, property_key, value, receiver)
+        function_internal_set(self, agent, gc, scope, property_key, value, receiver)
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        function_internal_delete(self, agent, property_key)
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
+        function_internal_delete(self, agent, gc, scope, property_key)
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent)
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+    ) -> JsResult<Vec<PropertyKey>> {
+        function_internal_own_property_keys(self, agent, gc, scope)
     }
 
     fn internal_call(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         _this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let arg = args.get(0);
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {
-            PromiseResolvingFunctionType::Resolve => promise_capability.resolve(agent, arg),
+            PromiseResolvingFunctionType::Resolve => {
+                promise_capability.resolve(agent, gc, scope, arg)
+            }
             PromiseResolvingFunctionType::Reject => promise_capability.reject(agent, arg),
         };
         Ok(Value::Undefined)

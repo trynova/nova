@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ObjectEnvironmentIndex, OuterEnv};
+use crate::engine::context::{Gc, Scope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -102,14 +103,21 @@ impl ObjectEnvironmentIndex {
     /// takes argument N (a String) and returns either a normal completion
     /// containing a Boolean or a throw completion. It determines if its
     /// associated binding object has a property whose name is N.
-    pub(crate) fn has_binding(self, agent: &mut Agent, n: String) -> JsResult<bool> {
+    pub(crate) fn has_binding(
+        self,
+        agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
+        n: String,
+    ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from(n);
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
-        let found_binding = has_property(agent, binding_object, name)?;
+        let found_binding =
+            has_property(agent, gc.reborrow(), scope.reborrow(), binding_object, name)?;
         // 3. If foundBinding is false, return false.
         if !found_binding {
             return Ok(false);
@@ -121,13 +129,15 @@ impl ObjectEnvironmentIndex {
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
         let unscopables = get(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             binding_object,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
         )?;
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = get(agent, unscopables, name)?;
+            let blocked = get(agent, gc.reborrow(), scope.reborrow(), unscopables, name)?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Ok(!blocked)
@@ -148,6 +158,8 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
         n: String,
         d: bool,
     ) -> JsResult<()> {
@@ -158,6 +170,8 @@ impl ObjectEnvironmentIndex {
         let n = PropertyKey::from(n);
         define_property_or_throw(
             agent,
+            gc,
+            scope,
             binding_object,
             n,
             PropertyDescriptor {
@@ -189,9 +203,16 @@ impl ObjectEnvironmentIndex {
     /// value) and returns either a normal completion containing UNUSED or a
     /// throw completion. It is used to set the bound value of the current
     /// binding of the identifier whose name is N to the value V.
-    pub(crate) fn initialize_binding(self, agent: &mut Agent, n: String, v: Value) -> JsResult<()> {
+    pub(crate) fn initialize_binding(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+        n: String,
+        v: Value,
+    ) -> JsResult<()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
-        self.set_mutable_binding(agent, n, v, false)?;
+        self.set_mutable_binding(agent, gc, scope, n, v, false)?;
         // 2. Return UNUSED.
         Ok(())
         // NOTE
@@ -215,6 +236,8 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         n: String,
         v: Value,
         s: bool,
@@ -224,10 +247,10 @@ impl ObjectEnvironmentIndex {
         let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let n = PropertyKey::from(n);
-        let still_exists = has_property(agent, binding_object, n)?;
+        let still_exists = has_property(agent, gc.reborrow(), scope.reborrow(), binding_object, n)?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
-            let binding_object_repr = binding_object.into_value().string_repr(agent);
+            let binding_object_repr = binding_object.into_value().string_repr(agent, gc, scope);
             let error_message = format!(
                 "Property '{}' does not exist in {}.",
                 n.as_display(agent),
@@ -236,7 +259,7 @@ impl ObjectEnvironmentIndex {
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
-            set(agent, binding_object, n, v, s)?;
+            set(agent, gc, scope, binding_object, n, v, s)?;
             // 5. Return UNUSED.
             Ok(())
         }
@@ -252,6 +275,8 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
+        mut gc: Gc<'_>,
+        scope: Scope<'_>,
         n: String,
         s: bool,
     ) -> JsResult<Value> {
@@ -260,14 +285,14 @@ impl ObjectEnvironmentIndex {
         let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(n);
         // 2. Let value be ? HasProperty(bindingObject, N).
-        let value = has_property(agent, binding_object, name)?;
+        let value = has_property(agent, gc.reborrow(), scope.reborrow(), binding_object, name)?;
         // 3. If value is false, then
         if !value {
             // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
             if !s {
                 Ok(Value::Undefined)
             } else {
-                let binding_object_repr = binding_object.into_value().string_repr(agent);
+                let binding_object_repr = binding_object.into_value().string_repr(agent, gc, scope);
                 let error_message = format!(
                     "Property '{}' does not exist in {}.",
                     name.as_display(agent),
@@ -277,7 +302,7 @@ impl ObjectEnvironmentIndex {
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
-            get(agent, binding_object, name)
+            get(agent, gc, scope, binding_object, name)
         }
     }
 
@@ -288,13 +313,19 @@ impl ObjectEnvironmentIndex {
     /// completion containing a Boolean or a throw completion. It can only
     /// delete bindings that correspond to properties of the environment
     /// object whose [[Configurable]] attribute have the value true.
-    pub(crate) fn delete_binding(self, agent: &mut Agent, name: String) -> JsResult<bool> {
+    pub(crate) fn delete_binding(
+        self,
+        agent: &mut Agent,
+        gc: Gc<'_>,
+        scope: Scope<'_>,
+        name: String,
+    ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;
         let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
-        binding_boject.internal_delete(agent, name)
+        binding_boject.internal_delete(agent, gc, scope, name)
     }
 
     /// ### [9.1.1.2.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hasthisbinding)
