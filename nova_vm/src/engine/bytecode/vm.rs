@@ -515,8 +515,8 @@ impl Vm {
                 }
             }
             Instruction::ToNumber => {
-                vm.result =
-                    to_number(agent, vm.result.unwrap()).map(|number| Some(number.into()))?;
+                vm.result = to_number(agent, gc.reborrow(), scope.reborrow(), vm.result.unwrap())
+                    .map(|number| Some(number.into()))?;
             }
             Instruction::ToNumeric => {
                 vm.result =

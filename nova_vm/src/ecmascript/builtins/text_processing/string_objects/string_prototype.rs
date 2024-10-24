@@ -575,7 +575,7 @@ impl StringPrototype {
             position.into_i64().max(0) as usize
         } else {
             // 4. Let numPos be ? ToNumber(position).
-            let num_pos = to_number(agent, args.get(1))?;
+            let num_pos = to_number(agent, gc.reborrow(), scope.reborrow(), args.get(1))?;
             if num_pos.is_nan(agent) {
                 // 6. If numPos is NaN, let pos be +∞;
                 usize::MAX
@@ -1121,7 +1121,7 @@ impl StringPrototype {
             // else let lim be ℝ(? ToUint32(limit)).
             // Note: Fast path for integer parameter.
             Value::Integer(value) => value.into_i64() as u32,
-            _ => to_uint32(agent, limit)?,
+            _ => to_uint32(agent, gc.reborrow(), scope.reborrow(), limit)?,
         };
 
         // 5. Let R be ? ToString(separator).

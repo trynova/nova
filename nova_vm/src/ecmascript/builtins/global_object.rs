@@ -677,7 +677,7 @@ impl GlobalObject {
     ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number)?;
+        let num = to_number(agent, gc.reborrow(), scope.reborrow(), number)?;
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
         Ok(num.is_finite(agent).into())
@@ -699,7 +699,7 @@ impl GlobalObject {
     ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number)?;
+        let num = to_number(agent, gc.reborrow(), scope.reborrow(), number)?;
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())

@@ -81,6 +81,8 @@ impl MapConstructor {
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%Map.prototype%", « [[MapData]] »).
         let map = Map::try_from(ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             new_target,
             ProtoIntrinsics::Map,
         )?)
@@ -132,10 +134,7 @@ impl MapConstructor {
         Ok(this_value)
     }
 
-    pub(crate) fn create_intrinsic(
-        agent: &mut Agent,
-        realm: RealmIdentifier,
-    ) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let map_prototype = intrinsics.map_prototype();
 

@@ -110,6 +110,8 @@ impl NumberConstructor {
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             new_target,
             ProtoIntrinsics::Number,
         )?)
@@ -156,7 +158,7 @@ impl NumberConstructor {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
-        Ok(is_integral_number(agent, maybe_number).into())
+        Ok(is_integral_number(agent, gc.reborrow(), scope.reborrow(), maybe_number).into())
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)

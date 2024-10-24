@@ -74,6 +74,8 @@ impl SetConstructor {
         let new_target = Function::try_from(new_target).unwrap();
         let set = Set::try_from(ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
+            scope.reborrow(),
             new_target,
             ProtoIntrinsics::Set,
         )?)

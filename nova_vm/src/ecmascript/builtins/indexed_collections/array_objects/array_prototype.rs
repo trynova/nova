@@ -3413,7 +3413,7 @@ fn compare_array_elements(
             Value::Undefined,
             Some(ArgumentsList(&[x, y])),
         )?;
-        let v = to_number(agent, v)?;
+        let v = to_number(agent, gc.reborrow(), scope.reborrow(), v)?;
         // b. If v is NaN, return +0𝔽.
         // c. Return v.
         if v.is_nan(agent) {

@@ -166,7 +166,8 @@ impl ReflectObject {
             ));
         };
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
-        let args = create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arguments_list)?;
+        let args =
+            create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arguments_list)?;
         // TODO: 3. Perform PrepareForTailCall().
         // 4. Return ? Call(target, thisArgument, args)
         call_function(
@@ -214,9 +215,17 @@ impl ReflectObject {
         };
 
         // 4. Let args be ? CreateListFromArrayLike(argumentsList).
-        let args = create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arguments_list)?;
+        let args =
+            create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arguments_list)?;
         // 5. Return ? Construct(target, args, newTarget)
-        let ret = construct(agent, target, Some(ArgumentsList(&args)), Some(new_target))?;
+        let ret = construct(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            target,
+            Some(ArgumentsList(&args)),
+            Some(new_target),
+        )?;
         Ok(ret.into_value())
     }
 
@@ -240,7 +249,12 @@ impl ReflectObject {
         // 2. Let key be ? ToPropertyKey(propertyKey).
         let key = to_property_key(agent, arguments.get(1))?;
         // 3. Let desc be ? ToPropertyDescriptor(attributes).
-        let desc = PropertyDescriptor::to_property_descriptor(agent, gc.reborrow(), scope.reborrow(), arguments.get(2))?;
+        let desc = PropertyDescriptor::to_property_descriptor(
+            agent,
+            gc.reborrow(),
+            scope.reborrow(),
+            arguments.get(2),
+        )?;
         // 4. Return ? target.[[DefineOwnProperty]](key, desc).
         let ret = target.internal_define_own_property(agent, key, desc)?;
         Ok(ret.into())

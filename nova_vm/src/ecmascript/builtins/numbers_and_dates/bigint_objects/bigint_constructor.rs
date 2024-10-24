@@ -204,7 +204,7 @@ fn number_to_big_int(
     scope: Scope<'_>,
     value: Number,
 ) -> JsResult<BigInt> {
-    if !is_integral_number(agent, value) {
+    if !is_integral_number(agent, gc.reborrow(), scope.reborrow(), value) {
         Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
     } else {
         match value {
