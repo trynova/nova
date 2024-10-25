@@ -1136,7 +1136,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope<'_, '_>) {
 mod test {
 
     use crate::{
-        engine::context::{GcScope, GcToken, ScopeToken},
+        engine::context::GcScope,
         heap::{
             IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
             LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX,
@@ -1192,8 +1192,7 @@ mod test {
         use crate::heap::indexes::ObjectIndex;
 
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let mut gc = unsafe { GcToken::new() };
-        let mut scope = unsafe { ScopeToken::new() };
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
         initialize_default_realm(&mut agent, gc);
         assert_eq!(

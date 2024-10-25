@@ -1461,7 +1461,7 @@ fn sweep(
 
 #[test]
 fn test_heap_gc() {
-    use crate::engine::context::{GcScope, GcToken, ScopeToken};
+    use crate::engine::context::GcScope;
     use crate::{
         ecmascript::execution::{agent::Options, DefaultHostHooks},
         engine::rootable::HeapRootData,
@@ -1469,8 +1469,7 @@ fn test_heap_gc() {
 
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
 
-    let mut gc = unsafe { GcToken::new() };
-    let mut scope = unsafe { ScopeToken::new() };
+    let (mut gc, mut scope) = unsafe { GcScope::create_root() };
     let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
     let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));

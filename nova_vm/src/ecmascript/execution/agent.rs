@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{GcScope, GcToken, ScopeToken}, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::GcScope, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -244,8 +244,7 @@ impl GcAgent {
             // GC is disabled; no-op
             return;
         }
-        let mut gc = unsafe { GcToken::new() };
-        let mut scope = unsafe { ScopeToken::new() };
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
         heap_gc(&mut self.agent, gc, &mut self.realm_roots);
     }
@@ -299,8 +298,7 @@ impl Agent {
         create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
         initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope, Object)>,
     ) -> RealmIdentifier {
-        let mut gc = unsafe { GcToken::new() };
-        let mut scope = unsafe { ScopeToken::new() };
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
         initialize_host_defined_realm(
@@ -317,8 +315,7 @@ impl Agent {
     ///
     /// This is intended for usage within BuiltinFunction calls.
     pub fn create_default_realm(&mut self) -> RealmIdentifier {
-        let mut gc = unsafe { GcToken::new() };
-        let mut scope = unsafe { ScopeToken::new() };
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
         initialize_default_realm(self, gc);
@@ -336,8 +333,7 @@ impl Agent {
             realm,
             script_or_module: None,
         });
-        let mut gc = unsafe { GcToken::new() };
-        let mut scope = unsafe { ScopeToken::new() };
+        let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
         let result = func(self, gc);

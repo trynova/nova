@@ -45,22 +45,27 @@ pub struct Scope<'a> {
 }
 
 impl GcToken {
-    /// SAFETY: Only one GcToken should exist at any point in time.
-    ///
-    /// The caller must make sure to only create a new token when a new
-    /// JavaScript call stack is initialized.
-    pub(crate) unsafe fn new() -> Self {
+    unsafe fn new() -> Self {
         Self
     }
 }
 
 impl ScopeToken {
-    pub(crate) unsafe fn new() -> Self {
+    unsafe fn new() -> Self {
         Self
     }
 }
 
 impl<'a, 'b> GcScope<'a, 'b> {
+    /// SAFETY: Only one GcScope root should exist at any point in time.
+    ///
+    /// The caller must make sure to only create a new root when a new
+    /// JavaScript call stack is initialized.
+    #[inline]
+    pub(crate) unsafe fn create_root() -> (GcToken, ScopeToken) {
+        (GcToken::new(), ScopeToken::new())
+    }
+
     #[inline]
     pub(crate) fn new(_: &'a mut GcToken, _: &'b mut ScopeToken) -> Self {
         Self {
