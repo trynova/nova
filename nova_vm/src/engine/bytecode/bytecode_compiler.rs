@@ -10,9 +10,10 @@ use super::{
     executable::ArrowFunctionExpression, Executable, ExecutableHeapData, FunctionExpression,
     Instruction, SendableRef,
 };
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::reg_exp_create;
 use crate::{
     ecmascript::{
-        builtins::regexp::reg_exp_create,
         execution::Agent,
         syntax_directed_operations::{
             function_definitions::{CompileFunctionBodyData, ContainsExpression},
@@ -982,7 +983,10 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         ast::PropertyKey::PrivateFieldExpression(init) => init.compile(ctx),
                         ast::PropertyKey::PrivateIdentifier(_init) => todo!(),
                         ast::PropertyKey::PrivateInExpression(init) => init.compile(ctx),
+                        #[cfg(feature = "regexp")]
                         ast::PropertyKey::RegExpLiteral(init) => init.compile(ctx),
+                        #[cfg(not(feature = "regexp"))]
+                        ast::PropertyKey::RegExpLiteral(_) => todo!(),
                         ast::PropertyKey::SequenceExpression(init) => init.compile(ctx),
                         ast::PropertyKey::StaticIdentifier(id) => {
                             if id.name == "__proto__" {
@@ -1555,7 +1559,7 @@ impl CompileEvaluation for ast::PrivateInExpression<'_> {
         todo!()
     }
 }
-
+#[cfg(feature = "regexp")]
 impl CompileEvaluation for ast::RegExpLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let pattern = match self.regex.pattern {
@@ -1690,7 +1694,10 @@ impl CompileEvaluation for ast::Expression<'_> {
             ast::Expression::ParenthesizedExpression(x) => x.compile(ctx),
             ast::Expression::PrivateFieldExpression(x) => x.compile(ctx),
             ast::Expression::PrivateInExpression(x) => x.compile(ctx),
+            #[cfg(feature = "regexp")]
             ast::Expression::RegExpLiteral(x) => x.compile(ctx),
+            #[cfg(not(feature = "regexp"))]
+            ast::Expression::RegExpLiteral(_) => unreachable!(),
             ast::Expression::SequenceExpression(x) => x.compile(ctx),
             ast::Expression::StaticMemberExpression(x) => x.compile(ctx),
             ast::Expression::StringLiteral(x) => x.compile(ctx),
@@ -2489,7 +2496,10 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                 ast::ForStatementInit::ParenthesizedExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::PrivateFieldExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::PrivateInExpression(init) => init.compile(ctx),
+                #[cfg(feature = "regexp")]
                 ast::ForStatementInit::RegExpLiteral(init) => init.compile(ctx),
+                #[cfg(not(feature = "regexp"))]
+                ast::ForStatementInit::RegExpLiteral(_) => unreachable!(),
                 ast::ForStatementInit::SequenceExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::StaticMemberExpression(init) => init.compile(ctx),
                 ast::ForStatementInit::StringLiteral(init) => init.compile(ctx),

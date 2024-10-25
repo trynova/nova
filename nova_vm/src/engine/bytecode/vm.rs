@@ -2235,7 +2235,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Error(_)  |
         // 14. Return "object".
         Value::PrimitiveObject(_) |
-        Value::RegExp(_) |
         Value::Arguments(_) |
         Value::FinalizationRegistry(_) |
         Value::Map(_) |
@@ -2250,6 +2249,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Generator(_) |
         Value::Module(_) |
         Value::EmbedderObject(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "regexp")]
+        Value::RegExp(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "weak-refs")]
         Value::WeakMap(_) |
         Value::WeakRef(_) |
