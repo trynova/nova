@@ -162,11 +162,11 @@ impl DataViewConstructor {
             agent
                 .heap
                 .data_view_byte_lengths
-                .insert(o, view_byte_length.unwrap());
+                .insert(o.0, view_byte_length.unwrap());
         }
 
         if byte_offset == DataViewByteOffset::heap() {
-            agent.heap.data_view_byte_offsets.insert(o, offset);
+            agent.heap.data_view_byte_offsets.insert(o.0, offset);
         }
 
         // 18. Return O.

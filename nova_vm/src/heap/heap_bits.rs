@@ -542,15 +542,6 @@ pub(crate) struct CompactionList {
 }
 
 impl CompactionList {
-    pub fn get_shift_for_weak_index(&self, index: u32) -> Option<u32> {
-        self.indexes
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, candidate)| **candidate <= index)
-            .map(|(index, _)| *self.shifts.get(index).unwrap())
-    }
-
     pub fn get_shift_for_index(&self, index: u32) -> u32 {
         self.indexes
             .iter()
@@ -1073,10 +1064,8 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
     }
 }
 
-#[cfg(feature = "array-buffer")]
-pub(crate) fn sweep_data_view_side_table_values<V: Copy>(
-    // TODO: Figure out a generic way to handle all types which wrap `BaseIndex`
-    side_table: &mut AHashMap<DataView, V>,
+pub(crate) fn sweep_side_table_values<T, V>(
+    side_table: &mut AHashMap<BaseIndex<T>, V>,
     compactions: &CompactionList,
     marks: &[bool],
 ) {
@@ -1084,11 +1073,11 @@ pub(crate) fn sweep_data_view_side_table_values<V: Copy>(
     let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
     for (key, _) in side_table.iter_mut() {
         let old_key = *key;
-        if !marks.get(key.get_index()).unwrap() {
+        if !marks.get(key.into_index()).unwrap() {
             keys_to_remove.push(old_key);
         } else {
             let mut new_key = old_key;
-            compactions.shift_index(&mut new_key.0);
+            compactions.shift_index(&mut new_key);
             if new_key != old_key {
                 keys_to_reassign.push((old_key, new_key));
             }
