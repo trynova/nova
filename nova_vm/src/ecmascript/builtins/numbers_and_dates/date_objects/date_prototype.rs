@@ -4,7 +4,7 @@
 
 use std::time::SystemTime;
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{ordinary_to_primitive, PreferredType},
@@ -299,8 +299,8 @@ const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
 impl DatePrototype {
     fn get_date(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -310,8 +310,8 @@ impl DatePrototype {
 
     fn get_day(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -321,8 +321,8 @@ impl DatePrototype {
 
     fn get_full_year(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -332,8 +332,8 @@ impl DatePrototype {
 
     fn get_hours(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -343,8 +343,8 @@ impl DatePrototype {
 
     fn get_milliseconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -354,8 +354,8 @@ impl DatePrototype {
 
     fn get_minutes(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -365,8 +365,8 @@ impl DatePrototype {
 
     fn get_month(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -376,8 +376,8 @@ impl DatePrototype {
 
     fn get_seconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -387,8 +387,8 @@ impl DatePrototype {
 
     fn get_time(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -398,8 +398,8 @@ impl DatePrototype {
 
     fn get_timezone_offset(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -409,8 +409,8 @@ impl DatePrototype {
 
     fn get_utc_date(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -420,8 +420,8 @@ impl DatePrototype {
 
     fn get_utc_day(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -431,8 +431,8 @@ impl DatePrototype {
 
     fn get_utc_full_year(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -442,8 +442,8 @@ impl DatePrototype {
 
     fn get_utc_hours(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -453,8 +453,8 @@ impl DatePrototype {
 
     fn get_utc_milliseconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -464,8 +464,8 @@ impl DatePrototype {
 
     fn get_utc_minutes(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -475,8 +475,8 @@ impl DatePrototype {
 
     fn get_utc_month(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -486,8 +486,8 @@ impl DatePrototype {
 
     fn get_utc_seconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -497,8 +497,8 @@ impl DatePrototype {
 
     fn set_date(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -508,8 +508,8 @@ impl DatePrototype {
 
     fn set_full_year(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -519,8 +519,8 @@ impl DatePrototype {
 
     fn set_hours(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -530,8 +530,8 @@ impl DatePrototype {
 
     fn set_milliseconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -541,8 +541,8 @@ impl DatePrototype {
 
     fn set_minutes(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -552,8 +552,8 @@ impl DatePrototype {
 
     fn set_month(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -563,8 +563,8 @@ impl DatePrototype {
 
     fn set_seconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -574,8 +574,8 @@ impl DatePrototype {
 
     fn set_time(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -585,8 +585,8 @@ impl DatePrototype {
 
     fn set_utc_date(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -596,8 +596,8 @@ impl DatePrototype {
 
     fn set_utc_full_year(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -607,8 +607,8 @@ impl DatePrototype {
 
     fn set_utc_hours(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -618,8 +618,8 @@ impl DatePrototype {
 
     fn set_utc_milliseconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -629,8 +629,8 @@ impl DatePrototype {
 
     fn set_utc_minutes(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -640,8 +640,8 @@ impl DatePrototype {
 
     fn set_utc_month(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -651,8 +651,8 @@ impl DatePrototype {
 
     fn set_utc_seconds(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -662,8 +662,8 @@ impl DatePrototype {
 
     fn to_date_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -673,8 +673,8 @@ impl DatePrototype {
 
     fn to_iso_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -684,8 +684,8 @@ impl DatePrototype {
 
     fn to_json(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -694,8 +694,8 @@ impl DatePrototype {
 
     fn to_locale_date_string(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -704,8 +704,8 @@ impl DatePrototype {
 
     fn to_locale_string(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -714,8 +714,8 @@ impl DatePrototype {
 
     fn to_locale_time_string(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -724,8 +724,8 @@ impl DatePrototype {
 
     fn to_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -735,8 +735,8 @@ impl DatePrototype {
 
     fn to_time_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -746,8 +746,8 @@ impl DatePrototype {
 
     fn to_utc_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -757,8 +757,8 @@ impl DatePrototype {
 
     fn value_of(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -813,8 +813,8 @@ impl DatePrototype {
     /// equivalent to "number".
     fn to_primitive(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -824,9 +824,7 @@ impl DatePrototype {
         let Ok(o) = Object::try_from(this_value) else {
             let error_message = format!(
                 "{} is not an object",
-                this_value
-                    .string_repr(agent, gc.reborrow(), scope.reborrow())
-                    .as_str(agent)
+                this_value.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
@@ -845,14 +843,12 @@ impl DatePrototype {
             // a. Throw a TypeError exception.
             let error_message = format!(
                 "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
-                hint.string_repr(agent, gc.reborrow(), scope.reborrow())
-                    .as_str(agent)
+                hint.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
-        ordinary_to_primitive(agent, gc.reborrow(), scope.reborrow(), o, try_first)
-            .map(|result| result.into_value())
+        ordinary_to_primitive(agent, gc.reborrow(), o, try_first).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

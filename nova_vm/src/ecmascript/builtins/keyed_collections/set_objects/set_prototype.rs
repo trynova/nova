@@ -6,7 +6,7 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -90,8 +90,8 @@ impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
     fn add(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -152,8 +152,8 @@ impl SetPrototype {
     /// > iterating over that List.
     fn clear(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -177,8 +177,8 @@ impl SetPrototype {
     /// > such as physically removing the entry from internal data structures.
     fn delete(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -228,8 +228,8 @@ impl SetPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -277,8 +277,8 @@ impl SetPrototype {
     /// > **forEach** begins are visited.
     fn for_each(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -313,7 +313,6 @@ impl SetPrototype {
                 call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[e, e, s.into_value()])),
@@ -330,8 +329,8 @@ impl SetPrototype {
     /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
     fn has(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -378,8 +377,8 @@ impl SetPrototype {
     /// is undefined.
     fn get_size(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -394,8 +393,8 @@ impl SetPrototype {
 
     fn values(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

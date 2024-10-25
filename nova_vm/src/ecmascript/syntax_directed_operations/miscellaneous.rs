@@ -12,7 +12,7 @@ use crate::{
         execution::{Agent, EnvironmentIndex, PrivateEnvironmentIndex},
         syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 use oxc_ast::ast;
 
@@ -23,8 +23,8 @@ use oxc_ast::ast;
 /// null) and returns an ECMAScript function object.
 pub(crate) fn instantiate_function_object(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
@@ -34,14 +34,14 @@ pub(crate) fn instantiate_function_object(
     // function ( FormalParameters ) { FunctionBody }
     if !function.r#async && !function.generator {
         // 1. Return InstantiateOrdinaryFunctionObject of FunctionDeclaration with arguments env and privateEnv.
-        return instantiate_ordinary_function_object(agent, gc, scope, function, env, private_env);
+        return instantiate_ordinary_function_object(agent, gc, function, env, private_env);
     }
     // GeneratorDeclaration :
     // function * BindingIdentifier ( FormalParameters ) { GeneratorBody }
     // function * ( FormalParameters ) { GeneratorBody }
     if !function.r#async && function.generator {
         // 1. Return InstantiateGeneratorFunctionObject of GeneratorDeclaration with arguments env and privateEnv.
-        return instantiate_ordinary_function_object(agent, gc, scope, function, env, private_env);
+        return instantiate_ordinary_function_object(agent, gc, function, env, private_env);
     }
     // AsyncGeneratorDeclaration :
     // async function * BindingIdentifier ( FormalParameters ) { AsyncGeneratorBody }
@@ -55,7 +55,7 @@ pub(crate) fn instantiate_function_object(
     // async function ( FormalParameters ) { AsyncFunctionBody }
     if function.r#async && !function.generator {
         // 1. Return InstantiateAsyncFunctionObject of AsyncFunctionDeclaration with arguments env and privateEnv.
-        return instantiate_ordinary_function_object(agent, gc, scope, function, env, private_env);
+        return instantiate_ordinary_function_object(agent, gc, function, env, private_env);
     }
     unreachable!();
 }

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -43,8 +43,8 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 impl AsyncGeneratorPrototype {
     fn next(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -53,8 +53,8 @@ impl AsyncGeneratorPrototype {
 
     fn r#return(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -63,8 +63,8 @@ impl AsyncGeneratorPrototype {
 
     fn throw(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

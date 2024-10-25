@@ -4,7 +4,7 @@
 
 use std::ops::{Deref, Index, IndexMut};
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         execution::{
@@ -45,9 +45,9 @@ impl ArgumentsList<'_> {
     }
 }
 
-pub type RegularFn = fn(&mut Agent, Gc, Scope, Value, ArgumentsList<'_>) -> JsResult<Value>;
+pub type RegularFn = fn(&mut Agent, GcScope, Value, ArgumentsList<'_>) -> JsResult<Value>;
 pub type ConstructorFn =
-    fn(&mut Agent, Gc, Scope, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
+    fn(&mut Agent, GcScope, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -235,8 +235,8 @@ impl InternalMethods for BuiltinFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -245,71 +245,63 @@ impl InternalMethods for BuiltinFunction {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        function_internal_define_own_property(
-            self,
-            agent,
-            gc,
-            scope,
-            property_key,
-            property_descriptor,
-        )
+        function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
     }
 
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
-        function_internal_has_property(self, agent, gc, scope, property_key)
+        function_internal_has_property(self, agent, gc, property_key)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc, scope, property_key, receiver)
+        function_internal_get(self, agent, gc, property_key, receiver)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc, scope, property_key, value, receiver)
+        function_internal_set(self, agent, gc, property_key, value, receiver)
     }
 
     fn internal_delete(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
-        function_internal_delete(self, agent, gc, scope, property_key)
+        function_internal_delete(self, agent, gc, property_key)
     }
 
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent, gc, scope)
+        function_internal_own_property_keys(self, agent, gc)
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
@@ -322,21 +314,13 @@ impl InternalMethods for BuiltinFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_argument: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(
-            agent,
-            gc,
-            scope,
-            self,
-            Some(this_argument),
-            arguments_list,
-            None,
-        )
+        builtin_call_or_construct(agent, gc, self, Some(this_argument), arguments_list, None)
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -348,22 +332,14 @@ impl InternalMethods for BuiltinFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(
-            agent,
-            gc,
-            scope,
-            self,
-            None,
-            arguments_list,
-            Some(new_target),
-        )
-        .map(|result| result.try_into().unwrap())
+        builtin_call_or_construct(agent, gc, self, None, arguments_list, Some(new_target))
+            .map(|result| result.try_into().unwrap())
     }
 }
 
@@ -376,8 +352,8 @@ impl InternalMethods for BuiltinFunction {
 /// completion containing an ECMAScript language value or a throw completion.
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
@@ -425,7 +401,6 @@ pub(crate) fn builtin_call_or_construct(
                 func(
                     agent,
                     gc,
-                    scope,
                     this_argument.unwrap_or(Value::Undefined),
                     arguments_list,
                 )
@@ -434,7 +409,6 @@ pub(crate) fn builtin_call_or_construct(
         Behaviour::Constructor(func) => func(
             agent,
             gc,
-            scope,
             this_argument.unwrap_or(Value::Undefined),
             arguments_list,
             new_target.map(|target| target.into_object()),

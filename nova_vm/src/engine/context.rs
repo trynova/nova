@@ -28,9 +28,11 @@ pub(crate) struct ScopeToken;
 ///
 /// Holding this token is required for garbage collection.
 #[derive(Debug)]
-pub struct Gc<'a> {
-    inner: GcToken,
-    _marker: PhantomData<&'a mut GcToken>,
+pub struct GcScope<'a, 'b> {
+    gc: GcToken,
+    scope: ScopeToken,
+    _gc_marker: PhantomData<&'a mut GcToken>,
+    _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
 /// # Access to the JavaScript call stack
@@ -58,20 +60,24 @@ impl ScopeToken {
     }
 }
 
-impl Gc<'_> {
+impl<'a, 'b> GcScope<'a, 'b> {
     #[inline]
-    pub(crate) fn new(_: &mut GcToken) -> Self {
+    pub(crate) fn new(_: &'a mut GcToken, _: &'b mut ScopeToken) -> Self {
         Self {
-            inner: GcToken,
-            _marker: PhantomData,
+            gc: GcToken,
+            scope: ScopeToken,
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
         }
     }
 
     #[inline]
     pub fn reborrow(&mut self) -> Self {
         Self {
-            inner: GcToken,
-            _marker: PhantomData,
+            gc: GcToken,
+            scope: ScopeToken,
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
         }
     }
 

@@ -12,7 +12,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 
 pub(crate) struct BooleanPrototype;
@@ -40,8 +40,8 @@ impl Builtin for BooleanPrototypeValueOf {
 impl BooleanPrototype {
     fn to_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -55,8 +55,8 @@ impl BooleanPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

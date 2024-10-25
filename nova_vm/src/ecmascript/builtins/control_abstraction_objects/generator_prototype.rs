@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -50,8 +50,8 @@ impl Builtin for GeneratorPrototypeThrow {
 impl GeneratorPrototype {
     fn next(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -64,15 +64,13 @@ impl GeneratorPrototype {
         };
 
         // 1. Return ? GeneratorResume(this value, value, empty).
-        Ok(generator
-            .resume(agent, gc, scope, arguments.get(0))?
-            .into_value())
+        Ok(generator.resume(agent, gc, arguments.get(0))?.into_value())
     }
 
     fn r#return(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -125,8 +123,8 @@ impl GeneratorPrototype {
 
     fn throw(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -142,7 +140,7 @@ impl GeneratorPrototype {
         // 2. Let C be ThrowCompletion(exception).
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
         Ok(generator
-            .resume_throw(agent, gc, scope, arguments.get(0))?
+            .resume_throw(agent, gc, arguments.get(0))?
             .into_value())
     }
 

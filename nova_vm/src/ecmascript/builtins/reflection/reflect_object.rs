@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -149,8 +149,8 @@ impl ReflectObject {
     /// [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
     fn apply(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -166,25 +166,17 @@ impl ReflectObject {
             ));
         };
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
-        let args =
-            create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arguments_list)?;
+        let args = create_list_from_array_like(agent, gc.reborrow(), arguments_list)?;
         // TODO: 3. Perform PrepareForTailCall().
         // 4. Return ? Call(target, thisArgument, args)
-        call_function(
-            agent,
-            gc,
-            scope,
-            target,
-            this_argument,
-            Some(ArgumentsList(&args)),
-        )
+        call_function(agent, gc, target, this_argument, Some(ArgumentsList(&args)))
     }
 
     /// [28.1.2 Reflect.construct ( target, argumentsList \[ , newTarget \] )](https://tc39.es/ecma262/#sec-reflect.construct)
     fn construct(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -215,13 +207,11 @@ impl ReflectObject {
         };
 
         // 4. Let args be ? CreateListFromArrayLike(argumentsList).
-        let args =
-            create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arguments_list)?;
+        let args = create_list_from_array_like(agent, gc.reborrow(), arguments_list)?;
         // 5. Return ? Construct(target, args, newTarget)
         let ret = construct(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             target,
             Some(ArgumentsList(&args)),
             Some(new_target),
@@ -232,8 +222,8 @@ impl ReflectObject {
     /// [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
     fn define_property(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -247,30 +237,20 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
         // 3. Let desc be ? ToPropertyDescriptor(attributes).
-        let desc = PropertyDescriptor::to_property_descriptor(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            arguments.get(2),
-        )?;
+        let desc =
+            PropertyDescriptor::to_property_descriptor(agent, gc.reborrow(), arguments.get(2))?;
         // 4. Return ? target.[[DefineOwnProperty]](key, desc).
-        let ret = target.internal_define_own_property(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            key,
-            desc,
-        )?;
+        let ret = target.internal_define_own_property(agent, gc.reborrow(), key, desc)?;
         Ok(ret.into())
     }
 
     /// [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
     fn delete_property(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -284,17 +264,17 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
         // 3. Return ? target.[[Delete]](key).
-        let ret = target.internal_delete(agent, gc.reborrow(), scope.reborrow(), key)?;
+        let ret = target.internal_delete(agent, gc.reborrow(), key)?;
         Ok(ret.into())
     }
 
     /// [28.1.5 Reflect.get ( target, propertyKey \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.get)
     fn get(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -308,7 +288,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
         let receiver = if arguments.len() > 2 {
             arguments.get(2)
         } else {
@@ -317,14 +297,14 @@ impl ReflectObject {
             target.into_value()
         };
         // 4. Return ? target.[[Get]](key, receiver).
-        target.internal_get(agent, gc.reborrow(), scope.reborrow(), key, receiver)
+        target.internal_get(agent, gc.reborrow(), key, receiver)
     }
 
     /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
     fn get_own_property_descriptor(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -338,9 +318,9 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
         // 3. Let desc be ? target.[[GetOwnProperty]](key).
-        let desc = target.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), key)?;
+        let desc = target.internal_get_own_property(agent, gc.reborrow(), key)?;
         // 4. Return FromPropertyDescriptor(desc).
         match PropertyDescriptor::from_property_descriptor(desc, agent) {
             Some(ret) => Ok(ret.into_value()),
@@ -351,8 +331,8 @@ impl ReflectObject {
     /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
     fn get_prototype_of(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -365,7 +345,7 @@ impl ReflectObject {
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[GetPrototypeOf]]().
-        match target.internal_get_prototype_of(agent, gc, scope)? {
+        match target.internal_get_prototype_of(agent, gc)? {
             Some(ret) => Ok(ret.into_value()),
             None => Ok(Value::Null),
         }
@@ -374,8 +354,8 @@ impl ReflectObject {
     /// [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
     fn has(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -389,17 +369,17 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
         // 3. Return ? target.[[HasProperty]](key).
-        let ret = target.internal_has_property(agent, gc.reborrow(), scope.reborrow(), key)?;
+        let ret = target.internal_has_property(agent, gc.reborrow(), key)?;
         Ok(ret.into())
     }
 
     /// [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
     fn is_extensible(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -412,15 +392,15 @@ impl ReflectObject {
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[IsExtensible]]().
-        let ret = target.internal_is_extensible(agent, gc.reborrow(), scope.reborrow())?;
+        let ret = target.internal_is_extensible(agent, gc.reborrow())?;
         Ok(ret.into())
     }
 
     /// [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
     fn own_keys(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -436,7 +416,7 @@ impl ReflectObject {
         // TODO: `PropertyKey::into_value` might not do the right thing for
         // integer keys.
         let keys: Vec<Value> = target
-            .internal_own_property_keys(agent, gc.reborrow(), scope.reborrow())?
+            .internal_own_property_keys(agent, gc.reborrow())?
             .into_iter()
             .map(PropertyKey::into_value)
             .collect();
@@ -447,8 +427,8 @@ impl ReflectObject {
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
     fn prevent_extensions(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -461,15 +441,15 @@ impl ReflectObject {
         }
         let target = Object::try_from(arguments.get(0)).unwrap();
         // 2. Return ? target.[[PreventExtensions]]().
-        let ret = target.internal_prevent_extensions(agent, gc.reborrow(), scope.reborrow())?;
+        let ret = target.internal_prevent_extensions(agent, gc.reborrow())?;
         Ok(ret.into())
     }
 
     /// [28.1.12 Reflect.set ( target, propertyKey, V \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.set)
     fn set(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -483,7 +463,7 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
 
         let v = arguments.get(2);
         let receiver = if arguments.len() > 3 {
@@ -495,15 +475,15 @@ impl ReflectObject {
         };
 
         // 4. Return ? target.[[Set]](key, V, receiver).
-        let ret = target.internal_set(agent, gc.reborrow(), scope.reborrow(), key, v, receiver)?;
+        let ret = target.internal_set(agent, gc.reborrow(), key, v, receiver)?;
         Ok(ret.into())
     }
 
     /// [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
     fn set_prototype_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -530,8 +510,7 @@ impl ReflectObject {
         };
 
         // 3. Return ? target.[[SetPrototypeOf]](proto).
-        let ret =
-            target.internal_set_prototype_of(agent, gc.reborrow(), scope.reborrow(), proto)?;
+        let ret = target.internal_set_prototype_of(agent, gc.reborrow(), proto)?;
         Ok(ret.into())
     }
 

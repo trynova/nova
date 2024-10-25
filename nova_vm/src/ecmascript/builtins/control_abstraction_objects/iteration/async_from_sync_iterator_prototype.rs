@@ -9,7 +9,7 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier},
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 
 pub(crate) struct AsyncFromSyncIteratorPrototype;
@@ -36,8 +36,8 @@ impl Builtin for AsyncFromSyncIteratorPrototypeThrow {
 impl AsyncFromSyncIteratorPrototype {
     fn next(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -46,8 +46,8 @@ impl AsyncFromSyncIteratorPrototype {
 
     fn r#return(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -56,8 +56,8 @@ impl AsyncFromSyncIteratorPrototype {
 
     fn throw(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

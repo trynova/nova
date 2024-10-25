@@ -18,8 +18,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::engine::context::Gc;
-use crate::engine::context::Scope;
+use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -46,8 +45,8 @@ impl BuiltinGetter for RegExpGetSpecies {}
 impl RegExpConstructor {
     fn behaviour(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -57,8 +56,8 @@ impl RegExpConstructor {
 
     fn get_species(
         _: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

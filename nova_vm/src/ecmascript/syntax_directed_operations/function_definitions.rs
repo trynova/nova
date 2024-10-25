@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -95,8 +95,8 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 /// Record or null) and returns an ECMAScript function object.
 pub(crate) fn instantiate_ordinary_function_object(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
@@ -157,7 +157,6 @@ pub(crate) fn instantiate_ordinary_function_object(
         define_property_or_throw(
             agent,
             gc,
-            scope,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
@@ -266,8 +265,8 @@ impl CompileFunctionBodyData<'static> {
 /// containing an ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_function_body(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -282,14 +281,14 @@ pub(crate) fn evaluate_function_body(
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
-    Vm::execute(agent, gc, scope, exe, Some(arguments_list.0)).into_js_result()
+    Vm::execute(agent, gc, exe, Some(arguments_list.0)).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
 pub(crate) fn evaluate_async_function_body(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> Promise {
@@ -314,20 +313,14 @@ pub(crate) fn evaluate_async_function_body(
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
-    match Vm::execute(
-        agent,
-        gc.reborrow(),
-        scope.reborrow(),
-        exe,
-        Some(arguments_list.0),
-    ) {
+    match Vm::execute(agent, gc.reborrow(), exe, Some(arguments_list.0)) {
         ExecutionResult::Return(result) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability.resolve(agent, gc, scope, result);
+            promise_capability.resolve(agent, gc, result);
         }
         ExecutionResult::Throw(err) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -349,7 +342,7 @@ pub(crate) fn evaluate_async_function_body(
                 return_promise_capability: promise_capability,
             }));
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let promise = Promise::resolve(agent, gc, scope, awaited_value);
+            let promise = Promise::resolve(agent, gc, awaited_value);
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
             inner_promise_then(agent, promise, handler, handler, None);
         }
@@ -368,8 +361,8 @@ pub(crate) fn evaluate_async_function_body(
 /// completion.
 pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -383,7 +376,6 @@ pub(crate) fn evaluate_generator_body(
     let generator = ordinary_create_from_constructor(
         agent,
         gc,
-        scope,
         function_object.into_function(),
         ProtoIntrinsics::Generator,
     )?;

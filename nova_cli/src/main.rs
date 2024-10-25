@@ -18,7 +18,7 @@ use nova_vm::{
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{Object, String as JsString},
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
@@ -127,9 +127,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 host_hooks,
             );
             assert!(!paths.is_empty());
-            let create_global_object: Option<fn(&mut Agent, Gc<'_>, Scope<'_>) -> Object> = None;
-            let create_global_this_value: Option<fn(&mut Agent, Gc<'_>, Scope<'_>) -> Object> =
-                None;
+            let create_global_object: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
@@ -144,7 +143,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 agent.run_in_realm(
                     &realm,
-                    |agent, mut gc, scope| -> Result<(), Box<dyn std::error::Error>> {
+                    |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
                         let realm = agent.current_realm_id();
                         let file = std::fs::read_to_string(&path)?;
                         let source_text = JsString::from_string(agent, file);
@@ -157,12 +156,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, &path, source_text)
                             }
                         };
-                        let mut result =
-                            script_evaluation(agent, gc.reborrow(), scope.reborrow(), script);
+                        let mut result = script_evaluation(agent, gc.reborrow(), script);
 
                         if result.is_ok() {
                             while let Some(job) = host_hooks.pop_promise_job() {
-                                if let Err(err) = job.run(agent, gc.reborrow(), scope.reborrow()) {
+                                if let Err(err) = job.run(agent, gc.reborrow()) {
                                     result = Err(err);
                                     break;
                                 }
@@ -180,7 +178,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "Uncaught exception: {}",
                                     error
                                         .value()
-                                        .string_repr(agent, gc.reborrow(), scope.reborrow())
+                                        .string_repr(agent, gc.reborrow(),)
                                         .as_str(agent)
                                 );
                                 std::process::exit(1);
@@ -201,9 +199,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 host_hooks,
             );
-            let create_global_object: Option<fn(&mut Agent, Gc<'_>, Scope<'_>) -> Object> = None;
-            let create_global_this_value: Option<fn(&mut Agent, Gc<'_>, Scope<'_>) -> Object> =
-                None;
+            let create_global_object: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
+            let create_global_this_value: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
@@ -229,7 +226,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
                 placeholder = input.to_string();
-                agent.run_in_realm(&realm, |agent, mut gc, scope| {
+                agent.run_in_realm(&realm, |agent, mut gc| {
                     let realm = agent.current_realm_id();
                     let source_text = JsString::from_string(agent, input);
                     let script = match parse_script(agent, source_text, realm, true, None) {
@@ -238,7 +235,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             exit_with_parse_errors(errors, "<stdin>", &placeholder);
                         }
                     };
-                    let result = script_evaluation(agent, gc.reborrow(), scope.reborrow(), script);
+                    let result = script_evaluation(agent, gc.reborrow(), script);
                     match result {
                         Ok(result) => {
                             println!("{:?}\n", result);
@@ -248,7 +245,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "Uncaught exception: {}",
                                 error
                                     .value()
-                                    .string_repr(agent, gc.reborrow(), scope.reborrow())
+                                    .string_repr(agent, gc.reborrow(),)
                                     .as_str(agent)
                             );
                         }

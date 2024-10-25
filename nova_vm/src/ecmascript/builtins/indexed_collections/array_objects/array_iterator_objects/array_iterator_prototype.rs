@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -37,8 +37,8 @@ impl Builtin for ArrayIteratorPrototypeNext {
 impl ArrayIteratorPrototype {
     fn next(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -75,7 +75,7 @@ impl ArrayIteratorPrototype {
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),
-            _ => length_of_array_like(agent, gc.reborrow(), scope.reborrow(), array)?,
+            _ => length_of_array_like(agent, gc.reborrow(), array)?,
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
@@ -110,13 +110,7 @@ impl ArrayIteratorPrototype {
                 };
                 match fast_path_result {
                     Some(result) => result,
-                    None => get(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        array,
-                        PropertyKey::from(index),
-                    )?,
+                    None => get(agent, gc.reborrow(), array, PropertyKey::from(index))?,
                 }
             }
             // 4. Else,
@@ -133,13 +127,7 @@ impl ArrayIteratorPrototype {
                 };
                 let value = match fast_path_result {
                     Some(result) => result,
-                    None => get(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        array,
-                        PropertyKey::from(index),
-                    )?,
+                    None => get(agent, gc.reborrow(), array, PropertyKey::from(index))?,
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).

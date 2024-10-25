@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -89,8 +89,8 @@ pub fn array_create(
 /// > that now are defined using ArraySpeciesCreate.
 pub(crate) fn array_species_create(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     original_array: Object,
     length: usize,
 ) -> JsResult<Object> {
@@ -105,7 +105,6 @@ pub(crate) fn array_species_create(
     let mut c = get(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         original_array,
         BUILTIN_STRING_MEMORY.constructor.into(),
     )?;
@@ -129,7 +128,6 @@ pub(crate) fn array_species_create(
         c = get(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             c_obj,
             WellKnownSymbolIndexes::Species.into(),
         )?;
@@ -150,7 +148,7 @@ pub(crate) fn array_species_create(
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
     let length = Value::from_f64(agent, length as f64);
-    construct(agent, gc, scope, c, Some(ArgumentsList(&[length])), None)
+    construct(agent, gc, c, Some(ArgumentsList(&[length])), None)
 }
 
 /// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
@@ -158,8 +156,8 @@ pub(crate) fn array_species_create(
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
 pub fn array_set_length(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     a: Array,
     desc: PropertyDescriptor,
 ) -> JsResult<bool> {
@@ -191,9 +189,9 @@ pub fn array_set_length(
     let new_len_writable = desc.writable.unwrap_or(true);
     // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
-    let new_len = to_uint32(agent, gc.reborrow(), scope.reborrow(), desc_value)?;
+    let new_len = to_uint32(agent, gc.reborrow(), desc_value)?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
-    let number_len = to_number(agent, gc, scope, desc_value)?;
+    let number_len = to_number(agent, gc, desc_value)?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(

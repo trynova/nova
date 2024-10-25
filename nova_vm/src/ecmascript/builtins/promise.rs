@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -38,7 +38,7 @@ impl Promise {
     }
 
     /// [27.2.4.7.1 PromiseResolve ( C, x )](https://tc39.es/ecma262/#sec-promise-resolve)
-    pub fn resolve(agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>, x: Value) -> Self {
+    pub fn resolve(agent: &mut Agent, gc: GcScope<'_, '_>, x: Value) -> Self {
         // 1. If IsPromise(x) is true, then
         if let Value::Promise(promise) = x {
             // a. Let xConstructor be ? Get(x, "constructor").
@@ -49,7 +49,7 @@ impl Promise {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
             let promise_capability = PromiseCapability::new(agent);
             // 3. Perform ? Call(promiseCapability.[[Resolve]], undefined, « x »).
-            promise_capability.resolve(agent, gc, scope, x);
+            promise_capability.resolve(agent, gc, x);
             // 4. Return promiseCapability.[[Promise]].
             promise_capability.promise()
         }

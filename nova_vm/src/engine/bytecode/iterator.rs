@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -39,12 +39,11 @@ impl VmIterator {
     pub(super) fn step_value(
         &mut self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Value>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
-                let result = iter.next(agent, gc.reborrow(), scope.reborrow())?;
+                let result = iter.next(agent, gc.reborrow())?;
                 if let Some(result) = result {
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
@@ -58,12 +57,11 @@ impl VmIterator {
                     Ok(None)
                 }
             }
-            VmIterator::ArrayValues(iter) => iter.next(agent, gc.reborrow(), scope.reborrow()),
+            VmIterator::ArrayValues(iter) => iter.next(agent, gc.reborrow()),
             VmIterator::GenericIterator(iter) => {
                 let result = call(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     iter.next_method,
                     iter.iterator.into_value(),
                     None,
@@ -78,7 +76,6 @@ impl VmIterator {
                 let done = get(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     result,
                     BUILTIN_STRING_MEMORY.done.into(),
                 )?;
@@ -90,7 +87,6 @@ impl VmIterator {
                     let value = get(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         result,
                         BUILTIN_STRING_MEMORY.value.into(),
                     )?;
@@ -123,15 +119,14 @@ impl VmIterator {
 
     pub(super) fn from_value(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         value: Value,
     ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             value,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
         )?;
@@ -149,7 +144,6 @@ impl VmIterator {
                 if get_method(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     value,
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 )? == Some(
@@ -163,7 +157,7 @@ impl VmIterator {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, gc, scope, value, method)?;
+                let js_iterator = get_iterator_from_method(agent, gc, value, method)?;
                 Ok(VmIterator::GenericIterator(js_iterator))
             }
         }
@@ -191,14 +185,12 @@ impl ObjectPropertiesIterator {
     pub(super) fn next(
         &mut self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyKey>> {
         loop {
             let object = self.object;
             if !self.object_was_visited {
-                let keys =
-                    object.internal_own_property_keys(agent, gc.reborrow(), scope.reborrow())?;
+                let keys = object.internal_own_property_keys(agent, gc.reborrow())?;
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
@@ -212,8 +204,7 @@ impl ObjectPropertiesIterator {
                 if self.visited_keys.contains(&r) {
                     continue;
                 }
-                let desc =
-                    object.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), r)?;
+                let desc = object.internal_get_own_property(agent, gc.reborrow(), r)?;
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
                     if desc.enumerable == Some(true) {
@@ -221,8 +212,7 @@ impl ObjectPropertiesIterator {
                     }
                 }
             }
-            let prototype =
-                object.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
+            let prototype = object.internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype;
@@ -251,8 +241,7 @@ impl ArrayValuesIterator {
     pub(super) fn next(
         &mut self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Value>> {
         // b. Repeat,
         let array = self.array;
@@ -273,13 +262,7 @@ impl ArrayValuesIterator {
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        let element_value = get(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            self.array,
-            index.into(),
-        )?;
+        let element_value = get(agent, gc.reborrow(), self.array, index.into())?;
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))

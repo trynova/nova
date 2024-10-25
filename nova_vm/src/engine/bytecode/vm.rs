@@ -49,7 +49,7 @@ use crate::{
             Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
@@ -148,20 +148,20 @@ impl SuspendedVm {
     pub(crate) fn resume(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         executable: Executable,
         value: Value,
     ) -> ExecutionResult {
         let vm = Vm::from_suspended(self);
-        vm.resume(agent, gc, scope, executable, value)
+        vm.resume(agent, gc, executable, value)
     }
 
     pub(crate) fn resume_throw(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         executable: Executable,
         err: Value,
     ) -> ExecutionResult {
@@ -172,7 +172,7 @@ impl SuspendedVm {
             return ExecutionResult::Throw(err);
         }
         let vm = Vm::from_suspended(self);
-        vm.resume_throw(agent, gc, scope, executable, err)
+        vm.resume_throw(agent, gc, executable, err)
     }
 }
 
@@ -216,8 +216,8 @@ impl Vm {
     /// Executes an executable using the virtual machine.
     pub(crate) fn execute(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         executable: Executable,
         arguments: Option<&[Value]>,
     ) -> ExecutionResult {
@@ -259,26 +259,26 @@ impl Vm {
             eprintln!();
         }
 
-        vm.inner_execute(agent, gc, scope, executable)
+        vm.inner_execute(agent, gc, executable)
     }
 
     pub fn resume(
         mut self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         executable: Executable,
         value: Value,
     ) -> ExecutionResult {
         self.result = Some(value);
-        self.inner_execute(agent, gc, scope, executable)
+        self.inner_execute(agent, gc, executable)
     }
 
     pub fn resume_throw(
         mut self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         executable: Executable,
         err: Value,
     ) -> ExecutionResult {
@@ -286,14 +286,14 @@ impl Vm {
         if !self.handle_error(agent, err) {
             return ExecutionResult::Throw(err);
         }
-        self.inner_execute(agent, gc, scope, executable)
+        self.inner_execute(agent, gc, executable)
     }
 
     fn inner_execute(
         mut self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         executable: Executable,
     ) -> ExecutionResult {
         #[cfg(feature = "interleaved-gc")]
@@ -322,14 +322,7 @@ impl Vm {
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                 }
             }
-            match Self::execute_instruction(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                &mut self,
-                executable,
-                &instr,
-            ) {
+            match Self::execute_instruction(agent, gc.reborrow(), &mut self, executable, &instr) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
                     let result = self.result.unwrap_or(Value::Undefined);
@@ -379,8 +372,8 @@ impl Vm {
 
     fn execute_instruction(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         vm: &mut Vm,
         executable: Executable,
         instr: &Instr,
@@ -402,14 +395,7 @@ impl Vm {
                 };
                 let len = array.len(agent);
                 let key = PropertyKey::Integer(len.into());
-                create_data_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    array,
-                    key,
-                    value,
-                )?
+                create_data_property_or_throw(agent, gc.reborrow(), array, key, value)?
             }
             Instruction::ArrayElision => {
                 let array = *vm.stack.last().unwrap();
@@ -419,7 +405,6 @@ impl Vm {
                 set(
                     agent,
                     gc,
-                    scope,
                     array.into_object(),
                     BUILTIN_STRING_MEMORY.length.into(),
                     (array.len(agent) + 1).into(),
@@ -429,12 +414,7 @@ impl Vm {
             Instruction::Await => return Ok(ContinuationKind::Await),
             Instruction::BitwiseNot => {
                 // 2. Let oldValue be ? ToNumeric(? GetValue(expr)).
-                let old_value = to_numeric(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    vm.result.take().unwrap(),
-                )?;
+                let old_value = to_numeric(agent, gc.reborrow(), vm.result.take().unwrap())?;
 
                 // 3. If oldValue is a Number, then
                 if let Ok(old_value) = Number::try_from(old_value) {
@@ -460,7 +440,7 @@ impl Vm {
                 let identifier =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
 
-                let reference = resolve_binding(agent, gc, scope, identifier, None)?;
+                let reference = resolve_binding(agent, gc, identifier, None)?;
 
                 vm.reference = Some(reference);
             }
@@ -524,12 +504,12 @@ impl Vm {
                 }
             }
             Instruction::ToNumber => {
-                vm.result = to_number(agent, gc.reborrow(), scope.reborrow(), vm.result.unwrap())
+                vm.result = to_number(agent, gc.reborrow(), vm.result.unwrap())
                     .map(|number| Some(number.into()))?;
             }
             Instruction::ToNumeric => {
                 vm.result = Some(
-                    to_numeric(agent, gc.reborrow(), scope.reborrow(), vm.result.unwrap())
+                    to_numeric(agent, gc.reborrow(), vm.result.unwrap())
                         .map(|result| result.into_value())?,
                 );
             }
@@ -540,28 +520,15 @@ impl Vm {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
                 vm.result = Some(apply_string_or_numeric_binary_operator(
-                    agent, gc, scope, lval, op_text, rval,
+                    agent, gc, lval, op_text, rval,
                 )?);
             }
             Instruction::ObjectDefineProperty => {
                 let value = vm.result.take().unwrap();
-                let key = to_property_key(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    vm.stack.pop().unwrap(),
-                )?;
+                let key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
-                create_data_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    object,
-                    key,
-                    value,
-                )
-                .unwrap()
+                create_data_property_or_throw(agent, gc.reborrow(), object, key, value).unwrap()
             }
             Instruction::ObjectDefineMethod => {
                 let FunctionExpression { expression, .. } =
@@ -569,12 +536,7 @@ impl Vm {
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    vm.stack.pop().unwrap(),
-                )?;
+                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
                 // 2. Let env be the running execution context's LexicalEnvironment.
@@ -651,14 +613,7 @@ impl Vm {
                 // b. Perform ? DefinePropertyOrThrow(homeObject, key, desc).
                 // c. NOTE: DefinePropertyOrThrow only returns an abrupt
                 // completion when attempting to define a class static method whose key is "prototype".
-                define_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    object,
-                    prop_key,
-                    desc,
-                )?;
+                define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
                 // c. Return unused.
             }
             Instruction::ObjectDefineGetter => {
@@ -667,12 +622,7 @@ impl Vm {
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    vm.stack.pop().unwrap(),
-                )?;
+                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
                 let ECMAScriptCodeEvaluationState {
@@ -741,14 +691,7 @@ impl Vm {
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
-                define_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    object,
-                    prop_key,
-                    desc,
-                )?;
+                define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
                 // c. Return unused.
             }
             Instruction::ObjectDefineSetter => {
@@ -757,12 +700,7 @@ impl Vm {
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    vm.stack.pop().unwrap(),
-                )?;
+                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
                 let ECMAScriptCodeEvaluationState {
@@ -816,14 +754,7 @@ impl Vm {
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
-                define_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    object,
-                    prop_key,
-                    desc,
-                )?;
+                define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
                 // c. Return unused.
             }
             Instruction::ObjectSetPrototype => {
@@ -840,12 +771,7 @@ impl Vm {
                 };
                 // i. Perform ! object.[[SetPrototypeOf]](propValue).
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
-                object.internal_set_prototype_of(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    prop_value,
-                )?;
+                object.internal_set_prototype_of(agent, gc.reborrow(), prop_value)?;
                 // b. Return unused.
             }
             Instruction::PushReference => {
@@ -857,29 +783,19 @@ impl Vm {
             Instruction::PutValue => {
                 let value = vm.result.take().unwrap();
                 let reference = vm.reference.take().unwrap();
-                put_value(agent, gc.reborrow(), scope.reborrow(), &reference, value)?;
+                put_value(agent, gc.reborrow(), &reference, value)?;
             }
             Instruction::GetValue => {
                 // 1. If V is not a Reference Record, return V.
                 let reference = vm.reference.take().unwrap();
 
-                vm.result = Some(get_value(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    &reference,
-                )?);
+                vm.result = Some(get_value(agent, gc.reborrow(), &reference)?);
             }
             Instruction::GetValueKeepReference => {
                 // 1. If V is not a Reference Record, return V.
                 let reference = vm.reference.as_ref().unwrap();
 
-                vm.result = Some(get_value(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    reference,
-                )?);
+                vm.result = Some(get_value(agent, gc.reborrow(), reference)?);
             }
             Instruction::Typeof => {
                 // 2. If val is a Reference Record, then
@@ -889,7 +805,7 @@ impl Vm {
                         Value::Undefined
                     } else {
                         // 3. Set val to ? GetValue(val).
-                        get_value(agent, gc.reborrow(), scope.reborrow(), &reference)?
+                        get_value(agent, gc.reborrow(), &reference)?
                     }
                 } else {
                     vm.result.unwrap()
@@ -909,7 +825,7 @@ impl Vm {
                 let Value::Object(target) = *vm.stack.last().unwrap() else {
                     unreachable!()
                 };
-                copy_data_properties(agent, gc.reborrow(), scope.reborrow(), target, source)?;
+                copy_data_properties(agent, gc.reborrow(), target, source)?;
             }
             Instruction::CopyDataPropertiesIntoObject => {
                 let from = Object::try_from(vm.result.unwrap()).unwrap();
@@ -925,14 +841,8 @@ impl Vm {
                 }
 
                 vm.result = Some(
-                    copy_data_properties_into_object(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        from,
-                        &excluded_items,
-                    )?
-                    .into_value(),
+                    copy_data_properties_into_object(agent, gc.reborrow(), from, &excluded_items)?
+                        .into_value(),
                 );
             }
             Instruction::InstantiateArrowFunctionExpression => {
@@ -976,18 +886,12 @@ impl Vm {
                 let function = ordinary_function_create(agent, params);
                 let name = if let Some(parameter) = &identifier {
                     match parameter {
-                        NamedEvaluationParameter::Result => to_property_key(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            vm.result.unwrap(),
-                        )?,
-                        NamedEvaluationParameter::Stack => to_property_key(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            *vm.stack.last().unwrap(),
-                        )?,
+                        NamedEvaluationParameter::Result => {
+                            to_property_key(agent, gc.reborrow(), vm.result.unwrap())?
+                        }
+                        NamedEvaluationParameter::Stack => {
+                            to_property_key(agent, gc.reborrow(), *vm.stack.last().unwrap())?
+                        }
                         NamedEvaluationParameter::Reference => {
                             vm.reference.as_ref().unwrap().referenced_name
                         }
@@ -1023,18 +927,12 @@ impl Vm {
                 let (name, env, init_binding) = if let Some(parameter) = identifier {
                     debug_assert!(function_expression.id.is_none());
                     let name = match parameter {
-                        NamedEvaluationParameter::Result => to_property_key(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            vm.result.unwrap(),
-                        )?,
-                        NamedEvaluationParameter::Stack => to_property_key(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            *vm.stack.last().unwrap(),
-                        )?,
+                        NamedEvaluationParameter::Result => {
+                            to_property_key(agent, gc.reborrow(), vm.result.unwrap())?
+                        }
+                        NamedEvaluationParameter::Stack => {
+                            to_property_key(agent, gc.reborrow(), *vm.stack.last().unwrap())?
+                        }
                         NamedEvaluationParameter::Reference => {
                             vm.reference.as_ref().unwrap().referenced_name
                         }
@@ -1093,7 +991,6 @@ impl Vm {
                     define_property_or_throw(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         function,
                         BUILTIN_STRING_MEMORY.prototype.to_property_key(),
                         PropertyDescriptor {
@@ -1114,14 +1011,8 @@ impl Vm {
                         PropertyKey::String(data) => data.into(),
                         _ => unreachable!("maybe?"),
                     };
-                    env.initialize_binding(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        name,
-                        function.into_value(),
-                    )
-                    .unwrap();
+                    env.initialize_binding(agent, gc.reborrow(), name, function.into_value())
+                        .unwrap();
                 }
                 vm.result = Some(function.into_value());
             }
@@ -1147,7 +1038,7 @@ impl Vm {
 
                 let is_null_derived_class = !has_constructor_parent
                     && proto
-                        .internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())
+                        .internal_get_prototype_of(agent, gc.reborrow())
                         .unwrap()
                         .is_none();
 
@@ -1192,7 +1083,6 @@ impl Vm {
                     .internal_define_own_property(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         BUILTIN_STRING_MEMORY.constructor.into(),
                         PropertyDescriptor {
                             value: Some(function.into_value()),
@@ -1258,7 +1148,6 @@ impl Vm {
                     .internal_define_own_property(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         BUILTIN_STRING_MEMORY.constructor.into(),
                         PropertyDescriptor {
                             value: Some(function.into_value()),
@@ -1281,14 +1170,9 @@ impl Vm {
             Instruction::DirectEvalCall => {
                 let args = vm.get_call_args(instr);
 
-                let func_reference = resolve_binding(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    BUILTIN_STRING_MEMORY.eval,
-                    None,
-                )?;
-                let func = get_value(agent, gc.reborrow(), scope.reborrow(), &func_reference)?;
+                let func_reference =
+                    resolve_binding(agent, gc.reborrow(), BUILTIN_STRING_MEMORY.eval, None)?;
+                let func = get_value(agent, gc.reborrow(), &func_reference)?;
 
                 // a. If SameValue(func, %eval%) is true, then
                 if func == agent.current_realm().intrinsics().eval().into_value() {
@@ -1311,7 +1195,6 @@ impl Vm {
                         vm.result = Some(perform_eval(
                             agent,
                             gc.reborrow(),
-                            scope.reborrow(),
                             eval_arg,
                             true,
                             strict_caller,
@@ -1323,7 +1206,6 @@ impl Vm {
                     let result = call(
                         agent,
                         gc,
-                        scope,
                         func,
                         Value::Undefined,
                         Some(ArgumentsList(&args)),
@@ -1345,7 +1227,6 @@ impl Vm {
                     vm.result = Some(call(
                         agent,
                         gc,
-                        scope,
                         func,
                         Value::Undefined,
                         Some(ArgumentsList(&args)),
@@ -1381,14 +1262,7 @@ impl Vm {
                 if cfg!(feature = "interleaved-gc") {
                     let mut vm = NonNull::from(vm);
                     agent.vm_stack.push(vm);
-                    let result = call(
-                        agent,
-                        gc,
-                        scope,
-                        func,
-                        this_value,
-                        Some(ArgumentsList(&args)),
-                    );
+                    let result = call(agent, gc, func, this_value, Some(ArgumentsList(&args)));
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
@@ -1397,7 +1271,6 @@ impl Vm {
                     vm.result = Some(call(
                         agent,
                         gc,
-                        scope,
                         func,
                         this_value,
                         Some(ArgumentsList(&args)),
@@ -1410,9 +1283,7 @@ impl Vm {
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let error_message = format!(
                         "'{}' is not a constructor.",
-                        constructor
-                            .string_repr(agent, gc.reborrow(), scope.reborrow())
-                            .as_str(agent)
+                        constructor.string_repr(agent, gc.reborrow(),).as_str(agent)
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
@@ -1423,7 +1294,6 @@ impl Vm {
                     let result = construct(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         constructor,
                         Some(ArgumentsList(&args)),
                         None,
@@ -1438,7 +1308,6 @@ impl Vm {
                         construct(
                             agent,
                             gc.reborrow(),
-                            scope.reborrow(),
                             constructor,
                             Some(ArgumentsList(&args)),
                             None,
@@ -1459,7 +1328,7 @@ impl Vm {
                     (
                         Function::try_from(data.new_target.unwrap()).unwrap(),
                         data.function_object
-                            .internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())
+                            .internal_get_prototype_of(agent, gc.reborrow())
                             .unwrap(),
                     )
                 };
@@ -1470,7 +1339,7 @@ impl Vm {
                     let error_message = format!(
                         "'{}' is not a constructor.",
                         func.map_or(Value::Null, |func| func.into_value())
-                            .string_repr(agent, gc.reborrow(), scope.reborrow())
+                            .string_repr(agent, gc.reborrow(),)
                             .as_str(agent)
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
@@ -1479,7 +1348,6 @@ impl Vm {
                 let result = construct(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     func,
                     Some(ArgumentsList(&arg_list)),
                     Some(new_target),
@@ -1509,8 +1377,7 @@ impl Vm {
                     .unwrap()
                     .is_strict_mode;
 
-                let property_key =
-                    to_property_key(agent, gc.reborrow(), scope.reborrow(), property_name_value)?;
+                let property_key = to_property_key(agent, gc.reborrow(), property_name_value)?;
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value),
@@ -1559,7 +1426,7 @@ impl Vm {
             }
             Instruction::Increment => {
                 let lhs = vm.result.take().unwrap();
-                let old_value = to_numeric(agent, gc.reborrow(), scope.reborrow(), lhs)?;
+                let old_value = to_numeric(agent, gc.reborrow(), lhs)?;
                 let new_value = if let Ok(old_value) = Number::try_from(old_value) {
                     Number::add(agent, old_value, 1.into())
                 } else {
@@ -1571,7 +1438,7 @@ impl Vm {
             }
             Instruction::Decrement => {
                 let lhs = vm.result.take().unwrap();
-                let old_value = to_numeric(agent, gc.reborrow(), scope.reborrow(), lhs)?;
+                let old_value = to_numeric(agent, gc.reborrow(), lhs)?;
                 let new_value = if let Ok(old_value) = Number::try_from(old_value) {
                     Number::subtract(agent, old_value, 1.into())
                 } else {
@@ -1584,25 +1451,25 @@ impl Vm {
             Instruction::LessThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_less_than::<true>(agent, gc, scope, lval, rval)? == Some(true);
+                let result = is_less_than::<true>(agent, gc, lval, rval)? == Some(true);
                 vm.result = Some(result.into());
             }
             Instruction::LessThanEquals => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_less_than::<false>(agent, gc, scope, rval, lval)? == Some(false);
+                let result = is_less_than::<false>(agent, gc, rval, lval)? == Some(false);
                 vm.result = Some(result.into());
             }
             Instruction::GreaterThan => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_less_than::<false>(agent, gc, scope, rval, lval)? == Some(true);
+                let result = is_less_than::<false>(agent, gc, rval, lval)? == Some(true);
                 vm.result = Some(result.into());
             }
             Instruction::GreaterThanEquals => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_less_than::<true>(agent, gc, scope, lval, rval)? == Some(false);
+                let result = is_less_than::<true>(agent, gc, lval, rval)? == Some(false);
                 vm.result = Some(result.into());
             }
             Instruction::HasProperty => {
@@ -1613,17 +1480,15 @@ impl Vm {
                 let Ok(rval) = Object::try_from(rval) else {
                     let error_message = format!(
                         "The right-hand side of an `in` expression must be an object, got '{}'.",
-                        rval.string_repr(agent, gc.reborrow(), scope.reborrow())
-                            .as_str(agent)
+                        rval.string_repr(agent, gc.reborrow(),).as_str(agent)
                     );
                     return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
-                let property_key = to_property_key(agent, gc.reborrow(), scope.reborrow(), lval)?;
+                let property_key = to_property_key(agent, gc.reborrow(), lval)?;
                 vm.result = Some(Value::Boolean(has_property(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     rval,
                     property_key,
                 )?));
@@ -1637,7 +1502,7 @@ impl Vm {
             Instruction::IsLooselyEqual => {
                 let lval = vm.stack.pop().unwrap();
                 let rval = vm.result.take().unwrap();
-                let result = is_loosely_equal(agent, gc.reborrow(), scope.reborrow(), lval, rval)?;
+                let result = is_loosely_equal(agent, gc.reborrow(), lval, rval)?;
                 vm.result = Some(result.into());
             }
             Instruction::IsNullOrUndefined => {
@@ -1680,7 +1545,7 @@ impl Vm {
             Instruction::InitializeReferencedBinding => {
                 let v = vm.reference.take().unwrap();
                 let w = vm.result.take().unwrap();
-                initialize_referenced_binding(agent, gc.reborrow(), scope.reborrow(), v, w)?;
+                initialize_referenced_binding(agent, gc.reborrow(), v, w)?;
             }
             Instruction::InitializeVariableEnvironment => {
                 let num_variables = instr.args[0].unwrap();
@@ -1801,7 +1666,7 @@ impl Vm {
                     .lexical_environment;
                 let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env
-                    .create_mutable_binding(agent, gc.reborrow(), scope.reborrow(), name, false)
+                    .create_mutable_binding(agent, gc.reborrow(), name, false)
                     .unwrap();
             }
             Instruction::CreateImmutableBinding => {
@@ -1823,16 +1688,10 @@ impl Vm {
                     .lexical_environment;
                 let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env
-                    .create_mutable_binding(agent, gc.reborrow(), scope.reborrow(), name, false)
+                    .create_mutable_binding(agent, gc.reborrow(), name, false)
                     .unwrap();
                 lex_env
-                    .initialize_binding(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        name,
-                        vm.exception.unwrap(),
-                    )
+                    .initialize_binding(agent, gc.reborrow(), name, vm.exception.unwrap())
                     .unwrap();
                 vm.exception = None;
             }
@@ -1868,13 +1727,13 @@ impl Vm {
                 if cfg!(feature = "interleaved-gc") {
                     let mut vm = NonNull::from(vm);
                     agent.vm_stack.push(vm);
-                    let result = instanceof_operator(agent, gc, scope, lval, rval);
+                    let result = instanceof_operator(agent, gc, lval, rval);
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
                     unsafe { vm.as_mut() }.result = Some(result?.into());
                 } else {
-                    vm.result = Some(instanceof_operator(agent, gc, scope, lval, rval)?.into());
+                    vm.result = Some(instanceof_operator(agent, gc, lval, rval)?.into());
                 }
             }
             Instruction::BeginSimpleArrayBindingPattern => {
@@ -1894,7 +1753,7 @@ impl Vm {
                     None
                 };
                 let iterator = vm.iterator_stack.pop().unwrap();
-                Self::execute_simple_array_binding(agent, gc, scope, vm, executable, iterator, env)?
+                Self::execute_simple_array_binding(agent, gc, vm, executable, iterator, env)?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -1913,7 +1772,7 @@ impl Vm {
                     None
                 };
                 let object = to_object(agent, vm.stack.pop().unwrap())?;
-                Self::execute_simple_object_binding(agent, gc, scope, vm, executable, object, env)?
+                Self::execute_simple_object_binding(agent, gc, vm, executable, object, env)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
@@ -1931,8 +1790,7 @@ impl Vm {
                 let mut length = 0;
                 for ele in vm.stack[last_item..].iter_mut() {
                     if !ele.is_string() {
-                        *ele =
-                            to_string(agent, gc.reborrow(), scope.reborrow(), *ele)?.into_value();
+                        *ele = to_string(agent, gc.reborrow(), *ele)?.into_value();
                     }
                     let string = String::try_from(*ele).unwrap();
                     length += string.len(agent);
@@ -1975,7 +1833,6 @@ impl Vm {
                         let delete_status = base_obj.internal_delete(
                             agent,
                             gc.reborrow(),
-                            scope.reborrow(),
                             refer.referenced_name,
                         )?;
                         // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
@@ -1998,10 +1855,7 @@ impl Vm {
                             _ => unreachable!(),
                         };
                         // c. Return ? base.DeleteBinding(ref.[[ReferencedName]]).
-                        vm.result = Some(
-                            base.delete_binding(agent, gc, scope, referenced_name)?
-                                .into(),
-                        );
+                        vm.result = Some(base.delete_binding(agent, gc, referenced_name)?.into());
                     }
                 }
 
@@ -2032,17 +1886,13 @@ impl Vm {
             Instruction::GetIteratorSync => {
                 let expr_value = vm.result.take().unwrap();
                 vm.iterator_stack
-                    .push(VmIterator::from_value(agent, gc, scope, expr_value)?);
+                    .push(VmIterator::from_value(agent, gc, expr_value)?);
             }
             Instruction::GetIteratorAsync => {
                 todo!();
             }
             Instruction::IteratorStepValue => {
-                let result = vm
-                    .iterator_stack
-                    .last_mut()
-                    .unwrap()
-                    .step_value(agent, gc, scope);
+                let result = vm.iterator_stack.last_mut().unwrap().step_value(agent, gc);
                 if let Ok(result) = result {
                     vm.result = result;
                     if result.is_none() {
@@ -2057,7 +1907,7 @@ impl Vm {
             }
             Instruction::IteratorStepValueOrUndefined => {
                 let iterator = vm.iterator_stack.last_mut().unwrap();
-                let result = iterator.step_value(agent, gc, scope);
+                let result = iterator.step_value(agent, gc);
                 if let Ok(result) = result {
                     vm.result = Some(result.unwrap_or(Value::Undefined));
                     if result.is_none() {
@@ -2076,12 +1926,9 @@ impl Vm {
                 let array = array_create(agent, 0, capacity, None)?;
 
                 let mut idx: u32 = 0;
-                while let Some(value) =
-                    iterator.step_value(agent, gc.reborrow(), scope.reborrow())?
-                {
+                while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
                     let key = PropertyKey::Integer(idx.into());
-                    create_data_property(agent, gc.reborrow(), scope.reborrow(), array, key, value)
-                        .unwrap();
+                    create_data_property(agent, gc.reborrow(), array, key, value).unwrap();
                     idx += 1;
                 }
                 vm.result = Some(array.into_value());
@@ -2092,7 +1939,6 @@ impl Vm {
                     iterator_close(
                         agent,
                         gc,
-                        scope,
                         &iterator_record,
                         Ok(vm.result.take().unwrap_or(Value::Undefined)),
                     )?;
@@ -2103,9 +1949,8 @@ impl Vm {
                 let Some(VmIterator::SliceIterator(slice)) = vm.iterator_stack.last() else {
                     unreachable!()
                 };
-                vm.result = Some(
-                    create_unmapped_arguments_object(agent, gc, scope, slice.get()).into_value(),
-                );
+                vm.result =
+                    Some(create_unmapped_arguments_object(agent, gc, slice.get()).into_value());
             }
             other => todo!("{other:?}"),
         }
@@ -2131,8 +1976,8 @@ impl Vm {
 
     fn execute_simple_array_binding(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         vm: &mut Vm,
         executable: Executable,
         mut iterator: VmIterator,
@@ -2148,7 +1993,7 @@ impl Vm {
                 Instruction::BindingPatternBind
                 | Instruction::BindingPatternGetValue
                 | Instruction::BindingPatternSkip => {
-                    let result = iterator.step_value(agent, gc.reborrow(), scope.reborrow())?;
+                    let result = iterator.step_value(agent, gc.reborrow())?;
                     iterator_is_done = result.is_none();
 
                     if instr.kind == Instruction::BindingPatternSkip {
@@ -2164,13 +2009,10 @@ impl Vm {
                         let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
                         let rest = array_create(agent, 0, capacity, None).unwrap();
                         let mut idx = 0u32;
-                        while let Some(result) =
-                            iterator.step_value(agent, gc.reborrow(), scope.reborrow())?
-                        {
+                        while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
                             create_data_property_or_throw(
                                 agent,
                                 gc.reborrow(),
-                                scope.reborrow(),
                                 rest,
                                 PropertyKey::from(idx),
                                 result,
@@ -2191,30 +2033,17 @@ impl Vm {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
                     let binding_id =
                         executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
-                    let lhs = resolve_binding(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        binding_id,
-                        environment,
-                    )?;
+                    let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
                     if environment.is_none() {
-                        put_value(agent, gc.reborrow(), scope.reborrow(), &lhs, value)?;
+                        put_value(agent, gc.reborrow(), &lhs, value)?;
                     } else {
-                        initialize_referenced_binding(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            lhs,
-                            value,
-                        )?;
+                        initialize_referenced_binding(agent, gc.reborrow(), lhs, value)?;
                     }
                 }
                 Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
                     Self::execute_nested_simple_binding(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         vm,
                         executable,
                         value,
@@ -2235,13 +2064,7 @@ impl Vm {
         // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
         if !iterator_is_done {
             if let VmIterator::GenericIterator(iterator_record) = iterator {
-                iterator_close(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    &iterator_record,
-                    Ok(Value::Undefined),
-                )?;
+                iterator_close(agent, gc.reborrow(), &iterator_record, Ok(Value::Undefined))?;
             }
         }
 
@@ -2250,8 +2073,8 @@ impl Vm {
 
     fn execute_simple_object_binding(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         vm: &mut Vm,
         executable: Executable,
         object: Object,
@@ -2274,24 +2097,12 @@ impl Vm {
                     };
                     excluded_names.insert(property_key);
 
-                    let lhs = resolve_binding(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        binding_id,
-                        environment,
-                    )?;
-                    let v = get(agent, gc.reborrow(), scope.reborrow(), object, property_key)?;
+                    let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
+                    let v = get(agent, gc.reborrow(), object, property_key)?;
                     if environment.is_none() {
-                        put_value(agent, gc.reborrow(), scope.reborrow(), &lhs, v)?;
+                        put_value(agent, gc.reborrow(), &lhs, v)?;
                     } else {
-                        initialize_referenced_binding(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            lhs,
-                            v,
-                        )?;
+                        initialize_referenced_binding(agent, gc.reborrow(), lhs, v)?;
                     }
                 }
                 Instruction::BindingPatternGetValueNamed => {
@@ -2301,11 +2112,10 @@ impl Vm {
                     )
                     .unwrap();
                     excluded_names.insert(property_key);
-                    let v = get(agent, gc.reborrow(), scope.reborrow(), object, property_key)?;
+                    let v = get(agent, gc.reborrow(), object, property_key)?;
                     Self::execute_nested_simple_binding(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         vm,
                         executable,
                         v,
@@ -2316,19 +2126,12 @@ impl Vm {
                     // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
                     let binding_id =
                         executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
-                    let lhs = resolve_binding(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        binding_id,
-                        environment,
-                    )?;
+                    let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                     let rest_obj = copy_data_properties_into_object(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         object,
                         &excluded_names,
                     )?
@@ -2336,15 +2139,9 @@ impl Vm {
                     // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                     // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                     if environment.is_none() {
-                        put_value(agent, gc.reborrow(), scope.reborrow(), &lhs, rest_obj)?;
+                        put_value(agent, gc.reborrow(), &lhs, rest_obj)?;
                     } else {
-                        initialize_referenced_binding(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            lhs,
-                            rest_obj,
-                        )?;
+                        initialize_referenced_binding(agent, gc.reborrow(), lhs, rest_obj)?;
                     }
                     break;
                 }
@@ -2357,8 +2154,8 @@ impl Vm {
 
     fn execute_nested_simple_binding(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         vm: &mut Vm,
         executable: Executable,
         value: Value,
@@ -2367,12 +2164,10 @@ impl Vm {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
         match instr.kind {
             Instruction::BeginSimpleArrayBindingPattern => {
-                let new_iterator =
-                    VmIterator::from_value(agent, gc.reborrow(), scope.reborrow(), value)?;
+                let new_iterator = VmIterator::from_value(agent, gc.reborrow(), value)?;
                 Vm::execute_simple_array_binding(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     vm,
                     executable,
                     new_iterator,
@@ -2384,7 +2179,6 @@ impl Vm {
                 Vm::execute_simple_object_binding(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     vm,
                     executable,
                     object,
@@ -2406,8 +2200,8 @@ impl Vm {
 #[inline]
 fn apply_string_or_numeric_binary_operator(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
@@ -2417,18 +2211,18 @@ fn apply_string_or_numeric_binary_operator(
     // 1. If opText is +, then
     if op_text == BinaryOperator::Addition {
         // a. Let lprim be ? ToPrimitive(lval).
-        let lprim = to_primitive(agent, gc.reborrow(), scope.reborrow(), lval, None)?;
+        let lprim = to_primitive(agent, gc.reborrow(), lval, None)?;
 
         // b. Let rprim be ? ToPrimitive(rval).
-        let rprim = to_primitive(agent, gc.reborrow(), scope.reborrow(), rval, None)?;
+        let rprim = to_primitive(agent, gc.reborrow(), rval, None)?;
 
         // c. If lprim is a String or rprim is a String, then
         if lprim.is_string() || rprim.is_string() {
             // i. Let lstr be ? ToString(lprim).
-            let lstr = to_string(agent, gc.reborrow(), scope.reborrow(), lprim)?;
+            let lstr = to_string(agent, gc.reborrow(), lprim)?;
 
             // ii. Let rstr be ? ToString(rprim).
-            let rstr = to_string(agent, gc.reborrow(), scope.reborrow(), rprim)?;
+            let rstr = to_string(agent, gc.reborrow(), rprim)?;
 
             // iii. Return the string-concatenation of lstr and rstr.
             return Ok(String::concat(agent, [lstr, rstr]).into_value());
@@ -2438,14 +2232,14 @@ fn apply_string_or_numeric_binary_operator(
         // e. Set rval to rprim.
         // 2. NOTE: At this point, it must be a numeric operation.
         // 3. Let lnum be ? ToNumeric(lval).
-        lnum = to_numeric(agent, gc.reborrow(), scope.reborrow(), lprim)?;
+        lnum = to_numeric(agent, gc.reborrow(), lprim)?;
         // 4. Let rnum be ? ToNumeric(rval).
-        rnum = to_numeric(agent, gc.reborrow(), scope.reborrow(), rprim)?;
+        rnum = to_numeric(agent, gc.reborrow(), rprim)?;
     } else {
         // 3. Let lnum be ? ToNumeric(lval).
-        lnum = to_numeric(agent, gc.reborrow(), scope.reborrow(), lval)?;
+        lnum = to_numeric(agent, gc.reborrow(), lval)?;
         // 4. Let rnum be ? ToNumeric(rval).
-        rnum = to_numeric(agent, gc.reborrow(), scope.reborrow(), rval)?;
+        rnum = to_numeric(agent, gc.reborrow(), rval)?;
     }
 
     // 6. If lnum is a BigInt, then
@@ -2624,8 +2418,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 /// > the default instanceof semantics.
 pub(crate) fn instanceof_operator(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     value: impl IntoValue,
     target: impl IntoValue,
 ) -> JsResult<bool> {
@@ -2635,7 +2429,7 @@ pub(crate) fn instanceof_operator(
             "Invalid instanceof target {}.",
             target
                 .into_value()
-                .string_repr(agent, gc.reborrow(), scope.reborrow())
+                .string_repr(agent, gc.reborrow(),)
                 .as_str(agent)
         );
         return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
@@ -2644,7 +2438,6 @@ pub(crate) fn instanceof_operator(
     let inst_of_handler = get_method(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         target.into_value(),
         WellKnownSymbolIndexes::HasInstance.into(),
     )?;
@@ -2654,7 +2447,6 @@ pub(crate) fn instanceof_operator(
         let result = call_function(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             inst_of_handler,
             target.into_value(),
             Some(ArgumentsList(&[value.into_value()])),
@@ -2667,13 +2459,13 @@ pub(crate) fn instanceof_operator(
                 "Invalid instanceof target {} is not a function.",
                 target
                     .into_value()
-                    .string_repr(agent, gc.reborrow(), scope.reborrow())
+                    .string_repr(agent, gc.reborrow(),)
                     .as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(agent, gc, scope, target, value)?)
+        Ok(ordinary_has_instance(agent, gc, target, value)?)
     }
 }
 

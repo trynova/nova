@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -103,8 +103,8 @@ impl BuiltinGetter for PromiseGetSpecies {}
 impl PromiseConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         args: ArgumentsList,
         new_target: Option<Object>,
@@ -140,7 +140,6 @@ impl PromiseConstructor {
         let Object::Promise(promise) = ordinary_create_from_constructor(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Promise,
         )?
@@ -172,7 +171,6 @@ impl PromiseConstructor {
         if let Err(err) = call_function(
             agent,
             gc,
-            scope,
             executor,
             Value::Undefined,
             Some(ArgumentsList(&[resolve_function, reject_function])),
@@ -187,8 +185,8 @@ impl PromiseConstructor {
 
     fn all(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -197,8 +195,8 @@ impl PromiseConstructor {
 
     fn all_settled(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -206,8 +204,8 @@ impl PromiseConstructor {
     }
     fn any(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -215,8 +213,8 @@ impl PromiseConstructor {
     }
     fn race(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -225,8 +223,8 @@ impl PromiseConstructor {
 
     fn reject(
         agent: &mut Agent,
-        _: Gc<'_>,
-        _: Scope<'_>,
+        _: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -254,8 +252,8 @@ impl PromiseConstructor {
 
     fn resolve(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -266,14 +264,14 @@ impl PromiseConstructor {
         );
 
         // 3. Return ? PromiseResolve(C, x).
-        Ok(Promise::resolve(agent, gc, scope, arguments.get(0)).into_value())
+        Ok(Promise::resolve(agent, gc, arguments.get(0)).into_value())
     }
 
     /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
     fn r#try(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -296,7 +294,6 @@ impl PromiseConstructor {
         let status = call(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             arguments.get(0),
             Value::Undefined,
             Some(ArgumentsList(&arguments.0[1..])),
@@ -317,7 +314,7 @@ impl PromiseConstructor {
             // 6. Else,
             Ok(result) => {
                 // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
-                Promise::resolve(agent, gc, scope, result)
+                Promise::resolve(agent, gc, result)
             }
         };
         // 7. Return promiseCapability.[[Promise]].
@@ -326,8 +323,8 @@ impl PromiseConstructor {
 
     fn with_resolvers(
         agent: &mut Agent,
-        _: Gc<'_>,
-        _: Scope<'_>,
+        _: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -396,8 +393,8 @@ impl PromiseConstructor {
 
     fn get_species(
         _: &mut Agent,
-        _: Gc<'_>,
-        _: Scope<'_>,
+        _: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

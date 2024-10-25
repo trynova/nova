@@ -44,8 +44,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::engine::context::Gc;
-use crate::engine::context::Scope;
+use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 use crate::SmallInteger;
@@ -93,8 +92,8 @@ impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
     fn behaviour(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -109,7 +108,6 @@ impl ArrayConstructor {
         let proto = get_prototype_from_constructor(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             new_target,
             ProtoIntrinsics::Array,
         )?;
@@ -136,7 +134,6 @@ impl ArrayConstructor {
                 create_data_property_or_throw(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     array,
                     PropertyKey::from(SmallInteger::zero()),
                     len,
@@ -149,9 +146,7 @@ impl ArrayConstructor {
             } else {
                 // d. Else,
                 // i. Let intLen be ! ToUint32(len).
-                let int_len = len
-                    .to_uint32(agent, gc.reborrow(), scope.reborrow())
-                    .unwrap();
+                let int_len = len.to_uint32(agent, gc.reborrow()).unwrap();
                 // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
                 if !same_value_zero(agent, int_len, len) {
                     return Err(agent.throw_exception_with_static_message(
@@ -191,15 +186,7 @@ impl ArrayConstructor {
             let item_k = arguments.get(k as usize);
 
             // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
-            create_data_property_or_throw(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                array,
-                pk,
-                item_k,
-            )
-            .unwrap();
+            create_data_property_or_throw(agent, gc.reborrow(), array, pk, item_k).unwrap();
 
             // iv. Set k to k + 1.
             k += 1;
@@ -215,8 +202,8 @@ impl ArrayConstructor {
     /// ### [23.1.2.1 Array.from ( items \[ , mapfn \[ , thisArg \] \] )](https://tc39.es/ecma262/#sec-array.from)
     fn from(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -247,7 +234,6 @@ impl ArrayConstructor {
         let using_iterator = get_method(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             items,
             WellKnownSymbolIndexes::Iterator.into(),
         )?;
@@ -257,7 +243,7 @@ impl ArrayConstructor {
             // a. If IsConstructor(C) is true, then
             let a = if let Some(c) = is_constructor(agent, this_value) {
                 // i. Let A be ? Construct(C).
-                construct(agent, gc.reborrow(), scope.reborrow(), c, None, None)?
+                construct(agent, gc.reborrow(), c, None, None)?
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
@@ -265,13 +251,8 @@ impl ArrayConstructor {
             };
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
-            let mut iterator_record = get_iterator_from_method(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                items,
-                using_iterator,
-            )?;
+            let mut iterator_record =
+                get_iterator_from_method(agent, gc.reborrow(), items, using_iterator)?;
 
             // d. Let k be 0.
             let mut k = 0;
@@ -287,13 +268,7 @@ impl ArrayConstructor {
                         "Maximum array size of 2**53-1 exceeded",
                     );
                     // 2. Return ? IteratorClose(iteratorRecord, error).
-                    return iterator_close(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        &iterator_record,
-                        Err(error),
-                    );
+                    return iterator_close(agent, gc.reborrow(), &iterator_record, Err(error));
                 }
 
                 let sk = SmallInteger::from(k as u32);
@@ -304,19 +279,13 @@ impl ArrayConstructor {
                 let pk = PropertyKey::from(sk);
 
                 // iii. Let next be ? IteratorStepValue(iteratorRecord).
-                let Some(next) = iterator_step_value(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    &mut iterator_record,
-                )?
+                let Some(next) = iterator_step_value(agent, gc.reborrow(), &mut iterator_record)?
                 else {
                     // iv. If next is done, then
                     // 1. Perform ? Set(A, "length", 𝔽(k), true).
                     set(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         a,
                         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
                         fk,
@@ -333,7 +302,6 @@ impl ArrayConstructor {
                     let mapped_value = call_function(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         mapping,
                         this_arg,
                         Some(ArgumentsList(&[next, fk])),
@@ -343,7 +311,6 @@ impl ArrayConstructor {
                     let _ = if_abrupt_close_iterator(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         mapped_value,
                         &iterator_record,
                     );
@@ -356,20 +323,13 @@ impl ArrayConstructor {
                 };
 
                 // vii. Let defineStatus be Completion(CreateDataPropertyOrThrow(A, Pk, mappedValue)).
-                let define_status = create_data_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    a,
-                    pk,
-                    mapped_value,
-                );
+                let define_status =
+                    create_data_property_or_throw(agent, gc.reborrow(), a, pk, mapped_value);
 
                 // viii. IfAbruptCloseIterator(defineStatus, iteratorRecord).
                 let _ = if_abrupt_close_iterator(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     define_status.map(|_| Value::Undefined),
                     &iterator_record,
                 );
@@ -384,7 +344,7 @@ impl ArrayConstructor {
         let array_like = to_object(agent, items).unwrap();
 
         // 8. Let len be ? LengthOfArrayLike(arrayLike).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), array_like)?;
+        let len = length_of_array_like(agent, gc.reborrow(), array_like)?;
         let len_value = Value::try_from(len).unwrap();
 
         // 9. If IsConstructor(C) is true, then
@@ -393,7 +353,6 @@ impl ArrayConstructor {
             construct(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 c,
                 Some(ArgumentsList(&[len_value])),
                 None,
@@ -417,7 +376,7 @@ impl ArrayConstructor {
             let pk = PropertyKey::from(sk);
 
             // b. Let kValue be ? Get(arrayLike, Pk).
-            let k_value = get(agent, gc.reborrow(), scope.reborrow(), array_like, pk)?;
+            let k_value = get(agent, gc.reborrow(), array_like, pk)?;
 
             // c. If mapping is true, then
             let mapped_value = if let Some(mapping) = mapping {
@@ -425,7 +384,6 @@ impl ArrayConstructor {
                 call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     mapping,
                     this_arg,
                     Some(ArgumentsList(&[k_value, fk])),
@@ -437,14 +395,7 @@ impl ArrayConstructor {
             };
 
             // e. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
-            create_data_property_or_throw(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                a,
-                pk,
-                mapped_value,
-            )?;
+            create_data_property_or_throw(agent, gc.reborrow(), a, pk, mapped_value)?;
 
             // f. Set k to k + 1.
             k += 1;
@@ -454,7 +405,6 @@ impl ArrayConstructor {
         set(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             a,
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),
             Value::try_from(len).unwrap(),
@@ -468,8 +418,8 @@ impl ArrayConstructor {
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
     fn is_array(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -479,8 +429,8 @@ impl ArrayConstructor {
     /// ### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
     fn of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -497,7 +447,6 @@ impl ArrayConstructor {
             construct(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 c,
                 Some(ArgumentsList(&[len_number])),
                 None,
@@ -521,7 +470,7 @@ impl ArrayConstructor {
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
 
             // c. Perform ? CreateDataPropertyOrThrow(A, Pk, kValue).
-            create_data_property_or_throw(agent, gc.reborrow(), scope.reborrow(), a, pk, k_value)?;
+            create_data_property_or_throw(agent, gc.reborrow(), a, pk, k_value)?;
 
             // d. Set k to k + 1.
             k += 1;
@@ -531,7 +480,6 @@ impl ArrayConstructor {
         set(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             a,
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),
             len_number,
@@ -544,8 +492,8 @@ impl ArrayConstructor {
 
     fn get_species(
         _: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

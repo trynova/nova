@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -178,13 +178,13 @@ impl PropertyDescriptor {
     /// containing a Property Descriptor or a throw completion.
     pub fn to_property_descriptor(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         obj: Value,
     ) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            let obj_repr = obj.string_repr(agent, gc, scope);
+            let obj_repr = obj.string_repr(agent, gc);
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.as_str(agent)
@@ -198,7 +198,6 @@ impl PropertyDescriptor {
         let has_enumerable = has_property(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.enumerable.into(),
         )?;
@@ -208,7 +207,6 @@ impl PropertyDescriptor {
             let enumerable = get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.enumerable.into(),
             )?;
@@ -220,7 +218,6 @@ impl PropertyDescriptor {
         let has_configurable = has_property(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.configurable.into(),
         )?;
@@ -230,7 +227,6 @@ impl PropertyDescriptor {
             let configurable = get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.configurable.into(),
             )?;
@@ -242,7 +238,6 @@ impl PropertyDescriptor {
         let has_value = has_property(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.value.into(),
         )?;
@@ -252,7 +247,6 @@ impl PropertyDescriptor {
             let value = get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.value.into(),
             )?;
@@ -263,7 +257,6 @@ impl PropertyDescriptor {
         let has_writable = has_property(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.writable.into(),
         )?;
@@ -273,7 +266,6 @@ impl PropertyDescriptor {
             let writable = get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.writable.into(),
             )?;
@@ -282,23 +274,11 @@ impl PropertyDescriptor {
             desc.writable = Some(writable);
         }
         // 11. Let hasGet be ? HasProperty(Obj, "get").
-        let has_get = has_property(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            obj,
-            BUILTIN_STRING_MEMORY.get.into(),
-        )?;
+        let has_get = has_property(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.get.into())?;
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = get(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                obj,
-                BUILTIN_STRING_MEMORY.get.into(),
-            )?;
+            let getter = get(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.get.into())?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
@@ -313,17 +293,11 @@ impl PropertyDescriptor {
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
-        let has_set = has_property(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            obj,
-            BUILTIN_STRING_MEMORY.set.into(),
-        )?;
+        let has_set = has_property(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.set.into())?;
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = get(agent, gc, scope, obj, BUILTIN_STRING_MEMORY.set.into())?;
+            let setter = get(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {

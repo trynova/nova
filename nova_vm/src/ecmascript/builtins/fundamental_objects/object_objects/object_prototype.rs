@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -83,20 +83,20 @@ impl Builtin for ObjectPrototypeValueOf {
 impl ObjectPrototype {
     fn has_own_property(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        has_own_property(agent, gc.reborrow(), scope.reborrow(), o, p).map(|result| result.into())
+        has_own_property(agent, gc.reborrow(), o, p).map(|result| result.into())
     }
 
     fn is_prototype_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -106,7 +106,7 @@ impl ObjectPrototype {
         };
         let o = to_object(agent, this_value)?;
         loop {
-            let proto = v.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
+            let proto = v.internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(proto) = proto {
                 v = proto;
                 if same_value(agent, o, v) {
@@ -120,14 +120,14 @@ impl ObjectPrototype {
 
     fn property_is_enumerable(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        let desc = o.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), p)?;
+        let desc = o.internal_get_own_property(agent, gc.reborrow(), p)?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -137,20 +137,20 @@ impl ObjectPrototype {
 
     fn to_locale_string(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
-        invoke(agent, gc.reborrow(), scope.reborrow(), o, p, None)
+        invoke(agent, gc.reborrow(), o, p, None)
     }
 
     fn to_string(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -212,7 +212,6 @@ impl ObjectPrototype {
                     let tag = get(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         o,
                         WellKnownSymbolIndexes::ToStringTag.into(),
                     )?;
@@ -234,7 +233,6 @@ impl ObjectPrototype {
                 let tag = get(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     o,
                     WellKnownSymbolIndexes::ToStringTag.into(),
                 )?;
@@ -252,8 +250,8 @@ impl ObjectPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

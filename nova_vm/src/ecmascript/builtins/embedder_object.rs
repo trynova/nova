@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -107,8 +107,7 @@ impl InternalMethods for EmbedderObject {
     fn internal_get_prototype_of(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Object>> {
         Ok(self.internal_prototype(agent))
     }
@@ -116,27 +115,21 @@ impl InternalMethods for EmbedderObject {
     fn internal_set_prototype_of(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _prototype: Option<Object>,
     ) -> JsResult<bool> {
         todo!();
     }
 
-    fn internal_is_extensible(
-        self,
-        agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
-    ) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent, _gc: GcScope<'_, '_>) -> JsResult<bool> {
         Ok(self.internal_extensible(agent))
     }
 
     fn internal_prevent_extensions(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         self.internal_set_extensible(agent, false);
         Ok(true)
@@ -145,8 +138,8 @@ impl InternalMethods for EmbedderObject {
     fn internal_get_own_property(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
@@ -155,8 +148,8 @@ impl InternalMethods for EmbedderObject {
     fn internal_define_own_property(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
         _property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -166,8 +159,8 @@ impl InternalMethods for EmbedderObject {
     fn internal_has_property(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();
@@ -176,8 +169,8 @@ impl InternalMethods for EmbedderObject {
     fn internal_get(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
         _receiver: Value,
     ) -> JsResult<Value> {
@@ -187,8 +180,8 @@ impl InternalMethods for EmbedderObject {
     fn internal_set(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -199,8 +192,8 @@ impl InternalMethods for EmbedderObject {
     fn internal_delete(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();
@@ -209,8 +202,7 @@ impl InternalMethods for EmbedderObject {
     fn internal_own_property_keys(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Vec<PropertyKey>> {
         todo!();
     }

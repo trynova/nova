@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use std::f64::consts;
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
@@ -338,25 +338,24 @@ impl Builtin for MathObjectTrunc {
 impl MathObject {
     fn abs(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         Ok(n.abs(agent).into_value())
     }
 
     fn acos(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n =
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?.into_f64(agent);
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
         // 3. If n is 1𝔽, return +0𝔽.
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
@@ -365,13 +364,13 @@ impl MathObject {
 
     fn acosh(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -392,13 +391,13 @@ impl MathObject {
 
     fn asin(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -418,13 +417,13 @@ impl MathObject {
 
     fn asinh(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -437,13 +436,13 @@ impl MathObject {
 
     fn atan(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -466,13 +465,13 @@ impl MathObject {
 
     fn atanh(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -502,15 +501,15 @@ impl MathObject {
 
     fn atan2(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let ny be ? ToNumber(y).
-        let ny = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let ny = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. Let nx be ? ToNumber(x).
-        let nx = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let nx = to_number(agent, gc.reborrow(), arguments.get(1))?;
 
         // 3. If ny is NaN or nx is NaN, return NaN.
         if ny.is_nan(agent) || nx.is_nan(agent) {
@@ -630,13 +629,13 @@ impl MathObject {
 
     fn cbrt(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -649,13 +648,13 @@ impl MathObject {
 
     fn ceil(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 4. If n is an integral Number, return n.
         if let Number::Integer(_) = n {
@@ -680,13 +679,13 @@ impl MathObject {
 
     fn clz32(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToUint32(x).
-        let n = to_uint32(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_uint32(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. Let p be the number of leading zero bits in the unsigned 32-bit binary representation of n.
         let p = n.leading_zeros();
@@ -697,13 +696,13 @@ impl MathObject {
 
     fn cos(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite, return NaN.
         if !n.is_finite(agent) {
@@ -721,13 +720,13 @@ impl MathObject {
 
     fn cosh(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is NaN, return NaN.
         if n.is_nan(agent) {
@@ -750,13 +749,13 @@ impl MathObject {
 
     fn exp(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         //1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         //2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -779,13 +778,13 @@ impl MathObject {
 
     fn expm1(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
@@ -807,13 +806,13 @@ impl MathObject {
 
     fn floor(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 4. If n is an integral Number, return n.
         if let Number::Integer(_) = n {
@@ -838,13 +837,13 @@ impl MathObject {
 
     fn fround(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is NaN, return NaN.
         if n.is_nan(agent) {
@@ -872,8 +871,8 @@ impl MathObject {
 
     fn hypot(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -883,7 +882,7 @@ impl MathObject {
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), scope.reborrow(), arg)?;
+            let n = to_number(agent, gc.reborrow(), arg)?;
 
             // b. Append n to coerced.
             coerced.push(n);
@@ -931,16 +930,16 @@ impl MathObject {
 
     fn imul(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let a be ℝ(? ToUint32(x)).
-        let a = to_uint32(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let a = to_uint32(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. Let b be ℝ(? ToUint32(y)).
-        let b = to_uint32(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?;
+        let b = to_uint32(agent, gc.reborrow(), arguments.get(1))?;
 
         // 3. Let product be (a × b) modulo 2**32.
         let product = a.wrapping_mul(b);
@@ -951,13 +950,13 @@ impl MathObject {
 
     fn log(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -985,13 +984,13 @@ impl MathObject {
 
     fn log1p(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
             || n.is_pos_zero(agent)
@@ -1014,13 +1013,13 @@ impl MathObject {
 
     fn log10(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
             return Ok(n.into_value());
@@ -1044,13 +1043,13 @@ impl MathObject {
 
     fn log2(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
             return Ok(n.into_value());
@@ -1073,8 +1072,8 @@ impl MathObject {
 
     fn max(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1086,7 +1085,7 @@ impl MathObject {
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), scope.reborrow(), arg)?;
+            let n = to_number(agent, gc.reborrow(), arg)?;
             // b. Append n to coerced.
             coerced.push(n);
 
@@ -1155,8 +1154,8 @@ impl MathObject {
 
     fn min(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1168,7 +1167,7 @@ impl MathObject {
         // 2. For each element arg of args, do
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), scope.reborrow(), arg)?;
+            let n = to_number(agent, gc.reborrow(), arg)?;
             // b. Append n to coerced.
             coerced.push(n);
 
@@ -1237,8 +1236,8 @@ impl MathObject {
 
     fn pow(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1262,15 +1261,15 @@ impl MathObject {
                 return Ok(Value::from_f64(agent, result));
             }
         }
-        let base = to_number(agent, gc.reborrow(), scope.reborrow(), base)?;
-        let exponent = to_number(agent, gc.reborrow(), scope.reborrow(), exponent)?;
+        let base = to_number(agent, gc.reborrow(), base)?;
+        let exponent = to_number(agent, gc.reborrow(), exponent)?;
         Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
     fn random(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1279,13 +1278,13 @@ impl MathObject {
 
     fn round(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is an integral Number, return n.
         if !n.is_finite(agent) || matches!(n, Number::Integer(_)) {
@@ -1310,13 +1309,13 @@ impl MathObject {
 
     fn sign(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1331,13 +1330,13 @@ impl MathObject {
 
     fn sin(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1352,13 +1351,13 @@ impl MathObject {
 
     fn sinh(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1369,13 +1368,13 @@ impl MathObject {
 
     fn sqrt(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
             || n.is_pos_zero(agent)
@@ -1394,13 +1393,13 @@ impl MathObject {
 
     fn tan(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1415,13 +1414,13 @@ impl MathObject {
 
     fn tanh(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1440,13 +1439,13 @@ impl MathObject {
 
     fn trunc(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {

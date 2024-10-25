@@ -12,7 +12,7 @@ mod data;
 use std::ops::{Index, IndexMut, RangeInclusive};
 
 use super::{array_set_length, ordinary::ordinary_define_own_property};
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -85,24 +85,20 @@ impl Array {
     fn internal_get_backing(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
-            object_index.internal_get(agent, gc, scope, property_key, receiver)
+            object_index.internal_get(agent, gc, property_key, receiver)
         } else {
             // If backing object doesn't exist, then we might still have
             // properties in the prototype.
-            self.internal_prototype(agent).unwrap().internal_get(
-                agent,
-                gc,
-                scope,
-                property_key,
-                receiver,
-            )
+            self.internal_prototype(agent)
+                .unwrap()
+                .internal_get(agent, gc, property_key, receiver)
         }
     }
 
@@ -213,20 +209,15 @@ impl InternalMethods for Array {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
                 if let Some(backing_object) = self.get_backing_object(agent) {
-                    return backing_object.internal_get_own_property(
-                        agent,
-                        gc,
-                        scope,
-                        property_key,
-                    );
+                    return backing_object.internal_get_own_property(agent, gc, property_key);
                 } else {
                     return Ok(None);
                 }
@@ -263,7 +254,7 @@ impl InternalMethods for Array {
                 ..Default::default()
             }))
         } else if let Some(backing_object) = array_data.object_index {
-            backing_object.internal_get_own_property(agent, gc, scope, property_key)
+            backing_object.internal_get_own_property(agent, gc, property_key)
         } else {
             Ok(None)
         }
@@ -272,19 +263,13 @@ impl InternalMethods for Array {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-            array_set_length(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                self,
-                property_descriptor,
-            )
+            array_set_length(agent, gc.reborrow(), self, property_descriptor)
         } else if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
@@ -295,7 +280,6 @@ impl InternalMethods for Array {
                 return ordinary_define_own_property(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     backing_object,
                     property_key,
                     property_descriptor,
@@ -355,7 +339,6 @@ impl InternalMethods for Array {
             ordinary_define_own_property(
                 agent,
                 gc,
-                scope,
                 backing_object,
                 property_key,
                 property_descriptor,
@@ -366,23 +349,22 @@ impl InternalMethods for Array {
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
-        let has_own =
-            self.internal_get_own_property(agent, gc.reborrow(), scope.reborrow(), property_key)?;
+        let has_own = self.internal_get_own_property(agent, gc.reborrow(), property_key)?;
         if has_own.is_some() {
             return Ok(true);
         }
 
         // 3. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = self.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
+        let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
 
         // 4. If parent is not null, then
         if let Some(parent) = parent {
             // a. Return ? parent.[[HasProperty]](P).
-            return parent.internal_has_property(agent, gc, scope, property_key);
+            return parent.internal_has_property(agent, gc, property_key);
         }
 
         // 5. Return false.
@@ -392,8 +374,8 @@ impl InternalMethods for Array {
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -403,13 +385,7 @@ impl InternalMethods for Array {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
                 // Negative indexes and indexes over 2^32 - 2 go into backing store
-                return self.internal_get_backing(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    property_key,
-                    receiver,
-                );
+                return self.internal_get_backing(agent, gc.reborrow(), property_key, receiver);
             }
             let index = index as u32;
             let elements = agent[self].elements;
@@ -418,7 +394,7 @@ impl InternalMethods for Array {
                 // defined: If they were, then the length would be larger.
                 // Hence, we look in the prototype.
                 return if let Some(prototype) = self.internal_prototype(agent) {
-                    prototype.internal_get(agent, gc, scope, property_key, receiver)
+                    prototype.internal_get(agent, gc, property_key, receiver)
                 } else {
                     Ok(Value::Undefined)
                 };
@@ -436,32 +412,26 @@ impl InternalMethods for Array {
                     if let Some(descriptor) = descriptors.get(&index) {
                         if let Some(getter) = descriptor.getter_function() {
                             // 7. Return ? Call(getter, Receiver).
-                            return call_function(agent, gc, scope, getter, receiver, None);
+                            return call_function(agent, gc, getter, receiver, None);
                         }
                     }
                 }
                 if let Some(prototype) = self.internal_prototype(agent) {
-                    prototype.internal_get(agent, gc, scope, property_key, receiver)
+                    prototype.internal_get(agent, gc, property_key, receiver)
                 } else {
                     Ok(Value::Undefined)
                 }
             }
         } else {
-            self.internal_get_backing(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                property_key,
-                receiver,
-            )
+            self.internal_get_backing(agent, gc.reborrow(), property_key, receiver)
         }
     }
 
     fn internal_delete(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -472,12 +442,7 @@ impl InternalMethods for Array {
                 return self
                     .get_backing_object(agent)
                     .map_or(Ok(true), |object_index| {
-                        object_index.internal_delete(
-                            agent,
-                            gc.reborrow(),
-                            scope.reborrow(),
-                            property_key,
-                        )
+                        object_index.internal_delete(agent, gc.reborrow(), property_key)
                     });
             }
             let index = index as u32;
@@ -504,12 +469,7 @@ impl InternalMethods for Array {
         } else {
             self.get_backing_object(agent)
                 .map_or(Ok(true), |object_index| {
-                    object_index.internal_delete(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        property_key,
-                    )
+                    object_index.internal_delete(agent, gc.reborrow(), property_key)
                 })
         }
     }
@@ -517,11 +477,10 @@ impl InternalMethods for Array {
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Vec<PropertyKey>> {
         let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
-            backing_object.internal_own_property_keys(agent, gc, scope)?
+            backing_object.internal_own_property_keys(agent, gc)?
         } else {
             Default::default()
         };

@@ -7,7 +7,7 @@ mod intrinsics;
 use super::{
     environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
 };
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -320,8 +320,8 @@ pub(crate) fn set_realm_global_object(
 /// or a throw completion.
 pub(crate) fn set_default_global_bindings(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     realm_id: RealmIdentifier,
 ) -> JsResult<Object> {
     // 1. Let global be realmRec.[[GlobalObject]].
@@ -345,7 +345,7 @@ pub(crate) fn set_default_global_bindings(
             ..Default::default()
         };
 
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Infinity);
         let value = Number::from_f64(agent, f64::INFINITY);
@@ -356,7 +356,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(false),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.NaN);
         let value = Number::from_f64(agent, f64::NAN);
@@ -367,7 +367,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(false),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.undefined);
         let desc = PropertyDescriptor {
@@ -377,7 +377,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(false),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
     }
 
     // 19.2 Function Properties of the Global Object
@@ -392,7 +392,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.2 isFinite ( number )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.isFinite);
@@ -404,7 +404,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.3 isNaN ( number )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.isNaN);
@@ -416,7 +416,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.4 parseFloat ( string )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.parseFloat);
@@ -428,7 +428,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.5 parseInt ( string, radix )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.parseInt);
@@ -440,7 +440,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.6.1 decodeURI ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURI);
@@ -452,7 +452,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.6.2 decodeURIComponent ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURIComponent);
@@ -467,7 +467,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.6.3 encodeURI ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURI);
@@ -479,7 +479,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.2.6.4 encodeURIComponent ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURIComponent);
@@ -494,7 +494,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
     }
 
     // 19.3 Constructor Properties of the Global Object
@@ -509,7 +509,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.2 Array ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Array);
@@ -521,7 +521,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.3 ArrayBuffer ( . . . )
         #[cfg(feature = "array-buffer")]
@@ -535,7 +535,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.4 BigInt ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigInt);
@@ -547,7 +547,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.5 BigInt64Array ( . . . )
         #[cfg(feature = "array-buffer")]
@@ -561,7 +561,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.6 BigUint64Array ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigUint64Array);
@@ -573,7 +573,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.7 Boolean ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Boolean);
@@ -585,7 +585,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.8 DataView ( . . . )
         #[cfg(feature = "array-buffer")]
@@ -599,7 +599,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         #[cfg(feature = "date")]
         {
@@ -613,7 +613,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.10 Error ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Error);
@@ -625,7 +625,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.11 EvalError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.EvalError);
@@ -637,7 +637,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.12 FinalizationRegistry ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.FinalizationRegistry);
@@ -652,7 +652,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.13 Float32Array ( . . . )
         #[cfg(feature = "array-buffer")]
@@ -666,7 +666,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.14 Float64Array ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Float64Array);
@@ -678,7 +678,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.15 Function ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Function);
@@ -690,7 +690,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         // 19.3.16 Int8Array ( . . . )
         #[cfg(feature = "array-buffer")]
         {
@@ -703,7 +703,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.17 Int16Array ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int16Array);
@@ -715,7 +715,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.18 Int32Array ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int32Array);
@@ -727,7 +727,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.19 Map ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Map);
@@ -739,7 +739,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.20 Number ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Number);
@@ -751,7 +751,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.21 Object ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Object);
@@ -763,7 +763,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.22 Promise ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Promise);
@@ -775,7 +775,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.23 Proxy ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Proxy);
@@ -787,7 +787,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.24 RangeError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RangeError);
@@ -799,7 +799,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.25 ReferenceError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ReferenceError);
@@ -811,7 +811,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.26 RegExp ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RegExp);
@@ -823,7 +823,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.27 Set ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Set);
@@ -835,7 +835,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.28 SharedArrayBuffer ( . . . )
         #[cfg(feature = "shared-array-buffer")]
@@ -849,7 +849,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.29 String ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.String);
@@ -861,7 +861,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.30 Symbol ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Symbol);
@@ -873,7 +873,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.31 SyntaxError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SyntaxError);
@@ -885,7 +885,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.32 TypeError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.TypeError);
@@ -897,7 +897,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.33 Uint8Array ( . . . )
         #[cfg(feature = "array-buffer")]
@@ -911,7 +911,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.34 Uint8ClampedArray ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint8ClampedArray);
@@ -923,7 +923,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.35 Uint16Array ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint16Array);
@@ -935,7 +935,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.36 Uint32Array ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint32Array);
@@ -947,7 +947,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.3.37 URIError ( . . . )
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.URIError);
@@ -959,7 +959,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         // 19.3.38 WeakMap ( . . . )
         #[cfg(feature = "weak-refs")]
@@ -973,7 +973,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
             // 19.3.39 WeakRef ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakRef);
             let value = agent.get_realm(realm_id).intrinsics().weak_ref();
@@ -984,7 +984,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
             // 19.3.40 WeakSet ( . . . )
             let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakSet);
@@ -996,7 +996,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
     }
 
@@ -1014,7 +1014,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.4.2 JSON
         #[cfg(feature = "json")]
@@ -1028,7 +1028,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
 
         // 19.4.3 Math
@@ -1043,7 +1043,7 @@ pub(crate) fn set_default_global_bindings(
                 configurable: Some(true),
                 ..Default::default()
             };
-            define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+            define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
         }
         // 19.4.4 Reflect
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Reflect);
@@ -1055,7 +1055,7 @@ pub(crate) fn set_default_global_bindings(
             configurable: Some(true),
             ..Default::default()
         };
-        define_property_or_throw(agent, gc.reborrow(), scope.reborrow(), global, name, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
     }
 
     // 3. Return global.
@@ -1065,11 +1065,11 @@ pub(crate) fn set_default_global_bindings(
 /// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
 pub(crate) fn initialize_host_defined_realm(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
-    create_global_object: Option<impl FnOnce(&mut Agent, Gc<'_>, Scope<'_>) -> Object>,
-    create_global_this_value: Option<impl FnOnce(&mut Agent, Gc<'_>, Scope<'_>) -> Object>,
-    initialize_global_object: Option<impl FnOnce(&mut Agent, Gc<'_>, Scope<'_>, Object)>,
+    mut gc: GcScope<'_, '_>,
+
+    create_global_object: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>) -> Object>,
+    create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>) -> Object>,
+    initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>, Object)>,
 ) {
     // 1. Let realm be CreateRealm().
     let realm = create_realm(agent);
@@ -1096,39 +1096,36 @@ pub(crate) fn initialize_host_defined_realm(
     // 7. If the host requires use of an exotic object to serve as realm's global object,
     // let global be such an object created in a host-defined manner.
     // Otherwise, let global be undefined, indicating that an ordinary object should be created as the global object.
-    let global = create_global_this_value.map(|create_global_this_value| {
-        create_global_this_value(agent, gc.reborrow(), scope.reborrow())
-    });
+    let global = create_global_this_value
+        .map(|create_global_this_value| create_global_this_value(agent, gc.reborrow()));
 
     // 8. If the host requires that the this binding in realm's global scope return an object other than the global object,
     // let thisValue be such an object created in a host-defined manner.
     // Otherwise, let thisValue be undefined, indicating that realm's global this binding should be the global object.
-    let this_value = create_global_object
-        .map(|create_global_object| create_global_object(agent, gc.reborrow(), scope.reborrow()));
+    let this_value =
+        create_global_object.map(|create_global_object| create_global_object(agent, gc.reborrow()));
 
     // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
     set_realm_global_object(agent, realm, global, this_value);
 
     // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
-    let global_object =
-        set_default_global_bindings(agent, gc.reborrow(), scope.reborrow(), realm).unwrap();
+    let global_object = set_default_global_bindings(agent, gc.reborrow(), realm).unwrap();
 
     // 11. Create any host-defined global object properties on globalObj.
     if let Some(initialize_global_object) = initialize_global_object {
-        initialize_global_object(agent, gc.reborrow(), scope.reborrow(), global_object);
+        initialize_global_object(agent, gc.reborrow(), global_object);
     };
 
     // 12. Return UNUSED.
 }
 
-pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) {
-    let create_global_object: Option<fn(&mut Agent, Gc<'_>, Scope<'_>) -> Object> = None;
-    let create_global_this_value: Option<fn(&mut Agent, Gc<'_>, Scope<'_>) -> Object> = None;
-    let initialize_global_object: Option<fn(&mut Agent, Gc<'_>, Scope<'_>, Object)> = None;
+pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope<'_, '_>) {
+    let create_global_object: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
+    let create_global_this_value: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
+    let initialize_global_object: Option<fn(&mut Agent, GcScope<'_, '_>, Object)> = None;
     initialize_host_defined_realm(
         agent,
         gc,
-        scope,
         create_global_object,
         create_global_this_value,
         initialize_global_object,
@@ -1139,7 +1136,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: Gc<'_>, scope: Sco
 mod test {
 
     use crate::{
-        engine::context::{Gc, GcToken, Scope, ScopeToken},
+        engine::context::{GcScope, GcToken, ScopeToken},
         heap::{
             IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
             LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX,
@@ -1197,9 +1194,8 @@ mod test {
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
         let mut gc = unsafe { GcToken::new() };
         let mut scope = unsafe { ScopeToken::new() };
-        let gc = Gc::new(&mut gc);
-        let scope = Scope::new(&mut scope);
-        initialize_default_realm(&mut agent, gc, scope);
+        let gc = GcScope::new(&mut gc, &mut scope);
+        initialize_default_realm(&mut agent, gc);
         assert_eq!(
             agent.current_realm().intrinsics().object_index_base,
             ObjectIndex::from_index(0)

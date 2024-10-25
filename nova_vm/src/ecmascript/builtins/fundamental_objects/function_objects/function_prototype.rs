@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -98,21 +98,15 @@ impl Builtin for FunctionPrototypeHasInstance {
 }
 
 impl FunctionPrototype {
-    fn behaviour(
-        _: &mut Agent,
-        _: Gc<'_>,
-        _: Scope<'_>,
-        _: Value,
-        _: ArgumentsList,
-    ) -> JsResult<Value> {
+    fn behaviour(_: &mut Agent, _: GcScope<'_, '_>, _: Value, _: ArgumentsList) -> JsResult<Value> {
         Ok(Value::Undefined)
     }
 
     /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
     fn apply(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -130,14 +124,14 @@ impl FunctionPrototype {
             // 3. If argArray is either undefined or null, then
             //   a. TODO: Perform PrepareForTailCall().
             //   b. Return ? Call(func, thisArg).
-            return call_function(agent, gc, scope, func, this_arg, None);
+            return call_function(agent, gc, func, this_arg, None);
         }
         // 4. Let argList be ? CreateListFromArrayLike(argArray).
-        let args = create_list_from_array_like(agent, gc.reborrow(), scope.reborrow(), arg_array)?;
+        let args = create_list_from_array_like(agent, gc.reborrow(), arg_array)?;
         let args_list = ArgumentsList(&args);
         // 5. TODO: Perform PrepareForTailCall().
         // 6.Return ? Call(func, thisArg, argList).
-        call_function(agent, gc, scope, func, this_arg, Some(args_list))
+        call_function(agent, gc, func, this_arg, Some(args_list))
     }
 
     /// ### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
@@ -154,8 +148,8 @@ impl FunctionPrototype {
     /// > subsequent calls to `F`.
     fn bind(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -171,21 +165,13 @@ impl FunctionPrototype {
             ));
         };
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
-        let f = bound_function_create(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            target,
-            this_arg,
-            args,
-        )?;
+        let f = bound_function_create(agent, gc.reborrow(), target, this_arg, args)?;
         // 4. Let L be 0.
         let mut l = 0;
         // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
         let target_has_length = has_own_property(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             target.into_object(),
             BUILTIN_STRING_MEMORY.length.into(),
         )?;
@@ -195,7 +181,6 @@ impl FunctionPrototype {
             let target_len = get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 target,
                 BUILTIN_STRING_MEMORY.length.into(),
             )?;
@@ -223,7 +208,6 @@ impl FunctionPrototype {
                             let target_len_as_int = to_integer_or_infinity(
                                 agent,
                                 gc.reborrow(),
-                                scope.reborrow(),
                                 target_len.into_value(),
                             )
                             .unwrap()
@@ -244,7 +228,6 @@ impl FunctionPrototype {
         let target_name = get(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             target,
             BUILTIN_STRING_MEMORY.name.into(),
         )?;
@@ -264,8 +247,8 @@ impl FunctionPrototype {
 
     fn call(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -278,13 +261,13 @@ impl FunctionPrototype {
         // TODO: PrepareForTailCall
         let this_arg = args.get(0);
         let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });
-        call_function(agent, gc, scope, func, this_arg, Some(args))
+        call_function(agent, gc, func, this_arg, Some(args))
     }
 
     fn to_string(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -358,14 +341,14 @@ impl FunctionPrototype {
 
     fn has_instance(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let v = args.get(0);
         let f = this_value;
-        ordinary_has_instance(agent, gc, scope, f, v).map(|result| result.into())
+        ordinary_has_instance(agent, gc, f, v).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -427,8 +410,8 @@ impl BuiltinIntrinsic for ThrowTypeError {
 impl ThrowTypeError {
     fn behaviour(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

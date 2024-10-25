@@ -64,10 +64,14 @@ use crate::{
             BUILTIN_STRINGS_LIST,
         },
     },
-    engine::{context::Gc, Executable},
+    engine::{context::GcScope, Executable},
 };
 
-pub fn heap_gc(agent: &mut Agent, gc: Gc<'_>, root_realms: &mut [Option<RealmIdentifier>]) {
+pub fn heap_gc(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    root_realms: &mut [Option<RealmIdentifier>],
+) {
     let Agent {
         heap,
         execution_context_stack,
@@ -980,7 +984,7 @@ pub fn heap_gc(agent: &mut Agent, gc: Gc<'_>, root_realms: &mut [Option<RealmIde
 
 fn sweep(
     agent: &mut Agent,
-    _: Gc<'_>,
+    _: GcScope<'_, '_>,
     bits: &HeapBits,
     root_realms: &mut [Option<RealmIdentifier>],
 ) {
@@ -1457,7 +1461,7 @@ fn sweep(
 
 #[test]
 fn test_heap_gc() {
-    use crate::engine::context::{Gc, GcToken};
+    use crate::engine::context::{GcScope, GcToken, ScopeToken};
     use crate::{
         ecmascript::execution::{agent::Options, DefaultHostHooks},
         engine::rootable::HeapRootData,
@@ -1465,18 +1469,14 @@ fn test_heap_gc() {
 
     let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
 
-    let mut gc_token = unsafe { GcToken::new() };
-    let mut gc = Gc::new(&mut gc_token);
-    let mut gc2 = Gc::new(&mut gc_token);
-    gc.print();
-    gc2.print();
+    let mut gc = unsafe { GcToken::new() };
+    let mut scope = unsafe { ScopeToken::new() };
+    let mut gc = GcScope::new(&mut gc, &mut scope);
     assert!(agent.heap.objects.is_empty());
     let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
     agent.heap.globals.borrow_mut().push(Some(obj));
     heap_gc(&mut agent, gc.reborrow(), &mut []);
-    gc.print();
-    gc2.print();
     println!("Objects: {:#?}", agent.heap.objects);
     assert_eq!(agent.heap.objects.len(), 1);
     assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);

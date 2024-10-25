@@ -26,7 +26,7 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
@@ -123,8 +123,8 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     arguments_list: &[Value],
 ) -> Object {
     // 1. Let len be the number of elements in argumentsList.
@@ -141,7 +141,6 @@ pub(crate) fn create_unmapped_arguments_object(
     define_property_or_throw(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         obj,
         key,
         PropertyDescriptor {
@@ -165,8 +164,7 @@ pub(crate) fn create_unmapped_arguments_object(
         debug_assert!(index < u32::MAX as usize);
         let index = index as u32;
         let key = PropertyKey::Integer(index.into());
-        create_data_property_or_throw(agent, gc.reborrow(), scope.reborrow(), obj, key, *val)
-            .unwrap();
+        create_data_property_or_throw(agent, gc.reborrow(), obj, key, *val).unwrap();
         // c. Set index to index + 1.
     }
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
@@ -176,7 +174,6 @@ pub(crate) fn create_unmapped_arguments_object(
     define_property_or_throw(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         obj,
         key,
         PropertyDescriptor {
@@ -204,7 +201,6 @@ pub(crate) fn create_unmapped_arguments_object(
     define_property_or_throw(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         obj,
         key,
         PropertyDescriptor {

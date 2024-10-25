@@ -18,7 +18,7 @@ use crate::{
         execution::{Agent, JsResult},
         types::{Function, PropertyDescriptor, Value},
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
@@ -31,8 +31,7 @@ where
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Object>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_get_prototype_of(
@@ -48,8 +47,8 @@ where
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
@@ -98,8 +97,7 @@ where
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can call JS.
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         // 1. Return OrdinaryIsExtensible(O).
         match self.get_backing_object(agent) {
@@ -112,8 +110,7 @@ where
     fn internal_prevent_extensions(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         // 1. Return OrdinaryPreventExtensions(O).
         match self.get_backing_object(agent) {
@@ -132,8 +129,8 @@ where
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -151,8 +148,8 @@ where
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -160,38 +157,30 @@ where
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_define_own_property(
-            agent,
-            gc,
-            scope,
-            backing_object,
-            property_key,
-            property_descriptor,
-        )
+        ordinary_define_own_property(agent, gc, backing_object, property_key, property_descriptor)
     }
 
     /// \[\[HasProperty\]\]
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_has_property(agent, gc, scope, backing_object.into_object(), property_key)
+                ordinary_has_property(agent, gc, backing_object.into_object(), property_key)
             }
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent =
-                    self.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?;
+                let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, gc, scope, property_key)
+                    parent.internal_has_property(agent, gc, property_key)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -204,8 +193,8 @@ where
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -214,22 +203,19 @@ where
             Some(backing_object) => ordinary_get(
                 agent,
                 gc,
-                scope,
                 backing_object.into_object(),
                 property_key,
                 receiver,
             ),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) =
-                    self.internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())?
-                else {
+                let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
                     // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, gc, scope, property_key, receiver)
+                parent.internal_get(agent, gc, property_key, receiver)
             }
         }
     }
@@ -238,8 +224,8 @@ where
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -249,29 +235,21 @@ where
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_set(
-            agent,
-            gc,
-            scope,
-            backing_object,
-            property_key,
-            value,
-            receiver,
-        )
+        ordinary_set(agent, gc, backing_object, property_key, value, receiver)
     }
 
     /// \[\[Delete\]\]
     fn internal_delete(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_delete(agent, gc, scope, backing_object.into_object(), property_key)
+                ordinary_delete(agent, gc, backing_object.into_object(), property_key)
             }
             None => Ok(true),
         }
@@ -281,8 +259,7 @@ where
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Vec<PropertyKey>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         match self.get_backing_object(agent) {
@@ -295,8 +272,8 @@ where
     fn internal_call(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -307,8 +284,8 @@ where
     fn internal_construct(
         self,
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _arguments_list: ArgumentsList,
         _new_target: Function,
     ) -> JsResult<Object> {

@@ -10,7 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 
 pub(crate) struct ErrorPrototype;
@@ -30,8 +30,8 @@ impl ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
     fn to_string(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -47,7 +47,6 @@ impl ErrorPrototype {
         let name = get(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             o,
             PropertyKey::from(BUILTIN_STRING_MEMORY.name),
         )?;
@@ -55,16 +54,16 @@ impl ErrorPrototype {
         let name = if name.is_undefined() {
             BUILTIN_STRING_MEMORY.Error
         } else {
-            to_string(agent, gc.reborrow(), scope.reborrow(), name)?
+            to_string(agent, gc.reborrow(), name)?
         };
         // 5. Let msg be ? Get(O, "message").
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.message);
-        let msg = get(agent, gc.reborrow(), scope.reborrow(), o, key)?;
+        let msg = get(agent, gc.reborrow(), o, key)?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
             String::EMPTY_STRING
         } else {
-            to_string(agent, gc, scope, msg)?
+            to_string(agent, gc, msg)?
         };
         if name.is_empty_string() {
             // 7. If name is the empty String, return msg.

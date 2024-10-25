@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,
@@ -84,13 +84,13 @@ impl Numeric {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent, gc: Gc<'_>, scope: Scope<'_>) -> JsResult<f64> {
+    pub fn to_real(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<f64> {
         Ok(match self {
             Self::Number(n) => agent[n],
             Self::Integer(i) => i.into_i64() as f64,
             Self::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, gc, scope, self)?.into_f64(agent),
+            _ => to_number(agent, gc, self)?.into_f64(agent),
         })
     }
 }

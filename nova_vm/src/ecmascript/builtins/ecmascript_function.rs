@@ -13,7 +13,7 @@ use oxc_ast::{
 };
 use oxc_span::Span;
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
@@ -346,8 +346,8 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -356,71 +356,63 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        function_internal_define_own_property(
-            self,
-            agent,
-            gc,
-            scope,
-            property_key,
-            property_descriptor,
-        )
+        function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
     }
 
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
-        function_internal_has_property(self, agent, gc, scope, property_key)
+        function_internal_has_property(self, agent, gc, property_key)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc, scope, property_key, receiver)
+        function_internal_get(self, agent, gc, property_key, receiver)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc, scope, property_key, value, receiver)
+        function_internal_set(self, agent, gc, property_key, value, receiver)
     }
 
     fn internal_delete(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<bool> {
-        function_internal_delete(self, agent, gc, scope, property_key)
+        function_internal_delete(self, agent, gc, property_key)
     }
 
     fn internal_own_property_keys(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent, gc, scope)
+        function_internal_own_property_keys(self, agent, gc)
     }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
@@ -433,8 +425,8 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
@@ -474,7 +466,7 @@ impl InternalMethods for ECMAScriptFunction {
         };
         ordinary_call_bind_this(agent, self, local_env, this_argument);
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(agent, gc, scope, self, arguments_list);
+        let result = ordinary_call_evaluate_body(agent, gc, self, arguments_list);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.execution_context_stack.pop();
@@ -487,8 +479,8 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -503,7 +495,6 @@ impl InternalMethods for ECMAScriptFunction {
             Some(ordinary_create_from_constructor(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 new_target,
                 ProtoIntrinsics::Object,
             )?)
@@ -543,13 +534,7 @@ impl InternalMethods for ECMAScriptFunction {
         }
 
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            self,
-            arguments_list,
-        );
+        let result = ordinary_call_evaluate_body(agent, gc.reborrow(), self, arguments_list);
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
         agent.execution_context_stack.pop();
@@ -570,7 +555,7 @@ impl InternalMethods for ECMAScriptFunction {
         if !value.is_undefined() {
             let message = format!(
                 "derived class constructor returned invalid value {}",
-                value.string_repr(agent, gc, scope).as_str(agent)
+                value.string_repr(agent, gc).as_str(agent)
             );
             let message = String::from_string(agent, message);
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
@@ -700,8 +685,8 @@ pub(crate) fn ordinary_call_bind_this(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_body(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -714,7 +699,7 @@ pub(crate) fn evaluate_body(
             // AsyncConciseBody : ExpressionBody
             // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
             Ok(
-                evaluate_async_function_body(agent, gc, scope, function_object, arguments_list)
+                evaluate_async_function_body(agent, gc, function_object, arguments_list)
                     .into_value(),
             )
         }
@@ -734,12 +719,12 @@ pub(crate) fn evaluate_body(
             // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
             // ConciseBody : ExpressionBody
             // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
-            evaluate_function_body(agent, gc, scope, function_object, arguments_list)
+            evaluate_function_body(agent, gc, function_object, arguments_list)
         }
         (true, false) => {
             // GeneratorBody : FunctionBody
             // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
-            evaluate_generator_body(agent, gc, scope, function_object, arguments_list)
+            evaluate_generator_body(agent, gc, function_object, arguments_list)
         }
         // AsyncGeneratorBody : FunctionBody
         // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
@@ -771,13 +756,13 @@ pub(crate) fn evaluate_body(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
-    evaluate_body(agent, gc, scope, f, arguments_list)
+    evaluate_body(agent, gc, f, arguments_list)
 }
 
 /// ### [10.2.3 OrdinaryFunctionCreate ( functionPrototype, sourceText, ParameterList, Body, thisMode, env, privateEnv )](https://tc39.es/ecma262/#sec-ordinaryfunctioncreate)

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -88,8 +88,8 @@ impl ArrayBufferPrototype {
     /// accessor function is undefined.
     fn get_byte_length(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -111,8 +111,8 @@ impl ArrayBufferPrototype {
     /// ArrayBuffer.prototype.detached is an accessor property whose set accessor function is undefined.
     fn get_detached(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -129,8 +129,8 @@ impl ArrayBufferPrototype {
     /// ArrayBuffer.prototype.maxByteLength is an accessor property whose set accessor function is undefined.
     fn get_max_byte_length(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -152,8 +152,8 @@ impl ArrayBufferPrototype {
     /// ArrayBuffer.prototype.resizable is an accessor property whose set accessor function is undefined.
     fn get_resizable(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -170,8 +170,8 @@ impl ArrayBufferPrototype {
     /// This method performs the following steps when called:
     fn resize(
         agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
+        gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -186,7 +186,7 @@ impl ArrayBufferPrototype {
             ));
         }
         // 4. Let newByteLength be ? ToIndex(newLength).
-        let new_byte_length = to_index(agent, gc, scope, arguments.get(0))? as usize;
+        let new_byte_length = to_index(agent, gc, arguments.get(0))? as usize;
         // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
@@ -225,8 +225,8 @@ impl ArrayBufferPrototype {
     /// This method performs the following steps when called:
     fn slice(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -245,8 +245,7 @@ impl ArrayBufferPrototype {
         let len = o.byte_length(agent);
 
         // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start =
-            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), arguments.get(0))?;
         // 7. If relativeStart = -∞, let first be 0.
         let first = if relative_start.is_neg_infinity(agent) {
             0
@@ -264,7 +263,7 @@ impl ArrayBufferPrototype {
             len
         } else {
             // else let relativeEnd be ? ToIntegerOrInfinity(end).
-            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), end)?;
+            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end)?;
             // 11. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity(agent) {
                 0
@@ -285,7 +284,6 @@ impl ArrayBufferPrototype {
         let Object::ArrayBuffer(new) = construct(
             agent,
             gc,
-            scope,
             ctor.into_function(),
             Some(ArgumentsList(&[(new_len as i64).try_into().unwrap()])),
             None,
@@ -344,8 +342,8 @@ impl ArrayBufferPrototype {
     /// This method performs the following steps when called:
     fn transfer(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -359,8 +357,8 @@ impl ArrayBufferPrototype {
     /// This method performs the following steps when called:
     fn transfer_to_fixed_length(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -42,8 +42,8 @@ impl Generator {
     pub(crate) fn resume(
         mut self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         value: Value,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -88,16 +88,10 @@ impl Generator {
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
-            VmOrArguments::Arguments(args) => Vm::execute(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                executable,
-                Some(&args),
-            ),
-            VmOrArguments::Vm(vm) => {
-                vm.resume(agent, gc.reborrow(), scope.reborrow(), executable, value)
+            VmOrArguments::Arguments(args) => {
+                Vm::execute(agent, gc.reborrow(), executable, Some(&args))
             }
+            VmOrArguments::Vm(vm) => vm.resume(agent, gc.reborrow(), executable, value),
         };
 
         self = saved.get(agent);
@@ -162,8 +156,8 @@ impl Generator {
     pub(crate) fn resume_throw(
         self,
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         value: Value,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -222,8 +216,7 @@ impl Generator {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result =
-            vm.resume_throw(agent, gc.reborrow(), scope.reborrow(), executable, value);
+        let execution_result = vm.resume_throw(agent, gc.reborrow(), executable, value);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running

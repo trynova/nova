@@ -14,7 +14,7 @@
 //! The BigInt type has no implicit conversions in the ECMAScript language;
 //! programmers must call BigInt explicitly to convert values from other types.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{
@@ -60,8 +60,8 @@ pub enum PreferredType {
 /// > absence of a hint as if the hint were STRING.
 pub(crate) fn to_primitive(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     input: impl Into<Value> + Copy,
     preferred_type: Option<PreferredType>,
 ) -> JsResult<Primitive> {
@@ -72,7 +72,6 @@ pub(crate) fn to_primitive(
         let exotic_to_prim = get_method(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             input.into_value(),
             PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
         )?;
@@ -94,7 +93,6 @@ pub(crate) fn to_primitive(
             let result: Value = call_function(
                 agent,
                 gc,
-                scope,
                 exotic_to_prim,
                 input.into(),
                 Some(ArgumentsList(&[hint.into()])),
@@ -113,7 +111,6 @@ pub(crate) fn to_primitive(
             ordinary_to_primitive(
                 agent,
                 gc,
-                scope,
                 input,
                 preferred_type.unwrap_or(PreferredType::Number),
             )
@@ -131,8 +128,8 @@ pub(crate) fn to_primitive(
 /// containing an ECMAScript language value or a throw completion.
 pub(crate) fn ordinary_to_primitive(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     o: Object,
     hint: PreferredType,
 ) -> JsResult<Primitive> {
@@ -153,18 +150,11 @@ pub(crate) fn ordinary_to_primitive(
     // 3. For each element name of methodNames, do
     for name in method_names {
         // a. Let method be ? Get(O, name).
-        let method = get(agent, gc.reborrow(), scope.reborrow(), o, name)?;
+        let method = get(agent, gc.reborrow(), o, name)?;
         // b. If IsCallable(method) is true, then
         if let Some(method) = is_callable(method) {
             // i. Let result be ? Call(method, O).
-            let result: Value = call_function(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                method,
-                o.into(),
-                None,
-            )?;
+            let result: Value = call_function(agent, gc.reborrow(), method, o.into(), None)?;
             // ii. If result is not an Object, return result.
             if let Ok(result) = Primitive::try_from(result) {
                 return Ok(result);
@@ -206,18 +196,12 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
 pub(crate) fn to_numeric(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     value: impl Into<Value> + Copy,
 ) -> JsResult<Numeric> {
     // 1. Let primValue be ? ToPrimitive(value, number).
-    let prim_value = to_primitive(
-        agent,
-        gc.reborrow(),
-        scope.reborrow(),
-        value,
-        Some(PreferredType::Number),
-    )?;
+    let prim_value = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
 
     // 2. If primValue is a BigInt, return primValue.
     if let Ok(prim_value) = BigInt::try_from(prim_value) {
@@ -225,14 +209,14 @@ pub(crate) fn to_numeric(
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number(agent, gc, scope, value).map(|n| n.into_numeric())
+    to_number(agent, gc, value).map(|n| n.into_numeric())
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
 pub(crate) fn to_number(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     argument: impl Into<Value> + Copy,
 ) -> JsResult<Number> {
     let argument: Value = argument.into();
@@ -264,16 +248,11 @@ pub(crate) fn to_number(
             // 7. Assert: argument is an Object.
             let argument = Object::try_from(argument).unwrap();
             // 8. Let primValue be ? ToPrimitive(argument, number).
-            let prim_value = to_primitive(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                argument,
-                Some(PreferredType::Number),
-            )?;
+            let prim_value =
+                to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::Number))?;
             // 9. Assert: primValue is not an Object.
             // 10. Return ? ToNumber(primValue).
-            to_number(agent, gc, scope, prim_value)
+            to_number(agent, gc, prim_value)
         }
     }
 }
@@ -354,8 +333,8 @@ fn string_to_number(agent: &mut Agent, str: String) -> Number {
 // TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
 pub(crate) fn to_integer_or_infinity(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     argument: Value,
 ) -> JsResult<Number> {
     // Fast path: A safe integer is already an integer.
@@ -363,7 +342,7 @@ pub(crate) fn to_integer_or_infinity(
         return Ok(int.into());
     }
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
     if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
@@ -385,12 +364,7 @@ pub(crate) fn to_integer_or_infinity(
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
-pub(crate) fn to_int32(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<i32> {
+pub(crate) fn to_int32(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<i32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int32 already.
         let int = int.into_i64();
@@ -398,7 +372,7 @@ pub(crate) fn to_int32(
     }
 
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     Ok(to_int32_number(agent, number))
 }
@@ -432,19 +406,14 @@ pub(crate) fn to_int32_number(agent: &mut Agent, number: Number) -> i32 {
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
-pub(crate) fn to_uint32(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<u32> {
+pub(crate) fn to_uint32(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<u32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
         return Ok(int as u32);
     }
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     Ok(to_uint32_number(agent, number))
 }
@@ -474,12 +443,7 @@ pub(crate) fn to_uint32_number(agent: &mut Agent, number: Number) -> u32 {
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
-pub(crate) fn to_int16(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<i16> {
+pub(crate) fn to_int16(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<i16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int16 already.
         let int = int.into_i64();
@@ -487,7 +451,7 @@ pub(crate) fn to_int16(
     }
 
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly int16 already.
@@ -515,12 +479,7 @@ pub(crate) fn to_int16(
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
-pub(crate) fn to_uint16(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<u16> {
+pub(crate) fn to_uint16(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<u16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint16 already.
         let int = int.into_i64();
@@ -528,7 +487,7 @@ pub(crate) fn to_uint16(
     }
 
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uin16 already.
@@ -552,12 +511,7 @@ pub(crate) fn to_uint16(
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
-pub(crate) fn to_int8(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<i8> {
+pub(crate) fn to_int8(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<i8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int8 already.
         let int = int.into_i64();
@@ -565,7 +519,7 @@ pub(crate) fn to_int8(
     }
 
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
@@ -593,12 +547,7 @@ pub(crate) fn to_int8(
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
-pub(crate) fn to_uint8(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<u8> {
+pub(crate) fn to_uint8(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -606,7 +555,7 @@ pub(crate) fn to_uint8(
     }
 
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
@@ -632,8 +581,8 @@ pub(crate) fn to_uint8(
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
 pub(crate) fn to_uint8_clamp(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     argument: Value,
 ) -> JsResult<u8> {
     if let Value::Integer(int) = argument {
@@ -643,7 +592,7 @@ pub(crate) fn to_uint8_clamp(
     }
 
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, gc, scope, argument)?;
+    let number = to_number(agent, gc, argument)?;
 
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint8 already.
@@ -688,12 +637,12 @@ pub(crate) fn to_uint8_clamp(
 #[inline(always)]
 pub(crate) fn to_big_int(
     agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
+    gc: GcScope<'_, '_>,
+
     argument: Value,
 ) -> JsResult<BigInt> {
     // 1. Let prim be ? ToPrimitive(argument, number).
-    let prim = to_primitive(agent, gc, scope, argument, Some(PreferredType::Number))?;
+    let prim = to_primitive(agent, gc, argument, Some(PreferredType::Number))?;
 
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
@@ -761,8 +710,8 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
 pub(crate) fn to_string(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     argument: impl Into<Value> + Copy,
 ) -> JsResult<String> {
     let argument: Value = argument.into();
@@ -800,16 +749,11 @@ pub(crate) fn to_string(
             // 9. Assert: argument is an Object.
             assert!(Object::try_from(argument).is_ok());
             // 10. Let primValue be ? ToPrimitive(argument, string).
-            let prim_value = to_primitive(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                argument,
-                Some(PreferredType::String),
-            )?;
+            let prim_value =
+                to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::String))?;
             // 11. Assert: primValue is not an Object.
             // 12. Return ? ToString(primValue).
-            to_string(agent, gc, scope, prim_value)
+            to_string(agent, gc, prim_value)
         }
     }
 }
@@ -901,8 +845,8 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
 pub(crate) fn to_property_key(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     argument: Value,
 ) -> JsResult<PropertyKey> {
     // Note: Fast path and non-standard special case combined. Usually the
@@ -917,13 +861,7 @@ pub(crate) fn to_property_key(
     // We call ToPrimitive in case we're dealing with an object.
 
     // 1. Let key be ? ToPrimitive(argument, hint String).
-    let key = to_primitive(
-        agent,
-        gc.reborrow(),
-        scope.reborrow(),
-        argument,
-        Some(PreferredType::String),
-    )?;
+    let key = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::String))?;
 
     // 2. If Type(key) is Symbol, then
     //    a. Return key.
@@ -938,7 +876,7 @@ pub(crate) fn to_property_key(
         // stringifying.
 
         // 3. Return ! ToString(key).
-        to_string(agent, gc, scope, key).unwrap().into()
+        to_string(agent, gc, key).unwrap().into()
     }))
 }
 
@@ -1020,16 +958,11 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
-pub(crate) fn to_length(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<i64> {
+pub(crate) fn to_length(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<i64> {
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let len be ? ToIntegerOrInfinity(argument).
-    let len = to_integer_or_infinity(agent, gc, scope, argument)?;
+    let len = to_integer_or_infinity(agent, gc, argument)?;
 
     // 2. If len ≤ 0, return +0𝔽.
     if match len {
@@ -1051,8 +984,8 @@ pub(crate) fn to_length(
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)
 pub(crate) fn canonical_numeric_index_string(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     argument: String,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.
@@ -1061,10 +994,10 @@ pub(crate) fn canonical_numeric_index_string(
     }
 
     // 2. Let n be ! ToNumber(argument).
-    let n = to_number(agent, gc.reborrow(), scope.reborrow(), argument).unwrap();
+    let n = to_number(agent, gc.reborrow(), argument).unwrap();
 
     // 3. If ! ToString(n) is argument, return n.
-    if to_string(agent, gc, scope, n).unwrap() == argument {
+    if to_string(agent, gc, n).unwrap() == argument {
         return Some(n);
     }
 
@@ -1073,12 +1006,7 @@ pub(crate) fn canonical_numeric_index_string(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
-pub(crate) fn to_index(
-    agent: &mut Agent,
-    gc: Gc<'_>,
-    scope: Scope<'_>,
-    argument: Value,
-) -> JsResult<i64> {
+pub(crate) fn to_index(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<i64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
         let integer = integer.into_i64();
@@ -1093,7 +1021,7 @@ pub(crate) fn to_index(
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let integer be ? ToIntegerOrInfinity(value).
-    let integer = to_integer_or_infinity(agent, gc, scope, argument)?;
+    let integer = to_integer_or_infinity(agent, gc, argument)?;
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     let integer = if let Number::Integer(n) = integer {

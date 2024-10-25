@@ -5,7 +5,7 @@
 use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -430,12 +430,7 @@ impl FunctionEnvironmentIndex {
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined, or a throw completion.
-    pub(crate) fn get_super_base(
-        self,
-        agent: &mut Agent,
-        gc: Gc<'_>,
-        scope: Scope<'_>,
-    ) -> JsResult<Value> {
+    pub(crate) fn get_super_base(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Value> {
         let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
@@ -456,7 +451,7 @@ impl FunctionEnvironmentIndex {
         // 3. Assert: home is an Object.
         // Type guarantees Objectness.
         // 4. Return ? home.[[GetPrototypeOf]]().
-        home.internal_get_prototype_of(agent, gc, scope)
+        home.internal_get_prototype_of(agent, gc)
             .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
     }
 }

@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 
 use small_string::SmallString;
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -285,18 +285,18 @@ impl ArrayPrototype {
     /// ### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
     fn at(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let index = arguments.get(0);
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), index)?;
+        let relative_index = to_integer_or_infinity(agent, gc.reborrow(), index)?;
         let relative_index = match relative_index {
             Number::SmallF64(_) | Number::Number(_) => {
                 // Heap number or f32 here means that the value is over the
@@ -322,7 +322,6 @@ impl ArrayPrototype {
             get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 o,
                 PropertyKey::Integer(k.try_into().unwrap()),
             )
@@ -344,15 +343,15 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn concat(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let A be ? ArraySpeciesCreate(O, 0).
-        let a = array_species_create(agent, gc.reborrow(), scope.reborrow(), o, 0)?;
+        let a = array_species_create(agent, gc.reborrow(), o, 0)?;
         // 3. Let n be 0.
         let mut n = 0;
         // 4. Prepend O to items.
@@ -361,11 +360,11 @@ impl ArrayPrototype {
         // 5. For each element E of items, do
         for e in items {
             // a. Let spreadable be ? IsConcatSpreadable(E).
-            let e_is_spreadable = is_concat_spreadable(agent, gc.reborrow(), scope.reborrow(), e)?;
+            let e_is_spreadable = is_concat_spreadable(agent, gc.reborrow(), e)?;
             // b. If spreadable is true, then
             if let Some(e) = e_is_spreadable {
                 // i. Let len be ? LengthOfArrayLike(E).
-                let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), e)?;
+                let len = length_of_array_like(agent, gc.reborrow(), e)?;
                 // ii. If n + len > 2**53 - 1, throw a TypeError exception.
                 if (n + len) > SmallInteger::MAX_NUMBER {
                     return Err(agent.throw_exception_with_static_message(
@@ -380,16 +379,15 @@ impl ArrayPrototype {
                     // 1. Let Pk be ! ToString(𝔽(k)).
                     let pk = PropertyKey::Integer(k.try_into().unwrap());
                     // 2. Let exists be ? HasProperty(E, Pk).
-                    let exists = has_property(agent, gc.reborrow(), scope.reborrow(), e, pk)?;
+                    let exists = has_property(agent, gc.reborrow(), e, pk)?;
                     // 3. If exists is true, then
                     if exists {
                         // a. Let subElement be ? Get(E, Pk).
-                        let sub_element = get(agent, gc.reborrow(), scope.reborrow(), e, pk)?;
+                        let sub_element = get(agent, gc.reborrow(), e, pk)?;
                         // b. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), subElement).
                         create_data_property_or_throw(
                             agent,
                             gc.reborrow(),
-                            scope.reborrow(),
                             a,
                             PropertyKey::Integer(n.try_into().unwrap()),
                             sub_element,
@@ -414,7 +412,6 @@ impl ArrayPrototype {
                 create_data_property_or_throw(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     a,
                     PropertyKey::Integer(n.try_into().unwrap()),
                     e,
@@ -427,7 +424,6 @@ impl ArrayPrototype {
         set(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             a,
             BUILTIN_STRING_MEMORY.length.into(),
             Value::try_from(n).unwrap(),
@@ -457,8 +453,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn copy_within(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -517,12 +513,11 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len: i64 = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len: i64 = length_of_array_like(agent, gc.reborrow(), o)?;
         let len_f64 = len as f64;
 
         // 3. Let relativeTarget be ? ToIntegerOrInfinity(target).
-        let relative_target =
-            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), target)?;
+        let relative_target = to_integer_or_infinity(agent, gc.reborrow(), target)?;
 
         let to = if relative_target.is_neg_infinity(agent) {
             // 4. If relativeTarget = -∞, let to be 0.
@@ -536,7 +531,7 @@ impl ArrayPrototype {
         };
 
         // 7. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), start)?;
+        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?;
 
         let from = if relative_start.is_neg_infinity(agent) {
             // 8. If relativeStart = -∞, let from be 0.
@@ -553,8 +548,7 @@ impl ArrayPrototype {
         let relative_end = if end.is_none() || end.unwrap().is_undefined() {
             len_f64
         } else {
-            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), end.unwrap())?
-                .to_real(agent)
+            to_integer_or_infinity(agent, gc.reborrow(), end.unwrap())?.to_real(agent)
         };
         // 12. If relativeEnd = -∞, let final be 0.
         let final_end = if relative_end == f64::NEG_INFINITY {
@@ -589,26 +583,18 @@ impl ArrayPrototype {
             // b. Let toKey be ! ToString(𝔽(to)).
             let to_key = PropertyKey::Integer(to.try_into().unwrap());
             // c. Let fromPresent be ? HasProperty(O, fromKey).
-            let from_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, from_key)?;
+            let from_present = has_property(agent, gc.reborrow(), o, from_key)?;
             // d. If fromPresent is true, then
             if from_present {
                 // i. Let fromValue be ? Get(O, fromKey).
-                let from_value = get(agent, gc.reborrow(), scope.reborrow(), o, from_key)?;
+                let from_value = get(agent, gc.reborrow(), o, from_key)?;
                 // ii. Perform ? Set(O, toKey, fromValue, true).
-                set(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    o,
-                    to_key,
-                    from_value,
-                    true,
-                )?;
+                set(agent, gc.reborrow(), o, to_key, from_value, true)?;
             } else {
                 // e. Else,
                 // i. Assert: fromPresent is false.
                 // ii. Perform ? DeletePropertyOrThrow(O, toKey).
-                delete_property_or_throw(agent, gc.reborrow(), scope.reborrow(), o, to_key)?;
+                delete_property_or_throw(agent, gc.reborrow(), o, to_key)?;
             }
             // f. Set from to from + direction.
             from += direction;
@@ -623,8 +609,8 @@ impl ArrayPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -677,15 +663,15 @@ impl ArrayPrototype {
     /// > objects for use as a method.
     fn every(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let callback_fn = arguments.get(0);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
@@ -702,17 +688,16 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
                 // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
                 let f_k = Number::try_from(k).unwrap().into_value();
                 let test_result = call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[k_value, f_k])),
@@ -752,8 +737,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn fill(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -803,10 +788,9 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start =
-            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), start)?.to_real(agent);
+        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?.to_real(agent);
 
         // 4. If relativeStart = -∞, let k be 0.
         let mut k = if relative_start == f64::NEG_INFINITY {
@@ -823,8 +807,7 @@ impl ArrayPrototype {
         let final_end = if end.is_undefined() {
             len
         } else {
-            let relative_end =
-                to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), end)?.to_real(agent);
+            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end)?.to_real(agent);
             // 8. If relativeEnd = -∞, let final be 0.
             if relative_end == f64::NEG_INFINITY {
                 0
@@ -842,7 +825,7 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Perform ? Set(O, Pk, value, true).
-            set(agent, gc.reborrow(), scope.reborrow(), o, pk, value, true)?;
+            set(agent, gc.reborrow(), o, pk, value, true)?;
             // c. Set k to k + 1.
             k += 1;
         }
@@ -886,8 +869,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn filter(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -897,7 +880,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
@@ -906,7 +889,7 @@ impl ArrayPrototype {
             ));
         };
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
-        let a = array_species_create(agent, gc.reborrow(), scope.reborrow(), o, 0)?;
+        let a = array_species_create(agent, gc.reborrow(), o, 0)?;
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Let to be 0.
@@ -916,16 +899,15 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::try_from(k).unwrap());
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
                 // ii. Let selected be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
                 let result = call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[
@@ -938,14 +920,7 @@ impl ArrayPrototype {
                 // iii. If selected is true, then
                 if selected {
                     // 1. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(to)), kValue).
-                    create_data_property_or_throw(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        a,
-                        to.into(),
-                        k_value,
-                    )?;
+                    create_data_property_or_throw(agent, gc.reborrow(), a, to.into(), k_value)?;
                     // 2. Set to to to + 1.
                     to += 1;
                 }
@@ -976,28 +951,19 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn find(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
-        let find_rec = find_via_predicate(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            o,
-            len,
-            true,
-            predicate,
-            this_arg,
-        )?;
+        let find_rec = find_via_predicate(agent, gc.reborrow(), o, len, true, predicate, this_arg)?;
         // 4. Return findRec.[[Value]].
         Ok(find_rec.1)
     }
@@ -1021,28 +987,19 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn find_index(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
-        let find_rec = find_via_predicate(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            o,
-            len,
-            true,
-            predicate,
-            this_arg,
-        )?;
+        let find_rec = find_via_predicate(agent, gc.reborrow(), o, len, true, predicate, this_arg)?;
         // 4. Return findRec.[[Index]].
         Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
@@ -1050,28 +1007,20 @@ impl ArrayPrototype {
     /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
     fn find_last(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
-        let find_rec = find_via_predicate(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            o,
-            len,
-            false,
-            predicate,
-            this_arg,
-        )?;
+        let find_rec =
+            find_via_predicate(agent, gc.reborrow(), o, len, false, predicate, this_arg)?;
         // 4. Return findRec.[[Value]].
         Ok(find_rec.1)
     }
@@ -1079,28 +1028,20 @@ impl ArrayPrototype {
     /// ### [23.1.3.12 Array.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlastindex)
     fn find_last_index(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
-        let find_rec = find_via_predicate(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            o,
-            len,
-            false,
-            predicate,
-            this_arg,
-        )?;
+        let find_rec =
+            find_via_predicate(agent, gc.reborrow(), o, len, false, predicate, this_arg)?;
         // 4. Return findRec.[[Index]].
         Ok(Number::try_from(find_rec.0).unwrap().into_value())
     }
@@ -1108,8 +1049,8 @@ impl ArrayPrototype {
     /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )]()
     fn flat(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1117,26 +1058,24 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
-        let source_len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)? as usize;
+        let source_len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. Let depthNum be 1.
         let mut depth_num = 1;
         // 4. If depth is not undefined, then
         if !depth.is_undefined() {
             // a. Set depthNum to ? ToIntegerOrInfinity(depth).
-            depth_num = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), depth)?
-                .into_i64(agent);
+            depth_num = to_integer_or_infinity(agent, gc.reborrow(), depth)?.into_i64(agent);
         }
         // b. If depthNum < 0, set depthNum to 0.
         if depth_num < 0 {
             depth_num = 0;
         }
         // 5. Let A be ? ArraySpeciesCreate(O, 0).
-        let a = array_species_create(agent, gc.reborrow(), scope.reborrow(), o, 0)?;
+        let a = array_species_create(agent, gc.reborrow(), o, 0)?;
         // 6. Perform ? FlattenIntoArray(A, O, sourceLen, 0, depthNum).
         flatten_into_array(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             a,
             o,
             source_len,
@@ -1152,8 +1091,8 @@ impl ArrayPrototype {
     /// ### [23.1.3.14 Array.prototype.flatMap ( mapperFunction \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.flatmap)
     fn flat_map(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1163,7 +1102,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
-        let source_len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)? as usize;
+        let source_len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
         let Some(mapper_function) = is_callable(mapper_function) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1172,12 +1111,11 @@ impl ArrayPrototype {
             ));
         };
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
-        let a = array_species_create(agent, gc.reborrow(), scope.reborrow(), o, 0)?;
+        let a = array_species_create(agent, gc.reborrow(), o, 0)?;
         // 5. Perform ? FlattenIntoArray(A, O, sourceLen, 0, 1, mapperFunction, thisArg).
         flatten_into_array(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             a,
             o,
             source_len,
@@ -1226,15 +1164,15 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn for_each(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
         let callback_fn = arguments.get(0);
 
@@ -1254,16 +1192,15 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
                 // ii. Perform ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
                 call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[
@@ -1311,8 +1248,8 @@ impl ArrayPrototype {
     /// > them as undefined.
     fn includes(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1362,13 +1299,13 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return false.
         if len == 0 {
             return Ok(false.into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), from_index)?;
+        let n = to_integer_or_infinity(agent, gc.reborrow(), from_index)?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
         assert_eq!(from_index.is_undefined(), n.is_pos_zero(agent));
         // 6. If n = +∞, return false.
@@ -1400,7 +1337,7 @@ impl ArrayPrototype {
         while k < len {
             // a. Let elementK be ? Get(O, ! ToString(𝔽(k))).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
-            let element_k = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let element_k = get(agent, gc.reborrow(), o, pk)?;
             // b. If SameValueZero(searchElement, elementK) is true, return true.
             if same_value_zero(agent, search_element, element_k) {
                 return Ok(true.into());
@@ -1435,8 +1372,8 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn index_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1486,13 +1423,13 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return -1𝔽.
         if len == 0 {
             return Ok((-1).into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), from_index)?;
+        let n = to_integer_or_infinity(agent, gc.reborrow(), from_index)?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
         assert_eq!(from_index.is_undefined(), n.is_pos_zero(agent));
         // 6. If n = +∞, return -1𝔽.
@@ -1525,11 +1462,11 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let elementK be ? Get(O, Pk).
-                let element_k = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let element_k = get(agent, gc.reborrow(), o, pk)?;
                 // ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
                 if is_strictly_equal(agent, search_element, element_k) {
                     return Ok(k.try_into().unwrap());
@@ -1549,8 +1486,8 @@ impl ArrayPrototype {
     /// If no separator is provided, a single comma is used as the separator.
     fn join(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1559,7 +1496,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         if len == 0 {
             return Ok(String::EMPTY_STRING.into_value());
         }
@@ -1569,7 +1506,7 @@ impl ArrayPrototype {
             SmallString::from_str_unchecked(",").into()
         } else {
             // 4. Else, let sep be ? ToString(separator).
-            to_string(agent, gc.reborrow(), scope.reborrow(), separator)?
+            to_string(agent, gc.reborrow(), separator)?
         };
         // 5. Let R be the empty String.
         let mut r = std::string::String::with_capacity(len * 10);
@@ -1577,11 +1514,11 @@ impl ArrayPrototype {
         // 7. Repeat, while k < len,
         // b. Let element be ? Get(O, ! ToString(𝔽(k))).
         {
-            let element = get(agent, gc.reborrow(), scope.reborrow(), o, 0.into())?;
+            let element = get(agent, gc.reborrow(), o, 0.into())?;
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 // i. Let S be ? ToString(element).
-                let s = to_string(agent, gc.reborrow(), scope.reborrow(), element)?;
+                let s = to_string(agent, gc.reborrow(), element)?;
                 // ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             }
@@ -1593,14 +1530,13 @@ impl ArrayPrototype {
             let element = get(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 o,
                 SmallInteger::try_from(k as u64).unwrap().into(),
             )?;
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 // i. Let S be ? ToString(element).
-                let s = to_string(agent, gc.reborrow(), scope.reborrow(), element)?;
+                let s = to_string(agent, gc.reborrow(), element)?;
                 // ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             }
@@ -1612,8 +1548,8 @@ impl ArrayPrototype {
 
     fn keys(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1651,8 +1587,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn last_index_of(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1709,15 +1645,14 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return -1𝔽.
         if len == 0 {
             return Ok((-1).into());
         }
         // 4. If fromIndex is present, let n be ? ToIntegerOrInfinity(fromIndex); else let n be len - 1.
         let n = if let Some(from_index) = from_index {
-            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), from_index)?
-                .into_f64(agent)
+            to_integer_or_infinity(agent, gc.reborrow(), from_index)?.into_f64(agent)
         } else {
             (len - 1) as f64
         };
@@ -1740,11 +1675,11 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let elementK be ? Get(O, Pk).
-                let element_k = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let element_k = get(agent, gc.reborrow(), o, pk)?;
                 // ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
                 if is_strictly_equal(agent, search_element, element_k) {
                     return Ok(k.try_into().unwrap());
@@ -1792,8 +1727,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn map(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1803,7 +1738,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1812,7 +1747,7 @@ impl ArrayPrototype {
             ));
         };
         // 4. Let A be ? ArraySpeciesCreate(O, len).
-        let a = array_species_create(agent, gc.reborrow(), scope.reborrow(), o, len as usize)?;
+        let a = array_species_create(agent, gc.reborrow(), o, len as usize)?;
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -1820,16 +1755,15 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
                 // ii. Let mappedValue be ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
                 let mapped_value = call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[
@@ -1839,14 +1773,7 @@ impl ArrayPrototype {
                     ])),
                 )?;
                 // iii. Perform ? CreateDataPropertyOrThrow(A, Pk, mappedValue).
-                create_data_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    a,
-                    pk,
-                    mapped_value,
-                )?;
+                create_data_property_or_throw(agent, gc.reborrow(), a, pk, mapped_value)?;
             }
             // d. Set k to k + 1.
             k += 1;
@@ -1868,8 +1795,8 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn pop(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1910,14 +1837,13 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, then
         if len == 0 {
             // a. Perform ? Set(O, "length", +0𝔽, true).
             set(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 o,
                 BUILTIN_STRING_MEMORY.length.into(),
                 0.into(),
@@ -1934,14 +1860,13 @@ impl ArrayPrototype {
             // c. Let index be ! ToString(newLen).
             let index = PropertyKey::Integer(new_len.try_into().unwrap());
             // d. Let element be ? Get(O, index).
-            let element = get(agent, gc.reborrow(), scope.reborrow(), o, index)?;
+            let element = get(agent, gc.reborrow(), o, index)?;
             // e. Perform ? DeletePropertyOrThrow(O, index).
-            delete_property_or_throw(agent, gc.reborrow(), scope.reborrow(), o, index)?;
+            delete_property_or_throw(agent, gc.reborrow(), o, index)?;
             // f. Perform ? Set(O, "length", newLen, true).
             set(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 o,
                 BUILTIN_STRING_MEMORY.length.into(),
                 new_len.try_into().unwrap(),
@@ -1967,15 +1892,15 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn push(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let mut len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let mut len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let argCount be the number of elements in items.
         let arg_count = items.len();
         // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
@@ -2000,7 +1925,6 @@ impl ArrayPrototype {
             set(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 o,
                 PropertyKey::Integer(len.try_into().unwrap()),
                 *e,
@@ -2014,7 +1938,6 @@ impl ArrayPrototype {
         set(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             o,
             BUILTIN_STRING_MEMORY.length.into(),
             len,
@@ -2063,8 +1986,8 @@ impl ArrayPrototype {
     /// > other kinds of objects for use as a method.
     fn reduce(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2078,7 +2001,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
@@ -2114,12 +2037,12 @@ impl ArrayPrototype {
                 let pk = PropertyKey::Integer(k.try_into().unwrap());
 
                 // ii. Set kPresent to ? HasProperty(O, Pk).
-                k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                k_present = has_property(agent, gc.reborrow(), o, pk)?;
 
                 // iii. If kPresent is true, then
                 if k_present {
                     // 1. Set accumulator to ? Get(O, Pk).
-                    accumulator = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                    accumulator = get(agent, gc.reborrow(), o, pk)?;
                 }
 
                 // iv. Set k to k + 1.
@@ -2142,18 +2065,17 @@ impl ArrayPrototype {
             let pk = PropertyKey::Integer(k_int);
 
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
 
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
 
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
                 accumulator = call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     Value::Undefined,
                     Some(ArgumentsList(&[
@@ -2211,8 +2133,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn reduce_right(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2227,7 +2149,7 @@ impl ArrayPrototype {
         let o = to_object(agent, this_value)?;
 
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
@@ -2263,12 +2185,12 @@ impl ArrayPrototype {
                 let pk = PropertyKey::try_from(k).unwrap();
 
                 // ii. Set kPresent to ? HasProperty(O, Pk).
-                k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                k_present = has_property(agent, gc.reborrow(), o, pk)?;
 
                 // iii. If kPresent is true, then
                 if k_present {
                     // 1. Set accumulator to ? Get(O, Pk).
-                    accumulator = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                    accumulator = get(agent, gc.reborrow(), o, pk)?;
                 }
 
                 // iv. Set k to k - 1.
@@ -2290,18 +2212,17 @@ impl ArrayPrototype {
             let pk = PropertyKey::try_from(k).unwrap();
 
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
 
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
 
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
                 accumulator = call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     Value::Undefined,
                     Some(ArgumentsList(&[
@@ -2323,8 +2244,8 @@ impl ArrayPrototype {
 
     fn reverse(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2340,7 +2261,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let middle be floor(len / 2).
         let middle = len / 2;
         // 4. Let lower be 0.
@@ -2356,68 +2277,36 @@ impl ArrayPrototype {
             //    d. Let lowerExists be ? HasProperty(O, lowerP).
             //    e. If lowerExists is true, then
             //       i. Let lowerValue be ? Get(O, lowerP).
-            let lower_exists = has_property(agent, gc.reborrow(), scope.reborrow(), o, lower_p)?;
+            let lower_exists = has_property(agent, gc.reborrow(), o, lower_p)?;
             //    f. Let upperExists be ? HasProperty(O, upperP).
             //    g. If upperExists is true, then
             //       i. Let upperValue be ? Get(O, upperP).
-            let upper_exists = has_property(agent, gc.reborrow(), scope.reborrow(), o, upper_p)?;
+            let upper_exists = has_property(agent, gc.reborrow(), o, upper_p)?;
 
             //    h. If lowerExists is true and upperExists is true, then
             if lower_exists && upper_exists {
                 //       i. Perform ? Set(O, lowerP, upperValue, true).
                 //       ii. Perform ? Set(O, upperP, lowerValue, true).
-                let lower_value = get(agent, gc.reborrow(), scope.reborrow(), o, lower_p)?;
-                let upper_value = get(agent, gc.reborrow(), scope.reborrow(), o, upper_p)?;
-                set(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    o,
-                    lower_p,
-                    upper_value,
-                    true,
-                )?;
-                set(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    o,
-                    upper_p,
-                    lower_value,
-                    true,
-                )?;
+                let lower_value = get(agent, gc.reborrow(), o, lower_p)?;
+                let upper_value = get(agent, gc.reborrow(), o, upper_p)?;
+                set(agent, gc.reborrow(), o, lower_p, upper_value, true)?;
+                set(agent, gc.reborrow(), o, upper_p, lower_value, true)?;
             }
             //    i. Else if lowerExists is false and upperExists is true, then
             else if !lower_exists && upper_exists {
                 //       i. Perform ? Set(O, lowerP, upperValue, true).
                 //       ii. Perform ? DeletePropertyOrThrow(O, upperP).
-                let upper_value = get(agent, gc.reborrow(), scope.reborrow(), o, upper_p)?;
-                set(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    o,
-                    lower_p,
-                    upper_value,
-                    true,
-                )?;
-                delete_property_or_throw(agent, gc.reborrow(), scope.reborrow(), o, upper_p)?;
+                let upper_value = get(agent, gc.reborrow(), o, upper_p)?;
+                set(agent, gc.reborrow(), o, lower_p, upper_value, true)?;
+                delete_property_or_throw(agent, gc.reborrow(), o, upper_p)?;
             }
             //    j. Else if lowerExists is true and upperExists is false, then
             else if lower_exists && !upper_exists {
                 //       i. Perform ? DeletePropertyOrThrow(O, lowerP).
                 //       ii. Perform ? Set(O, upperP, lowerValue, true).
-                let lower_value = get(agent, gc.reborrow(), scope.reborrow(), o, lower_p)?;
-                delete_property_or_throw(agent, gc.reborrow(), scope.reborrow(), o, lower_p)?;
-                set(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    o,
-                    upper_p,
-                    lower_value,
-                    true,
-                )?;
+                let lower_value = get(agent, gc.reborrow(), o, lower_p)?;
+                delete_property_or_throw(agent, gc.reborrow(), o, lower_p)?;
+                set(agent, gc.reborrow(), o, upper_p, lower_value, true)?;
             }
             //    k. Else,
             else {
@@ -2443,8 +2332,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn shift(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2457,7 +2346,6 @@ impl ArrayPrototype {
                     set(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         array.into_object(),
                         BUILTIN_STRING_MEMORY.length.into(),
                         0.into(),
@@ -2482,7 +2370,6 @@ impl ArrayPrototype {
                     set(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         array.into_object(),
                         BUILTIN_STRING_MEMORY.length.into(),
                         (array.len(agent) - 1).into(),
@@ -2495,14 +2382,13 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, then
         if len == 0 {
             // a. Perform ? Set(O, "length", +0𝔽, true).
             set(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 o,
                 BUILTIN_STRING_MEMORY.length.into(),
                 0.into(),
@@ -2512,7 +2398,7 @@ impl ArrayPrototype {
             return Ok(Value::Undefined);
         }
         // 4. Let first be ? Get(O, "0").
-        let first = get(agent, gc.reborrow(), scope.reborrow(), o, 0.into())?;
+        let first = get(agent, gc.reborrow(), o, 0.into())?;
         // 5. Let k be 1.
         let mut k = 1;
         // 6. Repeat, while k < len,
@@ -2522,43 +2408,28 @@ impl ArrayPrototype {
             // b. Let to be ! ToString(𝔽(k - 1)).
             let to = (k - 1).try_into().unwrap();
             // c. Let fromPresent be ? HasProperty(O, from).
-            let from_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, from)?;
+            let from_present = has_property(agent, gc.reborrow(), o, from)?;
             // d. If fromPresent is true, then
             if from_present {
                 // i. Let fromValue be ? Get(O, from).
-                let from_value = get(agent, gc.reborrow(), scope.reborrow(), o, from)?;
+                let from_value = get(agent, gc.reborrow(), o, from)?;
                 // ii. Perform ? Set(O, to, fromValue, true).
-                set(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    o,
-                    to,
-                    from_value,
-                    true,
-                )?;
+                set(agent, gc.reborrow(), o, to, from_value, true)?;
             } else {
                 // e. Else,
                 // i. Assert: fromPresent is false.
                 // ii. Perform ? DeletePropertyOrThrow(O, to).
-                delete_property_or_throw(agent, gc.reborrow(), scope.reborrow(), o, to)?;
+                delete_property_or_throw(agent, gc.reborrow(), o, to)?;
             }
             // f. Set k to k + 1.
             k += 1;
         }
         // 7. Perform ? DeletePropertyOrThrow(O, ! ToString(𝔽(len - 1))).
-        delete_property_or_throw(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            o,
-            (len - 1).try_into().unwrap(),
-        )?;
+        delete_property_or_throw(agent, gc.reborrow(), o, (len - 1).try_into().unwrap())?;
         // 8. Perform ? Set(O, "length", 𝔽(len - 1), true).
         set(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             o,
             BUILTIN_STRING_MEMORY.length.into(),
             (len - 1).try_into().unwrap(),
@@ -2587,8 +2458,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn slice(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2623,18 +2494,11 @@ impl ArrayPrototype {
                     len
                 };
                 let count = end.saturating_sub(start);
-                let a = array_species_create(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    array.into_object(),
-                    count,
-                )?;
+                let a = array_species_create(agent, gc.reborrow(), array.into_object(), count)?;
                 if count == 0 {
                     set(
                         agent,
                         gc.reborrow(),
-                        scope.reborrow(),
                         a,
                         BUILTIN_STRING_MEMORY.length.into(),
                         0.into(),
@@ -2661,7 +2525,6 @@ impl ArrayPrototype {
                         set(
                             agent,
                             gc.reborrow(),
-                            scope.reborrow(),
                             a.into_object(),
                             BUILTIN_STRING_MEMORY.length.into(),
                             Number::try_from(count).unwrap().into_value(),
@@ -2680,14 +2543,7 @@ impl ArrayPrototype {
                     // i. Let kValue be ? Get(O, Pk).
                     let k_value = array.as_slice(agent)[k].unwrap();
                     // ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), kValue).
-                    create_data_property_or_throw(
-                        agent,
-                        gc.reborrow(),
-                        scope.reborrow(),
-                        a,
-                        n.into(),
-                        k_value,
-                    )?;
+                    create_data_property_or_throw(agent, gc.reborrow(), a, n.into(), k_value)?;
                     // d. Set k to k + 1.
                     k += 1;
                     // e. Set n to n + 1.
@@ -2697,7 +2553,6 @@ impl ArrayPrototype {
                 set(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     a.into_object(),
                     BUILTIN_STRING_MEMORY.length.into(),
                     n.into(),
@@ -2710,9 +2565,9 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)? as usize;
+        let len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), start)?;
+        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?;
         // 4. If relativeStart = -∞, let k be 0.
         let mut k = if relative_start.is_neg_infinity(agent) {
             0
@@ -2728,7 +2583,7 @@ impl ArrayPrototype {
         let relative_end = if end.is_undefined() {
             len.try_into().unwrap()
         } else {
-            to_integer_or_infinity(agent, gc.reborrow(), scope.reborrow(), end)?
+            to_integer_or_infinity(agent, gc.reborrow(), end)?
         };
         // 8. If relativeEnd = -∞, let final be 0.
         let final_end = if relative_end.is_neg_infinity(agent) {
@@ -2743,7 +2598,7 @@ impl ArrayPrototype {
         // 11. Let count be max(final - k, 0).
         let count = final_end.saturating_sub(k);
         // 12. Let A be ? ArraySpeciesCreate(O, count).
-        let a = array_species_create(agent, gc.reborrow(), scope.reborrow(), o, count)?;
+        let a = array_species_create(agent, gc.reborrow(), o, count)?;
         // 13. Let n be 0.
         let mut n = 0u32;
         // 14. Repeat, while k < final,
@@ -2751,20 +2606,13 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = k.try_into().unwrap();
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
                 // ii. Perform ? CreateDataPropertyOrThrow(A, ! ToString(𝔽(n)), kValue).
-                create_data_property_or_throw(
-                    agent,
-                    gc.reborrow(),
-                    scope.reborrow(),
-                    a,
-                    n.into(),
-                    k_value,
-                )?;
+                create_data_property_or_throw(agent, gc.reborrow(), a, n.into(), k_value)?;
             }
             // d. Set k to k + 1.
             k += 1;
@@ -2775,7 +2623,6 @@ impl ArrayPrototype {
         set(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             a,
             BUILTIN_STRING_MEMORY.length.into(),
             n.into(),
@@ -2825,8 +2672,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn some(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2836,7 +2683,7 @@ impl ArrayPrototype {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
-        let len = length_of_array_like(agent, gc.reborrow(), scope.reborrow(), o)?;
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
@@ -2851,16 +2698,15 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = k.try_into().unwrap();
             // b. Let kPresent be ? HasProperty(O, Pk).
-            let k_present = has_property(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+            let k_present = has_property(agent, gc.reborrow(), o, pk)?;
             // c. If kPresent is true, then
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
-                let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+                let k_value = get(agent, gc.reborrow(), o, pk)?;
                 // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
                 let test_result = call_function(
                     agent,
                     gc.reborrow(),
-                    scope.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[
@@ -2907,8 +2753,8 @@ impl ArrayPrototype {
     /// > kinds of objects for use as a method.
     fn sort(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2924,27 +2770,15 @@ impl ArrayPrototype {
         // 2. Let obj be ? ToObject(this value).
         let obj = to_object(agent, this_value)?;
         // 3. Let len be ? LengthOfArrayLike(obj).
-        let len = usize::try_from(length_of_array_like(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            obj,
-        )?)
-        .unwrap();
+        let len = usize::try_from(length_of_array_like(agent, gc.reborrow(), obj)?).unwrap();
         // 4. Let SortCompare be a new Abstract Closure with parameters (x, y)
         //     that captures comparator and performs the following steps when
         //     called:
         //       a. Return ? CompareArrayElements(x, y, comparator).
         // 5. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare,
         //     skip-holes).
-        let sorted_list: Vec<Value> = sort_indexed_properties::<true, false>(
-            agent,
-            gc.reborrow(),
-            scope.reborrow(),
-            obj,
-            len,
-            comparator,
-        )?;
+        let sorted_list: Vec<Value> =
+            sort_indexed_properties::<true, false>(agent, gc.reborrow(), obj, len, comparator)?;
         // 6. Let itemCount be the number of elements in sortedList.
         let item_count = sorted_list.len();
         // 7. Let j be 0.
@@ -2955,7 +2789,6 @@ impl ArrayPrototype {
             set(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 obj,
                 j.try_into().unwrap(),
                 sorted_list[j],
@@ -2971,13 +2804,7 @@ impl ArrayPrototype {
         // 10. Repeat, while j < len,
         while j < len {
             // a. Perform ? DeletePropertyOrThrow(obj, ! ToString(𝔽(j))).
-            delete_property_or_throw(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                obj,
-                j.try_into().unwrap(),
-            )?;
+            delete_property_or_throw(agent, gc.reborrow(), obj, j.try_into().unwrap())?;
             // b. Set j to j + 1.
             j += 1;
         }
@@ -2987,8 +2814,8 @@ impl ArrayPrototype {
 
     fn splice(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2997,8 +2824,8 @@ impl ArrayPrototype {
 
     fn to_locale_string(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3007,8 +2834,8 @@ impl ArrayPrototype {
 
     fn to_reversed(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3017,8 +2844,8 @@ impl ArrayPrototype {
 
     fn to_sorted(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3027,8 +2854,8 @@ impl ArrayPrototype {
 
     fn to_spliced(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3038,8 +2865,8 @@ impl ArrayPrototype {
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
     fn to_string(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3049,7 +2876,6 @@ impl ArrayPrototype {
         let func = get(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             array,
             BUILTIN_STRING_MEMORY.join.into(),
         )?;
@@ -3062,13 +2888,13 @@ impl ArrayPrototype {
                 .into_function()
         });
         // 4. Return ? Call(func, array).
-        call_function(agent, gc, scope, func, array.into_value(), None)
+        call_function(agent, gc, func, array.into_value(), None)
     }
 
     fn unshift(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3077,8 +2903,8 @@ impl ArrayPrototype {
 
     fn values(
         agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3095,8 +2921,8 @@ impl ArrayPrototype {
 
     fn with(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3223,8 +3049,8 @@ impl ArrayPrototype {
 
 fn is_concat_spreadable(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     o: Value,
 ) -> JsResult<Option<Object>> {
     // 1. If O is not an Object, return false.
@@ -3233,7 +3059,6 @@ fn is_concat_spreadable(
         let spreadable = get(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             o,
             WellKnownSymbolIndexes::IsConcatSpreadable.into(),
         )?;
@@ -3295,8 +3120,8 @@ fn is_concat_spreadable(
 /// looked up from the prototype or are undefined.
 fn find_via_predicate(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     o: Object,
     len: i64,
     ascending: bool,
@@ -3312,8 +3137,8 @@ fn find_via_predicate(
     };
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
-                 mut gc: Gc<'_>,
-                 scope: Scope<'_>,
+                 mut gc: GcScope<'_, '_>,
+
                  o: Object,
                  predicate: Function,
                  this_arg: Value,
@@ -3323,12 +3148,11 @@ fn find_via_predicate(
         let pk = PropertyKey::Integer(k.try_into().unwrap());
         // b. NOTE: If O is a TypedArray, the following invocation of Get will return a normal completion.
         // c. Let kValue be ? Get(O, Pk).
-        let k_value = get(agent, gc.reborrow(), scope.reborrow(), o, pk)?;
+        let k_value = get(agent, gc.reborrow(), o, pk)?;
         // d. Let testResult be ? Call(predicate, thisArg, « kValue, 𝔽(k), O »).
         let test_result = call_function(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             predicate,
             this_arg,
             Some(ArgumentsList(&[
@@ -3348,15 +3172,7 @@ fn find_via_predicate(
     if ascending {
         // a. Let indices be a List of the integers in the interval from 0 (inclusive) to len (exclusive), in ascending order.
         for k in 0..len {
-            if let Some(result) = check(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                o,
-                predicate,
-                this_arg,
-                k,
-            )? {
+            if let Some(result) = check(agent, gc.reborrow(), o, predicate, this_arg, k)? {
                 return Ok(result);
             }
         }
@@ -3364,15 +3180,7 @@ fn find_via_predicate(
         // 3. Else,
         // a. Let indices be a List of the integers in the interval from 0 (inclusive) to len (exclusive), in descending order.
         for k in (0..len).rev() {
-            if let Some(result) = check(
-                agent,
-                gc.reborrow(),
-                scope.reborrow(),
-                o,
-                predicate,
-                this_arg,
-                k,
-            )? {
+            if let Some(result) = check(agent, gc.reborrow(), o, predicate, this_arg, k)? {
                 return Ok(result);
             }
         }
@@ -3391,8 +3199,8 @@ fn find_via_predicate(
 #[allow(clippy::too_many_arguments)]
 fn flatten_into_array(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     target: Object,
     source: Object,
     source_len: usize,
@@ -3413,7 +3221,7 @@ fn flatten_into_array(
         let source_index_number = Number::try_from(source_index).unwrap();
         let p = PropertyKey::try_from(source_index).unwrap();
         // b. Let exists be ? HasProperty(source, P).
-        let exists = has_property(agent, gc.reborrow(), scope.reborrow(), source, p)?;
+        let exists = has_property(agent, gc.reborrow(), source, p)?;
         // c. If exists is true, then
         if !exists {
             // d. Set sourceIndex to sourceIndex + 1𝔽.
@@ -3421,14 +3229,13 @@ fn flatten_into_array(
             continue;
         }
         // i. Let element be ? Get(source, P).
-        let element = get(agent, gc.reborrow(), scope.reborrow(), source, p)?;
+        let element = get(agent, gc.reborrow(), source, p)?;
         // ii. If mapperFunction is present, then
         let element = if let Some(mapper_function) = mapper_function {
             // 1. Set element to ? Call(mapperFunction, thisArg, « element, sourceIndex, source »).
             call_function(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 mapper_function,
                 this_arg.unwrap(),
                 Some(ArgumentsList(&[
@@ -3453,13 +3260,11 @@ fn flatten_into_array(
             let element = Object::try_from(element).unwrap();
             let new_depth = depth.map(|depth| depth - 1);
             // 3. Let elementLen be ? LengthOfArrayLike(element).
-            let element_len =
-                length_of_array_like(agent, gc.reborrow(), scope.reborrow(), element)? as usize;
+            let element_len = length_of_array_like(agent, gc.reborrow(), element)? as usize;
             // 4. Set targetIndex to ? FlattenIntoArray(target, element, elementLen, targetIndex, newDepth).
             target_index = flatten_into_array(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 target,
                 element,
                 element_len,
@@ -3481,7 +3286,6 @@ fn flatten_into_array(
             create_data_property_or_throw(
                 agent,
                 gc.reborrow(),
-                scope.reborrow(),
                 target,
                 target_index.try_into().unwrap(),
                 element,
@@ -3550,8 +3354,8 @@ fn flatten_into_array(
 /// > equivalence classes are totally ordered.
 fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     obj: Object,
     len: usize,
     comparator: Option<Function>,
@@ -3567,7 +3371,7 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
         // b. If holes is skip-holes, then
         let k_read = if SKIP_HOLES {
             // i. Let kRead be ? HasProperty(obj, Pk).
-            has_property(agent, gc.reborrow(), scope.reborrow(), obj, pk)?
+            has_property(agent, gc.reborrow(), obj, pk)?
         } else {
             // c. Else,
             // i. Assert: holes is read-through-holes.
@@ -3577,7 +3381,7 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
         // d. If kRead is true, then
         if k_read {
             // i. Let kValue be ? Get(obj, Pk).
-            let k_value = get(agent, gc.reborrow(), scope.reborrow(), obj, pk)?;
+            let k_value = get(agent, gc.reborrow(), obj, pk)?;
             // ii. Append kValue to items.
             items.push(k_value);
         }
@@ -3597,8 +3401,7 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
                 // This is dangerous but we don't have much of a choice.
                 return Ordering::Equal;
             }
-            let result =
-                compare_array_elements(agent, gc.reborrow(), scope.reborrow(), *a, *b, comparator);
+            let result = compare_array_elements(agent, gc.reborrow(), *a, *b, comparator);
             let Ok(result) = result else {
                 error = Some(result.unwrap_err());
                 return Ordering::Equal;
@@ -3620,8 +3423,8 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
 /// completion containing a Number or an abrupt completion.
 fn compare_array_elements(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     x: Value,
     y: Value,
     comparator: Option<Function>,
@@ -3642,12 +3445,11 @@ fn compare_array_elements(
         let v = call_function(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             comparator,
             Value::Undefined,
             Some(ArgumentsList(&[x, y])),
         )?;
-        let v = to_number(agent, gc.reborrow(), scope.reborrow(), v)?;
+        let v = to_number(agent, gc.reborrow(), v)?;
         // b. If v is NaN, return +0𝔽.
         // c. Return v.
         if v.is_nan(agent) {
@@ -3668,20 +3470,17 @@ fn compare_array_elements(
         Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
-        let x = to_string(agent, gc.reborrow(), scope.reborrow(), x)?;
+        let x = to_string(agent, gc.reborrow(), x)?;
         // 6. Let yString be ? ToString(y).
-        let y = to_string(agent, gc.reborrow(), scope.reborrow(), y)?;
+        let y = to_string(agent, gc.reborrow(), y)?;
         // 7. Let xSmaller be ! IsLessThan(xString, yString, true).
         // 8. If xSmaller is true, return -1𝔽.
-        if is_less_than::<true>(agent, gc.reborrow(), scope.reborrow(), x, y).unwrap() == Some(true)
-        {
+        if is_less_than::<true>(agent, gc.reborrow(), x, y).unwrap() == Some(true) {
             Ok(Ordering::Less)
         } else
         // 9. Let ySmaller be ! IsLessThan(yString, xString, true).
         // 10. If ySmaller is true, return 1𝔽.
-        if is_less_than::<true>(agent, gc.reborrow(), scope.reborrow(), y, x).unwrap()
-            == Some(true)
-        {
+        if is_less_than::<true>(agent, gc.reborrow(), y, x).unwrap() == Some(true) {
             Ok(Ordering::Greater)
         } else {
             // 11. Return +0𝔽.

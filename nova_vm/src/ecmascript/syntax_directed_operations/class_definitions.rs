@@ -14,13 +14,13 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, InternalMethods, Object},
     },
-    engine::context::{Gc, Scope},
+    engine::context::GcScope,
 };
 
 pub(crate) fn base_class_default_constructor(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     new_target: Object,
 ) -> JsResult<Object> {
     // ii. If NewTarget is undefined, throw a TypeError exception.
@@ -36,12 +36,11 @@ pub(crate) fn base_class_default_constructor(
     let result = ordinary_create_from_constructor(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         Function::try_from(new_target).unwrap(),
         ProtoIntrinsics::Object,
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, gc, scope, result, f)?;
+    initialize_instance_elements(agent, gc, result, f)?;
 
     // vii. Return result.
     Ok(result)
@@ -49,8 +48,8 @@ pub(crate) fn base_class_default_constructor(
 
 pub(crate) fn derived_class_default_constructor(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     args: ArgumentsList,
     new_target: Object,
 ) -> JsResult<Object> {
@@ -68,9 +67,7 @@ pub(crate) fn derived_class_default_constructor(
     // %Array.prototype%, this function does not.
 
     // 2. Let func be ! F.[[GetPrototypeOf]]().
-    let func = f
-        .internal_get_prototype_of(agent, gc.reborrow(), scope.reborrow())
-        .unwrap();
+    let func = f.internal_get_prototype_of(agent, gc.reborrow()).unwrap();
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
         return Err(agent.throw_exception_with_static_message(
@@ -82,13 +79,12 @@ pub(crate) fn derived_class_default_constructor(
     let result = construct(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         func,
         Some(args),
         Some(Function::try_from(new_target).unwrap()),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, gc, scope, result, f)?;
+    initialize_instance_elements(agent, gc, result, f)?;
 
     // vii. Return result.
     Ok(result)

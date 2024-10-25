@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Gc, Scope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
@@ -57,8 +57,8 @@ impl ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
     fn behaviour(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -71,11 +71,10 @@ impl ArrayBufferConstructor {
             ));
         };
         // 2. Let byteLength be ? ToIndex(length).
-        let byte_length =
-            to_index(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))? as u64;
+        let byte_length = to_index(agent, gc.reborrow(), arguments.get(0))? as u64;
         // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
         let requested_max_byte_length = if arguments.len() > 1 {
-            get_array_buffer_max_byte_length_option(agent, gc, scope, arguments.get(1))?
+            get_array_buffer_max_byte_length_option(agent, gc, arguments.get(1))?
         } else {
             None
         };
@@ -92,8 +91,8 @@ impl ArrayBufferConstructor {
     /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
     fn is_view(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -131,8 +130,8 @@ impl ArrayBufferConstructor {
     /// > `%Symbol.species%` property.
     fn species(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -162,8 +161,8 @@ impl ArrayBufferConstructor {
 /// completion.
 fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
-    mut gc: Gc<'_>,
-    scope: Scope<'_>,
+    mut gc: GcScope<'_, '_>,
+
     options: Value,
 ) -> JsResult<Option<u64>> {
     // 1. If options is not an Object, return empty.
@@ -174,7 +173,6 @@ fn get_array_buffer_max_byte_length_option(
     let max_byte_length = get(
         agent,
         gc.reborrow(),
-        scope.reborrow(),
         options,
         BUILTIN_STRING_MEMORY.maxByteLength.into(),
     )?;
@@ -183,6 +181,6 @@ fn get_array_buffer_max_byte_length_option(
         Ok(None)
     } else {
         // 4. Return ? ToIndex(maxByteLength).
-        Ok(Some(to_index(agent, gc, scope, max_byte_length)? as u64))
+        Ok(Some(to_index(agent, gc, max_byte_length)? as u64))
     }
 }

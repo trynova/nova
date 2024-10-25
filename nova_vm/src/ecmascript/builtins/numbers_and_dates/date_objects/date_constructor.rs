@@ -23,8 +23,7 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
-use crate::engine::context::Gc;
-use crate::engine::context::Scope;
+use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
@@ -60,8 +59,8 @@ impl Builtin for DateUTC {
 impl DateConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -117,7 +116,6 @@ impl DateConstructor {
         let o = ordinary_create_from_constructor(
             agent,
             gc.reborrow(),
-            scope.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Date,
         )?;
@@ -130,8 +128,8 @@ impl DateConstructor {
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn now(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -150,8 +148,8 @@ impl DateConstructor {
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn parse(
         _agent: &mut Agent,
-        _gc: Gc<'_>,
-        _scope: Scope<'_>,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -161,47 +159,47 @@ impl DateConstructor {
     /// ### [21.4.3.4 Date.UTC ( year \[ , month \[ , date \[ , hours \[ , minutes \[ , seconds \[ , ms \] \] \] \] \] \] )](https://tc39.es/ecma262/#sec-date.utc)
     fn utc(
         agent: &mut Agent,
-        mut gc: Gc<'_>,
-        scope: Scope<'_>,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).
-        let _y = to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(0))?;
+        let _y = to_number(agent, gc.reborrow(), arguments.get(0))?;
         // 2. If month is present, let m be ? ToNumber(month); else let m be +0𝔽.
         let _m = if arguments.len() > 1 {
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(1))?
+            to_number(agent, gc.reborrow(), arguments.get(1))?
         } else {
             0.into()
         };
         // 3. If date is present, let dt be ? ToNumber(date); else let dt be 1𝔽.
         let _dt = if arguments.len() > 2 {
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(2))?
+            to_number(agent, gc.reborrow(), arguments.get(2))?
         } else {
             0.into()
         };
         // 4. If hours is present, let h be ? ToNumber(hours); else let h be +0𝔽.
         let _h = if arguments.len() > 3 {
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(3))?
+            to_number(agent, gc.reborrow(), arguments.get(3))?
         } else {
             0.into()
         };
         // 5. If minutes is present, let min be ? ToNumber(minutes); else let min be +0𝔽.
         let _min = if arguments.len() > 4 {
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(4))?
+            to_number(agent, gc.reborrow(), arguments.get(4))?
         } else {
             0.into()
         };
         // 6. If seconds is present, let s be ? ToNumber(seconds); else let s be +0𝔽.
         let _s = if arguments.len() > 5 {
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(5))?
+            to_number(agent, gc.reborrow(), arguments.get(5))?
         } else {
             0.into()
         };
         // 7. If ms is present, let milli be ? ToNumber(ms); else let milli be +0𝔽.
         let _milli = if arguments.len() > 6 {
-            to_number(agent, gc.reborrow(), scope.reborrow(), arguments.get(6))?
+            to_number(agent, gc.reborrow(), arguments.get(6))?
         } else {
             0.into()
         };
