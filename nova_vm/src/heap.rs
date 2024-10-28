@@ -32,18 +32,14 @@ use self::{
 use crate::ecmascript::builtins::date::data::DateHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::builtins::{
+    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
-};
-#[cfg(feature = "array-buffer")]
-use crate::{
-    ecmascript::builtins::{
-        data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData,
-        ArrayBufferHeapData,
-    },
-    heap::indexes::DataViewIndex,
 };
 use crate::{
     ecmascript::{
@@ -56,6 +52,7 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
+            data_view::DataView,
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -106,9 +103,9 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
     #[cfg(feature = "array-buffer")]
-    pub data_view_byte_lengths: AHashMap<DataViewIndex, usize>,
+    pub data_view_byte_lengths: AHashMap<DataView, usize>,
     #[cfg(feature = "array-buffer")]
-    pub data_view_byte_offsets: AHashMap<DataViewIndex, usize>,
+    pub data_view_byte_offsets: AHashMap<DataView, usize>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,

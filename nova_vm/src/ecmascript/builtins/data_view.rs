@@ -13,7 +13,10 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    heap::{indexes::DataViewIndex, CreateHeapData, Heap, HeapMarkAndSweep},
+    heap::{
+        indexes::{DataViewIndex, IntoBaseIndex},
+        CreateHeapData, Heap, HeapMarkAndSweep,
+    },
 };
 
 use self::data::DataViewHeapData;
@@ -32,7 +35,7 @@ impl DataView {
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = agent[self].byte_length;
         if byte_length == DataViewByteLength::heap() {
-            Some(*agent.heap.data_view_byte_lengths.get(&self.0).unwrap())
+            Some(*agent.heap.data_view_byte_lengths.get(&self).unwrap())
         } else if byte_length == DataViewByteLength::auto() {
             None
         } else {
@@ -44,7 +47,7 @@ impl DataView {
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = agent[self].byte_offset;
         if byte_offset == DataViewByteOffset::heap() {
-            *agent.heap.data_view_byte_offsets.get(&self.0).unwrap()
+            *agent.heap.data_view_byte_offsets.get(&self).unwrap()
         } else {
             byte_offset.0 as usize
         }
@@ -67,6 +70,12 @@ impl DataView {
 impl From<DataViewIndex> for DataView {
     fn from(value: DataViewIndex) -> Self {
         Self(value)
+    }
+}
+
+impl IntoBaseIndex<DataViewHeapData> for DataView {
+    fn into_base_index(self) -> DataViewIndex {
+        self.0
     }
 }
 

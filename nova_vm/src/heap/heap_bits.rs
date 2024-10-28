@@ -1,4 +1,4 @@
-use std::num::NonZeroU32;
+use std::{hash::Hash, num::NonZeroU32};
 
 use ahash::AHashMap;
 
@@ -9,7 +9,7 @@ use ahash::AHashMap;
 use super::indexes::TypedArrayIndex;
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
-    indexes::{BaseIndex, ElementIndex},
+    indexes::{BaseIndex, ElementIndex, IntoBaseIndex},
     Heap,
 };
 #[cfg(feature = "date")]
@@ -1064,20 +1064,24 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
     }
 }
 
-pub(crate) fn sweep_side_table_values<T, V>(
-    side_table: &mut AHashMap<BaseIndex<T>, V>,
+pub(crate) fn sweep_side_table_values<T, K, V>(
+    side_table: &mut AHashMap<K, V>,
     compactions: &CompactionList,
     marks: &[bool],
-) {
+) where
+    T: ?Sized,
+    K: IntoBaseIndex<T> + From<BaseIndex<T>> + Copy + Ord + Hash,
+{
     let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
     let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
     for (key, _) in side_table.iter_mut() {
         let old_key = *key;
-        if !marks.get(key.into_index()).unwrap() {
+        if !marks.get(key.into_base_index().into_index()).unwrap() {
             keys_to_remove.push(old_key);
         } else {
-            let mut new_key = old_key;
+            let mut new_key = old_key.into_base_index();
             compactions.shift_index(&mut new_key);
+            let new_key = K::from(new_key);
             if new_key != old_key {
                 keys_to_reassign.push((old_key, new_key));
             }

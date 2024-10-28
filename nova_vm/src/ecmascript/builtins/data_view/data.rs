@@ -7,6 +7,8 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
+// TODO: Investigate if the common case is that the byte length is less than
+// an u16, that would mean we could squeeze an extra 2 bytes out of the struct.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) struct DataViewByteLength(pub u32);
@@ -51,6 +53,8 @@ impl From<Option<usize>> for DataViewByteLength {
     }
 }
 
+// TODO: Investigate if the common case is that the byte offset is less than
+// an u16, that would mean we could squeeze an extra 2 bytes out of the struct.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) struct DataViewByteOffset(pub u32);
