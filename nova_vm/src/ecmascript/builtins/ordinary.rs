@@ -26,6 +26,8 @@ use crate::{
 
 #[cfg(feature = "date")]
 use super::date::data::DateHeapData;
+#[cfg(feature = "regexp")]
+use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::data::SharedArrayBufferHeapData;
 use super::{
@@ -40,7 +42,6 @@ use super::{
     map::data::MapHeapData,
     primitive_objects::PrimitiveObjectHeapData,
     promise::data::PromiseHeapData,
-    regexp::RegExpHeapData,
     set::data::SetHeapData,
     ArrayHeapData,
 };
@@ -947,6 +948,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .create(MapIteratorHeapData::default())
             .into_object(),
         ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
+        #[cfg(feature = "regexp")]
         ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
         ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
         ProtoIntrinsics::SetIterator => agent
@@ -1097,6 +1099,7 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
             ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into_function()),
             ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
+            #[cfg(feature = "regexp")]
             ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
             ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
             ProtoIntrinsics::SetIterator => None,

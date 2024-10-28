@@ -24,16 +24,26 @@ unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
 
 [features]
-default = ["math", "json", "date", "array-buffer", "shared-array-buffer", "weak-refs", "atomics"]
+default = [
+    "math",
+    "json",
+    "date",
+    "array-buffer",
+    "shared-array-buffer",
+    "weak-refs",
+    "atomics",
+    "regexp"
+]
 array-buffer = []
 atomics = ["array-buffer", "shared-array-buffer"]
 date = []
 interleaved-gc = []
 json = ["sonic-rs"]
 math = []
+regexp = []
 shared-array-buffer = []
-typescript = []
 weak-refs = []
+typescript = []
 
 [build-dependencies]
 small_string = { path = "../small_string" }
