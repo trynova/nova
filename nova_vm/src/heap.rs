@@ -54,6 +54,7 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
+            data_view::DataView,
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -85,6 +86,8 @@ use crate::{
     },
     engine::{rootable::HeapRootData, ExecutableHeapData},
 };
+#[cfg(feature = "array-buffer")]
+use ahash::AHashMap;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
@@ -100,6 +103,10 @@ pub struct Heap {
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
+    #[cfg(feature = "array-buffer")]
+    pub data_view_byte_lengths: AHashMap<DataView, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub data_view_byte_offsets: AHashMap<DataView, usize>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
@@ -192,6 +199,10 @@ impl Heap {
             builtin_functions: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_offsets: AHashMap::with_capacity(0),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),

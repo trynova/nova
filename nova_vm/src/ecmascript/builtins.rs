@@ -11,7 +11,7 @@
 pub(crate) mod arguments;
 mod array;
 #[cfg(feature = "array-buffer")]
-mod array_buffer;
+pub mod array_buffer;
 pub mod bound_function;
 mod builtin_constructor;
 mod builtin_function;

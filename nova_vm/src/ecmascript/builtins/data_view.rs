@@ -4,6 +4,8 @@
 
 use std::ops::{Index, IndexMut};
 
+use data::{DataViewByteLength, DataViewByteOffset};
+
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -11,18 +13,51 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    heap::{indexes::DataViewIndex, CreateHeapData, Heap, HeapMarkAndSweep},
+    heap::{
+        indexes::{DataViewIndex, IntoBaseIndex},
+        CreateHeapData, Heap, HeapMarkAndSweep,
+    },
 };
 
 use self::data::DataViewHeapData;
 
+use super::ArrayBuffer;
+
+pub(crate) mod abstract_operations;
 pub mod data;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct DataView(pub(crate) DataViewIndex);
 
 impl DataView {
+    #[inline]
+    pub fn byte_length(self, agent: &Agent) -> Option<usize> {
+        let byte_length = agent[self].byte_length;
+        if byte_length == DataViewByteLength::heap() {
+            Some(*agent.heap.data_view_byte_lengths.get(&self).unwrap())
+        } else if byte_length == DataViewByteLength::auto() {
+            None
+        } else {
+            Some(byte_length.0 as usize)
+        }
+    }
+
+    #[inline]
+    pub fn byte_offset(self, agent: &Agent) -> usize {
+        let byte_offset = agent[self].byte_offset;
+        if byte_offset == DataViewByteOffset::heap() {
+            *agent.heap.data_view_byte_offsets.get(&self).unwrap()
+        } else {
+            byte_offset.0 as usize
+        }
+    }
+
+    #[inline]
+    pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer {
+        agent[self].viewed_array_buffer
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(DataViewIndex::from_u32_index(0))
     }
@@ -35,6 +70,12 @@ impl DataView {
 impl From<DataViewIndex> for DataView {
     fn from(value: DataViewIndex) -> Self {
         Self(value)
+    }
+}
+
+impl IntoBaseIndex<DataViewHeapData> for DataView {
+    fn into_base_index(self) -> DataViewIndex {
+        self.0
     }
 }
 
@@ -59,6 +100,17 @@ impl From<DataView> for Value {
 impl From<DataView> for Object {
     fn from(val: DataView) -> Self {
         Object::DataView(val)
+    }
+}
+
+impl TryFrom<Object> for DataView {
+    type Error = ();
+
+    fn try_from(value: Object) -> Result<Self, Self::Error> {
+        match value {
+            Object::DataView(data) => Ok(data),
+            _ => Err(()),
+        }
     }
 }
 

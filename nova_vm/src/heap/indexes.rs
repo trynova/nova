@@ -60,6 +60,10 @@ const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u
 const _OPTION_INDEX_SIZE_IS_U32: () =
     assert!(size_of::<Option<BaseIndex<()>>>() == size_of::<u32>());
 
+pub(crate) trait IntoBaseIndex<T: ?Sized> {
+    fn into_base_index(self) -> BaseIndex<T>;
+}
+
 impl<T: ?Sized> Debug for BaseIndex<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.0.get() != 0);
