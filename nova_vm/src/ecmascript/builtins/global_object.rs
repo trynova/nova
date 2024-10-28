@@ -3,10 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use ahash::AHashSet;
-use oxc_ast::{
-    ast::{BindingIdentifier, Program, VariableDeclarationKind},
-    syntax_directed_operations::BoundNames,
-};
+use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
+use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 
 use crate::{

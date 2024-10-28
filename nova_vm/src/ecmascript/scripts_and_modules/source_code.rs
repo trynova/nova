@@ -97,7 +97,7 @@ impl SourceCode {
             return Err(errors);
         }
 
-        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(source_text)
+        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new()
             .with_check_syntax_error(true)
             .build(&program);
 

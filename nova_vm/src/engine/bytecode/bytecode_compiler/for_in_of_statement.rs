@@ -4,7 +4,8 @@
 
 use super::{is_reference, CompileContext, CompileEvaluation, Instruction, JumpIndex};
 use crate::ecmascript::types::{String, Value};
-use oxc_ast::{ast, syntax_directed_operations::BoundNames};
+use oxc_ast::ast;
+use oxc_ecmascript::BoundNames;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum IterationKind {

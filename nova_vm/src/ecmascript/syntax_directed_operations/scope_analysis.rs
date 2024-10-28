@@ -4,14 +4,13 @@
 
 use std::ops::Deref;
 
-use oxc_ast::{
-    ast::{
-        BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
-        ForStatementLeft, Function, FunctionBody, LabeledStatement, Program, Statement,
-        StaticBlock, VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
-    },
-    syntax_directed_operations::BoundNames,
+use oxc_ast::ast::{
+    BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
+    ForStatementLeft, Function, FunctionBody, LabeledStatement, Program, Statement, StaticBlock,
+    VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
 };
+use oxc_ecmascript::BoundNames;
+
 use oxc_span::Atom;
 
 /// ### [8.2.4 Static Semantics: LexicallyDeclaredNames](https://tc39.es/ecma262/#sec-static-semantics-lexicallydeclarednames)

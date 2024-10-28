@@ -23,8 +23,10 @@ use crate::{
 use ahash::{AHashMap, AHashSet};
 use oxc_ast::{
     ast::{self, MethodDefinitionKind},
-    syntax_directed_operations::{BoundNames, PrivateBoundIdentifiers, PropName},
+    // syntax_directed_operations::{BoundNames, },
 };
+
+use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
 use super::IndexType;
 
