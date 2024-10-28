@@ -89,6 +89,7 @@ impl SourceCode {
 
         if !errors.is_empty() {
             // Drop program before dropping allocator.
+            #[allow(clippy::drop_non_drop)]
             drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
             // drop it.
@@ -103,6 +104,7 @@ impl SourceCode {
 
         if !errors.is_empty() {
             // Drop program before dropping allocator.
+            #[allow(clippy::drop_non_drop)]
             drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
             // drop it.
