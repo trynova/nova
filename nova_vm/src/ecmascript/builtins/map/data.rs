@@ -240,7 +240,7 @@ impl HeapMarkAndSweep for MapHeapData {
                 continue;
             }
 
-            if new_key.is_object() {
+            if !new_key.is_object() {
                 // Non-objects do not change their hash even if their identity
                 // changes.
                 continue;
