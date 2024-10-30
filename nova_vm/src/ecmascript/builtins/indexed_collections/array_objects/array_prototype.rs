@@ -2842,7 +2842,7 @@ impl ArrayPrototype {
             // Fast path: Array is dense and contains no descriptors. No JS
             // functions can thus be called by to_reversed.
             if array.is_trivial(agent) && array.is_dense(agent) {
-                let cloned_array = array.shallow_clone(agent);
+                let cloned_array = array.to_cloned(agent);
                 cloned_array.as_mut_slice(agent).reverse();
                 return Ok(cloned_array.into_value());
             }

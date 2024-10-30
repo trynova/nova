@@ -81,7 +81,9 @@ impl Array {
         agent[self].elements.is_trivial(agent)
     }
 
-    pub(crate) fn shallow_clone(self, agent: &mut Agent) -> Array {
+    // This method creates a "shallow clone" of the elements of a simple array (no descriptors).
+    // If array is not simple, this cloned array will do some odd things (e.g. getter/setter indexes become holes)
+    pub(crate) fn to_cloned(self, agent: &mut Agent) -> Array {
         let elements = agent[self].elements;
         let cloned_elements = agent.heap.elements.shallow_clone(elements.into());
         let data = ArrayHeapData {
