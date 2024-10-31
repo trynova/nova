@@ -89,6 +89,7 @@ impl SourceCode {
 
         if !errors.is_empty() {
             // Drop program before dropping allocator.
+            #[allow(clippy::drop_non_drop)]
             drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
             // drop it.
@@ -97,12 +98,13 @@ impl SourceCode {
             return Err(errors);
         }
 
-        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new(source_text)
+        let SemanticBuilderReturn { errors, .. } = SemanticBuilder::new()
             .with_check_syntax_error(true)
             .build(&program);
 
         if !errors.is_empty() {
             // Drop program before dropping allocator.
+            #[allow(clippy::drop_non_drop)]
             drop(program);
             // SAFETY: No references to allocator exist anymore. It is safe to
             // drop it.

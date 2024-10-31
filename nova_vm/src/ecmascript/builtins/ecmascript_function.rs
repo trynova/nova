@@ -7,10 +7,8 @@ use std::{
     ptr::NonNull,
 };
 
-use oxc_ast::{
-    ast::{FormalParameters, FunctionBody},
-    syntax_directed_operations::IsSimpleParameterList,
-};
+use oxc_ast::ast::{FormalParameters, FunctionBody};
+use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
 use crate::{

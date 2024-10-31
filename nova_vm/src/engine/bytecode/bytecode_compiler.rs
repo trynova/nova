@@ -24,10 +24,10 @@ use crate::{
     heap::CreateHeapData,
 };
 use num_traits::Num;
-use oxc_ast::{
-    ast::{self, BindingPattern, BindingRestElement, CallExpression, NewExpression, Statement},
-    syntax_directed_operations::BoundNames,
+use oxc_ast::ast::{
+    self, BindingPattern, BindingRestElement, CallExpression, NewExpression, Statement,
 };
+use oxc_ecmascript::BoundNames;
 use oxc_span::Atom;
 use oxc_syntax::operator::{BinaryOperator, UnaryOperator};
 
