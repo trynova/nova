@@ -315,7 +315,7 @@ this is not a trivial piece of work. Right now calls in the engine look like
 this:
 
 ```rs
-fn call(agent: &mut Agent, value: Value) -> Value {
+fn call(agent: &mut Agent, mut gc: Gc<'_, '_>,  value: Value) -> Value {
     // ...
 }
 ```
@@ -372,7 +372,7 @@ this is called a reborrow and it's fine within a function but it cannot be done
 intra-procedurally. What we could do is this:
 
 ```rs
-fn call(agent: &mut Agent, value: Register<Value<'_>>) -> Register<Value<'_>> {
+fn call(agent: &mut Agent, mut gc: Gc<'_, '_>,  value: Register<Value<'_>>) -> Register<Value<'_>> {
     // SAFETY: We've not called any methods that take `&mut Agent` before this.
     // `Value` is thus still a valid reference.
     let value = unsafe { value.bind(agent) };
@@ -391,10 +391,10 @@ But what about when we call some mutable function and need to keep a reference
 to a stack value past that call? This is how that would look:
 
 ```rs
-fn call(agent: &mut Agent, value: Register<Value<'_>>) -> JsResult<Register<Value<'_>>> {
+fn call(agent: &mut Agent, mut gc: Gc<'_, '_>,  value: Register<Value<'_>>) -> JsResult<Register<Value<'_>>> {
     let value = unsafe { value.bind(agent) };
     let kept_value: Global<Value<'static>> = value.make_global(value);
-    other_call(agent, value.into_register())?;
+    other_call(agent, gc.reborrow(), value.into_register())?;
     let value = kept_value.take(agent);
     // ...
 }

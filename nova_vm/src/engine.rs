@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod bytecode;
+pub mod context;
 pub mod register_value;
 pub mod rootable;
 pub mod small_f64;

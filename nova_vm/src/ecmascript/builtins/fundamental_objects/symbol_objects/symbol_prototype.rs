@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -68,7 +69,13 @@ impl SymbolPrototype {
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
-    fn get_description(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_description(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
         let sym = this_symbol_value(agent, this_value)?;
@@ -78,12 +85,24 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         let symb = this_symbol_value(agent, this_value)?;
         Ok(symbol_descriptive_string(agent, symb).into_value())
     }
 
-    fn value_of(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn value_of(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         this_symbol_value(agent, this_value).map(|res| res.into_value())
     }
 

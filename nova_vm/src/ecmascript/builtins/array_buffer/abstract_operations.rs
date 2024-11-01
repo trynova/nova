@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -181,6 +182,8 @@ pub(crate) fn clone_array_buffer(
 /// completion.
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     options: Value,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
@@ -191,14 +194,14 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     };
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
     let property = PropertyKey::from(BUILTIN_STRING_MEMORY.maxByteLength);
-    let max_byte_length = get(agent, options, property)?;
+    let max_byte_length = get(agent, gc.reborrow(), options, property)?;
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {
         return Ok(None);
     }
     // 4. Return ? ToIndex(maxByteLength).
     // TODO: Consider de-inlining this once ToIndex is implemented.
-    let number = max_byte_length.to_number(agent)?;
+    let number = max_byte_length.to_number(agent, gc)?;
     let integer = if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent)
     {
         0

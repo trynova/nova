@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -102,6 +103,8 @@ impl BuiltinGetter for PromiseGetSpecies {}
 impl PromiseConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         args: ArgumentsList,
         new_target: Option<Object>,
@@ -136,6 +139,7 @@ impl PromiseConstructor {
         // 7. Set promise.[[PromiseIsHandled]] to false.
         let Object::Promise(promise) = ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Promise,
         )?
@@ -166,6 +170,7 @@ impl PromiseConstructor {
         // 10. If completion is an abrupt completion, then
         if let Err(err) = call_function(
             agent,
+            gc,
             executor,
             Value::Undefined,
             Some(ArgumentsList(&[resolve_function, reject_function])),
@@ -178,25 +183,51 @@ impl PromiseConstructor {
         Ok(promise.into_value())
     }
 
-    fn all(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
-        todo!()
-    }
-
-    fn all_settled(
+    fn all(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
-    fn any(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+
+    fn all_settled(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
-    fn race(_agent: &mut Agent, _this_value: Value, _arguments: ArgumentsList) -> JsResult<Value> {
+    fn any(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        todo!()
+    }
+    fn race(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn reject(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn reject(
+        agent: &mut Agent,
+        _: GcScope<'_, '_>,
+
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -219,7 +250,13 @@ impl PromiseConstructor {
         Ok(promise.into_value())
     }
 
-    fn resolve(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn resolve(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -227,11 +264,17 @@ impl PromiseConstructor {
         );
 
         // 3. Return ? PromiseResolve(C, x).
-        Ok(Promise::resolve(agent, arguments.get(0)).into_value())
+        Ok(Promise::resolve(agent, gc, arguments.get(0)).into_value())
     }
 
     /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
-    fn r#try(agent: &mut Agent, this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn r#try(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
@@ -250,6 +293,7 @@ impl PromiseConstructor {
         // 4. Let status be Completion(Call(callbackfn, undefined, args)).
         let status = call(
             agent,
+            gc.reborrow(),
             arguments.get(0),
             Value::Undefined,
             Some(ArgumentsList(&arguments.0[1..])),
@@ -270,7 +314,7 @@ impl PromiseConstructor {
             // 6. Else,
             Ok(result) => {
                 // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
-                Promise::resolve(agent, result)
+                Promise::resolve(agent, gc, result)
             }
         };
         // 7. Return promiseCapability.[[Promise]].
@@ -279,6 +323,8 @@ impl PromiseConstructor {
 
     fn with_resolvers(
         agent: &mut Agent,
+        _: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -345,7 +391,13 @@ impl PromiseConstructor {
         Ok(obj.into_value())
     }
 
-    fn get_species(_: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_species(
+        _: &mut Agent,
+        _: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         Ok(this_value)
     }
 

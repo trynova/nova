@@ -2,12 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    abstract_operations::{operations_on_objects::get, type_conversion::to_string},
-    builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{ArgumentsList, Builtin},
-    execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-    types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+use crate::{
+    ecmascript::{
+        abstract_operations::{operations_on_objects::get, type_conversion::to_string},
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Builtin},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+    },
+    engine::context::GcScope,
 };
 
 pub(crate) struct ErrorPrototype;
@@ -25,7 +28,13 @@ impl Builtin for ErrorPrototypeToString {
 
 impl ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
@@ -35,21 +44,26 @@ impl ErrorPrototype {
             ));
         };
         // 3. Let name be ? Get(O, "name").
-        let name = get(agent, o, PropertyKey::from(BUILTIN_STRING_MEMORY.name))?;
+        let name = get(
+            agent,
+            gc.reborrow(),
+            o,
+            PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+        )?;
         // 4. If name is undefined, set name to "Error"; otherwise set name to ? ToString(name).
         let name = if name.is_undefined() {
             BUILTIN_STRING_MEMORY.Error
         } else {
-            to_string(agent, name)?
+            to_string(agent, gc.reborrow(), name)?
         };
         // 5. Let msg be ? Get(O, "message").
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.message);
-        let msg = get(agent, o, key)?;
+        let msg = get(agent, gc.reborrow(), o, key)?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
             String::EMPTY_STRING
         } else {
-            to_string(agent, msg)?
+            to_string(agent, gc, msg)?
         };
         if name.is_empty_string() {
             // 7. If name is the empty String, return msg.

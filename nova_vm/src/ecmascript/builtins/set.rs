@@ -8,13 +8,12 @@ use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     heap::{
         indexes::{BaseIndex, SetIndex},
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, ObjectEntry, WorkQueues,
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
     },
     Heap,
 };
@@ -97,20 +96,6 @@ impl TryFrom<Object> for Set {
     }
 }
 
-fn create_set_base_object(agent: &mut Agent, set: Set, entries: &[ObjectEntry]) -> OrdinaryObject {
-    // TODO: An issue crops up if multiple realms are in play:
-    // The prototype should not be dependent on the realm we're operating in
-    // but should instead be bound to the realm the object was created in.
-    // We'll have to cross this bridge at a later point, likely be designating
-    // a "default realm" and making non-default realms always initialize ObjectHeapData.
-    let prototype = agent.current_realm().intrinsics().set_prototype();
-    let object_index = agent
-        .heap
-        .create_object_with_prototype(prototype.into(), entries);
-    agent[set].object_index = Some(object_index);
-    object_index
-}
-
 impl InternalSlots for Set {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
 
@@ -121,21 +106,6 @@ impl InternalSlots for Set {
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
         assert!(agent[self].object_index.replace(backing_object).is_none());
-    }
-
-    fn create_backing_object(self, agent: &mut Agent) -> crate::ecmascript::types::OrdinaryObject {
-        let prototype = agent
-            .current_realm()
-            .intrinsics()
-            .get_intrinsic_default_proto(Self::DEFAULT_PROTOTYPE);
-        let backing_object = agent.heap.create(ObjectHeapData {
-            extensible: true,
-            prototype: Some(prototype),
-            keys: Default::default(),
-            values: Default::default(),
-        });
-        self.set_backing_object(agent, backing_object);
-        backing_object
     }
 }
 

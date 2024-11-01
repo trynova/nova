@@ -4,6 +4,7 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{call_function, get_function_realm},
@@ -30,7 +31,7 @@ pub(crate) struct PromiseResolveThenableJob {
     then: Function,
 }
 impl PromiseResolveThenableJob {
-    pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
+    pub(crate) fn run(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<()> {
         // The following are substeps of point 1 in NewPromiseResolveThenableJob.
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
         let promise_capability = PromiseCapability::from_promise(self.promise_to_resolve, false);
@@ -57,6 +58,7 @@ impl PromiseResolveThenableJob {
         // implementation.
         let then_call_result = call_function(
             agent,
+            gc,
             self.then,
             self.thenable.into_value(),
             Some(ArgumentsList(&[resolve_function, reject_function])),
@@ -104,7 +106,7 @@ pub(crate) struct PromiseReactionJob {
     argument: Value,
 }
 impl PromiseReactionJob {
-    pub(crate) fn run(self, agent: &mut Agent) -> JsResult<()> {
+    pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope<'_, '_>) -> JsResult<()> {
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[self.reaction].handler {
             PromiseReactionHandler::Empty => match agent[self.reaction].reaction_type {
@@ -123,6 +125,7 @@ impl PromiseReactionJob {
             // different implementation.
             PromiseReactionHandler::JobCallback(callback) => call_function(
                 agent,
+                gc.reborrow(),
                 callback,
                 Value::Undefined,
                 Some(ArgumentsList(&[self.argument])),
@@ -130,7 +133,7 @@ impl PromiseReactionJob {
             PromiseReactionHandler::Await(await_reaction) => {
                 assert!(agent[self.reaction].capability.is_none());
                 let reaction_type = agent[self.reaction].reaction_type;
-                await_reaction.resume(agent, reaction_type, self.argument);
+                await_reaction.resume(agent, gc.reborrow(), reaction_type, self.argument);
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 3. f. Return undefined.
                 // 5. f. Return undefined.
@@ -148,13 +151,13 @@ impl PromiseReactionJob {
         match handler_result {
             // h. If handlerResult is an abrupt completion, then
             Err(err) => {
-                // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
+                // i. Return ? Call(promiseCapability.[[Reject]], undefined, « handlerResult.[[Value]] »).
                 promise_capability.reject(agent, err.value())
             }
             // i. Else,
             Ok(value) => {
-                // i. Return ? Call(promiseCapability.[[Reject]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.resolve(agent, value)
+                // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
+                promise_capability.resolve(agent, gc, value)
             }
         };
         Ok(())

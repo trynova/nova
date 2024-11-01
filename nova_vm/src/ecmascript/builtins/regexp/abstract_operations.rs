@@ -4,12 +4,12 @@
 
 use oxc_ast::ast::RegExpFlags;
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_string,
         builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics},
-        types::{Function, String, Value},
+        types::{Function, String},
     },
     heap::CreateHeapData,
 };
@@ -23,13 +23,13 @@ use super::{RegExp, RegExpHeapData};
 /// completion containing an Object or a throw completion.
 pub(crate) fn reg_exp_create(
     agent: &mut Agent,
-    p: Value,
+    p: String,
     f: Option<RegExpFlags>,
 ) -> JsResult<RegExp> {
     //     1. Let obj be ! RegExpAlloc(%RegExp%).
     let obj = reg_exp_alloc_intrinsic(agent);
     //     2. Return ? RegExpInitialize(obj, P, F).
-    reg_exp_initialize(agent, obj, p, f)
+    reg_exp_initialize_from_string(agent, obj, p, f)
 }
 
 fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
@@ -46,10 +46,16 @@ fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
 /// The abstract operation RegExpAlloc takes argument newTarget (a constructor)
 /// and returns either a normal completion containing an Object or a throw
 /// completion.
-pub(crate) fn reg_exp_alloc(agent: &mut Agent, new_target: Function) -> JsResult<RegExp> {
+pub(crate) fn reg_exp_alloc(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
+    new_target: Function,
+) -> JsResult<RegExp> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
         agent,
+        gc,
         new_target,
         ProtoIntrinsics::RegExp,
     )?)
@@ -66,19 +72,12 @@ pub(crate) fn reg_exp_alloc(agent: &mut Agent, new_target: Function) -> JsResult
 /// pattern (an ECMAScript language value), and flags (an ECMAScript language
 /// value) and returns either a normal completion containing an Object or a
 /// throw completion.
-pub(crate) fn reg_exp_initialize(
+pub(crate) fn reg_exp_initialize_from_string(
     agent: &mut Agent,
     obj: RegExp,
-    pattern: Value,
+    p: String,
     flags: Option<RegExpFlags>,
 ) -> JsResult<RegExp> {
-    //     1. If pattern is undefined, let P be the empty String.
-    let p = if pattern.is_undefined() {
-        String::EMPTY_STRING
-    } else {
-        // 2. Else, let P be ? ToString(pattern).
-        to_string(agent, pattern)?
-    };
     //     3. If flags is undefined, let F be the empty String.
     let f = flags.unwrap_or(RegExpFlags::empty());
     //     4. Else, let F be ? ToString(flags).

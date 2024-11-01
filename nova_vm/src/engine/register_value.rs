@@ -38,7 +38,7 @@ impl<T: IntoValue> Register<T> {
     ///
     /// ```rs
     /// fn example(
-    ///     agent: &mut Agent,
+    ///     agent: &mut Agent, mut gc: Gc<'_>,
     ///     this: Register<Value>,
     ///     args: ArgumentsList
     /// ) {
@@ -57,7 +57,7 @@ impl<T: IntoValue> Register<T> {
     ///
     /// ```rs
     /// fn example(
-    ///     agent: &mut Agent,
+    ///     agent: &mut Agent, mut gc: Gc<'_>,
     ///     this: Register<Value>,
     ///     args: ArgumentsList
     /// ) {

@@ -2,11 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    builders::ordinary_object_builder::OrdinaryObjectBuilder,
-    builtins::{ArgumentsList, Behaviour, Builtin},
-    execution::{Agent, JsResult, RealmIdentifier},
-    types::{String, Value, BUILTIN_STRING_MEMORY},
+use crate::{
+    ecmascript::{
+        builders::ordinary_object_builder::OrdinaryObjectBuilder,
+        builtins::{ArgumentsList, Behaviour, Builtin},
+        execution::{Agent, JsResult, RealmIdentifier},
+        types::{String, Value, BUILTIN_STRING_MEMORY},
+    },
+    engine::context::GcScope,
 };
 
 pub(crate) struct AsyncFromSyncIteratorPrototype;
@@ -31,15 +34,33 @@ impl Builtin for AsyncFromSyncIteratorPrototypeThrow {
 }
 
 impl AsyncFromSyncIteratorPrototype {
-    fn next(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn next(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn r#return(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn r#return(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn throw(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn throw(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 

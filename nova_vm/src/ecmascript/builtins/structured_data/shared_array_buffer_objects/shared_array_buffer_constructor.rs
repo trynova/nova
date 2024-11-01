@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -39,6 +40,8 @@ impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 impl SharedArrayBufferConstructor {
     fn behaviour(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -48,6 +51,8 @@ impl SharedArrayBufferConstructor {
 
     fn species(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

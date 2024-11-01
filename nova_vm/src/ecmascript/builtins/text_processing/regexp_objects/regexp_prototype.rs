@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
@@ -153,24 +154,50 @@ impl Builtin for RegExpPrototypeGetUnicodeSets {
 impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 
 impl RegExpPrototype {
-    fn exec(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn exec(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_dot_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_dot_all(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_flags(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_flags(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_global(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_global(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
     fn get_has_indices(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -179,45 +206,101 @@ impl RegExpPrototype {
 
     fn get_ignore_case(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
 
-    fn r#match(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn r#match(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn match_all(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn match_all(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_multiline(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_multiline(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn replace(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn replace(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn search(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn search(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_source(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_source(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn split(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn split(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn get_sticky(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_sticky(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
-    fn test(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn test(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
@@ -228,13 +311,19 @@ impl RegExpPrototype {
     /// > The returned String has the form of a RegularExpressionLiteral that
     /// > evaluates to another RegExp object with the same behaviour as this
     /// > object.
-    fn to_string(agent: &mut Agent, this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn to_string(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Let R be the this value.
         // 2. If R is not an Object, throw a TypeError exception.
         let Ok(r) = Object::try_from(this_value) else {
             let error_message = format!(
                 "{} is not an object",
-                this_value.string_repr(agent).as_str(agent)
+                this_value.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
         };
@@ -255,11 +344,11 @@ impl RegExpPrototype {
             return Ok(String::from_string(agent, regexp_string).into_value());
         }
         // 3. Let pattern be ? ToString(? Get(R, "source")).
-        let pattern = get(agent, r, BUILTIN_STRING_MEMORY.source.into())?;
-        let pattern = to_string(agent, pattern)?;
+        let pattern = get(agent, gc.reborrow(), r, BUILTIN_STRING_MEMORY.source.into())?;
+        let pattern = to_string(agent, gc.reborrow(), pattern)?;
         // 4. Let flags be ? ToString(? Get(R, "flags")).
-        let flags = get(agent, r, BUILTIN_STRING_MEMORY.flags.into())?;
-        let flags = to_string(agent, flags)?;
+        let flags = get(agent, gc.reborrow(), r, BUILTIN_STRING_MEMORY.flags.into())?;
+        let flags = to_string(agent, gc.reborrow(), flags)?;
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
         let result = format!("/{}/{}", pattern.as_str(agent), flags.as_str(agent));
         let result = String::from_string(agent, result);
@@ -267,12 +356,20 @@ impl RegExpPrototype {
         Ok(result.into_value())
     }
 
-    fn get_unicode(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn get_unicode(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 
     fn get_unicode_sets(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
