@@ -5,6 +5,7 @@
 use oxc_ast::ast::RegExpFlags;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         builtins::ordinary::ordinary_create_from_constructor,
@@ -49,7 +50,6 @@ fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
 pub(crate) fn reg_exp_alloc(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     new_target: Function,
 ) -> JsResult<RegExp> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).

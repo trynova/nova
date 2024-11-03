@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -150,8 +151,7 @@ impl ReflectObject {
     fn apply(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
@@ -176,8 +176,7 @@ impl ReflectObject {
     fn construct(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
@@ -223,8 +222,7 @@ impl ReflectObject {
     fn define_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -250,8 +248,7 @@ impl ReflectObject {
     fn delete_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -274,8 +271,7 @@ impl ReflectObject {
     fn get(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -304,8 +300,7 @@ impl ReflectObject {
     fn get_own_property_descriptor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -332,8 +327,7 @@ impl ReflectObject {
     fn get_prototype_of(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -355,8 +349,7 @@ impl ReflectObject {
     fn has(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -379,8 +372,7 @@ impl ReflectObject {
     fn is_extensible(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -400,8 +392,7 @@ impl ReflectObject {
     fn own_keys(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -428,8 +419,7 @@ impl ReflectObject {
     fn prevent_extensions(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -449,8 +439,7 @@ impl ReflectObject {
     fn set(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.
@@ -483,8 +472,7 @@ impl ReflectObject {
     fn set_prototype_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If target is not an Object, throw a TypeError exception.

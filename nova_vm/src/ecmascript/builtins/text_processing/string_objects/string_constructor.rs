@@ -24,6 +24,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallString;
 
@@ -60,10 +61,9 @@ impl StringConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         // 1. If value is not present, then
         let s = if arguments.is_empty() {
@@ -124,8 +124,7 @@ impl StringConstructor {
     fn from_char_code(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         code_units: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
@@ -164,8 +163,7 @@ impl StringConstructor {
     fn from_code_point(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
@@ -183,8 +181,7 @@ impl StringConstructor {
     fn raw(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();

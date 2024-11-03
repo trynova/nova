@@ -7,6 +7,7 @@ use std::ops::{Index, IndexMut};
 use oxc_span::Span;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         execution::{
@@ -194,8 +195,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
     }
@@ -204,9 +204,8 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         function_internal_define_own_property(
             self,
@@ -221,8 +220,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc.reborrow(), property_key)
     }
@@ -231,9 +229,8 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, gc.reborrow(), property_key, receiver)
     }
@@ -242,10 +239,9 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, gc.reborrow(), property_key, value, receiver)
     }
@@ -254,8 +250,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc.reborrow(), property_key)
     }
@@ -279,7 +274,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -301,7 +295,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -320,7 +313,6 @@ impl InternalMethods for BuiltinConstructorFunction {
 fn builtin_call_or_construct(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     f: BuiltinConstructorFunction,
     arguments_list: ArgumentsList,
     new_target: Function,

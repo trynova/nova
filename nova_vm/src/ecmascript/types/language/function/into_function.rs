@@ -5,6 +5,7 @@
 use super::Function;
 use crate::ecmascript::builtins::ordinary::ordinary_get_own_property;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -77,7 +78,7 @@ pub(crate) fn function_create_backing_object(
 pub(crate) fn function_internal_get_own_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
-    property_key: PropertyKey,
+    property_key: Unbound<PropertyKey>,
 ) -> JsResult<Option<PropertyDescriptor>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         Ok(ordinary_get_own_property(
@@ -110,9 +111,8 @@ pub(crate) fn function_internal_define_own_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
-    property_key: PropertyKey,
-    property_descriptor: PropertyDescriptor,
+    property_key: Unbound<PropertyKey>,
+    property_descriptor: Unbound<PropertyDescriptor>,
 ) -> JsResult<bool> {
     let backing_object = func
         .get_backing_object(agent)
@@ -124,8 +124,7 @@ pub(crate) fn function_internal_has_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    property_key: PropertyKey,
+    property_key: Unbound<PropertyKey>,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_has_property(agent, gc.reborrow(), property_key)
@@ -145,9 +144,8 @@ pub(crate) fn function_internal_get(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    property_key: PropertyKey,
-    receiver: Value,
+    property_key: Unbound<PropertyKey>,
+    receiver: Unbound<Value>,
 ) -> JsResult<Value> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_get(agent, gc, property_key, receiver)
@@ -167,10 +165,9 @@ pub(crate) fn function_internal_set(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
-    property_key: PropertyKey,
-    value: Value,
-    receiver: Value,
+    property_key: Unbound<PropertyKey>,
+    value: Unbound<Value>,
+    receiver: Unbound<Value>,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_set(agent, gc, property_key, value, receiver)
@@ -189,8 +186,7 @@ pub(crate) fn function_internal_delete(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
-    property_key: PropertyKey,
+    property_key: Unbound<PropertyKey>,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_delete(agent, gc, property_key)

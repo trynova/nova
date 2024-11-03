@@ -5,6 +5,7 @@
 use std::ops::{Deref, Index, IndexMut};
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         execution::{
@@ -28,10 +29,10 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArgumentsList<'a>(pub(crate) &'a [Value]);
+pub struct ArgumentsList<'a>(pub(crate) &'a [Unbound<Value>]);
 
 impl<'a> Deref for ArgumentsList<'a> {
-    type Target = &'a [Value];
+    type Target = &'a [Unbound<Value>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -40,14 +41,19 @@ impl<'a> Deref for ArgumentsList<'a> {
 
 impl ArgumentsList<'_> {
     #[inline]
-    pub fn get(&self, index: usize) -> Value {
-        *self.0.get(index).unwrap_or(&Value::Undefined)
+    pub fn get(&self, index: usize) -> Unbound<Value> {
+        *self.0.get(index).unwrap_or(&Unbound::new(Value::Undefined))
     }
 }
 
-pub type RegularFn = fn(&mut Agent, GcScope, Value, ArgumentsList<'_>) -> JsResult<Value>;
-pub type ConstructorFn =
-    fn(&mut Agent, GcScope, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
+pub type RegularFn = fn(&mut Agent, GcScope, Unbound<Value>, ArgumentsList<'_>) -> JsResult<Value>;
+pub type ConstructorFn = fn(
+    &mut Agent,
+    GcScope,
+    Unbound<Value>,
+    ArgumentsList<'_>,
+    Option<Unbound<Object>>,
+) -> JsResult<Value>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -113,6 +119,10 @@ impl BuiltinFunctionArgs {
 pub struct BuiltinFunction(pub(crate) BuiltinFunctionIndex);
 
 impl BuiltinFunction {
+    pub fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BuiltinFunctionIndex::from_u32_index(0))
     }
@@ -236,8 +246,7 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
     }
@@ -246,9 +255,8 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
     }
@@ -257,8 +265,7 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
     }
@@ -267,9 +274,8 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, gc, property_key, receiver)
     }
@@ -278,10 +284,9 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, gc, property_key, value, receiver)
     }
@@ -290,8 +295,7 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
     }
@@ -315,12 +319,18 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_argument: Value,
+        this_argument: Unbound<Value>,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, gc, self, Some(this_argument), arguments_list, None)
+        builtin_call_or_construct(
+            agent,
+            gc,
+            self.unbind(),
+            Some(this_argument),
+            arguments_list,
+            None,
+        )
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -333,7 +343,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -353,11 +362,10 @@ impl InternalMethods for BuiltinFunction {
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
-    f: BuiltinFunction,
-    this_argument: Option<Value>,
+    f: Unbound<BuiltinFunction>,
+    this_argument: Option<Unbound<Value>>,
     arguments_list: ArgumentsList,
-    new_target: Option<Function>,
+    new_target: Option<Unbound<Function>>,
 ) -> JsResult<Value> {
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();

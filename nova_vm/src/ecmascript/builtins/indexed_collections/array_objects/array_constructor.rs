@@ -45,6 +45,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 use crate::SmallInteger;
@@ -93,10 +94,9 @@ impl ArrayConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
@@ -203,8 +203,7 @@ impl ArrayConstructor {
     fn from(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let items = arguments.get(0);
@@ -419,8 +418,7 @@ impl ArrayConstructor {
     fn is_array(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         is_array(agent, arguments.get(0)).map(Value::Boolean)
@@ -430,8 +428,7 @@ impl ArrayConstructor {
     fn of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let len be the number of elements in items.
@@ -493,8 +490,7 @@ impl ArrayConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(this_value)

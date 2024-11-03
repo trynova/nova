@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -19,7 +20,7 @@ use crate::{
 };
 
 /// ### [6.2.6 The Property Descriptor Specification Type](https://tc39.es/ecma262/#sec-property-descriptor-specification-type)
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct PropertyDescriptor {
     /// \[\[Value]]
     pub value: Option<Value>,
@@ -179,11 +180,11 @@ impl PropertyDescriptor {
     pub fn to_property_descriptor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        obj: Value,
+        obj: Unbound<Value>,
     ) -> JsResult<Self> {
+        let obj = unsafe { obj.bind(&gc) };
         // 1. If Obj is not an Object, throw a TypeError exception.
-        let Ok(obj) = Object::try_from(obj) else {
+        let Ok(obj) = Object::try_from(gc) else {
             let obj_repr = obj.string_repr(agent, gc);
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",

@@ -12,6 +12,7 @@ use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
@@ -345,8 +346,7 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
     }
@@ -355,9 +355,8 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
     }
@@ -366,8 +365,7 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
     }
@@ -376,9 +374,8 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, gc, property_key, receiver)
     }
@@ -387,10 +384,9 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, gc, property_key, value, receiver)
     }
@@ -399,8 +395,7 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
     }
@@ -424,7 +419,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
@@ -478,7 +472,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -579,7 +572,7 @@ impl InternalMethods for ECMAScriptFunction {
 pub(crate) fn prepare_for_ordinary_call(
     agent: &mut Agent,
     f: ECMAScriptFunction,
-    new_target: Option<Object>,
+    new_target: Option<Unbound<Object>>,
 ) -> &ExecutionContext {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment;
@@ -684,7 +677,6 @@ pub(crate) fn ordinary_call_bind_this(
 pub(crate) fn evaluate_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -755,7 +747,6 @@ pub(crate) fn evaluate_body(
 pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {

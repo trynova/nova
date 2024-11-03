@@ -26,6 +26,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct ErrorConstructor;
@@ -46,10 +47,9 @@ impl ErrorConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         let message = arguments.get(0);
         let options = arguments.get(1);
@@ -100,7 +100,6 @@ impl ErrorConstructor {
 pub(super) fn get_error_cause(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<Value>> {
     let Ok(options) = Object::try_from(options) else {

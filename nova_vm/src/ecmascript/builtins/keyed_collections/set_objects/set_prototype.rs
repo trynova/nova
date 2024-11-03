@@ -7,6 +7,7 @@ use std::hash::Hasher;
 use ahash::AHasher;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -91,8 +92,7 @@ impl SetPrototype {
     fn add(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -153,8 +153,7 @@ impl SetPrototype {
     fn clear(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -178,8 +177,7 @@ impl SetPrototype {
     fn delete(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -229,8 +227,7 @@ impl SetPrototype {
     fn entries(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -278,8 +275,7 @@ impl SetPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -330,8 +326,7 @@ impl SetPrototype {
     fn has(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -378,8 +373,7 @@ impl SetPrototype {
     fn get_size(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -394,8 +388,7 @@ impl SetPrototype {
     fn values(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -90,7 +90,6 @@ pub fn array_create(
 pub(crate) fn array_species_create(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     original_array: Object,
     length: usize,
 ) -> JsResult<Object> {
@@ -157,7 +156,6 @@ pub(crate) fn array_species_create(
 pub fn array_set_length(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     a: Array,
     desc: PropertyDescriptor,
 ) -> JsResult<bool> {

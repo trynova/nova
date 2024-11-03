@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -138,8 +139,7 @@ impl AtomicsObject {
     fn add(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -148,8 +148,7 @@ impl AtomicsObject {
     fn and(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -158,8 +157,7 @@ impl AtomicsObject {
     fn compare_exchange(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -168,8 +166,7 @@ impl AtomicsObject {
     fn exchange(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -178,8 +175,7 @@ impl AtomicsObject {
     fn is_lock_free(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -188,8 +184,7 @@ impl AtomicsObject {
     fn load(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -198,8 +193,7 @@ impl AtomicsObject {
     fn or(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -208,8 +202,7 @@ impl AtomicsObject {
     fn store(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -218,8 +211,7 @@ impl AtomicsObject {
     fn sub(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -228,8 +220,7 @@ impl AtomicsObject {
     fn wait(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -238,8 +229,7 @@ impl AtomicsObject {
     fn wait_async(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -248,8 +238,7 @@ impl AtomicsObject {
     fn notify(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -258,8 +247,7 @@ impl AtomicsObject {
     fn xor(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();

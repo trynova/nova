@@ -13,6 +13,7 @@ use std::ops::{Index, IndexMut, RangeInclusive};
 
 use super::{array_set_length, ordinary::ordinary_define_own_property};
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -86,9 +87,8 @@ impl Array {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
@@ -210,8 +210,7 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
@@ -264,9 +263,8 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             array_set_length(agent, gc.reborrow(), self, property_descriptor)
@@ -350,8 +348,7 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         let has_own = self.internal_get_own_property(agent, gc.reborrow(), property_key)?;
         if has_own.is_some() {
@@ -375,9 +372,8 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(self.len(agent).into())
@@ -431,8 +427,7 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(true)

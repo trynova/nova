@@ -56,6 +56,7 @@ use crate::{
         context::GcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
+        unbound::Unbound,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
@@ -351,6 +352,10 @@ pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
 impl Value {
+    pub fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     pub fn from_str(agent: &mut Agent, str: &str) -> Value {
         String::from_str(agent, str).into_value()
     }

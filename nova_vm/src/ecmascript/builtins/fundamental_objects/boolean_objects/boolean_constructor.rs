@@ -22,6 +22,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct BooleanConstructor;
@@ -41,10 +42,9 @@ impl BooleanConstructor {
     fn behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
         let b = to_boolean(agent, value);

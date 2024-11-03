@@ -7,6 +7,7 @@ use std::{hash::Hasher, ops::Index};
 use ahash::AHasher;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -104,8 +105,7 @@ impl MapPrototype {
     fn clear(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
@@ -128,8 +128,7 @@ impl MapPrototype {
     fn delete(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
@@ -184,8 +183,7 @@ impl MapPrototype {
     fn entries(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
@@ -225,8 +223,7 @@ impl MapPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -278,8 +275,7 @@ impl MapPrototype {
     fn get(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
@@ -329,8 +325,7 @@ impl MapPrototype {
     fn has(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
@@ -372,8 +367,7 @@ impl MapPrototype {
     fn keys(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
@@ -389,8 +383,7 @@ impl MapPrototype {
     fn set(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let value = arguments.get(1);
@@ -458,8 +451,7 @@ impl MapPrototype {
     fn get_size(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         let m = require_map_data_internal_slot(agent, this_value)?;
@@ -470,8 +462,7 @@ impl MapPrototype {
     fn values(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.

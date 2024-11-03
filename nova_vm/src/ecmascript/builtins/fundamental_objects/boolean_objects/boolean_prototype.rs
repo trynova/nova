@@ -41,8 +41,7 @@ impl BooleanPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         let b = this_boolean_value(agent, this_value)?;
@@ -56,8 +55,7 @@ impl BooleanPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         this_boolean_value(agent, this_value).map(|result| result.into())

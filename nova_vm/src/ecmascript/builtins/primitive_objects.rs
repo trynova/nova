@@ -5,6 +5,7 @@
 use std::ops::{Index, IndexMut};
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         builtins::ordinary::{
@@ -207,8 +208,7 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -235,9 +235,8 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // For string exotic objects:
@@ -267,8 +266,7 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
@@ -304,9 +302,8 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
@@ -340,10 +337,9 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
@@ -366,8 +362,7 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string

@@ -431,7 +431,7 @@ impl String {
     pub(crate) fn get_property_descriptor(
         self,
         agent: &mut Agent,
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> Option<PropertyDescriptor> {
         if property_key == BUILTIN_STRING_MEMORY.length.into() {
             let smi = SmallInteger::try_from(self.utf16_len(agent) as u64)

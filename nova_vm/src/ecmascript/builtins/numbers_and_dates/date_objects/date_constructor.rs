@@ -24,6 +24,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
 
@@ -60,10 +61,9 @@ impl DateConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
@@ -129,8 +129,7 @@ impl DateConstructor {
     fn now(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let time_value = SystemTime::now()
@@ -149,8 +148,7 @@ impl DateConstructor {
     fn parse(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -160,8 +158,7 @@ impl DateConstructor {
     fn utc(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let _ns = arguments.get(0);

@@ -13,6 +13,7 @@ use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, String, Value};
 use crate::ecmascript::{execution::Agent, types::InternalMethods};
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 use super::{
@@ -147,7 +148,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -235,9 +235,8 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
-        value: Value,
+        value: Unbound<Value>,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -270,9 +269,8 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
-        value: Value,
+        value: Unbound<Value>,
         is_strict: bool,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
@@ -304,7 +302,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         n: String,
         s: bool,
     ) -> JsResult<Value> {
@@ -333,7 +330,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -455,7 +451,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -487,7 +482,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -518,7 +512,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -560,7 +553,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
@@ -604,9 +596,8 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
-        value: Value,
+        value: Unbound<Value>,
         d: bool,
     ) -> JsResult<()> {
         let env_rec = &agent[self];

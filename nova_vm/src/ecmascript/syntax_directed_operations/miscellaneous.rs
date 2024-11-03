@@ -24,7 +24,6 @@ use oxc_ast::ast;
 pub(crate) fn instantiate_function_object(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,

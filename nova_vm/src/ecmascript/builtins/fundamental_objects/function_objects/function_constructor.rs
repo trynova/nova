@@ -40,10 +40,9 @@ impl FunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -124,7 +123,6 @@ impl DynamicFunctionKind {
 pub(crate) fn create_dynamic_function(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     constructor: Function,
     kind: DynamicFunctionKind,
     parameter_args: &[Value],

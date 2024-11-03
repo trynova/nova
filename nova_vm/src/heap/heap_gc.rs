@@ -1487,6 +1487,7 @@ fn sweep(
 #[test]
 fn test_heap_gc() {
     use crate::engine::context::GcScope;
+    use crate::engine::unbound::Unbound;
     use crate::{
         ecmascript::execution::{agent::Options, DefaultHostHooks},
         engine::rootable::HeapRootData,

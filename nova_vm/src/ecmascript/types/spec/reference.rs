@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
@@ -22,7 +22,7 @@ use agent::{Agent, JsResult};
 /// operators as delete, typeof, the assignment operators, the super keyword
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Reference {
     /// ### \[\[Base]]
     ///
@@ -102,7 +102,6 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 pub(crate) fn get_value(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     reference: &Reference,
 ) -> JsResult<Value> {
     let referenced_name = reference.referenced_name;
@@ -211,7 +210,6 @@ pub(crate) fn get_value(
 pub(crate) fn put_value(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     v: &Reference,
     w: Value,
 ) -> JsResult<()> {
@@ -290,7 +288,6 @@ pub(crate) fn put_value(
 pub(crate) fn initialize_referenced_binding(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     v: Reference,
     w: Value,
 ) -> JsResult<()> {
@@ -326,7 +323,7 @@ pub(crate) fn get_this_value(reference: &Reference) -> Value {
         })
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub(crate) enum Base {
     Value(Value),
     Environment(EnvironmentIndex),

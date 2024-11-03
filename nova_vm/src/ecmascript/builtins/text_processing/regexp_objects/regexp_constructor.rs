@@ -19,6 +19,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 
@@ -46,10 +47,9 @@ impl RegExpConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        _new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -57,8 +57,7 @@ impl RegExpConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(this_value)

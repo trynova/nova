@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -262,10 +263,9 @@ impl ObjectConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
         // 1. If NewTarget is neither undefined nor the active function object, then
@@ -304,7 +304,6 @@ impl ObjectConstructor {
     fn assign(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -350,8 +349,7 @@ impl ObjectConstructor {
     fn create(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = arguments.get(0);
@@ -380,7 +378,6 @@ impl ObjectConstructor {
     fn define_properties(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -406,7 +403,6 @@ impl ObjectConstructor {
     fn define_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -434,7 +430,6 @@ impl ObjectConstructor {
     fn entries(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -453,7 +448,6 @@ impl ObjectConstructor {
     fn freeze(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -480,7 +474,6 @@ impl ObjectConstructor {
     fn from_entries(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -600,7 +593,6 @@ impl ObjectConstructor {
     fn get_own_property_descriptor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -621,7 +613,6 @@ impl ObjectConstructor {
     fn get_own_property_descriptors(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -660,7 +651,6 @@ impl ObjectConstructor {
     fn get_own_property_names(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -674,7 +664,6 @@ impl ObjectConstructor {
     fn get_own_property_symbols(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -688,8 +677,7 @@ impl ObjectConstructor {
     fn get_prototype_of(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let obj = to_object(agent, arguments.get(0))?;
@@ -701,8 +689,7 @@ impl ObjectConstructor {
     fn group_by(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let items = arguments.get(0);
@@ -731,8 +718,7 @@ impl ObjectConstructor {
     fn has_own(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let obj = to_object(agent, arguments.get(0))?;
@@ -743,8 +729,7 @@ impl ObjectConstructor {
     fn is(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(same_value(agent, arguments.get(0), arguments.get(1)).into())
@@ -753,7 +738,6 @@ impl ObjectConstructor {
     fn is_extensible(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -768,8 +752,7 @@ impl ObjectConstructor {
     fn is_frozen(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = arguments.get(0);
@@ -783,8 +766,7 @@ impl ObjectConstructor {
     fn is_sealed(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = arguments.get(0);
@@ -799,7 +781,6 @@ impl ObjectConstructor {
     fn keys(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -821,7 +802,6 @@ impl ObjectConstructor {
     fn prevent_extensions(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -848,7 +828,6 @@ impl ObjectConstructor {
     fn seal(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -875,7 +854,6 @@ impl ObjectConstructor {
     fn set_prototype_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -915,7 +893,6 @@ impl ObjectConstructor {
     fn values(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -974,7 +951,6 @@ impl ObjectConstructor {
 fn object_define_properties<T: InternalMethods>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: T,
     properties: Value,
 ) -> JsResult<T> {
@@ -1033,7 +1009,6 @@ fn object_define_properties<T: InternalMethods>(
 pub fn add_entries_from_iterable_from_entries(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: OrdinaryObject,
     iterable: Value,
 ) -> JsResult<OrdinaryObject> {
@@ -1097,7 +1072,6 @@ pub fn add_entries_from_iterable_from_entries(
 fn get_own_string_property_keys(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Vec<Value>> {
     // 1. Let obj be ? ToObject(O).
@@ -1127,7 +1101,6 @@ fn get_own_string_property_keys(
 fn get_own_symbol_property_keys(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Vec<Value>> {
     // 1. Let obj be ? ToObject(O).

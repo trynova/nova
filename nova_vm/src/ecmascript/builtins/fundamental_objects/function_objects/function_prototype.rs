@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -106,8 +107,7 @@ impl FunctionPrototype {
     fn apply(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let func be the this value.
@@ -149,8 +149,7 @@ impl FunctionPrototype {
     fn bind(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let this_arg = args.get(0);
@@ -248,8 +247,7 @@ impl FunctionPrototype {
     fn call(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let Some(func) = is_callable(this_value) else {
@@ -267,8 +265,7 @@ impl FunctionPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // Let func be the this value.
@@ -342,8 +339,7 @@ impl FunctionPrototype {
     fn has_instance(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let v = args.get(0);
@@ -411,7 +407,6 @@ impl ThrowTypeError {
     fn behaviour(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

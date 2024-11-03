@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::invoke,
@@ -56,8 +57,7 @@ impl PromisePrototype {
     fn catch(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let promise be the this value.
@@ -77,8 +77,7 @@ impl PromisePrototype {
     fn finally(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -87,8 +86,7 @@ impl PromisePrototype {
     fn then(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let promise be the this value.

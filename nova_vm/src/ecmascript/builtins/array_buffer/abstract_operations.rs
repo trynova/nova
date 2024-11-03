@@ -4,6 +4,7 @@
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -183,7 +184,6 @@ pub(crate) fn clone_array_buffer(
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
@@ -426,7 +426,7 @@ pub(crate) fn set_value_in_buffer(
     _array_buffer: ArrayBuffer,
     _byte_index: u32,
     _type: (),
-    _value: Value,
+    _value: Unbound<Value>,
     _is_typed_array: bool,
     _order: Ordering,
     _is_little_endian: Option<bool>,

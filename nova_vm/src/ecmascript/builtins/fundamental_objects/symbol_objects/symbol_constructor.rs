@@ -21,6 +21,7 @@ use crate::ecmascript::types::SymbolHeapData;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
@@ -62,10 +63,9 @@ impl SymbolConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
@@ -91,8 +91,7 @@ impl SymbolConstructor {
     fn r#for(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(arguments.get(0))
@@ -101,8 +100,7 @@ impl SymbolConstructor {
     fn key_for(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(arguments.get(0))

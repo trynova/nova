@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 
 use small_string::SmallString;
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -286,8 +286,7 @@ impl ArrayPrototype {
     fn at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -344,8 +343,7 @@ impl ArrayPrototype {
     fn concat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -454,8 +452,7 @@ impl ArrayPrototype {
     fn copy_within(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
@@ -610,8 +607,7 @@ impl ArrayPrototype {
     fn entries(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -664,8 +660,7 @@ impl ArrayPrototype {
     fn every(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -738,8 +733,7 @@ impl ArrayPrototype {
     fn fill(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
@@ -870,8 +864,7 @@ impl ArrayPrototype {
     fn filter(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -952,8 +945,7 @@ impl ArrayPrototype {
     fn find(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -988,8 +980,7 @@ impl ArrayPrototype {
     fn find_index(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -1008,8 +999,7 @@ impl ArrayPrototype {
     fn find_last(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -1029,8 +1019,7 @@ impl ArrayPrototype {
     fn find_last_index(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -1050,8 +1039,7 @@ impl ArrayPrototype {
     fn flat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let depth = arguments.get(0);
@@ -1092,8 +1080,7 @@ impl ArrayPrototype {
     fn flat_map(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let mapper_function = arguments.get(0);
@@ -1165,8 +1152,7 @@ impl ArrayPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -1249,8 +1235,7 @@ impl ArrayPrototype {
     fn includes(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let search_element = arguments.get(0);
@@ -1373,8 +1358,7 @@ impl ArrayPrototype {
     fn index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let search_element = arguments.get(0);
@@ -1487,8 +1471,7 @@ impl ArrayPrototype {
     fn join(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let separator = arguments.get(0);
@@ -1549,8 +1532,7 @@ impl ArrayPrototype {
     fn keys(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -1588,8 +1570,7 @@ impl ArrayPrototype {
     fn last_index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let search_element = arguments.get(0);
@@ -1728,8 +1709,7 @@ impl ArrayPrototype {
     fn map(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -1796,8 +1776,7 @@ impl ArrayPrototype {
     fn pop(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         if let Value::Array(array) = this_value {
@@ -1893,8 +1872,7 @@ impl ArrayPrototype {
     fn push(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -1987,8 +1965,7 @@ impl ArrayPrototype {
     fn reduce(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -2134,8 +2111,7 @@ impl ArrayPrototype {
     fn reduce_right(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -2245,8 +2221,7 @@ impl ArrayPrototype {
     fn reverse(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         if let Value::Array(array) = this_value {
@@ -2333,8 +2308,7 @@ impl ArrayPrototype {
     fn shift(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         if let Value::Array(array) = this_value {
@@ -2459,8 +2433,7 @@ impl ArrayPrototype {
     fn slice(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let start = arguments.get(0);
@@ -2673,8 +2646,7 @@ impl ArrayPrototype {
     fn some(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
@@ -2754,8 +2726,7 @@ impl ArrayPrototype {
     fn sort(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let comparator = args.get(0);
@@ -2815,8 +2786,7 @@ impl ArrayPrototype {
     fn splice(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -2825,8 +2795,7 @@ impl ArrayPrototype {
     fn to_locale_string(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -2835,8 +2804,7 @@ impl ArrayPrototype {
     fn to_reversed(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -2845,8 +2813,7 @@ impl ArrayPrototype {
     fn to_sorted(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -2855,8 +2822,7 @@ impl ArrayPrototype {
     fn to_spliced(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -2866,8 +2832,7 @@ impl ArrayPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let array be ? ToObject(this value).
@@ -2894,8 +2859,7 @@ impl ArrayPrototype {
     fn unshift(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -2904,8 +2868,7 @@ impl ArrayPrototype {
     fn values(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
@@ -2922,8 +2885,7 @@ impl ArrayPrototype {
     fn with(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -3050,7 +3012,6 @@ impl ArrayPrototype {
 fn is_concat_spreadable(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Option<Object>> {
     // 1. If O is not an Object, return false.
@@ -3121,7 +3082,6 @@ fn is_concat_spreadable(
 fn find_via_predicate(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
     len: i64,
     ascending: bool,
@@ -3138,7 +3098,6 @@ fn find_via_predicate(
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
                  mut gc: GcScope<'_, '_>,
-
                  o: Object,
                  predicate: Function,
                  this_arg: Value,
@@ -3200,7 +3159,6 @@ fn find_via_predicate(
 fn flatten_into_array(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Object,
     source: Object,
     source_len: usize,
@@ -3355,7 +3313,6 @@ fn flatten_into_array(
 fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Object,
     len: usize,
     comparator: Option<Function>,
@@ -3424,7 +3381,6 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
 fn compare_array_elements(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: Value,
     y: Value,
     comparator: Option<Function>,

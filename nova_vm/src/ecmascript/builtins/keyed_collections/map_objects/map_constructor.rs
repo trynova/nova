@@ -7,6 +7,7 @@ use std::hash::Hasher;
 use ahash::AHasher;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -65,10 +66,9 @@ impl MapConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -123,8 +123,7 @@ impl MapConstructor {
     fn group_by(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -133,8 +132,7 @@ impl MapConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(this_value)
@@ -161,7 +159,6 @@ impl MapConstructor {
 pub fn add_entries_from_iterable_map_constructor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Map,
     iterable: Value,
     adder: Function,
@@ -288,7 +285,6 @@ pub fn add_entries_from_iterable_map_constructor(
 pub(crate) fn add_entries_from_iterable(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Object,
     iterable: Value,
     adder: Function,

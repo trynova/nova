@@ -22,13 +22,13 @@ use super::context::GcScope;
 /// point beyond the heap's limits. Using such corrupted references will lead
 /// to unpredictable JavaScript execution, or to an immediate crash from
 /// indexing beyond a heap vector's bounds.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct Unbound<T: 'static> {
+pub struct Unbound<T: Clone + Copy + 'static> {
     value: T,
 }
 
-impl<T: 'static> Unbound<T> {
+impl<T: Clone + Copy + 'static> Unbound<T> {
     /// Create a new unbound heap reference from a static heap reference.
     ///
     /// ## Safety
@@ -45,7 +45,7 @@ impl<T: 'static> Unbound<T> {
     }
 }
 
-impl<'gc, T: 'gc> Unbound<T> {
+impl<'gc, T: Clone + Copy + 'gc> Unbound<T> {
     /// Binds an unbound heap reference to the passed in garbage collection
     /// lifetime.
     ///
@@ -98,7 +98,7 @@ impl<'gc, T: 'gc> Unbound<T> {
     ///
     /// See `Scoped<T>` for how rooting `arg1` should be done in this case.
     #[inline]
-    unsafe fn bind(self, _: &GcScope<'gc, '_>) -> T {
+    pub unsafe fn bind(self, _: &GcScope<'gc, '_>) -> T {
         self.value
     }
 }

@@ -23,6 +23,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::IntrinsicFunctionIndexes;
 use crate::heap::WellKnownSymbolIndexes;
@@ -62,10 +63,9 @@ impl TypedArrayIntrinsicObject {
     fn behaviour(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
-        _new_target: Option<Object>,
+        _new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Err(agent.throw_exception_with_static_message(
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
@@ -76,8 +76,7 @@ impl TypedArrayIntrinsicObject {
     fn from(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -86,8 +85,7 @@ impl TypedArrayIntrinsicObject {
     fn is_array(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         is_array(agent, arguments.get(0)).map(Value::Boolean)
@@ -96,8 +94,7 @@ impl TypedArrayIntrinsicObject {
     fn of(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -106,8 +103,7 @@ impl TypedArrayIntrinsicObject {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(this_value)
@@ -359,8 +355,7 @@ impl TypedArrayPrototype {
     fn at(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -369,8 +364,7 @@ impl TypedArrayPrototype {
     fn get_buffer(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -379,8 +373,7 @@ impl TypedArrayPrototype {
     fn get_byte_length(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -389,8 +382,7 @@ impl TypedArrayPrototype {
     fn get_byte_offset(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -399,8 +391,7 @@ impl TypedArrayPrototype {
     fn copy_within(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -409,8 +400,7 @@ impl TypedArrayPrototype {
     fn entries(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -419,8 +409,7 @@ impl TypedArrayPrototype {
     fn every(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -429,8 +418,7 @@ impl TypedArrayPrototype {
     fn fill(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -439,8 +427,7 @@ impl TypedArrayPrototype {
     fn filter(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -449,8 +436,7 @@ impl TypedArrayPrototype {
     fn find(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -459,8 +445,7 @@ impl TypedArrayPrototype {
     fn find_index(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -469,8 +454,7 @@ impl TypedArrayPrototype {
     fn find_last(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -479,8 +463,7 @@ impl TypedArrayPrototype {
     fn find_last_index(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -489,8 +472,7 @@ impl TypedArrayPrototype {
     fn for_each(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -499,8 +481,7 @@ impl TypedArrayPrototype {
     fn includes(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -509,8 +490,7 @@ impl TypedArrayPrototype {
     fn index_of(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -519,8 +499,7 @@ impl TypedArrayPrototype {
     fn join(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -529,8 +508,7 @@ impl TypedArrayPrototype {
     fn keys(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -539,8 +517,7 @@ impl TypedArrayPrototype {
     fn last_index_of(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -549,8 +526,7 @@ impl TypedArrayPrototype {
     fn get_length(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -559,8 +535,7 @@ impl TypedArrayPrototype {
     fn map(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -569,8 +544,7 @@ impl TypedArrayPrototype {
     fn reduce(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -579,8 +553,7 @@ impl TypedArrayPrototype {
     fn reduce_right(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -589,8 +562,7 @@ impl TypedArrayPrototype {
     fn reverse(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -599,8 +571,7 @@ impl TypedArrayPrototype {
     fn set(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -609,8 +580,7 @@ impl TypedArrayPrototype {
     fn slice(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -619,8 +589,7 @@ impl TypedArrayPrototype {
     fn some(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -629,8 +598,7 @@ impl TypedArrayPrototype {
     fn sort(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -639,8 +607,7 @@ impl TypedArrayPrototype {
     fn subarray(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -649,8 +616,7 @@ impl TypedArrayPrototype {
     fn to_locale_string(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -659,8 +625,7 @@ impl TypedArrayPrototype {
     fn to_reversed(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -669,8 +634,7 @@ impl TypedArrayPrototype {
     fn to_sorted(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -679,8 +643,7 @@ impl TypedArrayPrototype {
     fn to_spliced(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -689,8 +652,7 @@ impl TypedArrayPrototype {
     fn values(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -699,8 +661,7 @@ impl TypedArrayPrototype {
     fn with(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -709,8 +670,7 @@ impl TypedArrayPrototype {
     fn get_to_string_tag(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();

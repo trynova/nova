@@ -42,7 +42,7 @@ pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -222,7 +222,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         match self {
@@ -242,7 +241,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
@@ -302,9 +300,8 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
-        value: Value,
+        value: Unbound<Value>,
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -331,9 +328,8 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
-        value: Value,
+        value: Unbound<Value>,
         is_strict: bool,
     ) -> JsResult<()> {
         match self {
@@ -365,7 +361,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
@@ -387,7 +382,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         match self {
@@ -488,7 +482,6 @@ impl Default for Environments {
 pub(crate) fn get_identifier_reference(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     env: Option<EnvironmentIndex>,
     name: String,
     strict: bool,

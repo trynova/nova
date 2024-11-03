@@ -27,6 +27,7 @@
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
@@ -124,7 +125,6 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 pub(crate) fn create_unmapped_arguments_object(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     arguments_list: &[Value],
 ) -> Object {
     // 1. Let len be the number of elements in argumentsList.

@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -146,7 +147,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
 /// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
 pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
-    object: Object,
+    object: Unbound<Object>,
     prototype: Option<Object>,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
@@ -197,8 +198,8 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property(
     agent: &mut Agent,
-    object: Object,
-    property_key: PropertyKey,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
 ) -> Option<PropertyDescriptor> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
@@ -240,9 +241,8 @@ pub(crate) fn ordinary_get_own_property(
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    object: Object,
-    property_key: PropertyKey,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
     descriptor: PropertyDescriptor,
 ) -> JsResult<bool> {
     // 1. Let current be ? O.[[GetOwnProperty]](P).
@@ -284,7 +284,7 @@ pub(crate) fn is_compatible_property_descriptor(
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
     object: Option<Object>,
-    property_key: PropertyKey,
+    property_key: Unbound<PropertyKey>,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
@@ -517,9 +517,8 @@ fn validate_and_apply_property_descriptor(
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    object: Object,
-    property_key: PropertyKey,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
 ) -> JsResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
     let has_own = object.internal_get_own_property(agent, gc.reborrow(), property_key)?;
@@ -546,10 +545,9 @@ pub(crate) fn ordinary_has_property(
 pub(crate) fn ordinary_get(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    object: Object,
-    property_key: PropertyKey,
-    receiver: Value,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
+    receiver: Unbound<Value>,
 ) -> JsResult<Value> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object.internal_get_own_property(agent, gc.reborrow(), property_key)?
@@ -588,11 +586,10 @@ pub(crate) fn ordinary_get(
 pub(crate) fn ordinary_set(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    object: Object,
-    property_key: PropertyKey,
-    value: Value,
-    receiver: Value,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
+    value: Unbound<Value>,
+    receiver: Unbound<Value>,
 ) -> JsResult<bool> {
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
     let own_descriptor = object.internal_get_own_property(agent, gc.reborrow(), property_key)?;
@@ -613,19 +610,22 @@ pub(crate) fn ordinary_set(
 pub(crate) fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
-    object: Object,
-    property_key: PropertyKey,
-    value: Value,
-    receiver: Value,
-    own_descriptor: Option<PropertyDescriptor>,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
+    value: Unbound<Value>,
+    receiver: Unbound<Value>,
+    own_descriptor: Option<Unbound<PropertyDescriptor>>,
 ) -> JsResult<bool> {
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
-        own_descriptor
+        unsafe { own_descriptor.bind(&gc) }
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.internal_get_prototype_of(agent, gc.reborrow())?;
+        let parent = unsafe {
+            object
+                .bind(&gc)
+                .internal_get_prototype_of(agent, gc.reborrow())
+        }?;
 
         // b. If parent is not null, then
         if let Some(parent) = parent {
@@ -722,9 +722,8 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
-    object: Object,
-    property_key: PropertyKey,
+    object: Unbound<Object>,
+    property_key: Unbound<PropertyKey>,
 ) -> JsResult<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let descriptor = object.internal_get_own_property(agent, gc, property_key)?;
@@ -1037,7 +1036,6 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 pub(crate) fn ordinary_create_from_constructor(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Object> {
@@ -1074,7 +1072,6 @@ pub(crate) fn ordinary_create_from_constructor(
 pub(crate) fn get_prototype_from_constructor(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Option<Object>> {
@@ -1204,7 +1201,6 @@ pub(crate) fn get_prototype_from_constructor(
 pub(crate) fn set_immutable_prototype(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     v: Option<Object>,
 ) -> JsResult<bool> {

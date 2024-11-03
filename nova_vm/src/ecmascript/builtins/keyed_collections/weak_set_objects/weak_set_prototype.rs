@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -38,8 +38,7 @@ impl WeakSetPrototype {
     fn add(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -48,8 +47,7 @@ impl WeakSetPrototype {
     fn delete(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -58,8 +56,7 @@ impl WeakSetPrototype {
     fn has(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()

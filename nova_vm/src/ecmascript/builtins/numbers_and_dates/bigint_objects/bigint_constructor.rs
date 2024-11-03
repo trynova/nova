@@ -29,7 +29,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
@@ -63,10 +63,9 @@ impl BigIntConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
@@ -86,8 +85,7 @@ impl BigIntConstructor {
     fn as_int_n(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
@@ -164,8 +162,7 @@ impl BigIntConstructor {
     fn as_uint_n(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
@@ -202,7 +199,6 @@ impl BigIntConstructor {
 fn number_to_big_int(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     value: Number,
 ) -> JsResult<BigInt> {
     if !is_integral_number(agent, gc.reborrow(), value) {

@@ -5,6 +5,7 @@
 use std::collections::VecDeque;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -26,7 +27,7 @@ pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
-    SliceIterator(SendableRef<[Value]>),
+    SliceIterator(SendableRef<[Unbound<Value>]>),
 }
 
 impl VmIterator {
@@ -120,8 +121,7 @@ impl VmIterator {
     pub(super) fn from_value(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        value: Value,
+        value: Unbound<Value>,
     ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(

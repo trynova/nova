@@ -26,7 +26,7 @@ use crate::ecmascript::types::Object;
 
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
@@ -72,10 +72,9 @@ impl NumberConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
 
@@ -129,8 +128,7 @@ impl NumberConstructor {
     fn is_finite(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
@@ -149,8 +147,7 @@ impl NumberConstructor {
     fn is_integer(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
@@ -163,8 +160,7 @@ impl NumberConstructor {
     fn is_nan(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
@@ -183,8 +179,7 @@ impl NumberConstructor {
     fn is_safe_integer(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);

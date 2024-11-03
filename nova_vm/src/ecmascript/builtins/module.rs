@@ -5,6 +5,7 @@
 use std::ops::{Index, IndexMut};
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
@@ -153,7 +154,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         set_immutable_prototype(agent, gc.reborrow(), self.into_object(), prototype)
@@ -178,8 +178,7 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -225,9 +224,8 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -285,8 +283,7 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match property_key {
             PropertyKey::Integer(_) => Ok(false),
@@ -321,9 +318,8 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
@@ -405,10 +401,9 @@ impl InternalMethods for Module {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
+        _property_key: Unbound<PropertyKey>,
+        _value: Unbound<Value>,
+        _receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         Ok(false)
     }
@@ -418,8 +413,7 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {

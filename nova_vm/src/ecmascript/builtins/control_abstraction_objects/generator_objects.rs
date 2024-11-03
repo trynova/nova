@@ -5,6 +5,7 @@
 use std::ops::{Index, IndexMut};
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -43,8 +44,7 @@ impl Generator {
         mut self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        value: Value,
+        value: Unbound<Value>,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -157,8 +157,7 @@ impl Generator {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        value: Value,
+        value: Unbound<Value>,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -176,7 +175,7 @@ impl Generator {
 
                 // 3. If state is completed, then
                 // b. Return ? abruptCompletion.
-                return Err(JsError::new(value));
+                return Err(JsError::new(unsafe { value.bind(&gc) }));
             }
             GeneratorState::Suspended { .. } => {
                 // 4. Assert: state is suspended-yield.
@@ -190,7 +189,7 @@ impl Generator {
             GeneratorState::Completed => {
                 // 3. If state is completed, then
                 //    b. Return ? abruptCompletion.
-                return Err(JsError::new(value));
+                return Err(JsError::new(unsafe { value.bind(&gc) }));
             }
         };
 
@@ -216,7 +215,7 @@ impl Generator {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume_throw(agent, gc.reborrow(), executable, value);
+        let execution_result = vm.resume_throw(agent, gc.reborrow(), executable.unbind(), value);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running

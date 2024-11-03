@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{
@@ -265,7 +265,6 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self {
@@ -316,8 +315,7 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match self {
             Function::BoundFunction(x) => x.internal_get_own_property(agent, gc, property_key),
@@ -339,9 +337,8 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         match self {
             Function::BoundFunction(x) => {
@@ -369,8 +366,7 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match self {
             Function::BoundFunction(x) => x.internal_has_property(agent, gc, property_key),
@@ -392,9 +388,8 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         match self {
             Function::BoundFunction(x) => x.internal_get(agent, gc, property_key, receiver),
@@ -416,10 +411,9 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         match self {
             Function::BoundFunction(x) => x.internal_set(agent, gc, property_key, value, receiver),
@@ -445,8 +439,7 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match self {
             Function::BoundFunction(x) => x.internal_delete(agent, gc, property_key),
@@ -483,7 +476,6 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_argument: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -511,7 +503,6 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -571,7 +562,6 @@ impl Function {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_argument: Value,
         args: &[Value],
     ) -> JsResult<Value> {

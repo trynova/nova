@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -84,8 +85,7 @@ impl ObjectPrototype {
     fn has_own_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
@@ -96,8 +96,7 @@ impl ObjectPrototype {
     fn is_prototype_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let v = arguments.get(0);
@@ -121,8 +120,7 @@ impl ObjectPrototype {
     fn property_is_enumerable(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
@@ -138,8 +136,7 @@ impl ObjectPrototype {
     fn to_locale_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = this_value;
@@ -150,8 +147,7 @@ impl ObjectPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         match this_value {
@@ -252,8 +248,7 @@ impl ObjectPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         to_object(agent, this_value).map(|result| result.into_value())

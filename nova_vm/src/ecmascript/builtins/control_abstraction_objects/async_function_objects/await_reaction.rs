@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         builtins::{
@@ -58,9 +59,8 @@ impl AwaitReactionIdentifier {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         reaction_type: PromiseReactionType,
-        value: Value,
+        value: Unbound<Value>,
     ) {
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.

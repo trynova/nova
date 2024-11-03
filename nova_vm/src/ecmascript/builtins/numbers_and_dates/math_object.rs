@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use std::f64::consts;
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
@@ -339,8 +339,7 @@ impl MathObject {
     fn abs(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
@@ -350,8 +349,7 @@ impl MathObject {
     fn acos(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -365,8 +363,7 @@ impl MathObject {
     fn acosh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -392,8 +389,7 @@ impl MathObject {
     fn asin(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -418,8 +414,7 @@ impl MathObject {
     fn asinh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -437,8 +432,7 @@ impl MathObject {
     fn atan(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -466,8 +460,7 @@ impl MathObject {
     fn atanh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -502,8 +495,7 @@ impl MathObject {
     fn atan2(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let ny be ? ToNumber(y).
@@ -630,8 +622,7 @@ impl MathObject {
     fn cbrt(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -649,8 +640,7 @@ impl MathObject {
     fn ceil(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -680,8 +670,7 @@ impl MathObject {
     fn clz32(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToUint32(x).
@@ -697,8 +686,7 @@ impl MathObject {
     fn cos(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -721,8 +709,7 @@ impl MathObject {
     fn cosh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -750,8 +737,7 @@ impl MathObject {
     fn exp(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         //1. Let n be ? ToNumber(x).
@@ -779,8 +765,7 @@ impl MathObject {
     fn expm1(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -807,8 +792,7 @@ impl MathObject {
     fn floor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -838,8 +822,7 @@ impl MathObject {
     fn fround(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -872,8 +855,7 @@ impl MathObject {
     fn hypot(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
@@ -931,8 +913,7 @@ impl MathObject {
     fn imul(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let a be ℝ(? ToUint32(x)).
@@ -951,8 +932,7 @@ impl MathObject {
     fn log(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -985,8 +965,7 @@ impl MathObject {
     fn log1p(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1014,8 +993,7 @@ impl MathObject {
     fn log10(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1044,8 +1022,7 @@ impl MathObject {
     fn log2(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1073,8 +1050,7 @@ impl MathObject {
     fn max(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
@@ -1155,8 +1131,7 @@ impl MathObject {
     fn min(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
@@ -1237,8 +1212,7 @@ impl MathObject {
     fn pow(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let base = arguments.get(0);
@@ -1269,8 +1243,7 @@ impl MathObject {
     fn random(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(Value::from_f64(agent, rand::random::<f64>()))
@@ -1279,8 +1252,7 @@ impl MathObject {
     fn round(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1310,8 +1282,7 @@ impl MathObject {
     fn sign(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1331,8 +1302,7 @@ impl MathObject {
     fn sin(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1352,8 +1322,7 @@ impl MathObject {
     fn sinh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1369,8 +1338,7 @@ impl MathObject {
     fn sqrt(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1394,8 +1362,7 @@ impl MathObject {
     fn tan(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1415,8 +1382,7 @@ impl MathObject {
     fn tanh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
@@ -1440,8 +1406,7 @@ impl MathObject {
     fn trunc(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).

@@ -7,6 +7,7 @@ use std::hash::Hasher;
 use ahash::AHasher;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -57,10 +58,9 @@ impl SetConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         let iterable = arguments.get(0);
         // 1. If NewTarget is undefined, throw a TypeError exception.
@@ -192,8 +192,7 @@ impl SetConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         Ok(this_value)

@@ -15,6 +15,7 @@ use crate::{
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
+    engine::unbound::Unbound,
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_ast::ast::{self, Statement};
@@ -105,6 +106,10 @@ pub(crate) struct ExecutableHeapData {
 }
 
 impl Executable {
+    pub(crate) fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Self {
         if agent.options.print_internals {
             eprintln!();

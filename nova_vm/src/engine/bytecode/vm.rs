@@ -49,7 +49,7 @@ use crate::{
             Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::GcScope,
+    engine::{context::GcScope, unbound::Unbound},
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
@@ -149,9 +149,8 @@ impl SuspendedVm {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        executable: Executable,
-        value: Value,
+        executable: Unbound<Executable>,
+        value: Unbound<Value>,
     ) -> ExecutionResult {
         let vm = Vm::from_suspended(self);
         vm.resume(agent, gc, executable, value)
@@ -161,14 +160,13 @@ impl SuspendedVm {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        executable: Executable,
-        err: Value,
+        executable: Unbound<Executable>,
+        err: Unbound<Value>,
     ) -> ExecutionResult {
         // Optimisation: Avoid unsuspending the Vm if we're just going to throw
         // out of it immediately.
         if self.exception_jump_target_stack.is_empty() {
-            let err = JsError::new(err);
+            let err = JsError::new(unsafe { err.bind(&gc) });
             return ExecutionResult::Throw(err);
         }
         let vm = Vm::from_suspended(self);
@@ -217,9 +215,8 @@ impl Vm {
     pub(crate) fn execute(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        executable: Executable,
-        arguments: Option<&[Value]>,
+        executable: Unbound<Executable>,
+        arguments: Option<&[Unbound<Value>]>,
     ) -> ExecutionResult {
         let mut vm = Vm::new();
 
@@ -232,6 +229,7 @@ impl Vm {
         }
 
         if agent.options.print_internals {
+            let executable = unsafe { executable.bind(&gc) };
             eprintln!();
             eprintln!("=== Executing Executable ===");
             eprintln!("Constants: {:?}", executable.get_constants(agent));
@@ -266,11 +264,10 @@ impl Vm {
         mut self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        executable: Executable,
-        value: Value,
+        executable: Unbound<Executable>,
+        value: Unbound<Value>,
     ) -> ExecutionResult {
-        self.result = Some(value);
+        self.result = Some(unsafe { value.bind(&gc) });
         self.inner_execute(agent, gc, executable)
     }
 
@@ -278,11 +275,10 @@ impl Vm {
         mut self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        executable: Executable,
-        err: Value,
+        executable: Unbound<Executable>,
+        err: Unbound<Value>,
     ) -> ExecutionResult {
-        let err = JsError::new(err);
+        let err = JsError::new(unsafe { err.bind(&gc) });
         if !self.handle_error(agent, err) {
             return ExecutionResult::Throw(err);
         }
@@ -293,8 +289,7 @@ impl Vm {
         mut self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        executable: Executable,
+        executable: Unbound<Executable>,
     ) -> ExecutionResult {
         #[cfg(feature = "interleaved-gc")]
         let do_gc = !agent.options.disable_gc;
@@ -373,7 +368,6 @@ impl Vm {
     fn execute_instruction(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         instr: &Instr,
@@ -1977,7 +1971,6 @@ impl Vm {
     fn execute_simple_array_binding(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         mut iterator: VmIterator,
@@ -2074,7 +2067,6 @@ impl Vm {
     fn execute_simple_object_binding(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         object: Object,
@@ -2155,10 +2147,9 @@ impl Vm {
     fn execute_nested_simple_binding(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
-        value: Value,
+        value: Unbound<Value>,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
         let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
@@ -2201,7 +2192,6 @@ impl Vm {
 fn apply_string_or_numeric_binary_operator(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
@@ -2420,7 +2410,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 pub(crate) fn instanceof_operator(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     value: impl IntoValue,
     target: impl IntoValue,
 ) -> JsResult<bool> {

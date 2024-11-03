@@ -51,8 +51,9 @@ use crate::ecmascript::builtins::regexp::RegExp;
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-#[cfg(feature = "array-buffer")]
 use crate::engine::context::GcScope;
+#[cfg(feature = "array-buffer")]
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
     heap::indexes::TypedArrayIndex,
@@ -1073,7 +1074,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self {
@@ -1365,8 +1365,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match self {
             Object::Object(data) => data.internal_get_own_property(agent, gc, property_key),
@@ -1476,9 +1475,8 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         match self {
             Object::Object(idx) => {
@@ -1638,8 +1636,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match self {
             Object::Object(data) => data.internal_has_property(agent, gc, property_key),
@@ -1742,9 +1739,8 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         match self {
             Object::Object(data) => data.internal_get(agent, gc, property_key, receiver),
@@ -1849,10 +1845,9 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         match self {
             Object::Object(data) => data.internal_set(agent, gc, property_key, value, receiver),
@@ -1995,8 +1990,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match self {
             Object::Object(data) => data.internal_delete(agent, gc, property_key),
@@ -2195,8 +2189,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
         match self {
@@ -2218,7 +2211,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {

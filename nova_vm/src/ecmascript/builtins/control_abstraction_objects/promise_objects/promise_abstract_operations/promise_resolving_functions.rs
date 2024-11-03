@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
@@ -121,7 +121,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         agent: &mut Agent,
         _: GcScope<'_, '_>,
 
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
     }
@@ -130,9 +130,8 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        property_descriptor: PropertyDescriptor,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
     }
@@ -141,8 +140,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
     }
@@ -151,9 +149,8 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, gc, property_key, receiver)
     }
@@ -162,10 +159,9 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, gc, property_key, value, receiver)
     }
@@ -174,8 +170,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
     }
@@ -192,8 +187,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let arg = args.get(0);

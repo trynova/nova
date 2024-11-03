@@ -92,7 +92,7 @@ impl PropertyStorage {
         }
     }
 
-    pub fn set(self, agent: &mut Agent, property_key: PropertyKey, descriptor: PropertyDescriptor) {
+    pub fn set(self, agent: &mut Agent, property_key: Unbound<PropertyKey>, descriptor: PropertyDescriptor) {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];

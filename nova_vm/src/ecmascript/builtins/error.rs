@@ -9,6 +9,7 @@ use std::ops::{Index, IndexMut};
 pub(crate) use data::ErrorHeapData;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
@@ -167,8 +168,7 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -199,8 +199,7 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
+        property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.internal_has_property(agent, gc, property_key),
@@ -220,9 +219,8 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        property_key: PropertyKey,
-        receiver: Value,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.internal_get(agent, gc, property_key, receiver),

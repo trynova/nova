@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         execution::{
@@ -250,7 +250,6 @@ pub fn parse_script(
 pub fn script_evaluation(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     script: Script,
 ) -> JsResult<Value> {
     let realm_id = script.realm;
@@ -341,7 +340,6 @@ pub fn script_evaluation(
 pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     script: ScriptIdentifier,
     env: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
@@ -553,7 +551,7 @@ pub(crate) fn global_declaration_instantiation(
 
 #[cfg(test)]
 mod test {
-    use crate::engine::context::GcScope;
+    use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
     use crate::{
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,

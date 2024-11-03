@@ -31,8 +31,7 @@ impl ErrorPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.

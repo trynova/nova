@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
@@ -58,10 +58,9 @@ impl ArrayBufferConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -92,8 +91,7 @@ impl ArrayBufferConstructor {
     fn is_view(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. If arg is not an Object, return false.
@@ -131,8 +129,7 @@ impl ArrayBufferConstructor {
     fn species(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Return the this value.
@@ -162,7 +159,6 @@ impl ArrayBufferConstructor {
 fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<u64>> {
     // 1. If options is not an Object, return empty.

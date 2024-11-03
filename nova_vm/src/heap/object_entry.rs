@@ -68,7 +68,7 @@ impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ObjectEntryPropertyDescriptor {
     Data {
-        value: Value,
+        value: Unbound<Value>,
         writable: bool,
         enumerable: bool,
         configurable: bool,

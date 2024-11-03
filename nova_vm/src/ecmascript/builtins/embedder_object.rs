@@ -5,6 +5,7 @@
 use std::ops::{Index, IndexMut};
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -116,7 +117,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _prototype: Option<Object>,
     ) -> JsResult<bool> {
         todo!();
@@ -139,8 +139,7 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
+        _property_key: Unbound<PropertyKey>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
     }
@@ -149,9 +148,8 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
-        _property_descriptor: PropertyDescriptor,
+        _property_key: Unbound<PropertyKey>,
+        _property_descriptor: Unbound<PropertyDescriptor>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -160,8 +158,7 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
+        _property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -170,9 +167,8 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
-        _receiver: Value,
+        _property_key: Unbound<PropertyKey>,
+        _receiver: Unbound<Value>,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -181,10 +177,9 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
+        _property_key: Unbound<PropertyKey>,
+        _value: Unbound<Value>,
+        _receiver: Unbound<Value>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -193,8 +188,7 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _property_key: PropertyKey,
+        _property_key: Unbound<PropertyKey>,
     ) -> JsResult<bool> {
         todo!();
     }

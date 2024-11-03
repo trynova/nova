@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -179,7 +179,7 @@ impl DataViewPrototype {
     fn get_buffer(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
@@ -198,7 +198,7 @@ impl DataViewPrototype {
     fn get_byte_length(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
@@ -227,7 +227,7 @@ impl DataViewPrototype {
     fn get_byte_offset(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
@@ -251,7 +251,7 @@ impl DataViewPrototype {
     fn get_big_int64(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -260,7 +260,7 @@ impl DataViewPrototype {
     fn get_big_uint64(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -269,7 +269,7 @@ impl DataViewPrototype {
     fn get_float32(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -278,7 +278,7 @@ impl DataViewPrototype {
     fn get_float64(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -287,7 +287,7 @@ impl DataViewPrototype {
     fn get_int8(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -296,7 +296,7 @@ impl DataViewPrototype {
     fn get_int16(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -305,7 +305,7 @@ impl DataViewPrototype {
     fn get_int32(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -314,7 +314,7 @@ impl DataViewPrototype {
     fn get_uint8(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -323,7 +323,7 @@ impl DataViewPrototype {
     fn get_uint16(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -332,7 +332,7 @@ impl DataViewPrototype {
     fn get_uint32(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -341,7 +341,7 @@ impl DataViewPrototype {
     fn set_big_int64(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -350,7 +350,7 @@ impl DataViewPrototype {
     fn set_big_uint64(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -359,7 +359,7 @@ impl DataViewPrototype {
     fn set_float32(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -368,7 +368,7 @@ impl DataViewPrototype {
     fn set_float64(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -377,7 +377,7 @@ impl DataViewPrototype {
     fn set_int8(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -386,7 +386,7 @@ impl DataViewPrototype {
     fn set_int16(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -395,7 +395,7 @@ impl DataViewPrototype {
     fn set_int32(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -404,7 +404,7 @@ impl DataViewPrototype {
     fn set_uint8(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -413,7 +413,7 @@ impl DataViewPrototype {
     fn set_uint16(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -422,7 +422,7 @@ impl DataViewPrototype {
     fn set_uint32(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()

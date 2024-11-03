@@ -54,7 +54,7 @@ use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 ///
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
-pub struct BaseIndex<T: ?Sized>(NonZeroU32, PhantomData<T>);
+pub struct BaseIndex<T: ?Sized + 'static>(NonZeroU32, PhantomData<&'static T>);
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =

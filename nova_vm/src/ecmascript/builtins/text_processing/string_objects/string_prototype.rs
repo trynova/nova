@@ -10,6 +10,7 @@ use unicode_normalization::{
 };
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -255,8 +256,7 @@ impl StringPrototype {
     fn at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -290,8 +290,7 @@ impl StringPrototype {
     fn char_at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -315,8 +314,7 @@ impl StringPrototype {
     fn char_code_at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -341,8 +339,7 @@ impl StringPrototype {
     fn code_point_at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -371,8 +368,7 @@ impl StringPrototype {
     fn concat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -395,8 +391,7 @@ impl StringPrototype {
     fn ends_with(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -444,8 +439,7 @@ impl StringPrototype {
     fn includes(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -484,8 +478,7 @@ impl StringPrototype {
     fn index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -526,8 +519,7 @@ impl StringPrototype {
     fn is_well_formed(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -555,8 +547,7 @@ impl StringPrototype {
     fn last_index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let search_string = args.get(0);
@@ -623,8 +614,7 @@ impl StringPrototype {
     fn locale_compare(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -633,8 +623,7 @@ impl StringPrototype {
     fn r#match(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -643,8 +632,7 @@ impl StringPrototype {
     fn match_all(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -654,8 +642,7 @@ impl StringPrototype {
     fn normalize(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -696,8 +683,7 @@ impl StringPrototype {
     fn pad_end(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let max_length = arguments.get(0);
@@ -714,8 +700,7 @@ impl StringPrototype {
     fn pad_start(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let max_length = arguments.get(0);
@@ -732,8 +717,7 @@ impl StringPrototype {
     fn repeat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let count = arguments.get(0);
@@ -784,8 +768,7 @@ impl StringPrototype {
     fn replace(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -871,8 +854,7 @@ impl StringPrototype {
     fn replace_all(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -997,8 +979,7 @@ impl StringPrototype {
     fn search(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -1007,8 +988,7 @@ impl StringPrototype {
     fn slice(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1091,8 +1071,7 @@ impl StringPrototype {
     fn split(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1192,8 +1171,7 @@ impl StringPrototype {
     fn starts_with(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1245,8 +1223,7 @@ impl StringPrototype {
     fn substring(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1311,8 +1288,7 @@ impl StringPrototype {
     fn to_locale_lower_case(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -1321,8 +1297,7 @@ impl StringPrototype {
     fn to_locale_upper_case(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -1332,8 +1307,7 @@ impl StringPrototype {
     fn to_lower_case(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1353,8 +1327,7 @@ impl StringPrototype {
     fn to_upper_case(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1373,8 +1346,7 @@ impl StringPrototype {
     fn to_well_formed(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
@@ -1404,8 +1376,7 @@ impl StringPrototype {
     fn trim(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -1417,8 +1388,7 @@ impl StringPrototype {
     fn trim_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        value: Value,
+        value: Unbound<Value>,
         trim_where: TrimWhere,
     ) -> JsResult<Value> {
         // 1. Let str be ? RequireObjectCoercible(string).
@@ -1455,8 +1425,7 @@ impl StringPrototype {
     fn trim_end(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -1468,8 +1437,7 @@ impl StringPrototype {
     fn trim_start(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
@@ -1485,8 +1453,7 @@ impl StringPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Return ? ThisStringValue(this value).
@@ -1496,8 +1463,7 @@ impl StringPrototype {
     fn iterator(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -1574,7 +1540,6 @@ impl StringPrototype {
 fn string_padding_builtins_impl(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
     max_length: Value,
     fill_string: Value,

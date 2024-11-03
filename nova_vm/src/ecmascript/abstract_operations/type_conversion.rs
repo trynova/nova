@@ -14,7 +14,7 @@
 //! The BigInt type has no implicit conversions in the ECMAScript language;
 //! programmers must call BigInt explicitly to convert values from other types.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{
@@ -61,7 +61,6 @@ pub enum PreferredType {
 pub(crate) fn to_primitive(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     input: impl Into<Value> + Copy,
     preferred_type: Option<PreferredType>,
 ) -> JsResult<Primitive> {
@@ -129,7 +128,6 @@ pub(crate) fn to_primitive(
 pub(crate) fn ordinary_to_primitive(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
     hint: PreferredType,
 ) -> JsResult<Primitive> {
@@ -197,7 +195,6 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 pub(crate) fn to_numeric(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     value: impl Into<Value> + Copy,
 ) -> JsResult<Numeric> {
     // 1. Let primValue be ? ToPrimitive(value, number).
@@ -216,7 +213,6 @@ pub(crate) fn to_numeric(
 pub(crate) fn to_number(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     argument: impl Into<Value> + Copy,
 ) -> JsResult<Number> {
     let argument: Value = argument.into();
@@ -334,7 +330,6 @@ fn string_to_number(agent: &mut Agent, str: String) -> Number {
 pub(crate) fn to_integer_or_infinity(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     argument: Value,
 ) -> JsResult<Number> {
     // Fast path: A safe integer is already an integer.
@@ -582,7 +577,6 @@ pub(crate) fn to_uint8(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) 
 pub(crate) fn to_uint8_clamp(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     argument: Value,
 ) -> JsResult<u8> {
     if let Value::Integer(int) = argument {
@@ -638,7 +632,6 @@ pub(crate) fn to_uint8_clamp(
 pub(crate) fn to_big_int(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     argument: Value,
 ) -> JsResult<BigInt> {
     // 1. Let prim be ? ToPrimitive(argument, number).
@@ -711,7 +704,6 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option
 pub(crate) fn to_string(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     argument: impl Into<Value> + Copy,
 ) -> JsResult<String> {
     let argument: Value = argument.into();
@@ -846,7 +838,6 @@ pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> 
 pub(crate) fn to_property_key(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     argument: Value,
 ) -> JsResult<PropertyKey> {
     // Note: Fast path and non-standard special case combined. Usually the
@@ -985,7 +976,6 @@ pub(crate) fn to_length(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value)
 pub(crate) fn canonical_numeric_index_string(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     argument: String,
 ) -> Option<Number> {
     // 1. If argument is "-0", return -0𝔽.

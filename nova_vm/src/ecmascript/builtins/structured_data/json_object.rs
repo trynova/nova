@@ -5,6 +5,7 @@
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -86,8 +87,7 @@ impl JSONObject {
     fn parse(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let text = arguments.get(0);
@@ -149,8 +149,7 @@ impl JSONObject {
     fn stringify(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         todo!();
@@ -195,7 +194,6 @@ impl JSONObject {
 pub(crate) fn internalize_json_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     holder: Object,
     name: PropertyKey,
     reviver: Function,
@@ -274,7 +272,6 @@ pub(crate) fn internalize_json_property(
 pub(crate) fn value_from_json(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     json: &sonic_rs::Value,
 ) -> JsResult<Value> {
     match json.get_type() {

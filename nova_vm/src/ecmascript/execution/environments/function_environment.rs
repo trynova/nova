@@ -6,6 +6,7 @@ use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -58,7 +59,7 @@ pub(crate) struct FunctionEnvironment {
     /// internal method, \[\[NewTarget\]\] is the value of the
     /// \[\[Construct\]\] newTarget parameter. Otherwise, its value is
     /// undefined.
-    pub(crate) new_target: Option<Object>,
+    pub(crate) new_target: Option<Unbound<Object>>,
 
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
@@ -107,7 +108,7 @@ impl HeapMarkAndSweep for FunctionEnvironment {
 pub(crate) fn new_function_environment(
     agent: &mut Agent,
     f: ECMAScriptFunction,
-    new_target: Option<Object>,
+    new_target: Option<Unbound<Object>>,
 ) -> FunctionEnvironmentIndex {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let this_mode = ecmascript_function_object.this_mode;
@@ -269,7 +270,7 @@ impl FunctionEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        value: Value,
+        value: Unbound<Value>,
         mut is_strict: bool,
     ) -> JsResult<()> {
         let env_rec = &agent[self];

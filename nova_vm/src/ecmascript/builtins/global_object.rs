@@ -8,6 +8,7 @@ use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,
@@ -144,7 +145,6 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 pub fn perform_eval(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: Value,
     direct: bool,
     strict_caller: bool,
@@ -365,7 +365,6 @@ pub fn perform_eval(
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     script: &Program,
     var_env: EnvironmentIndex,
     lex_env: EnvironmentIndex,
@@ -667,8 +666,7 @@ impl GlobalObject {
     fn eval(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let x = arguments.get(0);
@@ -683,7 +681,6 @@ impl GlobalObject {
     fn is_finite(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -705,7 +702,6 @@ impl GlobalObject {
     fn is_nan(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -719,8 +715,7 @@ impl GlobalObject {
     fn parse_float(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -728,8 +723,7 @@ impl GlobalObject {
     fn parse_int(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -737,8 +731,7 @@ impl GlobalObject {
     fn decode_uri(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -746,8 +739,7 @@ impl GlobalObject {
     fn decode_uri_component(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -755,8 +747,7 @@ impl GlobalObject {
     fn encode_uri(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -764,8 +755,7 @@ impl GlobalObject {
     fn encode_uri_component(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -773,8 +763,7 @@ impl GlobalObject {
     fn escape(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
@@ -782,8 +771,7 @@ impl GlobalObject {
     fn unescape(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()

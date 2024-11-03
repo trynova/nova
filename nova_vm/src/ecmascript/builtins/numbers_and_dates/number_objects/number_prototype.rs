@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_integer_or_infinity,
@@ -83,8 +83,7 @@ impl NumberPrototype {
     fn to_exponential(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let fraction_digits = arguments.get(0);
@@ -124,8 +123,7 @@ impl NumberPrototype {
     fn to_fixed(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let fraction_digits = arguments.get(0);
@@ -164,8 +162,7 @@ impl NumberPrototype {
     fn to_locale_string(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         Self::to_string(agent, gc, this_value, arguments)
@@ -178,8 +175,7 @@ impl NumberPrototype {
     fn to_precision(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let precision = arguments.get(0);
@@ -415,8 +411,7 @@ impl NumberPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let x = this_number_value(agent, this_value)?;
@@ -431,8 +426,7 @@ impl NumberPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
-        this_value: Value,
+        this_value: Unbound<Value>,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         this_number_value(agent, this_value).map(|result| result.into_value())

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::context::GcScope;
+use crate::engine::unbound::Unbound;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
@@ -93,10 +94,9 @@ impl NativeErrorConstructors {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         error_kind: ExceptionType,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         let message = arguments.get(0);
         let options = arguments.get(1);
@@ -143,10 +143,9 @@ impl NativeErrorConstructors {
     fn eval_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Self::behaviour(agent, gc, ExceptionType::EvalError, arguments, new_target)
     }
@@ -154,10 +153,9 @@ impl NativeErrorConstructors {
     fn range_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Self::behaviour(agent, gc, ExceptionType::RangeError, arguments, new_target)
     }
@@ -165,10 +163,9 @@ impl NativeErrorConstructors {
     fn reference_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Self::behaviour(
             agent,
@@ -182,10 +179,9 @@ impl NativeErrorConstructors {
     fn syntax_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Self::behaviour(agent, gc, ExceptionType::SyntaxError, arguments, new_target)
     }
@@ -193,10 +189,9 @@ impl NativeErrorConstructors {
     fn type_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Self::behaviour(agent, gc, ExceptionType::TypeError, arguments, new_target)
     }
@@ -204,10 +199,9 @@ impl NativeErrorConstructors {
     fn uri_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        _this_value: Unbound<Value>,
         arguments: ArgumentsList,
-        new_target: Option<Object>,
+        new_target: Option<Unbound<Object>>,
     ) -> JsResult<Value> {
         Self::behaviour(agent, gc, ExceptionType::UriError, arguments, new_target)
     }
