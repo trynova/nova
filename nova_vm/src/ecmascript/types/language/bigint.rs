@@ -167,6 +167,15 @@ impl TryFrom<i64> for SmallBigInt {
     }
 }
 
+impl TryFrom<u64> for SmallBigInt {
+    type Error = ();
+
+    #[inline(always)]
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(Self(value.try_into()?))
+    }
+}
+
 impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
     type Error = ();
 
@@ -204,6 +213,15 @@ impl BigInt {
 
     #[inline]
     pub fn from_i64(agent: &mut Agent, value: i64) -> Self {
+        if let Ok(result) = SmallBigInt::try_from(value) {
+            Self::SmallBigInt(result)
+        } else {
+            agent.heap.create(BigIntHeapData { data: value.into() })
+        }
+    }
+
+    #[inline]
+    pub fn from_u64(agent: &mut Agent, value: u64) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
             Self::SmallBigInt(result)
         } else {

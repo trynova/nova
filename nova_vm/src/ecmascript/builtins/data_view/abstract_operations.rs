@@ -1,6 +1,17 @@
-use crate::ecmascript::{
-    builtins::array_buffer::{array_buffer_byte_length, is_fixed_length_array_buffer, Ordering},
-    execution::Agent,
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::{to_big_int, to_boolean, to_index, to_number},
+        builtins::{
+            array_buffer::{
+                array_buffer_byte_length, get_value_from_buffer, is_fixed_length_array_buffer,
+                set_value_in_buffer, Ordering,
+            },
+            structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{IntoValue, Value, Viewable},
+    },
+    engine::context::GcScope,
 };
 
 use super::DataView;
@@ -65,7 +76,7 @@ pub(crate) fn make_data_view_with_buffer_witness_record(
 pub(crate) fn get_view_byte_length(
     agent: &Agent,
     view_record: &DataViewWithBufferWitnessRecord,
-) -> i64 {
+) -> usize {
     // 1. Assert: IsViewOutOfBounds(viewRecord) is false.
     assert!(!is_view_out_of_bounds(agent, view_record));
 
@@ -74,7 +85,7 @@ pub(crate) fn get_view_byte_length(
 
     // 3. If view.[[ByteLength]] is not auto, return view.[[ByteLength]].
     if let Some(byte_length) = view.byte_length(agent) {
-        return byte_length as i64;
+        return byte_length;
     }
 
     // NOTE: This assert seems to not be guarding anything important, so it's
@@ -94,7 +105,7 @@ pub(crate) fn get_view_byte_length(
     let byte_length = view_record.cached_buffer_byte_length.0;
 
     // 8. Return byteLength - byteOffset.
-    (byte_length - byte_offset) as i64
+    byte_length - byte_offset
 }
 
 /// ### [25.3.1.4 IsViewOutOfBounds ( viewRecord )](https://tc39.es/ecma262/#sec-isviewoutofbounds)
@@ -142,4 +153,152 @@ pub(crate) fn is_view_out_of_bounds(
     // 9. NOTE: 0-length DataViews are not considered out-of-bounds.
     // 10. Return false.
     false
+}
+
+/// ### [25.3.1.5 GetViewValue ( view, requestIndex, isLittleEndian, type )](https://tc39.es/ecma262/#sec-getviewvalue)
+///
+/// The abstract operation GetViewValue takes arguments view (an ECMAScript
+/// language value), requestIndex (an ECMAScript language value), isLittleEndian
+/// (an ECMAScript language value), and type (a TypedArray element type) and
+/// returns either a normal completion containing either a Number or a BigInt,
+/// or a throw completion. It is used by functions on DataView instances to
+/// retrieve values from the view's buffer.
+pub(crate) fn get_view_value<T: Viewable>(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    view: Value,
+    request_index: Value,
+    is_little_endian: Value,
+) -> JsResult<Value> {
+    // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
+    // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
+    let view = require_internal_slot_data_view(agent, view)?;
+
+    // 3. Let getIndex be ? ToIndex(requestIndex).
+    let get_index = to_index(agent, gc, request_index)? as usize;
+    // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
+    let is_little_endian = to_boolean(agent, is_little_endian);
+
+    // 5. Let viewOffset be view.[[ByteOffset]].
+    let view_offset = view.byte_offset(agent);
+
+    // 6. Let viewRecord be MakeDataViewWithBufferWitnessRecord(view, unordered).
+    let view_record = make_data_view_with_buffer_witness_record(agent, view, Ordering::Unordered);
+
+    // 7. NOTE: Bounds checking is not a synchronizing operation when view's backing buffer is a growable SharedArrayBuffer.
+    // 8. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
+    if is_view_out_of_bounds(agent, &view_record) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "DataView is out of bounds",
+        ));
+    }
+
+    // 9. Let viewSize be GetViewByteLength(viewRecord).
+    let view_size = get_view_byte_length(agent, &view_record);
+
+    // 10. Let elementSize be the Element Size value specified in Table 69 for Element Type type.
+    let element_size = size_of::<T>();
+
+    // 11. If getIndex + elementSize > viewSize, throw a RangeError exception.
+    if get_index + element_size > view_size {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Index out of bounds",
+        ));
+    }
+
+    // 12. Let bufferIndex be getIndex + viewOffset.
+    let buffer_index = get_index + view_offset;
+
+    // 13. Return GetValueFromBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, false, unordered, isLittleEndian).
+    Ok(get_value_from_buffer::<T>(
+        agent,
+        view.get_viewed_array_buffer(agent),
+        buffer_index,
+        false,
+        Ordering::Unordered,
+        Some(is_little_endian),
+    ))
+}
+
+/// ### [25.3.1.6 SetViewValue ( view, requestIndex, isLittleEndian, type, value )](https://tc39.es/ecma262/#sec-setviewvalue)
+///
+/// The abstract operation SetViewValue takes arguments view (an ECMAScript
+/// language value), requestIndex (an ECMAScript language value), isLittleEndian
+/// (an ECMAScript language value), type (a TypedArray element type), and value
+/// (an ECMAScript language value) and returns either a normal completion
+/// containing undefined or a throw completion. It is used by functions on
+/// DataView instances to store values into the view's buffer.
+pub(crate) fn set_view_value<T: Viewable>(
+    agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+    view: Value,
+    request_index: Value,
+    is_little_endian: Value,
+    value: Value,
+) -> JsResult<Value> {
+    // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
+    // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
+    let view = require_internal_slot_data_view(agent, view)?;
+
+    // 3. Let getIndex be ? ToIndex(requestIndex).
+    let get_index = to_index(agent, gc.reborrow(), request_index)? as usize;
+
+    // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
+    let number_value = if T::is_bigint_type() {
+        to_big_int(agent, gc.reborrow(), value)?.into_value()
+    } else {
+        // 5. Otherwise, let numberValue be ? ToNumber(value).
+        to_number(agent, gc.reborrow(), value)?.into_value()
+    };
+
+    // 6. Set isLittleEndian to ToBoolean(isLittleEndian).
+    let is_little_endian = to_boolean(agent, is_little_endian);
+
+    // 7. Let viewOffset be view.[[ByteOffset]].
+    let view_offset = view.byte_offset(agent);
+
+    // 8. Let viewRecord be MakeDataViewWithBufferWitnessRecord(view, unordered).
+    let view_record = make_data_view_with_buffer_witness_record(agent, view, Ordering::Unordered);
+
+    // 9. NOTE: Bounds checking is not a synchronizing operation when view's backing buffer is a growable SharedArrayBuffer.
+    // 10. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
+    if is_view_out_of_bounds(agent, &view_record) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "DataView is out of bounds",
+        ));
+    }
+
+    // 11. Let viewSize be GetViewByteLength(viewRecord).
+    let view_size = get_view_byte_length(agent, &view_record);
+
+    // 12. Let elementSize be the Element Size value specified in Table 69 for Element Type type.
+    let element_size = size_of::<T>();
+    // 13. If getIndex + elementSize > viewSize, throw a RangeError exception.
+    if get_index + element_size > view_size {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Index out of bounds",
+        ));
+    }
+
+    // 14. Let bufferIndex be getIndex + viewOffset.
+    let buffer_index = get_index + view_offset;
+
+    // 15. Perform SetValueInBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, numberValue, false, unordered, isLittleEndian).
+    set_value_in_buffer::<T>(
+        agent,
+        gc,
+        view.get_viewed_array_buffer(agent),
+        buffer_index,
+        number_value,
+        false,
+        Ordering::Unordered,
+        Some(is_little_endian),
+    );
+
+    // 16. Return undefined.
+    Ok(Value::Undefined)
 }
