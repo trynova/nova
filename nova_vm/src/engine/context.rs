@@ -24,7 +24,7 @@ pub(crate) struct GcToken;
 #[derive(Debug)]
 pub(crate) struct ScopeToken;
 
-/// # Access to garbage collector
+/// # Exclusive borrow on the garbage collector
 ///
 /// Holding this token is required for garbage collection.
 #[derive(Debug)]
@@ -35,13 +35,16 @@ pub struct GcScope<'a, 'b> {
     _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
-/// # Access to the JavaScript call stack
+/// # Shared borrow on the garbage collector
 ///
-/// Holding this token is required for JavaScript calls.
+/// This token is used to bind JavaScript heap values to the garbage
+/// collector's lifetime.
 #[derive(Debug)]
-pub struct Scope<'a> {
-    inner: ScopeToken,
-    _marker: PhantomData<&'a ScopeToken>,
+pub struct NoGcScope<'a, 'b> {
+    gc: GcToken,
+    scope: ScopeToken,
+    _gc_marker: PhantomData<&'a GcToken>,
+    _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
 impl GcToken {
@@ -86,29 +89,13 @@ impl<'a, 'b> GcScope<'a, 'b> {
         }
     }
 
-    pub(crate) fn print(&mut self) {
-        println!("GC!");
-    }
-}
-
-impl Scope<'_> {
     #[inline]
-    pub(crate) fn new(_: &mut ScopeToken) -> Self {
-        Self {
-            inner: ScopeToken,
-            _marker: PhantomData,
+    pub fn nogc(&self) -> NoGcScope {
+        NoGcScope {
+            gc: GcToken,
+            scope: ScopeToken,
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
         }
-    }
-
-    #[inline]
-    pub fn reborrow(&self) -> Self {
-        Self {
-            inner: ScopeToken,
-            _marker: PhantomData,
-        }
-    }
-
-    pub(crate) fn print(&self) {
-        println!("GC!");
     }
 }
