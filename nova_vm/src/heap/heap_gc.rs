@@ -11,8 +11,8 @@ use super::{
     heap_bits::{
         mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
         sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_side_table_values,
-        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
+        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_lookup_table_values,
+        sweep_side_table_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
@@ -187,6 +187,7 @@ pub fn heap_gc(
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
             strings,
+            strings_map: _,
             symbols,
             #[cfg(feature = "array-buffer")]
             typed_arrays,
@@ -1061,6 +1062,7 @@ fn sweep(
         #[cfg(feature = "shared-array-buffer")]
         shared_array_buffers,
         strings,
+        strings_map,
         symbols,
         #[cfg(feature = "array-buffer")]
         typed_arrays,
@@ -1432,6 +1434,7 @@ fn sweep(
         if !strings.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(strings, &compactions, &bits.strings);
+                sweep_lookup_table_values(strings_map, &compactions.strings, &bits.strings);
             });
         }
         if !symbols.is_empty() {

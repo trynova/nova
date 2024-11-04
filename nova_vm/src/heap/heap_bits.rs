@@ -1111,3 +1111,30 @@ pub(crate) fn sweep_side_table_values<T, K, V>(
         side_table.insert(new_key, value);
     }
 }
+
+pub(crate) fn sweep_lookup_table_values<T, K, V>(
+    lookup_table: &mut AHashMap<K, V>,
+    compactions: &CompactionList,
+    marks: &[bool],
+) where
+    T: ?Sized,
+    K: Sized + Clone + Eq + Hash,
+    V: IntoBaseIndex<T> + From<BaseIndex<T>> + Copy,
+{
+    let mut keys_to_insert = Vec::with_capacity(marks.len() / 4);
+
+    lookup_table.retain(|key, value| {
+        if !marks.get(value.into_base_index().into_index()).unwrap() {
+            return false;
+        }
+        let mut new_value = value.into_base_index();
+        compactions.shift_index(&mut new_value);
+        let new_value = V::from(new_value);
+        keys_to_insert.push((key.clone(), new_value));
+        true
+    });
+
+    for (key, value) in keys_to_insert {
+        lookup_table.insert(key, value);
+    }
+}

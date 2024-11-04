@@ -15,8 +15,8 @@ use crate::{
     ecmascript::{execution::Agent, types::PropertyDescriptor},
     engine::rootable::{HeapRootData, HeapRootRef, Rootable},
     heap::{
-        indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeap, WorkQueues,
+        indexes::{IntoBaseIndex, StringIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
     },
     SmallInteger, SmallString,
 };
@@ -50,6 +50,18 @@ impl Index<HeapString> for PrimitiveHeap<'_> {
 
     fn index(&self, index: HeapString) -> &Self::Output {
         &self.strings[index]
+    }
+}
+
+impl IntoBaseIndex<StringHeapData> for HeapString {
+    fn into_base_index(self) -> StringIndex {
+        self.0
+    }
+}
+
+impl From<StringIndex> for HeapString {
+    fn from(base: StringIndex) -> Self {
+        Self(base)
     }
 }
 

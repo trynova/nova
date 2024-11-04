@@ -155,6 +155,7 @@ pub struct Heap {
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,
+    pub strings_map: AHashMap<StringHeapData, HeapString>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -243,6 +244,7 @@ impl Heap {
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
+            strings_map: AHashMap::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
@@ -254,10 +256,12 @@ impl Heap {
             weak_sets: Vec::with_capacity(0),
         };
 
-        heap.strings.extend_from_slice(
-            &BUILTIN_STRINGS_LIST
-                .map(|builtin_string| Some(StringHeapData::from_static_str(builtin_string))),
-        );
+        for (index, &builtin_string) in BUILTIN_STRINGS_LIST.iter().enumerate() {
+            let heap_data = StringHeapData::from_static_str(builtin_string);
+            heap.strings.push(Some(heap_data.clone()));
+            heap.strings_map
+                .insert(heap_data, HeapString(StringIndex::from_index(index)));
+        }
 
         heap
     }
@@ -290,11 +294,11 @@ impl Heap {
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
     pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String {
-        let found = self.find_equal_string(message);
+        let data = StringHeapData::from_str(message);
+        let found = self.find_equal_string(&data);
         if let Some(idx) = found {
             return idx;
         }
-        let data = StringHeapData::from_str(message);
         self.create(data)
     }
 
@@ -311,11 +315,11 @@ impl Heap {
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
     unsafe fn alloc_string(&mut self, message: std::string::String) -> String {
-        let found = self.find_equal_string(message.as_str());
+        let data = StringHeapData::from_string(message);
+        let found = self.find_equal_string(&data);
         if let Some(idx) = found {
             return idx;
         }
-        let data = StringHeapData::from_string(message);
         self.create(data)
     }
 
@@ -332,20 +336,17 @@ impl Heap {
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
     pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String {
-        let found = self.find_equal_string(message);
+        let data = StringHeapData::from_static_str(message);
+        let found = self.find_equal_string(&data);
         if let Some(idx) = found {
             return idx;
         }
-        let data = StringHeapData::from_static_str(message);
         self.create(data)
     }
 
-    fn find_equal_string(&self, message: &str) -> Option<String> {
+    fn find_equal_string(&self, message: &StringHeapData) -> Option<String> {
         debug_assert!(message.len() > 7);
-        self.strings
-            .iter()
-            .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
-            .map(|found_index| HeapString(StringIndex::from_index(found_index)).into())
+        self.strings_map.get(message).cloned().map(String::String)
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap

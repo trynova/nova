@@ -29,6 +29,12 @@ impl PartialEq for StringHeapData {
 }
 impl Eq for StringHeapData {}
 
+impl std::hash::Hash for StringHeapData {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum IndexMapping {
     Ascii,
