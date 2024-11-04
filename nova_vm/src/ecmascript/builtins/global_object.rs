@@ -823,8 +823,16 @@ impl GlobalObject {
             return Ok(Value::nan());
         }
 
-        // 14. Let mathInt be the integer value that is represented by Z in radix-R notation, using the letters A through Z and a through z for digits with values 10 through 35. (However, if R = 10 and Z contains more than 20 significant digits, every significant digit after the 20th may be replaced by a 0 digit, at the option of the implementation; and if R is not one of 2, 4, 8, 10, 16, or 32, then mathInt may be an implementation-approximated integer representing the integer value denoted by Z in radix-R notation.)
-        let math_int = i64::from_str_radix(z, r).unwrap() as f64;
+        // 14. Let mathInt be the integer value that is represented by Z in
+        //     radix-R notation, using the letters A through Z and a through z
+        //     for digits with values 10 through 35. (However, if R = 10 and Z
+        //     contains more than 20 significant digits, every significant
+        //     digit after the 20th may be replaced by a 0 digit, at the option
+        //     of the implementation; and if R is not one of 2, 4, 8, 10, 16,
+        //     or 32, then mathInt may be an implementation-approximated
+        //     integer representing the integer value denoted by Z in radix-R
+        //     notation.)
+        let math_int = i128::from_str_radix(z, r).unwrap() as f64;
 
         // 15. If mathInt = 0, then
         // a. If sign = -1, return -0𝔽.
