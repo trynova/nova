@@ -12543,8 +12543,6 @@
   "built-ins/parseFloat/tonumber-numeric-separator-literal-nzd-nsl-dd.js": "CRASH",
   "built-ins/parseFloat/tonumber-numeric-separator-literal-nzd-nsl-dds.js": "CRASH",
   "built-ins/parseFloat/tonumber-numeric-separator-literal-sign-plus-dds-nsl-dd.js": "CRASH",
-  "built-ins/parseInt/S15.1.2.2_A9.3.js": "FAIL",
-  "built-ins/parseInt/S15.1.2.2_A9.4.js": "FAIL",
   "harness/assert-throws-same-realm.js": "FAIL",
   "harness/assertRelativeDateMs.js": "CRASH",
   "harness/asyncHelpers-throwsAsync-custom-typeerror.js": "CRASH",

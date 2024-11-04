@@ -77,7 +77,7 @@ impl BuiltinIntrinsic for GlobalObjectParseFloat {
 struct GlobalObjectParseInt;
 impl Builtin for GlobalObjectParseInt {
     const NAME: String = BUILTIN_STRING_MEMORY.parseInt;
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_int);
 }
 impl BuiltinIntrinsic for GlobalObjectParseInt {
