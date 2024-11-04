@@ -77,6 +77,10 @@ pub trait Viewable: private::Sealed + Copy {
     fn into_le_value(self, agent: &mut Agent) -> Value;
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
+
+    // TODO: Consider adding the following methods if needed
+    // fn into_ne_value(self, agent: &mut Agent) -> Value;
+    // fn from_ne_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
 }
 
 impl Viewable for u8 {
