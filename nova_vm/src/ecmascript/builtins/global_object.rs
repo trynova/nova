@@ -7,6 +7,9 @@ use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 
+use crate::ecmascript::abstract_operations::type_conversion::{
+    is_trimmable_whitespace, to_int32, to_string,
+};
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -725,15 +728,108 @@ impl GlobalObject {
     ) -> JsResult<Value> {
         todo!()
     }
+
+    /// ### [19.2.5 parseInt ( string, radix )](https://tc39.es/ecma262/#sec-parseint-string-radix)
+    ///
+    /// This function produces an integral Number dictated by interpretation of
+    /// the contents of string according to the specified radix. Leading white
+    /// space in string is ignored. If radix coerces to 0 (such as when it is
+    /// undefined), it is assumed to be 10 except when the number
+    /// representation begins with "0x" or "0X", in which case it is assumed to
+    /// be 16. If radix is 16, the number representation may optionally begin
+    /// with "0x" or "0X".
     fn parse_int(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
 
         _this_value: Value,
-        _: ArgumentsList,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        let string = arguments.get(0);
+        let radix = arguments.get(1);
+
+        // OPTIMIZATION: If the string is empty, undefined, null or a boolean, return NaN.
+        if string.is_undefined()
+            || string.is_null()
+            || string.is_boolean()
+            || string.is_empty_string()
+        {
+            return Ok(Value::nan());
+        }
+
+        // OPTIMIZATION: If the string is a number, return the number.
+        if string.is_number() {
+            return Ok(string);
+        }
+
+        // 1. Let inputString be ? ToString(string).
+        let s = to_string(agent, gc.reborrow(), string)?;
+        let s = s.as_str(agent).to_owned();
+
+        // 2. Let S be ! TrimString(inputString, start).
+        let s = s.trim_start_matches(is_trimmable_whitespace);
+
+        // 3. Let sign be 1.
+        // 4. If S is not empty and the first code unit of S is the code unit 0x002D (HYPHEN-MINUS), set sign to -1.
+        // 5. If S is not empty and the first code unit of S is either the code unit 0x002B (PLUS SIGN) or the code unit 0x002D (HYPHEN-MINUS), set S to the substring of S from index 1.
+        let (sign, mut s) = if let Some(s) = s.strip_prefix('-') {
+            (-1.0, s)
+        } else if let Some(s) = s.strip_prefix('+') {
+            (1.0, s)
+        } else {
+            (1.0, s)
+        };
+
+        // 6. Let R be ℝ(? ToInt32(radix)).
+        let r = to_int32(agent, gc.reborrow(), radix)?;
+
+        // 7. Let stripPrefix be true.
+        // 8. If R ≠ 0, then
+        let (mut r, strip_prefix) = if r != 0 {
+            // a. If R < 2 or R > 36, return NaN.
+            if !(2..=36).contains(&r) {
+                return Ok(Value::nan());
+            }
+            // b. If R ≠ 16, set stripPrefix to false.
+            (r as u32, r == 16)
+        } else {
+            // 9. Else,
+            // a. Set R to 10.
+            (10, true)
+        };
+
+        // 10. If stripPrefix is true, then
+        if strip_prefix {
+            // a. If the length of S is at least 2 and the first two code units of S are either "0x" or "0X", then
+            if s.starts_with("0x") || s.starts_with("0X") {
+                // i. Set S to the substring of S from index 2.
+                s = &s[2..];
+                // ii. Set R to 16.
+                r = 16;
+            }
+        };
+
+        // 11. If S contains a code unit that is not a radix-R digit, let end be the index within S of the first such code unit; otherwise, let end be the length of S.
+        let end = s.find(|c: char| !c.is_digit(r)).unwrap_or(s.len());
+
+        // 12. Let Z be the substring of S from 0 to end.
+        let z = &s[..end];
+
+        // 13. If Z is empty, return NaN.
+        if z.is_empty() {
+            return Ok(Value::nan());
+        }
+
+        // 14. Let mathInt be the integer value that is represented by Z in radix-R notation, using the letters A through Z and a through z for digits with values 10 through 35. (However, if R = 10 and Z contains more than 20 significant digits, every significant digit after the 20th may be replaced by a 0 digit, at the option of the implementation; and if R is not one of 2, 4, 8, 10, 16, or 32, then mathInt may be an implementation-approximated integer representing the integer value denoted by Z in radix-R notation.)
+        let math_int = i64::from_str_radix(z, r).unwrap() as f64;
+
+        // 15. If mathInt = 0, then
+        // a. If sign = -1, return -0𝔽.
+        // b. Return +0𝔽.
+        // 16. Return 𝔽(sign × mathInt).
+        Ok(Value::from_f64(agent, sign * math_int))
     }
+
     fn decode_uri(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
