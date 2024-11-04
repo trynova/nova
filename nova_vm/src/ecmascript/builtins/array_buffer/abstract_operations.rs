@@ -396,9 +396,17 @@ pub(crate) fn get_value_from_buffer<T: Viewable>(
     // 6. Else,
     // a. Let rawValue be a List whose elements are bytes from block at indices in the interval from byteIndex (inclusive) to byteIndex + elementSize (exclusive).
     // 7. Assert: The number of elements in rawValue is elementSize.
-    // TODO: Add [[LittleEndian]] to the agent record.
     // 8. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-    let is_little_endian = is_little_endian.unwrap_or(false);
+    let is_little_endian = is_little_endian.unwrap_or({
+        #[cfg(target_endian = "little")]
+        {
+            true
+        }
+        #[cfg(target_endian = "big")]
+        {
+            false
+        }
+    });
 
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
     raw_bytes_to_numeric::<T>(
@@ -465,7 +473,16 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
 
     // 5. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 6. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
-    let is_little_endian = is_little_endian.unwrap_or(false);
+    let is_little_endian = is_little_endian.unwrap_or({
+        #[cfg(target_endian = "little")]
+        {
+            true
+        }
+        #[cfg(target_endian = "big")]
+        {
+            false
+        }
+    });
 
     // 7. Let rawBytes be NumericToRawBytes(type, value, isLittleEndian).
     let raw_bytes = numeric_to_raw_bytes::<T>(agent, gc, value, is_little_endian);

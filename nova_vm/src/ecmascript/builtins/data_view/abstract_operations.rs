@@ -1,6 +1,6 @@
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_big_int, to_boolean, to_index, to_number},
+        abstract_operations::type_conversion::{to_big_int, to_index, to_number},
         builtins::{
             array_buffer::{
                 array_buffer_byte_length, get_value_from_buffer, is_fixed_length_array_buffer,
@@ -168,7 +168,8 @@ pub(crate) fn get_view_value<T: Viewable>(
     gc: GcScope<'_, '_>,
     view: Value,
     request_index: Value,
-    is_little_endian: Value,
+    // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
+    is_little_endian: bool,
 ) -> JsResult<Value> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
@@ -176,9 +177,6 @@ pub(crate) fn get_view_value<T: Viewable>(
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
     let get_index = to_index(agent, gc, request_index)? as usize;
-    // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
-    let is_little_endian = to_boolean(agent, is_little_endian);
-
     // 5. Let viewOffset be view.[[ByteOffset]].
     let view_offset = view.byte_offset(agent);
 
@@ -235,7 +233,8 @@ pub(crate) fn set_view_value<T: Viewable>(
     mut gc: GcScope<'_, '_>,
     view: Value,
     request_index: Value,
-    is_little_endian: Value,
+    // 6. Set isLittleEndian to ToBoolean(isLittleEndian).
+    is_little_endian: bool,
     value: Value,
 ) -> JsResult<Value> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
@@ -246,15 +245,12 @@ pub(crate) fn set_view_value<T: Viewable>(
     let get_index = to_index(agent, gc.reborrow(), request_index)? as usize;
 
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
-    let number_value = if T::is_bigint_type() {
+    let number_value = if T::IS_BIGINT {
         to_big_int(agent, gc.reborrow(), value)?.into_value()
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
         to_number(agent, gc.reborrow(), value)?.into_value()
     };
-
-    // 6. Set isLittleEndian to ToBoolean(isLittleEndian).
-    let is_little_endian = to_boolean(agent, is_little_endian);
 
     // 7. Let viewOffset be view.[[ByteOffset]].
     let view_offset = view.byte_offset(agent);

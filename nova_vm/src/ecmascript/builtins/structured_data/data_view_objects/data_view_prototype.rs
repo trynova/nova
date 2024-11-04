@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builtins::data_view::abstract_operations::{get_view_value, set_view_value};
 use crate::engine::context::GcScope;
 use crate::{
@@ -257,7 +258,7 @@ impl DataViewPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
-        let little_endian = arguments.get(1);
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, bigint64).
         get_view_value::<i64>(agent, gc, this_value, byte_offset, little_endian)
@@ -271,7 +272,7 @@ impl DataViewPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
-        let little_endian = arguments.get(1);
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, biguint64).
         get_view_value::<u64>(agent, gc, this_value, byte_offset, little_endian)
@@ -286,11 +287,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 1 {
-            arguments.get(1)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float32).
         get_view_value::<f32>(agent, gc, this_value, byte_offset, little_endian)
@@ -305,11 +302,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 1 {
-            arguments.get(1)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float64).
         get_view_value::<f64>(agent, gc, this_value, byte_offset, little_endian)
@@ -325,7 +318,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, int8).
-        get_view_value::<i8>(agent, gc, this_value, byte_offset, Value::Boolean(true))
+        get_view_value::<i8>(agent, gc, this_value, byte_offset, true)
     }
 
     /// ### [25.3.4.10 DataView.prototype.getInt16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint16)
@@ -337,11 +330,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 1 {
-            arguments.get(1)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int16).
         get_view_value::<i16>(agent, gc, this_value, byte_offset, little_endian)
@@ -356,11 +345,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 1 {
-            arguments.get(1)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int32).
         get_view_value::<i32>(agent, gc, this_value, byte_offset, little_endian)
@@ -376,7 +361,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
-        get_view_value::<u8>(agent, gc, this_value, byte_offset, Value::Boolean(true))
+        get_view_value::<u8>(agent, gc, this_value, byte_offset, true)
     }
 
     /// ### [25.3.4.13 DataView.prototype.getUint16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint16)
@@ -388,11 +373,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 1 {
-            arguments.get(1)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint16).
         get_view_value::<u16>(agent, gc, this_value, byte_offset, little_endian)
@@ -407,11 +388,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 1 {
-            arguments.get(1)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(1));
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint32).
         get_view_value::<u32>(agent, gc, this_value, byte_offset, little_endian)
@@ -426,7 +403,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
-        let little_endian = arguments.get(2);
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, bigint64, value).
         set_view_value::<i64>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -441,7 +418,7 @@ impl DataViewPrototype {
     ) -> JsResult<Value> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
-        let little_endian = arguments.get(2);
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, biguint64, value).
         set_view_value::<u64>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -457,11 +434,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 2 {
-            arguments.get(2)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, float32, value).
         set_view_value::<f32>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -477,11 +450,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 2 {
-            arguments.get(2)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, float64, value).
         set_view_value::<f64>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -498,14 +467,7 @@ impl DataViewPrototype {
         let value = arguments.get(1);
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, true, int8, value).
-        set_view_value::<i8>(
-            agent,
-            gc,
-            this_value,
-            byte_offset,
-            Value::Boolean(true),
-            value,
-        )
+        set_view_value::<i8>(agent, gc, this_value, byte_offset, true, value)
     }
 
     /// ### [25.3.4.20 DataView.prototype.setInt16 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setint16)
@@ -518,11 +480,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 2 {
-            arguments.get(2)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, int16, value).
         set_view_value::<i16>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -538,11 +496,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 2 {
-            arguments.get(2)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, int32, value).
         set_view_value::<i32>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -559,14 +513,7 @@ impl DataViewPrototype {
         let value = arguments.get(1);
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, true, uint8, value).
-        set_view_value::<u8>(
-            agent,
-            gc,
-            this_value,
-            byte_offset,
-            Value::Boolean(true),
-            value,
-        )
+        set_view_value::<u8>(agent, gc, this_value, byte_offset, true, value)
     }
 
     /// ### [25.3.4.23 DataView.prototype.setUint16 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint16)
@@ -579,11 +526,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 2 {
-            arguments.get(2)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, uint16, value).
         set_view_value::<u16>(agent, gc, this_value, byte_offset, little_endian, value)
@@ -599,11 +542,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.
-        let little_endian = if arguments.len() > 2 {
-            arguments.get(2)
-        } else {
-            Value::Boolean(false)
-        };
+        let little_endian = to_boolean(agent, arguments.get(2));
         // 1. Let v be the this value.
         // 2. Return ? SetViewValue(v, byteOffset, littleEndian, uint32, value).
         set_view_value::<u32>(agent, gc, this_value, byte_offset, little_endian, value)

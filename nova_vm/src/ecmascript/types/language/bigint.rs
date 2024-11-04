@@ -520,7 +520,6 @@ impl BigInt {
         }
     }
 
-    /// ### [
     /// ### [6.1.6.2.13 BigInt::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-equal)
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y

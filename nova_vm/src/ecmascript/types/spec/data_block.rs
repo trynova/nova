@@ -11,6 +11,10 @@ use std::{
 
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::{
+            to_big_int64, to_big_uint64, to_int16, to_int32, to_int8, to_uint16, to_uint32,
+            to_uint8,
+        },
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{BigInt, IntoValue, Value},
     },
@@ -68,7 +72,7 @@ mod private {
 }
 
 pub trait Viewable: private::Sealed + Copy {
-    fn is_bigint_type() -> bool;
+    const IS_BIGINT: bool;
     fn into_be_value(self, agent: &mut Agent) -> Value;
     fn into_le_value(self, agent: &mut Agent) -> Value;
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
@@ -76,9 +80,7 @@ pub trait Viewable: private::Sealed + Copy {
 }
 
 impl Viewable for u8 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -89,17 +91,15 @@ impl Viewable for u8 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        value.to_real(agent, gc).unwrap() as Self
+        to_uint8(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        value.to_real(agent, gc).unwrap() as Self
+        to_uint8(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for i8 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -110,17 +110,15 @@ impl Viewable for i8 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        value.to_real(agent, gc).unwrap() as Self
+        to_int8(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        value.to_real(agent, gc).unwrap() as Self
+        to_int8(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for u16 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -131,17 +129,15 @@ impl Viewable for u16 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_be()
+        to_uint16(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_le()
+        to_uint16(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for i16 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -152,17 +148,15 @@ impl Viewable for i16 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_be()
+        to_int16(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_le()
+        to_int16(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for u32 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -173,17 +167,15 @@ impl Viewable for u32 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_be()
+        to_uint32(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_le()
+        to_uint32(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for i32 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -194,17 +186,15 @@ impl Viewable for i32 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_be()
+        to_int32(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        (value.to_real(agent, gc).unwrap() as Self).to_le()
+        to_int32(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for u64 {
-    fn is_bigint_type() -> bool {
-        true
-    }
+    const IS_BIGINT: bool = true;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
         BigInt::from_u64(agent, self.to_be()).into_value()
@@ -215,29 +205,15 @@ impl Viewable for u64 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        match value.to_bigint(agent, gc).unwrap() {
-            BigInt::SmallBigInt(value) => (value.into_i64() as Self).to_be(),
-            BigInt::BigInt(value) => {
-                let value: Self = agent[value].data.clone().try_into().unwrap();
-                value.to_be()
-            }
-        }
+        to_big_uint64(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        match value.to_bigint(agent, gc).unwrap() {
-            BigInt::SmallBigInt(value) => (value.into_i64() as Self).to_le(),
-            BigInt::BigInt(value) => {
-                let value: Self = agent[value].data.clone().try_into().unwrap();
-                value.to_le()
-            }
-        }
+        to_big_uint64(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for i64 {
-    fn is_bigint_type() -> bool {
-        true
-    }
+    const IS_BIGINT: bool = true;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
         BigInt::from_i64(agent, self.to_be()).into_value()
@@ -248,29 +224,15 @@ impl Viewable for i64 {
     }
 
     fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        match value.to_bigint(agent, gc).unwrap() {
-            BigInt::SmallBigInt(value) => value.into_i64().to_be(),
-            BigInt::BigInt(value) => {
-                let value: Self = agent[value].data.clone().try_into().unwrap();
-                value.to_be()
-            }
-        }
+        to_big_int64(agent, gc, value).unwrap().to_be()
     }
 
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        match value.to_bigint(agent, gc).unwrap() {
-            BigInt::SmallBigInt(value) => value.into_i64().to_le(),
-            BigInt::BigInt(value) => {
-                let value: Self = agent[value].data.clone().try_into().unwrap();
-                value.to_le()
-            }
-        }
+        to_big_int64(agent, gc, value).unwrap().to_le()
     }
 }
 impl Viewable for f32 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(Self::from_ne_bytes(self.to_be_bytes()))
@@ -289,9 +251,7 @@ impl Viewable for f32 {
     }
 }
 impl Viewable for f64 {
-    fn is_bigint_type() -> bool {
-        false
-    }
+    const IS_BIGINT: bool = false;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
         Value::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()))
