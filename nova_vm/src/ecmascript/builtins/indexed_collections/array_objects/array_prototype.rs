@@ -23,7 +23,7 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
+            array_create, array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
             BuiltinIntrinsic,
         },
         execution::{
@@ -2833,13 +2833,44 @@ impl ArrayPrototype {
     }
 
     fn to_reversed(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        if let Value::Array(array) = this_value {
+            // Fast path: Array is dense and contains no descriptors. No JS
+            // functions can thus be called by to_reversed.
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                let cloned_array = array.to_cloned(agent);
+                cloned_array.as_mut_slice(agent).reverse();
+                return Ok(cloned_array.into_value());
+            }
+        }
+
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
+        // 3. Let A be ? ArrayCreate(len).
+        let a = array_create(agent, len as usize, len as usize, None)?;
+        // 4. Let k be 0.
+        let mut k = 0;
+        // 5. Repeat, while k < len,
+        while k < len {
+            //    a. Let from be ! ToString(𝔽(len - k - 1)).
+            let from = PropertyKey::Integer((len - k - 1).try_into().unwrap());
+            //    b. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::try_from(k).unwrap();
+            //    c. Let fromValue be ? Get(O, from).
+            let from_value = get(agent, gc.reborrow(), o, from)?;
+            //    d. Perform ! CreateDataPropertyOrThrow(A, Pk, fromValue).
+            create_data_property_or_throw(agent, gc.reborrow(), a, pk, from_value).unwrap();
+            //    e. Set k to k + 1.
+            k += 1;
+        }
+        // 6. Return A.
+        Ok(a.into_value())
     }
 
     fn to_sorted(
