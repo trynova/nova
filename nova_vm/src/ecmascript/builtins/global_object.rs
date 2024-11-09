@@ -757,10 +757,10 @@ impl GlobalObject {
             return Ok(Value::nan());
         }
 
-        // OPTIMIZATION: If the string is a number and the radix is 10, return the number.
+        // OPTIMIZATION: If the string is an integer and the radix is 10, return the number.
         if let Value::Integer(radix) = radix {
             let radix = radix.into_i64();
-            if radix == 10 && string.is_number() {
+            if radix == 10 && matches!(string, Value::Integer(_)) {
                 return Ok(string);
             }
         }
