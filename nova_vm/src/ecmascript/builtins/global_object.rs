@@ -879,21 +879,25 @@ impl GlobalObject {
             (16, 4..8) => parse_known_safe_radix_and_length!(u32, i32, i64),
             (16, 8..14) => parse_known_safe_radix_and_length!(i64, i64, i64),
 
-            // OPTIMIZATION: These are the known safe upper bounds for any
-            // integer represented in a radix up to 36.
-            (_, 0..2) => parse_known_safe_radix_and_length!(u8, i8, i16),
-            (_, 2..4) => parse_known_safe_radix_and_length!(u16, i16, i32),
-            (_, 4..7) => parse_known_safe_radix_and_length!(u32, i32, i64),
-            (_, 7..11) => parse_known_safe_radix_and_length!(i64, i64, i64),
+            (_, z_len) => {
+                match z_len {
+                    // OPTIMIZATION: These are the known safe upper bounds for any
+                    // integer represented in a radix up to 36.
+                    0..2 => parse_known_safe_radix_and_length!(u8, i8, i16),
+                    2..4 => parse_known_safe_radix_and_length!(u16, i16, i32),
+                    4..7 => parse_known_safe_radix_and_length!(u32, i32, i64),
+                    7..11 => parse_known_safe_radix_and_length!(i64, i64, i64),
 
-            _ => {
-                let math_int = i128::from_str_radix(z, r).unwrap() as f64;
+                    _ => {
+                        let math_int = i128::from_str_radix(z, r).unwrap() as f64;
 
-                // 15. If mathInt = 0, then
-                // a. If sign = -1, return -0𝔽.
-                // b. Return +0𝔽.
-                // 16. Return 𝔽(sign × mathInt).
-                Ok(Value::from_f64(agent, sign as f64 * math_int))
+                        // 15. If mathInt = 0, then
+                        // a. If sign = -1, return -0𝔽.
+                        // b. Return +0𝔽.
+                        // 16. Return 𝔽(sign × mathInt).
+                        Ok(Value::from_f64(agent, sign as f64 * math_int))
+                    }
+                }
             }
         }
     }
