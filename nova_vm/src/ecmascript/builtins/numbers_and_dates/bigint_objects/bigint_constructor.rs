@@ -77,7 +77,14 @@ impl BigIntConstructor {
         let value = arguments.get(0);
         let prim = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
         if let Ok(prim) = Number::try_from(prim) {
-            Ok(prim.into_value())
+            if !prim.is_integer(agent) {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Can't convert number to BigInt because it isn't an integer",
+                ));
+            }
+
+            Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into_value())
         } else {
             to_big_int(agent, gc.reborrow(), value).map(|result| result.into_value())
         }

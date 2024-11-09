@@ -14,6 +14,8 @@
 //! The BigInt type has no implicit conversions in the ECMAScript language;
 //! programmers must call BigInt explicitly to convert values from other types.
 
+use num_bigint::Sign;
+
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -705,6 +707,77 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option
     // 6. Return ℤ(mv).
 
     todo!("string_to_big_int: Implement BigInts")
+}
+
+/// ### [7.1.15 ToBigInt64 ( argument )](https://tc39.es/ecma262/#sec-tobigint64)
+///
+/// The abstract operation ToBigInt64 takes argument argument (an ECMAScript
+/// language value) and returns either a normal completion containing a BigInt
+/// or a throw completion. It converts argument to one of 2**64 BigInt values
+/// in the inclusive interval from ℤ(-2**63) to ℤ(2**63 - 1).
+#[inline(always)]
+pub(crate) fn to_big_int64(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    argument: Value,
+) -> JsResult<i64> {
+    // 1. Let n be ? ToBigInt(argument).
+    let n = to_big_int(agent, gc, argument)?;
+
+    // 2. Let int64bit be ℝ(n) modulo 2**64.
+    match n {
+        BigInt::BigInt(heap_big_int) => {
+            // 3. If int64bit ≥ 2**63, return ℤ(int64bit - 2**64); otherwise return ℤ(int64bit).
+            let big_int = &agent[heap_big_int].data;
+            let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
+            let int64bit = if big_int.sign() == Sign::Minus {
+                u64::MAX - int64bit + 1
+            } else {
+                int64bit
+            };
+            let int64bit = i64::from_ne_bytes(int64bit.to_ne_bytes());
+            Ok(int64bit)
+        }
+        BigInt::SmallBigInt(small_big_int) => {
+            let int64bit = small_big_int.into_i64();
+            Ok(int64bit)
+        }
+    }
+}
+
+/// ### [7.1.16 ToBigUint64 ( argument )](https://tc39.es/ecma262/#sec-tobiguint64)
+///
+/// The abstract operation ToBigUint64 takes argument argument (an ECMAScript
+/// language value) and returns either a normal completion containing a BigInt
+/// or a throw completion. It converts argument to one of 2**64 BigInt values
+/// in the inclusive interval from 0ℤ to ℤ(2**64 - 1).
+#[inline(always)]
+pub(crate) fn to_big_uint64(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    argument: Value,
+) -> JsResult<u64> {
+    // 1. Let n be ? ToBigInt(argument).
+    let n = to_big_int(agent, gc, argument)?;
+
+    // 2. Let int64bit be ℝ(n) modulo 2**64.
+    match n {
+        BigInt::BigInt(heap_big_int) => {
+            // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=7d82adfe85f7d0ed44ab37a7b2cdf092
+            let big_int = &agent[heap_big_int].data;
+            let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
+            let int64bit = if big_int.sign() == Sign::Minus {
+                u64::MAX - int64bit + 1
+            } else {
+                int64bit
+            };
+            Ok(int64bit)
+        }
+        BigInt::SmallBigInt(small_big_int) => {
+            let int64bit = small_big_int.into_i64();
+            Ok(int64bit as u64)
+        }
+    }
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)

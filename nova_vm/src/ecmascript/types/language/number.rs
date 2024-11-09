@@ -311,6 +311,14 @@ impl Number {
         }
     }
 
+    pub fn is_integer(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
+        match self {
+            Number::Number(n) => agent[n].fract() == 0.0,
+            Number::Integer(_) => true,
+            Number::SmallF64(n) => n.into_f64().fract() == 0.0,
+        }
+    }
+
     pub fn is_nonzero(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
         match self {
             Number::Number(n) => 0.0 != agent[n],

@@ -9,7 +9,17 @@ use std::{
     ptr::{self, read_unaligned, write_unaligned, NonNull},
 };
 
-use crate::ecmascript::execution::{agent::ExceptionType, Agent, JsResult};
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::{
+            to_big_int64, to_big_uint64, to_int16, to_int32, to_int8, to_uint16, to_uint32,
+            to_uint8,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{BigInt, IntoValue, Value},
+    },
+    engine::context::GcScope,
+};
 
 /// Sentinel pointer for a detached data block.
 ///
@@ -61,18 +71,209 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: private::Sealed {}
+pub trait Viewable: private::Sealed + Copy {
+    const IS_BIGINT: bool;
 
-impl Viewable for u8 {}
-impl Viewable for i8 {}
-impl Viewable for u16 {}
-impl Viewable for i16 {}
-impl Viewable for u32 {}
-impl Viewable for i32 {}
-impl Viewable for u64 {}
-impl Viewable for i64 {}
-impl Viewable for f32 {}
-impl Viewable for f64 {}
+    fn into_be_value(self, agent: &mut Agent) -> Value;
+    fn into_le_value(self, agent: &mut Agent) -> Value;
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
+
+    // TODO: Consider adding the following methods if needed
+    // fn into_ne_value(self, agent: &mut Agent) -> Value;
+    // fn from_ne_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
+}
+
+impl Viewable for u8 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_uint8(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_uint8(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for i8 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_int8(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_int8(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for u16 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_uint16(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_uint16(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for i16 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_int16(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_int16(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for u32 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_uint32(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_uint32(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for i32 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_int32(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_int32(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for u64 {
+    const IS_BIGINT: bool = true;
+
+    fn into_be_value(self, agent: &mut Agent) -> Value {
+        BigInt::from_u64(agent, self.to_be()).into_value()
+    }
+
+    fn into_le_value(self, agent: &mut Agent) -> Value {
+        BigInt::from_u64(agent, self.to_le()).into_value()
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_big_uint64(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_big_uint64(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for i64 {
+    const IS_BIGINT: bool = true;
+
+    fn into_be_value(self, agent: &mut Agent) -> Value {
+        BigInt::from_i64(agent, self.to_be()).into_value()
+    }
+
+    fn into_le_value(self, agent: &mut Agent) -> Value {
+        BigInt::from_i64(agent, self.to_le()).into_value()
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_big_int64(agent, gc, value).unwrap().to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        to_big_int64(agent, gc, value).unwrap().to_le()
+    }
+}
+impl Viewable for f32 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(Self::from_ne_bytes(self.to_be_bytes()))
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(Self::from_ne_bytes(self.to_le_bytes()))
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_be_bytes())
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_le_bytes())
+    }
+}
+impl Viewable for f64 {
+    const IS_BIGINT: bool = false;
+
+    fn into_be_value(self, agent: &mut Agent) -> Value {
+        Value::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()))
+    }
+
+    fn into_le_value(self, agent: &mut Agent) -> Value {
+        Value::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()))
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_be_bytes())
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_le_bytes())
+    }
+}
 
 impl DataBlock {
     /// Sentinel value for detached DataBlocks.
@@ -162,6 +363,20 @@ impl DataBlock {
         }
     }
 
+    pub fn get_offset_by_byte<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
+        let size = std::mem::size_of::<T>();
+        let end_byte_offset = byte_offset + size;
+        if end_byte_offset > self.byte_length {
+            None
+        } else {
+            self.ptr.map(|data| {
+                // SAFETY: The data is properly initialized, and the T being read is
+                // checked to be fully within the length of the data allocation.
+                unsafe { read_unaligned(data.as_ptr().byte_add(byte_offset).cast()) }
+            })
+        }
+    }
+
     pub fn set<T: Viewable>(&mut self, offset: usize, value: T) {
         let size = std::mem::size_of::<T>();
         if let Some(data) = self.ptr {
@@ -172,6 +387,20 @@ impl DataBlock {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
                 unsafe { write_unaligned(data.as_ptr().add(offset).cast(), value) }
+            }
+        }
+    }
+
+    pub fn set_offset_by_byte<T: Viewable>(&mut self, byte_offset: usize, value: T) {
+        let size = std::mem::size_of::<T>();
+        if let Some(data) = self.ptr {
+            // Note: We have to check offset + 1 to ensure that the write does
+            // not reach data beyond the end of the DataBlock allocation.
+            let end_byte_offset = byte_offset + size;
+            if end_byte_offset <= self.byte_length {
+                // SAFETY: The data is properly initialized, and the T being written is
+                // checked to be fully within the length of the data allocation.
+                unsafe { write_unaligned(data.as_ptr().byte_add(byte_offset).cast(), value) }
             }
         }
     }
