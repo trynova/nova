@@ -1,6 +1,6 @@
 # Contributing
 
-Hello, welcome and thank you for showing interesting contributing to Nova!
+Hello, welcome and thank you for showing interest in contributing to Nova!
 Contributions are absolutely welcome, wanted, and dearly desired. That being
 said, before you being, you'll want to know a few things.
 
