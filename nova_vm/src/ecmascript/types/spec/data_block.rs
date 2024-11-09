@@ -73,6 +73,7 @@ mod private {
 
 pub trait Viewable: private::Sealed + Copy {
     const IS_BIGINT: bool;
+
     fn into_be_value(self, agent: &mut Agent) -> Value;
     fn into_le_value(self, agent: &mut Agent) -> Value;
     fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;

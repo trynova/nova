@@ -14,6 +14,8 @@
 //! The BigInt type has no implicit conversions in the ECMAScript language;
 //! programmers must call BigInt explicitly to convert values from other types.
 
+use num_bigint::Sign;
+
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -717,7 +719,6 @@ pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option
 pub(crate) fn to_big_int64(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     argument: Value,
 ) -> JsResult<i64> {
     // 1. Let n be ? ToBigInt(argument).
@@ -726,13 +727,16 @@ pub(crate) fn to_big_int64(
     // 2. Let int64bit be ℝ(n) modulo 2**64.
     match n {
         BigInt::BigInt(heap_big_int) => {
-            let int64bit = agent[heap_big_int].data.clone() % u64::MAX;
             // 3. If int64bit ≥ 2**63, return ℤ(int64bit - 2**64); otherwise return ℤ(int64bit).
-            if int64bit >= i64::MAX.into() {
-                Ok((int64bit - u64::MAX).try_into().unwrap())
+            let big_int = &agent[heap_big_int].data;
+            let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
+            let int64bit = if big_int.sign() == Sign::Minus {
+                u64::MAX - int64bit + 1
             } else {
-                Ok(int64bit.try_into().unwrap())
-            }
+                int64bit
+            };
+            let int64bit = i64::from_ne_bytes(int64bit.to_ne_bytes());
+            Ok(int64bit)
         }
         BigInt::SmallBigInt(small_big_int) => {
             let int64bit = small_big_int.into_i64();
@@ -751,7 +755,6 @@ pub(crate) fn to_big_int64(
 pub(crate) fn to_big_uint64(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     argument: Value,
 ) -> JsResult<u64> {
     // 1. Let n be ? ToBigInt(argument).
@@ -760,8 +763,15 @@ pub(crate) fn to_big_uint64(
     // 2. Let int64bit be ℝ(n) modulo 2**64.
     match n {
         BigInt::BigInt(heap_big_int) => {
-            let int64bit = agent[heap_big_int].data.clone() % u64::MAX;
-            Ok(int64bit.try_into().unwrap())
+            // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=7d82adfe85f7d0ed44ab37a7b2cdf092
+            let big_int = &agent[heap_big_int].data;
+            let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
+            let int64bit = if big_int.sign() == Sign::Minus {
+                u64::MAX - int64bit + 1
+            } else {
+                int64bit
+            };
+            Ok(int64bit)
         }
         BigInt::SmallBigInt(small_big_int) => {
             let int64bit = small_big_int.into_i64();
