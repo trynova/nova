@@ -2,6 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::{
+    builtins::ArgumentsList,
+    execution::{Agent, JsResult},
+    types::{
+        Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+        OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
+    },
+};
+
 use super::context::GcScope;
 
 /// # Unbound JavaScript heap reference
@@ -42,6 +51,24 @@ impl<T: Clone + Copy + 'static> Unbound<T> {
     /// retrieved without binding it to the heap garbage collection lifetime.
     pub(crate) fn new(value: T) -> Self {
         Self { value }
+    }
+}
+
+impl<T: IntoValue + 'static> Unbound<T> {
+    pub fn into_value(self) -> Unbound<Value> {
+        Unbound::new(self.value.into_value())
+    }
+}
+
+impl<T: IntoObject + 'static> Unbound<T> {
+    pub fn into_object(self) -> Unbound<Object> {
+        Unbound::new(self.value.into_object())
+    }
+}
+
+impl<T: IntoFunction + 'static> Unbound<T> {
+    pub fn into_function(self) -> Unbound<Function> {
+        Unbound::new(self.value.into_function())
     }
 }
 
@@ -98,7 +125,162 @@ impl<'gc, T: Clone + Copy + 'gc> Unbound<T> {
     ///
     /// See `Scoped<T>` for how rooting `arg1` should be done in this case.
     #[inline]
-    pub unsafe fn bind(self, _: &GcScope<'gc, '_>) -> T {
+    pub fn bind(self, _: &GcScope<'gc, '_>) -> T {
         self.value
+    }
+}
+
+impl<T: InternalSlots> InternalSlots for Unbound<T> {
+    #[inline]
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+        self.value.get_backing_object(agent)
+    }
+
+    #[inline]
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
+        self.value.set_backing_object(agent, backing_object);
+    }
+
+    #[inline]
+    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+        self.value.internal_prototype(agent)
+    }
+
+    #[inline]
+    fn internal_extensible(self, agent: &Agent) -> bool {
+        self.value.internal_extensible(agent)
+    }
+
+    #[inline]
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+        self.value.create_backing_object(agent)
+    }
+
+    #[inline]
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+        self.value.internal_set_prototype(agent, prototype)
+    }
+
+    #[inline]
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+        self.value.internal_set_extensible(agent, value)
+    }
+}
+
+impl<T: InternalMethods> InternalMethods for Unbound<T> {
+    fn internal_get_prototype_of(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+    ) -> JsResult<Option<Object>> {
+        self.value.internal_get_prototype_of(agent, gc)
+    }
+
+    fn internal_set_prototype_of(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        prototype: Option<Unbound<Object>>,
+    ) -> JsResult<bool> {
+        self.value.internal_set_prototype_of(agent, gc, prototype)
+    }
+
+    fn internal_is_extensible(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<bool> {
+        self.value.internal_is_extensible(agent, gc)
+    }
+
+    fn internal_prevent_extensions(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<bool> {
+        self.value.internal_prevent_extensions(agent, gc)
+    }
+
+    fn internal_get_own_property(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        property_key: Unbound<PropertyKey>,
+    ) -> JsResult<Option<PropertyDescriptor>> {
+        self.value
+            .internal_get_own_property(agent, gc, property_key)
+    }
+
+    fn internal_define_own_property(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        property_key: Unbound<PropertyKey>,
+        property_descriptor: Unbound<PropertyDescriptor>,
+    ) -> JsResult<bool> {
+        self.value
+            .internal_define_own_property(agent, gc, property_key, property_descriptor)
+    }
+
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        property_key: Unbound<PropertyKey>,
+    ) -> JsResult<bool> {
+        self.value.internal_has_property(agent, gc, property_key)
+    }
+
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        property_key: Unbound<PropertyKey>,
+        receiver: Unbound<Value>,
+    ) -> JsResult<Value> {
+        self.value.internal_get(agent, gc, property_key, receiver)
+    }
+
+    fn internal_set(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        property_key: Unbound<PropertyKey>,
+        value: Unbound<Value>,
+        receiver: Unbound<Value>,
+    ) -> JsResult<bool> {
+        self.value
+            .internal_set(agent, gc, property_key, value, receiver)
+    }
+
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        property_key: Unbound<PropertyKey>,
+    ) -> JsResult<bool> {
+        self.value.internal_delete(agent, gc, property_key)
+    }
+
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+    ) -> JsResult<Vec<PropertyKey>> {
+        self.value.internal_own_property_keys(agent, gc)
+    }
+
+    fn internal_call(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Unbound<Value>,
+        arguments_list: ArgumentsList,
+    ) -> JsResult<Value> {
+        self.value
+            .internal_call(agent, gc, this_value, arguments_list)
+    }
+
+    fn internal_construct(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        arguments_list: ArgumentsList,
+        new_target: Function,
+    ) -> JsResult<Object> {
+        self.value
+            .internal_construct(agent, gc, arguments_list, new_target)
     }
 }

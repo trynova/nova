@@ -17,6 +17,7 @@ use crate::{
             String, Symbol, Value,
         },
     },
+    engine::unbound::Unbound,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
@@ -32,6 +33,10 @@ pub enum PropertyKey {
 }
 
 impl PropertyKey {
+    pub fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     // FIXME: This API is not necessarily in the right place.
     pub fn from_str(agent: &mut Agent, str: &str) -> Self {
         parse_string_to_integer_property_key(str)

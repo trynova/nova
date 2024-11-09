@@ -49,12 +49,12 @@ use crate::{
             Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::{context::GcScope, unbound::Unbound},
+    engine::{context::GcScope, unbound::Unbound, Scoped},
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
 use super::{
-    executable::{ArrowFunctionExpression, SendableRef},
+    executable::{get_instruction, ArrowFunctionExpression, SendableRef},
     instructions::Instr,
     iterator::{ObjectPropertiesIterator, VmIterator},
     Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
@@ -236,7 +236,7 @@ impl Vm {
             eprintln!();
 
             eprintln!("Instructions:");
-            let iter = InstructionIter::new(executable.get_instructions(agent));
+            let iter = InstructionIter::new(executable.get_instructions(agent, &gc));
             for (ip, instr) in iter {
                 match instr.kind.argument_count() {
                     0 => {
@@ -295,7 +295,9 @@ impl Vm {
         let do_gc = !agent.options.disable_gc;
         #[cfg(feature = "interleaved-gc")]
         let mut instr_count = 0u8;
-        while let Some(instr) = executable.get_instruction(agent, &mut self.ip) {
+        let scoped_executable = Scoped::new(agent, executable.bind(&gc));
+        let instructions = scoped_executable.get_instructions(agent);
+        while let Some(instr) = get_instruction(instructions, &mut self.ip) {
             #[cfg(feature = "interleaved-gc")]
             if do_gc {
                 instr_count = instr_count.wrapping_add(1);
@@ -317,7 +319,13 @@ impl Vm {
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                 }
             }
-            match Self::execute_instruction(agent, gc.reborrow(), &mut self, executable, &instr) {
+            match Self::execute_instruction(
+                agent,
+                gc.reborrow(),
+                &mut self,
+                scoped_executable,
+                &instr,
+            ) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
                     let result = self.result.unwrap_or(Value::Undefined);
@@ -369,7 +377,7 @@ impl Vm {
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
         vm: &mut Vm,
-        executable: Executable,
+        executable: Scoped<Executable>,
         instr: &Instr,
     ) -> JsResult<ContinuationKind> {
         if agent.options.print_internals {
@@ -389,7 +397,13 @@ impl Vm {
                 };
                 let len = array.len(agent);
                 let key = PropertyKey::Integer(len.into());
-                create_data_property_or_throw(agent, gc.reborrow(), array, key, value)?
+                create_data_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    array.unbind(),
+                    key.unbind(),
+                    value.unbind(),
+                )?
             }
             Instruction::ArrayElision => {
                 let array = *vm.stack.last().unwrap();
@@ -431,8 +445,9 @@ impl Vm {
                 }
             }
             Instruction::ResolveBinding => {
-                let identifier =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let identifier = executable
+                    .get(agent)
+                    .fetch_identifier(agent, instr.args[0].unwrap() as usize);
 
                 let reference = resolve_binding(agent, gc, identifier, None)?;
 
@@ -450,7 +465,9 @@ impl Vm {
                 });
             }
             Instruction::LoadConstant => {
-                let constant = executable.fetch_constant(agent, instr.args[0].unwrap() as usize);
+                let constant = executable
+                    .get(agent)
+                    .fetch_constant(agent, instr.args[0].unwrap() as usize);
                 vm.stack.push(constant);
             }
             Instruction::Load => {
@@ -477,7 +494,9 @@ impl Vm {
                 vm.result = Some(*vm.stack.last().expect("Trying to get from empty stack"));
             }
             Instruction::StoreConstant => {
-                let constant = executable.fetch_constant(agent, instr.args[0].unwrap() as usize);
+                let constant = executable
+                    .get(agent)
+                    .fetch_constant(agent, instr.args[0].unwrap() as usize);
                 vm.result = Some(constant);
             }
             Instruction::UnaryMinus => {
@@ -522,11 +541,19 @@ impl Vm {
                 let key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
-                create_data_property_or_throw(agent, gc.reborrow(), object, key, value).unwrap()
+                create_data_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    object.unbind(),
+                    key.unbind(),
+                    value.unbind(),
+                )
+                .unwrap()
             }
             Instruction::ObjectDefineMethod => {
-                let FunctionExpression { expression, .. } =
-                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } = executable
+                    .get(agent)
+                    .fetch_function_expression(agent, instr.args[0].unwrap() as usize);
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -607,16 +634,24 @@ impl Vm {
                 // b. Perform ? DefinePropertyOrThrow(homeObject, key, desc).
                 // c. NOTE: DefinePropertyOrThrow only returns an abrupt
                 // completion when attempting to define a class static method whose key is "prototype".
-                define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
+                define_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    object.unbind(),
+                    prop_key.unbind(),
+                    desc,
+                )?;
                 // c. Return unused.
             }
             Instruction::ObjectDefineGetter => {
-                let FunctionExpression { expression, .. } =
-                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } = executable
+                    .get(agent)
+                    .fetch_function_expression(agent, instr.args[0].unwrap() as usize);
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
+                let prop_key =
+                    to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap().unbind())?;
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
                 let ECMAScriptCodeEvaluationState {
@@ -685,12 +720,19 @@ impl Vm {
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
-                define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
+                define_property_or_throw(
+                    agent,
+                    gc.reborrow(),
+                    object.unbind(),
+                    prop_key.unbind(),
+                    desc.unbind(),
+                )?;
                 // c. Return unused.
             }
             Instruction::ObjectDefineSetter => {
-                let FunctionExpression { expression, .. } =
-                    executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                let FunctionExpression { expression, .. } = executable
+                    .get(agent)
+                    .fetch_function_expression(agent, instr.args[0].unwrap() as usize);
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
@@ -845,6 +887,7 @@ impl Vm {
                     expression,
                     identifier,
                 } = executable
+                    .get(agent)
                     .fetch_arrow_function_expression(agent, instr.args[0].unwrap() as usize);
                 let function_expression = expression.get();
                 let identifier = *identifier;
@@ -904,7 +947,9 @@ impl Vm {
                     expression,
                     identifier,
                     compiled_bytecode,
-                } = executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                } = executable
+                    .get(agent)
+                    .fetch_function_expression(agent, instr.args[0].unwrap() as usize);
                 let function_expression = expression.get();
                 let identifier = *identifier;
                 let compiled_bytecode = *compiled_bytecode;
@@ -1015,7 +1060,9 @@ impl Vm {
                     expression,
                     compiled_bytecode,
                     ..
-                } = executable.fetch_function_expression(agent, instr.args[0].unwrap() as usize);
+                } = executable
+                    .get(agent)
+                    .fetch_function_expression(agent, instr.args[0].unwrap() as usize);
                 let function_expression = expression.get();
                 let compiled_bytecode = *compiled_bytecode;
                 let has_constructor_parent = instr.args[1].unwrap();
@@ -1092,8 +1139,8 @@ impl Vm {
             }
             Instruction::ClassDefineDefaultConstructor => {
                 let class_initializer_bytecode_index = instr.args[0].unwrap();
-                let (compiled_initializer_bytecode, has_constructor_parent) = executable
-                    .fetch_class_initializer_bytecode(
+                let (compiled_initializer_bytecode, has_constructor_parent) =
+                    executable.get(agent).fetch_class_initializer_bytecode(
                         agent,
                         class_initializer_bytecode_index as usize,
                     );
@@ -1658,7 +1705,9 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let name = executable
+                    .get(agent)
+                    .fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env
                     .create_mutable_binding(agent, gc.reborrow(), name, false)
                     .unwrap();
@@ -1670,7 +1719,9 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let name = executable
+                    .get(agent)
+                    .fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env.create_immutable_binding(agent, name, true).unwrap();
             }
             Instruction::CreateCatchBinding => {
@@ -1680,7 +1731,9 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let name = executable
+                    .get(agent)
+                    .fetch_identifier(agent, instr.args[0].unwrap() as usize);
                 lex_env
                     .create_mutable_binding(agent, gc.reborrow(), name, false)
                     .unwrap();
@@ -1972,7 +2025,7 @@ impl Vm {
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
         vm: &mut Vm,
-        executable: Executable,
+        executable: Scoped<Executable>,
         mut iterator: VmIterator,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
@@ -2007,8 +2060,8 @@ impl Vm {
                                 agent,
                                 gc.reborrow(),
                                 rest,
-                                PropertyKey::from(idx),
-                                result,
+                                PropertyKey::from(idx).unbind(),
+                                result.unbind(),
                             )
                             .unwrap();
                             idx += 1;
@@ -2024,8 +2077,9 @@ impl Vm {
 
             match instr.kind {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
-                    let binding_id =
-                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                    let binding_id = executable
+                        .get(agent)
+                        .fetch_identifier(agent, instr.args[0].unwrap() as usize);
                     let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
                     if environment.is_none() {
                         put_value(agent, gc.reborrow(), &lhs, value)?;
@@ -2039,7 +2093,7 @@ impl Vm {
                         gc.reborrow(),
                         vm,
                         executable,
-                        value,
+                        value.unbind(),
                         environment,
                     )?;
                 }
@@ -2068,23 +2122,28 @@ impl Vm {
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
         vm: &mut Vm,
-        executable: Executable,
+        executable: Scoped<Executable>,
         object: Object,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
         let mut excluded_names = AHashSet::new();
 
         loop {
-            let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
+            let instr = executable
+                .get(agent)
+                .get_instruction(agent, &mut vm.ip)
+                .unwrap();
             match instr.kind {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
-                    let binding_id =
-                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                    let binding_id = executable
+                        .get(agent)
+                        .fetch_identifier(agent, instr.args[0].unwrap() as usize);
                     let property_key = if instr.kind == Instruction::BindingPatternBind {
                         binding_id.into()
                     } else {
-                        let key_value =
-                            executable.fetch_constant(agent, instr.args[1].unwrap() as usize);
+                        let key_value = executable
+                            .get(agent)
+                            .fetch_constant(agent, instr.args[1].unwrap() as usize);
                         PropertyKey::try_from(key_value).unwrap()
                     };
                     excluded_names.insert(property_key);
@@ -2100,7 +2159,9 @@ impl Vm {
                 Instruction::BindingPatternGetValueNamed => {
                     let property_key = PropertyKey::from_value(
                         agent,
-                        executable.fetch_constant(agent, instr.args[0].unwrap() as usize),
+                        executable
+                            .get(agent)
+                            .fetch_constant(agent, instr.args[0].unwrap() as usize),
                     )
                     .unwrap();
                     excluded_names.insert(property_key);
@@ -2116,8 +2177,9 @@ impl Vm {
                 }
                 Instruction::BindingPatternBindRest => {
                     // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
-                    let binding_id =
-                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                    let binding_id = executable
+                        .get(agent)
+                        .fetch_identifier(agent, instr.args[0].unwrap() as usize);
                     let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
@@ -2148,11 +2210,14 @@ impl Vm {
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
         vm: &mut Vm,
-        executable: Executable,
+        executable: Scoped<Executable>,
         value: Unbound<Value>,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
+        let instr = executable
+            .get(agent)
+            .get_instruction(agent, &mut vm.ip)
+            .unwrap();
         match instr.kind {
             Instruction::BeginSimpleArrayBindingPattern => {
                 let new_iterator = VmIterator::from_value(agent, gc.reborrow(), value)?;
@@ -2166,7 +2231,7 @@ impl Vm {
                 )
             }
             Instruction::BeginSimpleObjectBindingPattern => {
-                let object = to_object(agent, value)?;
+                let object = to_object(agent, value.bind(&gc))?;
                 Vm::execute_simple_object_binding(
                     agent,
                     gc.reborrow(),

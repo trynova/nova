@@ -41,6 +41,10 @@ pub struct Array(ArrayIndex);
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl Array {
+    pub fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {

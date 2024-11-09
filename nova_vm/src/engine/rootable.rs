@@ -84,32 +84,35 @@ mod private {
     use crate::ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer};
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-    use crate::ecmascript::{
-        builtins::{
-            bound_function::BoundFunction,
-            embedder_object::EmbedderObject,
-            error::Error,
-            finalization_registry::FinalizationRegistry,
-            generator_objects::Generator,
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIterator,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
+    use crate::{
+        ecmascript::{
+            builtins::{
+                bound_function::BoundFunction,
+                embedder_object::EmbedderObject,
+                error::Error,
+                finalization_registry::FinalizationRegistry,
+                generator_objects::Generator,
+                indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+                keyed_collections::{
+                    map_objects::map_iterator_objects::map_iterator::MapIterator,
+                    set_objects::set_iterator_objects::set_iterator::SetIterator,
+                },
+                map::Map,
+                module::Module,
+                primitive_objects::PrimitiveObject,
+                promise::Promise,
+                promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                proxy::Proxy,
+                regexp::RegExp,
+                set::Set,
+                Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             },
-            map::Map,
-            module::Module,
-            primitive_objects::PrimitiveObject,
-            promise::Promise,
-            promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
-            proxy::Proxy,
-            regexp::RegExp,
-            set::Set,
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            types::{
+                BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, String,
+                Symbol, Value,
+            },
         },
-        types::{
-            BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, String, Symbol,
-            Value,
-        },
+        engine::Executable,
     };
 
     /// Marker trait to make Rootable not implementable outside of nova_vm.
@@ -130,6 +133,7 @@ mod private {
     impl RootableSealed for ECMAScriptFunction {}
     impl RootableSealed for EmbedderObject {}
     impl RootableSealed for Error {}
+    impl RootableSealed for Executable {}
     impl RootableSealed for FinalizationRegistry {}
     impl RootableSealed for Function {}
     impl RootableSealed for Generator {}
@@ -164,6 +168,8 @@ mod private {
 
 pub use global::Global;
 pub use scoped::Scoped;
+
+use super::Executable;
 
 pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
     type RootRepr: Sized + std::fmt::Debug;
@@ -281,6 +287,7 @@ pub enum HeapRootData {
     //
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
+    Executable(Executable),
 }
 
 /// Internal type that is used to refer from user-controlled memory (stack or
@@ -401,6 +408,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Generator(generator) => generator.mark_values(queues),
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
+            HeapRootData::Executable(executable) => executable.mark_values(queues),
         }
     }
 
@@ -490,6 +498,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::EmbedderObject(embedder_object) => {
                 embedder_object.sweep_values(compactions)
             }
+            HeapRootData::Executable(executable) => executable.sweep_values(compactions),
         }
     }
 }

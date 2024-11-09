@@ -148,7 +148,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
 pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
     object: Unbound<Object>,
-    prototype: Option<Object>,
+    prototype: Option<Unbound<Object>>,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
     let current = object.internal_prototype(agent);

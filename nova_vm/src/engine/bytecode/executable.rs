@@ -15,7 +15,12 @@ use crate::{
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
-    engine::unbound::Unbound,
+    engine::{
+        context::GcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        unbound::Unbound,
+        Scoped,
+    },
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_ast::ast::{self, Statement};
@@ -179,10 +184,8 @@ impl Executable {
         (self.0.get() - 1) as usize
     }
 
-    /// SAFETY: The returned reference is valid until the Executable is garbage
-    /// collected.
     #[inline]
-    pub(super) fn get_instructions(self, agent: &Agent) -> &'static [u8] {
+    pub(super) fn get_instructions<'gc>(self, agent: &Agent, _: &GcScope<'gc, '_>) -> &'gc [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
         unsafe { std::mem::transmute(&agent[self].instructions[..]) }
@@ -247,6 +250,19 @@ impl Executable {
     }
 }
 
+impl Scoped<Executable> {
+    /// Get the instruction byte stream for a rooted Executable in this scope.
+    /// The byte stream reference is guaranteed to be valid as long as the
+    /// scoped Executable lives.
+    #[inline]
+    pub(super) fn get_instructions(&self, agent: &Agent) -> &[u8] {
+        // SAFETY: As long as we're alive the instructions Box lives, and it is
+        // never accessed mutably.
+        unsafe { std::mem::transmute(&agent[self.get(agent)].instructions[..]) }
+    }
+}
+
+/// Get the next instruction from an instruction byte stream.
 pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
     if *ip >= instructions.len() {
         return None;
@@ -354,6 +370,30 @@ impl CreateHeapData<ExecutableHeapData, Executable> for Heap {
         let index = u32::try_from(self.executables.len()).expect("Executables overflowed");
         // SAFETY: After pushing to executables, the vector cannot be empty.
         Executable(unsafe { NonZeroU32::new_unchecked(index) })
+    }
+}
+
+impl Rootable for Executable {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Executable(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        if let HeapRootData::Executable(value) = heap_data {
+            Some(value)
+        } else {
+            None
+        }
     }
 }
 

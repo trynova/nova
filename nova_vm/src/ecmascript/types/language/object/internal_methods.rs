@@ -24,7 +24,7 @@ use crate::{
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
 pub trait InternalMethods
 where
-    Self: Sized + Clone + Copy + Into<Object> + InternalSlots,
+    Self: Sized + Clone + Copy + InternalSlots,
 {
     /// \[\[GetPrototypeOf\]\]
     fn internal_get_prototype_of(
@@ -36,7 +36,7 @@ where
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_get_prototype_of(
                 agent,
-                backing_object.into_object(),
+                backing_object.into_object().unbind(),
             )),
             None => Ok(self.internal_prototype(agent)),
         }
@@ -47,13 +47,13 @@ where
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         prototype: Option<Unbound<Object>>,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_set_prototype_of(
                 agent,
-                backing_object.into_object(),
+                backing_object.into_object().unbind(),
                 prototype,
             )),
             None => {
@@ -62,7 +62,9 @@ where
 
                 // 2. If SameValue(V, current) is true, return true.
                 match (prototype, current) {
-                    (Some(prototype), Some(current)) if same_value(agent, prototype, current) => {
+                    (Some(prototype), Some(current))
+                        if same_value(agent, prototype.bind(&gc), current) =>
+                    {
                         return Ok(true)
                     }
                     (None, None) => return Ok(true),
@@ -115,7 +117,7 @@ where
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_prevent_extensions(
                 agent,
-                backing_object.into_object(),
+                backing_object.into_object().unbind(),
             )),
             None => {
                 self.internal_set_extensible(agent, false);
@@ -135,7 +137,7 @@ where
         match self.get_backing_object(agent) {
             Some(backing_object) => Ok(ordinary_get_own_property(
                 agent,
-                backing_object.into_object(),
+                backing_object.into_object().unbind(),
                 property_key,
             )),
             None => Ok(None),
@@ -154,7 +156,13 @@ where
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_define_own_property(agent, gc, backing_object, property_key, property_descriptor)
+        ordinary_define_own_property(
+            agent,
+            gc,
+            backing_object.unbind(),
+            property_key,
+            property_descriptor,
+        )
     }
 
     /// \[\[HasProperty\]\]
@@ -166,9 +174,12 @@ where
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_has_property(agent, gc, backing_object.into_object(), property_key)
-            }
+            Some(backing_object) => ordinary_has_property(
+                agent,
+                gc,
+                backing_object.into_object().unbind(),
+                property_key,
+            ),
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
@@ -198,7 +209,7 @@ where
             Some(backing_object) => ordinary_get(
                 agent,
                 gc,
-                backing_object.into_object(),
+                backing_object.into_object().unbind(),
                 property_key,
                 receiver,
             ),
@@ -229,7 +240,14 @@ where
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_set(agent, gc, backing_object, property_key, value, receiver)
+        ordinary_set(
+            agent,
+            gc,
+            backing_object.unbind(),
+            property_key,
+            value,
+            receiver,
+        )
     }
 
     /// \[\[Delete\]\]
@@ -241,9 +259,12 @@ where
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_delete(agent, gc, backing_object.into_object(), property_key)
-            }
+            Some(backing_object) => ordinary_delete(
+                agent,
+                gc,
+                backing_object.into_object().unbind(),
+                property_key,
+            ),
             None => Ok(true),
         }
     }

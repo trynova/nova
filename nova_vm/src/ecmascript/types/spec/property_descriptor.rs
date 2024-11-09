@@ -42,6 +42,10 @@ pub struct PropertyDescriptor {
 }
 
 impl PropertyDescriptor {
+    pub(crate) fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     pub fn new_data_descriptor(value: Value) -> Self {
         Self {
             value: Some(value),

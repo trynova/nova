@@ -11,7 +11,7 @@ use crate::{
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
 pub trait InternalSlots
 where
-    Self: Sized + Copy + Into<Object> + IntoObject,
+    Self: Sized + Copy,
 {
     /// Default prototype of the object; this is used by
     /// [OrdinaryObjectInternalSlots::internal_prototype].

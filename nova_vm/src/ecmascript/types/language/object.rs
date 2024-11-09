@@ -533,6 +533,10 @@ impl TryFrom<Value> for Object {
 }
 
 impl Object {
+    pub fn unbind(self) -> Unbound<Self> {
+        Unbound::new(self)
+    }
+
     pub fn into_value(self) -> Value {
         self.into()
     }
