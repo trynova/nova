@@ -825,7 +825,7 @@ impl GlobalObject {
         /// OPTIMIZATION: Quick path for known safe radix and length combinations.
         /// E.g. we know that a number in base 2 with less than 8 characters is
         /// guaranteed to be safe to parse as an u8, and so on. To calculate the
-        /// known safe radix and length combinations, the following psuedocode
+        /// known safe radix and length combinations, the following pseudocode
         /// can be consulted:
         /// ```
         /// u8.MAX                  .toString(radix).length
