@@ -7,6 +7,9 @@ use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
 use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 
+use crate::ecmascript::abstract_operations::type_conversion::{
+    is_trimmable_whitespace, to_int32, to_string,
+};
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -74,7 +77,7 @@ impl BuiltinIntrinsic for GlobalObjectParseFloat {
 struct GlobalObjectParseInt;
 impl Builtin for GlobalObjectParseInt {
     const NAME: String = BUILTIN_STRING_MEMORY.parseInt;
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_int);
 }
 impl BuiltinIntrinsic for GlobalObjectParseInt {
@@ -725,15 +728,180 @@ impl GlobalObject {
     ) -> JsResult<Value> {
         todo!()
     }
+
+    /// ### [19.2.5 parseInt ( string, radix )](https://tc39.es/ecma262/#sec-parseint-string-radix)
+    ///
+    /// This function produces an integral Number dictated by interpretation of
+    /// the contents of string according to the specified radix. Leading white
+    /// space in string is ignored. If radix coerces to 0 (such as when it is
+    /// undefined), it is assumed to be 10 except when the number
+    /// representation begins with "0x" or "0X", in which case it is assumed to
+    /// be 16. If radix is 16, the number representation may optionally begin
+    /// with "0x" or "0X".
     fn parse_int(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
 
         _this_value: Value,
-        _: ArgumentsList,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        let string = arguments.get(0);
+        let radix = arguments.get(1);
+
+        // OPTIMIZATION: If the string is empty, undefined, null or a boolean, return NaN.
+        if string.is_undefined()
+            || string.is_null()
+            || string.is_boolean()
+            || string.is_empty_string()
+        {
+            return Ok(Value::nan());
+        }
+
+        // OPTIMIZATION: If the string is an integer and the radix is 10, return the number.
+        if let Value::Integer(radix) = radix {
+            let radix = radix.into_i64();
+            if radix == 10 && matches!(string, Value::Integer(_)) {
+                return Ok(string);
+            }
+        }
+
+        // 1. Let inputString be ? ToString(string).
+        let s = to_string(agent, gc.reborrow(), string)?;
+
+        // 6. Let R be ℝ(? ToInt32(radix)).
+        let r = to_int32(agent, gc.reborrow(), radix)?;
+
+        // 2. Let S be ! TrimString(inputString, start).
+        let s = s.as_str(agent).trim_start_matches(is_trimmable_whitespace);
+
+        // 3. Let sign be 1.
+        // 4. If S is not empty and the first code unit of S is the code unit 0x002D (HYPHEN-MINUS), set sign to -1.
+        // 5. If S is not empty and the first code unit of S is either the code unit 0x002B (PLUS SIGN) or the code unit 0x002D (HYPHEN-MINUS), set S to the substring of S from index 1.
+        let (sign, mut s) = if let Some(s) = s.strip_prefix('-') {
+            (-1, s)
+        } else if let Some(s) = s.strip_prefix('+') {
+            (1, s)
+        } else {
+            (1, s)
+        };
+
+        // 7. Let stripPrefix be true.
+        // 8. If R ≠ 0, then
+        let (mut r, strip_prefix) = if r != 0 {
+            // a. If R < 2 or R > 36, return NaN.
+            if !(2..=36).contains(&r) {
+                return Ok(Value::nan());
+            }
+            // b. If R ≠ 16, set stripPrefix to false.
+            (r as u32, r == 16)
+        } else {
+            // 9. Else,
+            // a. Set R to 10.
+            (10, true)
+        };
+
+        // 10. If stripPrefix is true, then
+        if strip_prefix {
+            // a. If the length of S is at least 2 and the first two code units of S are either "0x" or "0X", then
+            if s.starts_with("0x") || s.starts_with("0X") {
+                // i. Set S to the substring of S from index 2.
+                s = &s[2..];
+                // ii. Set R to 16.
+                r = 16;
+            }
+        };
+
+        // 11. If S contains a code unit that is not a radix-R digit, let end be the index within S of the first such code unit; otherwise, let end be the length of S.
+        let end = s.find(|c: char| !c.is_digit(r)).unwrap_or(s.len());
+
+        // 12. Let Z be the substring of S from 0 to end.
+        let z = &s[..end];
+
+        // 13. If Z is empty, return NaN.
+        if z.is_empty() {
+            return Ok(Value::nan());
+        }
+
+        /// OPTIMIZATION: Quick path for known safe radix and length combinations.
+        /// E.g. we know that a number in base 2 with less than 8 characters is
+        /// guaranteed to be safe to parse as an u8, and so on. To calculate the
+        /// known safe radix and length combinations, the following pseudocode
+        /// can be consulted:
+        /// ```ignore
+        /// u8.MAX                  .toString(radix).length
+        /// u16.MAX                 .toString(radix).length
+        /// u32.MAX                 .toString(radix).length
+        /// Number.MAX_SAFE_INTEGER .toString(radix).length
+        /// ```
+        macro_rules! parse_known_safe_radix_and_length {
+            ($unsigned: ty, $signed: ty, $signed_large: ty) => {{
+                let math_int = <$unsigned>::from_str_radix(z, r).unwrap();
+
+                Ok(if sign == -1 {
+                    if math_int <= (<$signed>::MAX as $unsigned) {
+                        Value::try_from(-(math_int as $signed)).unwrap()
+                    } else {
+                        Value::try_from(-(math_int as $signed_large)).unwrap()
+                    }
+                } else {
+                    Value::try_from(math_int).unwrap()
+                })
+            }};
+        }
+
+        // 14. Let mathInt be the integer value that is represented by Z in
+        //     radix-R notation, using the letters A through Z and a through z
+        //     for digits with values 10 through 35. (However, if R = 10 and Z
+        //     contains more than 20 significant digits, every significant
+        //     digit after the 20th may be replaced by a 0 digit, at the option
+        //     of the implementation; and if R is not one of 2, 4, 8, 10, 16,
+        //     or 32, then mathInt may be an implementation-approximated
+        //     integer representing the integer value denoted by Z in radix-R
+        //     notation.)
+        match (r, z.len()) {
+            (2, 0..8) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (2, 8..16) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (2, 16..32) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (2, 32..53) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (8, 0..3) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (8, 3..6) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (8, 6..11) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (8, 11..18) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (10..=11, 0..3) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (10..=11, 3..5) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (10..=11, 5..10) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (10..=11, 10..16) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (16, 0..2) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (16, 2..4) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (16, 4..8) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (16, 8..14) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (_, z_len) => {
+                match z_len {
+                    // OPTIMIZATION: These are the known safe upper bounds for any
+                    // integer represented in a radix up to 36.
+                    0..2 => parse_known_safe_radix_and_length!(u8, i8, i16),
+                    2..4 => parse_known_safe_radix_and_length!(u16, i16, i32),
+                    4..7 => parse_known_safe_radix_and_length!(u32, i32, i64),
+                    7..11 => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+                    _ => {
+                        let math_int = i128::from_str_radix(z, r).unwrap() as f64;
+
+                        // 15. If mathInt = 0, then
+                        // a. If sign = -1, return -0𝔽.
+                        // b. Return +0𝔽.
+                        // 16. Return 𝔽(sign × mathInt).
+                        Ok(Value::from_f64(agent, sign as f64 * math_int))
+                    }
+                }
+            }
+        }
     }
+
     fn decode_uri(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
