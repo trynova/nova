@@ -767,24 +767,23 @@ impl GlobalObject {
 
         // 1. Let inputString be ? ToString(string).
         let s = to_string(agent, gc.reborrow(), string)?;
-        let s = s.as_str(agent).to_owned();
+
+        // 6. Let R be ℝ(? ToInt32(radix)).
+        let r = to_int32(agent, gc.reborrow(), radix)?;
 
         // 2. Let S be ! TrimString(inputString, start).
-        let s = s.trim_start_matches(is_trimmable_whitespace);
+        let s = s.as_str(agent).trim_start_matches(is_trimmable_whitespace);
 
         // 3. Let sign be 1.
         // 4. If S is not empty and the first code unit of S is the code unit 0x002D (HYPHEN-MINUS), set sign to -1.
         // 5. If S is not empty and the first code unit of S is either the code unit 0x002B (PLUS SIGN) or the code unit 0x002D (HYPHEN-MINUS), set S to the substring of S from index 1.
         let (sign, mut s) = if let Some(s) = s.strip_prefix('-') {
-            (-1.0, s)
+            (-1, s)
         } else if let Some(s) = s.strip_prefix('+') {
-            (1.0, s)
+            (1, s)
         } else {
-            (1.0, s)
+            (1, s)
         };
-
-        // 6. Let R be ℝ(? ToInt32(radix)).
-        let r = to_int32(agent, gc.reborrow(), radix)?;
 
         // 7. Let stripPrefix be true.
         // 8. If R ≠ 0, then
@@ -823,6 +822,33 @@ impl GlobalObject {
             return Ok(Value::nan());
         }
 
+        /// OPTIMIZATION: Quick path for known safe radix and length combinations.
+        /// E.g. we know that a number in base 2 with less than 8 characters is
+        /// guaranteed to be safe to parse as an u8, and so on. To calculate the
+        /// known safe radix and length combinations, the following psuedocode
+        /// can be consulted:
+        /// ```
+        /// u8.MAX                  .toString(radix).length
+        /// u16.MAX                 .toString(radix).length
+        /// u32.MAX                 .toString(radix).length
+        /// Number.MAX_SAFE_INTEGER .toString(radix).length
+        /// ```
+        macro_rules! parse_known_safe_radix_and_length {
+            ($unsigned: ty, $signed: ty, $signed_large: ty) => {{
+                let math_int = <$unsigned>::from_str_radix(z, r).unwrap();
+
+                Ok(if sign == -1 {
+                    if math_int <= (<$signed>::MAX as $unsigned) {
+                        Value::try_from(-(math_int as $signed)).unwrap()
+                    } else {
+                        Value::try_from(-(math_int as $signed_large)).unwrap()
+                    }
+                } else {
+                    Value::try_from(math_int).unwrap()
+                })
+            }};
+        }
+
         // 14. Let mathInt be the integer value that is represented by Z in
         //     radix-R notation, using the letters A through Z and a through z
         //     for digits with values 10 through 35. (However, if R = 10 and Z
@@ -832,13 +858,44 @@ impl GlobalObject {
         //     or 32, then mathInt may be an implementation-approximated
         //     integer representing the integer value denoted by Z in radix-R
         //     notation.)
-        let math_int = i128::from_str_radix(z, r).unwrap() as f64;
+        match (r, z.len()) {
+            (2, 0..8) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (2, 8..16) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (2, 16..32) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (2, 32..53) => parse_known_safe_radix_and_length!(i64, i64, i64),
 
-        // 15. If mathInt = 0, then
-        // a. If sign = -1, return -0𝔽.
-        // b. Return +0𝔽.
-        // 16. Return 𝔽(sign × mathInt).
-        Ok(Value::from_f64(agent, sign * math_int))
+            (8, 0..3) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (8, 3..6) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (8, 6..11) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (8, 11..18) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (10..=11, 0..3) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (10..=11, 3..5) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (10..=11, 5..10) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (10..=11, 10..16) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (16, 0..2) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (16, 2..4) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (16, 4..8) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (16, 8..14) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            // OPTIMIZATION: These are the known safe upper bounds for any
+            // integer represented in a radix up to 36.
+            (_, 0..2) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (_, 2..4) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (_, 4..7) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (_, 7..11) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            _ => {
+                let math_int = i128::from_str_radix(z, r).unwrap() as f64;
+
+                // 15. If mathInt = 0, then
+                // a. If sign = -1, return -0𝔽.
+                // b. Return +0𝔽.
+                // 16. Return 𝔽(sign × mathInt).
+                Ok(Value::from_f64(agent, sign as f64 * math_int))
+            }
+        }
     }
 
     fn decode_uri(
