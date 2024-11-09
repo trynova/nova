@@ -827,7 +827,7 @@ impl GlobalObject {
         /// guaranteed to be safe to parse as an u8, and so on. To calculate the
         /// known safe radix and length combinations, the following pseudocode
         /// can be consulted:
-        /// ```
+        /// ```ignore
         /// u8.MAX                  .toString(radix).length
         /// u16.MAX                 .toString(radix).length
         /// u32.MAX                 .toString(radix).length
