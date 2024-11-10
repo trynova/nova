@@ -719,14 +719,70 @@ impl GlobalObject {
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())
     }
+
+    /// ### [19.2.4 parseFloat ( string )](https://tc39.es/ecma262/#sec-parsefloat-string)
+    ///
+    /// This function produces a Number value dictated by interpretation of the
+    /// contents of the string argument as a decimal literal.
     fn parse_float(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
 
         _this_value: Value,
-        _: ArgumentsList,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        if arguments.len() == 0 {
+            return Ok(Value::nan());
+        }
+
+        let string = arguments.get(0);
+
+        // 1. Let inputString be ? ToString(string).
+        let input_string = to_string(agent, gc, string)?;
+
+        // 2. Let trimmedString be ! TrimString(inputString, start).
+        let trimmed_string = input_string
+            .as_str(agent)
+            .trim_start_matches(is_trimmable_whitespace);
+
+        // 3. Let trimmed be StringToCodePoints(trimmedString).
+        // 4. Let trimmedPrefix be the longest prefix of trimmed that satisfies the syntax of a StrDecimalLiteral, which might be trimmed itself. If there is no such prefix, return NaN.
+        // 5. Let parsedNumber be ParseText(trimmedPrefix, StrDecimalLiteral).
+        // 6. Assert: parsedNumber is a Parse Node.
+        // 7. Return the StringNumericValue of parsedNumber.
+        if trimmed_string.starts_with("Infinity") || trimmed_string.starts_with("+Infinity") {
+            return Ok(Value::pos_inf());
+        }
+
+        if trimmed_string.starts_with("-Infinity") {
+            return Ok(Value::neg_inf());
+        }
+
+        if let Ok((f, len)) = fast_float::parse_partial::<f64, _>(trimmed_string) {
+            if len == 0 {
+                return Ok(Value::nan());
+            }
+
+            // NOTE: This check is used to prevent fast_float from parsing any
+            // other kinds of infinity strings as we have already checked for
+            // those which are valid javascript.
+            if f.is_infinite() {
+                let trimmed_string = &trimmed_string[..len];
+                if trimmed_string.eq_ignore_ascii_case("infinity")
+                    || trimmed_string.eq_ignore_ascii_case("+infinity")
+                    || trimmed_string.eq_ignore_ascii_case("-infinity")
+                    || trimmed_string.eq_ignore_ascii_case("inf")
+                    || trimmed_string.eq_ignore_ascii_case("+inf")
+                    || trimmed_string.eq_ignore_ascii_case("-inf")
+                {
+                    return Ok(Value::nan());
+                }
+            }
+
+            Ok(Value::from_f64(agent, f))
+        } else {
+            Ok(Value::nan())
+        }
     }
 
     /// ### [19.2.5 parseInt ( string, radix )](https://tc39.es/ecma262/#sec-parseint-string-radix)
