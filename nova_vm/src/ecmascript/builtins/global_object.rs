@@ -758,33 +758,26 @@ impl GlobalObject {
             return Ok(Value::neg_inf());
         }
 
-        // This check is used to prevent fast_float from parsing "inf", "+inf" as Infinity and "-inf" as -Infinity.
-        // Copied from boa. Source https://github.com/boa-dev/boa/blob/main/core/engine/src/builtins/number/globals.rs#L314-L319
-        // Copyright (c) 2019 Jason Williams
-        let trimmed_string_prefix = trimmed_string
-            .chars()
-            .take(4)
-            .collect::<std::string::String>()
-            .to_ascii_lowercase();
-        if trimmed_string_prefix.starts_with("inf")
-            || trimmed_string_prefix.starts_with("+inf")
-            || trimmed_string_prefix.starts_with("-inf")
-        {
-            return Ok(Value::nan());
-        }
+        if let Ok((f, len)) = fast_float::parse_partial::<f64, _>(trimmed_string) {
+            if len == 0 {
+                return Ok(Value::nan());
+            }
 
-        Ok(
-            fast_float::parse_partial::<f64, _>(trimmed_string).map_or_else(
-                |_| Value::nan(),
-                |(f, len)| {
-                    if len > 0 {
-                        Value::from_f64(agent, f)
-                    } else {
-                        Value::nan()
-                    }
-                },
-            ),
-        )
+            // NOTE: This check is used to prevent fast_float from parsing "inf", "+inf" as Infinity and "-inf" as -Infinity.
+            if f.is_infinite() {
+                let trimmed_string = &trimmed_string[..len];
+                if trimmed_string.eq_ignore_ascii_case("inf")
+                    || trimmed_string.eq_ignore_ascii_case("+inf")
+                    || trimmed_string.eq_ignore_ascii_case("-inf")
+                {
+                    return Ok(Value::nan());
+                }
+            }
+
+            Ok(Value::from_f64(agent, f))
+        } else {
+            Ok(Value::nan())
+        }
     }
 
     /// ### [19.2.5 parseInt ( string, radix )](https://tc39.es/ecma262/#sec-parseint-string-radix)
