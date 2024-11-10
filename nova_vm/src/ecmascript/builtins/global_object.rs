@@ -763,10 +763,15 @@ impl GlobalObject {
                 return Ok(Value::nan());
             }
 
-            // NOTE: This check is used to prevent fast_float from parsing "inf", "+inf" as Infinity and "-inf" as -Infinity.
+            // NOTE: This check is used to prevent fast_float from parsing any
+            // other kinds of infinity strings as we have already checked for
+            // those which are valid javascript.
             if f.is_infinite() {
                 let trimmed_string = &trimmed_string[..len];
-                if trimmed_string.eq_ignore_ascii_case("inf")
+                if trimmed_string.eq_ignore_ascii_case("infinity")
+                    || trimmed_string.eq_ignore_ascii_case("+infinity")
+                    || trimmed_string.eq_ignore_ascii_case("-infinity")
+                    || trimmed_string.eq_ignore_ascii_case("inf")
                     || trimmed_string.eq_ignore_ascii_case("+inf")
                     || trimmed_string.eq_ignore_ascii_case("-inf")
                 {
