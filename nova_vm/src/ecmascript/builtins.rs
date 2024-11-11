@@ -11,7 +11,7 @@
 pub(crate) mod arguments;
 mod array;
 #[cfg(feature = "array-buffer")]
-mod array_buffer;
+pub mod array_buffer;
 pub mod bound_function;
 mod builtin_constructor;
 mod builtin_function;
@@ -37,6 +37,7 @@ pub(crate) mod primitive_objects;
 pub(crate) mod promise;
 pub(crate) mod proxy;
 pub(crate) mod reflection;
+#[cfg(feature = "regexp")]
 pub(crate) mod regexp;
 pub(crate) mod set;
 #[cfg(feature = "shared-array-buffer")]

@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
@@ -139,7 +140,11 @@ impl InternalSlots for Module {
 
 impl InternalMethods for Module {
     /// ### [10.4.6.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-getprototypeof)
-    fn internal_get_prototype_of(self, _agent: &mut Agent) -> JsResult<Option<Object>> {
+    fn internal_get_prototype_of(
+        self,
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+    ) -> JsResult<Option<Object>> {
         Ok(None)
     }
 
@@ -147,18 +152,24 @@ impl InternalMethods for Module {
     fn internal_set_prototype_of(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         prototype: Option<Object>,
     ) -> JsResult<bool> {
-        set_immutable_prototype(agent, self.into_object(), prototype)
+        set_immutable_prototype(agent, gc.reborrow(), self.into_object(), prototype)
     }
 
     /// ### [10.4.6.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-isextensible)
-    fn internal_is_extensible(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_is_extensible(self, _agent: &mut Agent, _gc: GcScope<'_, '_>) -> JsResult<bool> {
         Ok(false)
     }
 
     /// ### [10.4.6.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-preventextensions)
-    fn internal_prevent_extensions(self, _agent: &mut Agent) -> JsResult<bool> {
+    fn internal_prevent_extensions(
+        self,
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+    ) -> JsResult<bool> {
         Ok(true)
     }
 
@@ -166,6 +177,8 @@ impl InternalMethods for Module {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match property_key {
@@ -192,7 +205,7 @@ impl InternalMethods for Module {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.internal_get(agent, property_key, self.into_value())?;
+                    let value = self.internal_get(agent, gc, property_key, self.into_value())?;
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
                         value: Some(value),
@@ -211,6 +224,8 @@ impl InternalMethods for Module {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -220,6 +235,7 @@ impl InternalMethods for Module {
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
                     ordinary_define_own_property(
                         agent,
+                        gc.reborrow(),
                         object.into_object(),
                         property_key,
                         property_descriptor,
@@ -232,7 +248,7 @@ impl InternalMethods for Module {
             PropertyKey::Integer(_) => Ok(false),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
-                let current = self.internal_get_own_property(agent, property_key)?;
+                let current = self.internal_get_own_property(agent, gc, property_key)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return Ok(false);
@@ -265,7 +281,13 @@ impl InternalMethods for Module {
     }
 
     /// ### [10.4.6.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-hasproperty-p)
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
         match property_key {
             PropertyKey::Integer(_) => Ok(false),
             PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -287,7 +309,8 @@ impl InternalMethods for Module {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
-                    ordinary_has_property(agent, object.into_object(), property_key).unwrap()
+                    ordinary_has_property(agent, gc.reborrow(), object.into_object(), property_key)
+                        .unwrap()
                 }))
             }
         }
@@ -297,6 +320,8 @@ impl InternalMethods for Module {
     fn internal_get(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -313,7 +338,14 @@ impl InternalMethods for Module {
                 Ok(self
                     .get_backing_object(agent)
                     .map_or(Value::Undefined, |object| {
-                        ordinary_get(agent, object.into_object(), property_key, receiver).unwrap()
+                        ordinary_get(
+                            agent,
+                            gc.reborrow(),
+                            object.into_object(),
+                            property_key,
+                            receiver,
+                        )
+                        .unwrap()
                     }))
             }
             PropertyKey::Integer(_) => Ok(Value::Undefined),
@@ -372,6 +404,8 @@ impl InternalMethods for Module {
     fn internal_set(
         self,
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -380,13 +414,20 @@ impl InternalMethods for Module {
     }
 
     /// ### [10.4.6.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-delete-p)
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
                 Ok(self.get_backing_object(agent).map_or(true, |object| {
-                    ordinary_delete(agent, object.into_object(), property_key).unwrap()
+                    ordinary_delete(agent, gc.reborrow(), object.into_object(), property_key)
+                        .unwrap()
                 }))
             }
             PropertyKey::Integer(_) => Ok(false),
@@ -410,7 +451,11 @@ impl InternalMethods for Module {
     }
 
     /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )])(https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+    ) -> JsResult<Vec<PropertyKey>> {
         // 1. Let exports be O.[[Exports]].
         let exports = agent[self]
             .exports

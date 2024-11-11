@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -82,16 +83,20 @@ impl Builtin for ObjectPrototypeValueOf {
 impl ObjectPrototype {
     fn has_own_property(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        has_own_property(agent, o, p).map(|result| result.into())
+        has_own_property(agent, gc.reborrow(), o, p).map(|result| result.into())
     }
 
     fn is_prototype_of(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -101,7 +106,7 @@ impl ObjectPrototype {
         };
         let o = to_object(agent, this_value)?;
         loop {
-            let proto = v.internal_get_prototype_of(agent)?;
+            let proto = v.internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(proto) = proto {
                 v = proto;
                 if same_value(agent, o, v) {
@@ -115,12 +120,14 @@ impl ObjectPrototype {
 
     fn property_is_enumerable(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
         let o = to_object(agent, this_value)?;
-        let desc = o.internal_get_own_property(agent, p)?;
+        let desc = o.internal_get_own_property(agent, gc.reborrow(), p)?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -130,16 +137,20 @@ impl ObjectPrototype {
 
     fn to_locale_string(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
-        invoke(agent, o, p, None)
+        invoke(agent, gc.reborrow(), o, p, None)
     }
 
     fn to_string(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -178,6 +189,7 @@ impl ObjectPrototype {
             // TODO: Check for [[Call]] slot of EmbedderObject
             Value::EmbedderObject(_) => todo!(),
             // 13. Else if O has a [[RegExpMatcher]] internal slot, let builtinTag be "RegExp".
+            #[cfg(feature = "regexp")]
             Value::RegExp(_) => Ok(BUILTIN_STRING_MEMORY._object_RegExp_.into_value()),
             Value::PrimitiveObject(idx) => match &agent[idx].data {
                 PrimitiveObjectData::Boolean(_) => {
@@ -198,7 +210,12 @@ impl ObjectPrototype {
                 | PrimitiveObjectData::BigInt(_)
                 | PrimitiveObjectData::SmallBigInt(_) => {
                     let o = to_object(agent, this_value).unwrap();
-                    let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
+                    let tag = get(
+                        agent,
+                        gc.reborrow(),
+                        o,
+                        WellKnownSymbolIndexes::ToStringTag.into(),
+                    )?;
                     if let Ok(tag) = String::try_from(tag) {
                         let str = format!("[object {}]", tag.as_str(agent));
                         Ok(Value::from_string(agent, str))
@@ -214,7 +231,12 @@ impl ObjectPrototype {
                 // 15. Let tag be ? Get(O, @@toStringTag).
                 // 16. If tag is not a String, set tag to builtinTag.
                 let o = to_object(agent, this_value).unwrap();
-                let tag = get(agent, o, WellKnownSymbolIndexes::ToStringTag.into())?;
+                let tag = get(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    WellKnownSymbolIndexes::ToStringTag.into(),
+                )?;
                 if let Ok(tag) = String::try_from(tag) {
                     let str = format!("[object {}]", tag.as_str(agent));
                     Ok(Value::from_string(agent, str))
@@ -229,6 +251,8 @@ impl ObjectPrototype {
 
     fn value_of(
         agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

@@ -2,13 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    ops::{Index, IndexMut},
-    ptr::NonNull,
-};
+use std::ops::{Index, IndexMut};
 
 use oxc_span::Span;
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         execution::{
@@ -195,6 +193,8 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -203,41 +203,69 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
-        function_internal_define_own_property(self, agent, property_key, property_descriptor)
+        function_internal_define_own_property(
+            self,
+            agent,
+            gc.reborrow(),
+            property_key,
+            property_descriptor,
+        )
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        function_internal_has_property(self, agent, property_key)
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
+        function_internal_has_property(self, agent, gc.reborrow(), property_key)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, property_key, receiver)
+        function_internal_get(self, agent, gc.reborrow(), property_key, receiver)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, property_key, value, receiver)
+        function_internal_set(self, agent, gc.reborrow(), property_key, value, receiver)
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        function_internal_delete(self, agent, property_key)
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
+        function_internal_delete(self, agent, gc.reborrow(), property_key)
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent)
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+    ) -> JsResult<Vec<PropertyKey>> {
+        function_internal_own_property_keys(self, agent, gc.reborrow())
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)
@@ -247,7 +275,14 @@ impl InternalMethods for BuiltinConstructorFunction {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(self, agent: &mut Agent, _: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn internal_call(
+        self,
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -265,11 +300,13 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, self, arguments_list, new_target)
+        builtin_call_or_construct(agent, gc.reborrow(), self, arguments_list, new_target)
     }
 }
 
@@ -282,6 +319,8 @@ impl InternalMethods for BuiltinConstructorFunction {
 /// completion containing an ECMAScript language value or a throw completion.
 fn builtin_call_or_construct(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     f: BuiltinConstructorFunction,
     arguments_list: ArgumentsList,
     new_target: Function,
@@ -318,9 +357,14 @@ fn builtin_call_or_construct(
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
     let result = if heap_data.is_derived {
-        derived_class_default_constructor(agent, arguments_list, new_target.into_object())
+        derived_class_default_constructor(
+            agent,
+            gc.reborrow(),
+            arguments_list,
+            new_target.into_object(),
+        )
     } else {
-        base_class_default_constructor(agent, new_target.into_object())
+        base_class_default_constructor(agent, gc.reborrow(), new_target.into_object())
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.
@@ -339,7 +383,7 @@ pub(crate) struct BuiltinConstructorArgs {
     pub(crate) class_name: String,
     pub(crate) prototype: Option<Object>,
     pub(crate) prototype_property: Object,
-    pub(crate) compiled_initializer_bytecode: Option<Box<Executable>>,
+    pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: EnvironmentIndex,
     pub(crate) private_env: Option<PrivateEnvironmentIndex>,
     pub(crate) source_code: SourceCode,
@@ -414,17 +458,13 @@ pub(crate) fn create_builtin_constructor(
         agent.heap.create_null_object(&entries)
     };
 
-    let compiled_initializer_bytecode = args
-        .compiled_initializer_bytecode
-        .map(|bytecode| NonNull::from(Box::leak(bytecode)));
-
     // 13. Return func.
     agent.heap.create(BuiltinConstructorHeapData {
         // 10. Perform SetFunctionLength(func, length).
         // Skipped as length of builtin constructors is always 0.
         // 8. Set func.[[Realm]] to realm.
         realm,
-        compiled_initializer_bytecode,
+        compiled_initializer_bytecode: args.compiled_initializer_bytecode,
         is_derived: args.is_derived,
         object_index: Some(backing_object),
         environment: args.env,
@@ -453,34 +493,40 @@ impl HeapMarkAndSweep for BuiltinConstructorFunction {
 
 impl HeapMarkAndSweep for BuiltinConstructorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.realm.mark_values(queues);
-        self.object_index.mark_values(queues);
-        self.environment.mark_values(queues);
-        self.private_environment.mark_values(queues);
-        self.source_code.mark_values(queues);
-        if let Some(exe) = &self.compiled_initializer_bytecode {
-            // SAFETY: This is a valid, non-null pointer to an owned Executable
-            // that cannot have any live mutable references to it.
-            unsafe { exe.as_ref() }.mark_values(queues);
-        }
+        let Self {
+            object_index,
+            realm,
+            is_derived: _,
+            compiled_initializer_bytecode,
+            environment,
+            private_environment,
+            source_text: _,
+            source_code,
+        } = self;
+        realm.mark_values(queues);
+        object_index.mark_values(queues);
+        environment.mark_values(queues);
+        private_environment.mark_values(queues);
+        source_code.mark_values(queues);
+        compiled_initializer_bytecode.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.realm.sweep_values(compactions);
-        self.object_index.sweep_values(compactions);
-        self.environment.sweep_values(compactions);
-        self.private_environment.sweep_values(compactions);
-        self.source_code.sweep_values(compactions);
-        if let Some(exe) = &mut self.compiled_initializer_bytecode {
-            // SAFETY: This is a valid, non-null pointer to an owned Executable
-            // that cannot have any live references to it.
-            // References to this Executable are only created above for marking
-            // and in function_definition for running the function. Both of the
-            // references only live for the duration of a synchronous call and
-            // no longer. Sweeping cannot run concurrently with marking or with
-            // ECMAScript code execution. Hence we can be sure that this is not
-            // an aliasing violation.
-            unsafe { exe.as_mut() }.sweep_values(compactions);
-        }
+        let Self {
+            object_index,
+            realm,
+            is_derived: _,
+            compiled_initializer_bytecode,
+            environment,
+            private_environment,
+            source_text: _,
+            source_code,
+        } = self;
+        realm.sweep_values(compactions);
+        object_index.sweep_values(compactions);
+        environment.sweep_values(compactions);
+        private_environment.sweep_values(compactions);
+        source_code.sweep_values(compactions);
+        compiled_initializer_bytecode.sweep_values(compactions);
     }
 }

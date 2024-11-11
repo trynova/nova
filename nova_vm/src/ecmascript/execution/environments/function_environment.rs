@@ -5,6 +5,7 @@
 use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -70,17 +71,31 @@ pub(crate) struct FunctionEnvironment {
 
 impl HeapMarkAndSweep for FunctionEnvironment {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.declarative_environment.mark_values(queues);
-        self.function_object.mark_values(queues);
-        self.new_target.mark_values(queues);
-        self.this_value.mark_values(queues);
+        let Self {
+            this_value,
+            this_binding_status: _,
+            function_object,
+            new_target,
+            declarative_environment,
+        } = self;
+        declarative_environment.mark_values(queues);
+        function_object.mark_values(queues);
+        new_target.mark_values(queues);
+        this_value.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.declarative_environment.sweep_values(compactions);
-        self.function_object.sweep_values(compactions);
-        self.new_target.sweep_values(compactions);
-        self.this_value.sweep_values(compactions);
+        let Self {
+            this_value,
+            this_binding_status: _,
+            function_object,
+            new_target,
+            declarative_environment,
+        } = self;
+        declarative_environment.sweep_values(compactions);
+        function_object.sweep_values(compactions);
+        new_target.sweep_values(compactions);
+        this_value.sweep_values(compactions);
     }
 }
 
@@ -415,7 +430,7 @@ impl FunctionEnvironmentIndex {
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined, or a throw completion.
-    pub(crate) fn get_super_base(self, agent: &mut Agent) -> JsResult<Value> {
+    pub(crate) fn get_super_base(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Value> {
         let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
@@ -436,7 +451,7 @@ impl FunctionEnvironmentIndex {
         // 3. Assert: home is an Object.
         // Type guarantees Objectness.
         // 4. Return ? home.[[GetPrototypeOf]]().
-        home.internal_get_prototype_of(agent)
+        home.internal_get_prototype_of(agent, gc)
             .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
     }
 }

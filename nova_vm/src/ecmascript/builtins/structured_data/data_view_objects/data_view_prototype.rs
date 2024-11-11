@@ -2,14 +2,28 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
+use crate::ecmascript::builtins::data_view::abstract_operations::{get_view_value, set_view_value};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            array_buffer::Ordering,
+            data_view::{
+                abstract_operations::{
+                    get_view_byte_length, is_view_out_of_bounds,
+                    make_data_view_with_buffer_witness_record,
+                },
+                DataView,
+            },
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
     heap::WellKnownSymbolIndexes,
+    SmallInteger,
 };
 
 pub(crate) struct DataViewPrototype;
@@ -160,104 +174,378 @@ impl Builtin for DataViewPrototypeSetUint32 {
 }
 
 impl DataViewPrototype {
-    fn get_buffer(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.1 get DataView.prototype.buffer](https://tc39.es/ecma262/#sec-get-dataview.prototype.buffer)
+    ///
+    /// DataView.prototype.buffer is an accessor property whose set accessor
+    /// function is undefined.
+    fn get_buffer(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+        this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
+        let o = require_internal_slot_data_view(agent, this_value)?;
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        // 4. Let buffer be O.[[ViewedArrayBuffer]].
+        // 5. Return buffer.
+        Ok(agent[o].viewed_array_buffer.into_value())
     }
 
+    /// ### [25.3.4.2 get DataView.prototype.byteLength](https://tc39.es/ecma262/#sec-get-dataview.prototype.bytelength)
+    ///
+    /// DataView.prototype.byteLength is an accessor property whose set accessor
+    /// function is undefined.
     fn get_byte_length(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
+        let o = require_internal_slot_data_view(agent, this_value)?;
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        // 4. Let viewRecord be MakeDataViewWithBufferWitnessRecord(O, seq-cst).
+        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
+        if is_view_out_of_bounds(agent, &view_record) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+            ));
+        }
+        // 6. Let size be GetViewByteLength(viewRecord).
+        let size = get_view_byte_length(agent, &view_record) as i64;
+        // 7. Return 𝔽(size).
+        Ok(Number::from(SmallInteger::try_from(size).unwrap()).into_value())
     }
 
+    /// ### [25.3.4.3 get DataView.prototype.byteOffset](https://tc39.es/ecma262/#sec-get-dataview.prototype.byteoffset)
+    ///
+    /// DataView.prototype.byteOffset is an accessor property whose set accessor
+    /// function is undefined.
     fn get_byte_offset(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[DataView]]).
+        let o = require_internal_slot_data_view(agent, this_value)?;
+        // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+        // 4. Let viewRecord be MakeDataViewWithBufferWitnessRecord(O, seq-cst).
+        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
+        if is_view_out_of_bounds(agent, &view_record) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "DataView is out of bounds",
+            ));
+        }
+        // 6. Let offset be O.[[ByteOffset]].
+        // 7. Return 𝔽(offset).
+        Ok(Number::from(SmallInteger::try_from(o.byte_offset(agent) as i64).unwrap()).into_value())
     }
 
-    fn get_big_int64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.5 DataView.prototype.getBigInt64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbigint64)
+    fn get_big_int64(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 2. Return ? GetViewValue(v, byteOffset, littleEndian, bigint64).
+        get_view_value::<i64>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_big_uint64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.6 DataView.prototype.getBigUint64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbiguint64)
+    fn get_big_uint64(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 2. Return ? GetViewValue(v, byteOffset, littleEndian, biguint64).
+        get_view_value::<u64>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_float32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.7 DataView.prototype.getFloat32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat32)
+    fn get_float32(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float32).
+        get_view_value::<f32>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_float64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.8 DataView.prototype.getFloat64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat64)
+    fn get_float64(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float64).
+        get_view_value::<f64>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_int8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.9 DataView.prototype.getInt8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getint8)
+    fn get_int8(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 1. Let v be the this value.
+        // 2. Return ? GetViewValue(v, byteOffset, true, int8).
+        get_view_value::<i8>(agent, gc, this_value, byte_offset, true)
     }
 
-    fn get_int16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.10 DataView.prototype.getInt16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint16)
+    fn get_int16(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int16).
+        get_view_value::<i16>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_int32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.11 DataView.prototype.getInt32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint32)
+    fn get_int32(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int32).
+        get_view_value::<i32>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_uint8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.12 DataView.prototype.getUint8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint8)
+    fn get_uint8(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 1. Let v be the this value.
+        // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
+        get_view_value::<u8>(agent, gc, this_value, byte_offset, true)
     }
 
-    fn get_uint16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.13 DataView.prototype.getUint16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint16)
+    fn get_uint16(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint16).
+        get_view_value::<u16>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn get_uint32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.14 DataView.prototype.getUint32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint32)
+    fn get_uint32(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint32).
+        get_view_value::<u32>(agent, gc, this_value, byte_offset, little_endian)
     }
 
-    fn set_big_int64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.15 DataView.prototype.setBigInt64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setbigint64)
+    fn set_big_int64(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, bigint64, value).
+        set_view_value::<i64>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_big_uint64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.16 DataView.prototype.setBigUint64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setbiguint64)
+    fn set_big_uint64(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, biguint64, value).
+        set_view_value::<u64>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_float32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.17 DataView.prototype.setFloat32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setfloat32)
+    fn set_float32(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, float32, value).
+        set_view_value::<f32>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_float64(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.18 DataView.prototype.setFloat64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setfloat64)
+    fn set_float64(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, float64, value).
+        set_view_value::<f64>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_int8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.19 DataView.prototype.setInt8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setint8)
+    fn set_int8(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, true, int8, value).
+        set_view_value::<i8>(agent, gc, this_value, byte_offset, true, value)
     }
 
-    fn set_int16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.20 DataView.prototype.setInt16 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setint16)
+    fn set_int16(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, int16, value).
+        set_view_value::<i16>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_int32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.21 DataView.prototype.setInt32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setint32)
+    fn set_int32(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, int32, value).
+        set_view_value::<i32>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_uint8(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.22 DataView.prototype.setUint8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint8)
+    fn set_uint8(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, true, uint8, value).
+        set_view_value::<u8>(agent, gc, this_value, byte_offset, true, value)
     }
 
-    fn set_uint16(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.23 DataView.prototype.setUint16 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint16)
+    fn set_uint16(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, uint16, value).
+        set_view_value::<u16>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
-    fn set_uint32(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+    /// ### [25.3.4.24 DataView.prototype.setUint32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint32)
+    fn set_uint32(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, uint32, value).
+        set_view_value::<u32>(agent, gc, this_value, byte_offset, little_endian, value)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -302,5 +590,17 @@ impl DataViewPrototype {
                     .build()
             })
             .build();
+    }
+}
+
+#[inline]
+pub(crate) fn require_internal_slot_data_view(agent: &mut Agent, o: Value) -> JsResult<DataView> {
+    match o {
+        // 1. Perform ? RequireInternalSlot(O, [[DataView]]).
+        Value::DataView(array_buffer) => Ok(array_buffer),
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Expected this to be DataView",
+        )),
     }
 }

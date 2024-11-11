@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -175,10 +176,15 @@ impl PropertyDescriptor {
     /// The abstract operation ToPropertyDescriptor takes argument Obj (an
     /// ECMAScript language value) and returns either a normal completion
     /// containing a Property Descriptor or a throw completion.
-    pub fn to_property_descriptor(agent: &mut Agent, obj: Value) -> JsResult<Self> {
+    pub fn to_property_descriptor(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        obj: Value,
+    ) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            let obj_repr = obj.string_repr(agent);
+            let obj_repr = obj.string_repr(agent, gc);
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.as_str(agent)
@@ -189,50 +195,90 @@ impl PropertyDescriptor {
         // fields.
         let mut desc = PropertyDescriptor::default();
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
-        let has_enumerable = has_property(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into())?;
+        let has_enumerable = has_property(
+            agent,
+            gc.reborrow(),
+            obj,
+            BUILTIN_STRING_MEMORY.enumerable.into(),
+        )?;
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
-            let enumerable = get(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into())?;
+            let enumerable = get(
+                agent,
+                gc.reborrow(),
+                obj,
+                BUILTIN_STRING_MEMORY.enumerable.into(),
+            )?;
             let enumerable = to_boolean(agent, enumerable);
             // b. Set desc.[[Enumerable]] to enumerable.
             desc.enumerable = Some(enumerable);
         }
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
-        let has_configurable = has_property(agent, obj, BUILTIN_STRING_MEMORY.configurable.into())?;
+        let has_configurable = has_property(
+            agent,
+            gc.reborrow(),
+            obj,
+            BUILTIN_STRING_MEMORY.configurable.into(),
+        )?;
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
-            let configurable = get(agent, obj, BUILTIN_STRING_MEMORY.configurable.into())?;
+            let configurable = get(
+                agent,
+                gc.reborrow(),
+                obj,
+                BUILTIN_STRING_MEMORY.configurable.into(),
+            )?;
             let configurable = to_boolean(agent, configurable);
             // b. Set desc.[[Configurable]] to configurable.
             desc.configurable = Some(configurable);
         }
         // 7. Let hasValue be ? HasProperty(Obj, "value").
-        let has_value = has_property(agent, obj, BUILTIN_STRING_MEMORY.value.into())?;
+        let has_value = has_property(
+            agent,
+            gc.reborrow(),
+            obj,
+            BUILTIN_STRING_MEMORY.value.into(),
+        )?;
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
-            let value = get(agent, obj, BUILTIN_STRING_MEMORY.value.into())?;
+            let value = get(
+                agent,
+                gc.reborrow(),
+                obj,
+                BUILTIN_STRING_MEMORY.value.into(),
+            )?;
             // b. Set desc.[[Value]] to value.
             desc.value = Some(value);
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
-        let has_writable = has_property(agent, obj, BUILTIN_STRING_MEMORY.writable.into())?;
+        let has_writable = has_property(
+            agent,
+            gc.reborrow(),
+            obj,
+            BUILTIN_STRING_MEMORY.writable.into(),
+        )?;
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
-            let writable = get(agent, obj, BUILTIN_STRING_MEMORY.writable.into())?;
+            let writable = get(
+                agent,
+                gc.reborrow(),
+                obj,
+                BUILTIN_STRING_MEMORY.writable.into(),
+            )?;
             let writable = to_boolean(agent, writable);
             // b. Set desc.[[Writable]] to writable.
             desc.writable = Some(writable);
         }
         // 11. Let hasGet be ? HasProperty(Obj, "get").
-        let has_get = has_property(agent, obj, BUILTIN_STRING_MEMORY.get.into())?;
+        let has_get = has_property(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.get.into())?;
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = get(agent, obj, BUILTIN_STRING_MEMORY.get.into())?;
+            let getter = get(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.get.into())?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
@@ -247,11 +293,11 @@ impl PropertyDescriptor {
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
-        let has_set = has_property(agent, obj, BUILTIN_STRING_MEMORY.set.into())?;
+        let has_set = has_property(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.set.into())?;
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = get(agent, obj, BUILTIN_STRING_MEMORY.set.into())?;
+            let setter = get(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {

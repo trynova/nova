@@ -16,6 +16,7 @@ oxc_parser = { workspace = true }
 oxc_semantic = { workspace = true }
 oxc_span = { workspace = true }
 oxc_syntax = { workspace = true }
+oxc_ecmascript = { workspace = true }
 rand = { workspace = true }
 ryu-js = { workspace = true }
 small_string = { path = "../small_string" }
@@ -24,11 +25,23 @@ unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
 
 [features]
-default = ["math", "json", "date", "array-buffer", "shared-array-buffer", "weak-refs"]
-math = []
-json = ["sonic-rs"]
-date = []
+default = [
+    "math",
+    "json",
+    "date",
+    "array-buffer",
+    "shared-array-buffer",
+    "weak-refs",
+    "atomics",
+    "regexp"
+]
 array-buffer = []
+atomics = ["array-buffer", "shared-array-buffer"]
+date = []
+interleaved-gc = []
+json = ["sonic-rs"]
+math = []
+regexp = []
 shared-array-buffer = []
 weak-refs = []
 typescript = []

@@ -14,10 +14,12 @@ pub struct SymbolHeapData {
 
 impl HeapMarkAndSweep for SymbolHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.descriptor.mark_values(queues);
+        let Self { descriptor } = self;
+        descriptor.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.descriptor.sweep_values(compactions);
+        let Self { descriptor } = self;
+        descriptor.sweep_values(compactions);
     }
 }

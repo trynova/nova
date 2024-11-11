@@ -25,6 +25,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct ErrorConstructor;
@@ -44,6 +45,8 @@ impl ErrorConstructor {
     /// ### [20.5.1.1 Error ( message \[ , options \] )](https://tc39.es/ecma262/#sec-error-message)
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -54,12 +57,12 @@ impl ErrorConstructor {
         // 3. If message is not undefined, then
         let message = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
-            Some(to_string(agent, message)?)
+            Some(to_string(agent, gc.reborrow(), message)?)
         } else {
             None
         };
         // 4. Perform ? InstallErrorCause(O, options).
-        let cause = get_error_cause(agent, options)?;
+        let cause = get_error_cause(agent, gc.reborrow(), options)?;
 
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
@@ -67,7 +70,12 @@ impl ErrorConstructor {
             |new_target| Function::try_from(new_target).unwrap(),
         );
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%Error.prototype%", « [[ErrorData]] »).
-        let o = ordinary_create_from_constructor(agent, new_target, ProtoIntrinsics::Error)?;
+        let o = ordinary_create_from_constructor(
+            agent,
+            gc.reborrow(),
+            new_target,
+            ProtoIntrinsics::Error,
+        )?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let heap_data = &mut agent[o];
@@ -89,13 +97,18 @@ impl ErrorConstructor {
     }
 }
 
-pub(super) fn get_error_cause(agent: &mut Agent, options: Value) -> JsResult<Option<Value>> {
+pub(super) fn get_error_cause(
+    agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
+    options: Value,
+) -> JsResult<Option<Value>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.cause);
-    if has_property(agent, options, key)? {
-        Ok(Some(get(agent, options, key)?))
+    if has_property(agent, gc.reborrow(), options, key)? {
+        Ok(Some(get(agent, gc, options, key)?))
     } else {
         Ok(None)
     }

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -30,6 +31,8 @@ impl BuiltinIntrinsicConstructor for AsyncFunctionConstructor {
 impl AsyncFunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -49,6 +52,7 @@ impl AsyncFunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, async, parameterArgs, bodyArg).
         Ok(create_dynamic_function(
             agent,
+            gc,
             constructor,
             DynamicFunctionKind::Async,
             parameter_args,

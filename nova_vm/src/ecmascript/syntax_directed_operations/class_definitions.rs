@@ -2,20 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::{construct, initialize_instance_elements},
-        testing_and_comparison::is_constructor,
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{construct, initialize_instance_elements},
+            testing_and_comparison::is_constructor,
+        },
+        builtins::{
+            ordinary::ordinary_create_from_constructor, ArgumentsList, BuiltinConstructorFunction,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        types::{Function, InternalMethods, Object},
     },
-    builtins::{
-        ordinary::ordinary_create_from_constructor, ArgumentsList, BuiltinConstructorFunction,
-    },
-    execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-    types::{Function, InternalMethods, Object},
+    engine::context::GcScope,
 };
 
 pub(crate) fn base_class_default_constructor(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     new_target: Object,
 ) -> JsResult<Object> {
     // ii. If NewTarget is undefined, throw a TypeError exception.
@@ -30,11 +35,12 @@ pub(crate) fn base_class_default_constructor(
     // 2. Let result be ? OrdinaryCreateFromConstructor(NewTarget, "%Object.prototype%").
     let result = ordinary_create_from_constructor(
         agent,
+        gc.reborrow(),
         Function::try_from(new_target).unwrap(),
         ProtoIntrinsics::Object,
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result, f)?;
+    initialize_instance_elements(agent, gc, result, f)?;
 
     // vii. Return result.
     Ok(result)
@@ -42,6 +48,8 @@ pub(crate) fn base_class_default_constructor(
 
 pub(crate) fn derived_class_default_constructor(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     args: ArgumentsList,
     new_target: Object,
 ) -> JsResult<Object> {
@@ -59,7 +67,7 @@ pub(crate) fn derived_class_default_constructor(
     // %Array.prototype%, this function does not.
 
     // 2. Let func be ! F.[[GetPrototypeOf]]().
-    let func = f.internal_get_prototype_of(agent).unwrap();
+    let func = f.internal_get_prototype_of(agent, gc.reborrow()).unwrap();
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
         return Err(agent.throw_exception_with_static_message(
@@ -70,12 +78,13 @@ pub(crate) fn derived_class_default_constructor(
     // 4. Let result be ? Construct(func, args, NewTarget).
     let result = construct(
         agent,
+        gc.reborrow(),
         func,
         Some(args),
         Some(Function::try_from(new_target).unwrap()),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result, f)?;
+    initialize_instance_elements(agent, gc, result, f)?;
 
     // vii. Return result.
     Ok(result)

@@ -11,59 +11,78 @@ use super::{
     heap_bits::{
         mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
         sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
-        HeapMarkAndSweep, WorkQueues,
+        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_side_table_values,
+        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-use crate::ecmascript::{
-    builtins::{
-        bound_function::BoundFunction,
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReactionIdentifier,
-            generator_objects::Generator,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReaction,
-                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+use crate::{
+    ecmascript::{
+        builtins::{
+            bound_function::BoundFunction,
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReactionIdentifier,
+                generator_objects::Generator,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReaction,
+                    promise_resolving_functions::BuiltinPromiseResolvingFunction,
+                },
             },
+            embedder_object::EmbedderObject,
+            error::Error,
+            finalization_registry::FinalizationRegistry,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIterator,
+                set_objects::set_iterator_objects::set_iterator::SetIterator,
+            },
+            map::Map,
+            module::Module,
+            primitive_objects::PrimitiveObject,
+            promise::Promise,
+            proxy::Proxy,
+            set::Set,
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
-        embedder_object::EmbedderObject,
-        error::Error,
-        finalization_registry::FinalizationRegistry,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIterator,
-            set_objects::set_iterator_objects::set_iterator::SetIterator,
+        execution::{
+            Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
+            GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
         },
-        map::Map,
-        module::Module,
-        primitive_objects::PrimitiveObject,
-        promise::Promise,
-        proxy::Proxy,
-        regexp::RegExp,
-        set::Set,
-        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+        scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
+        types::{
+            bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
+            BUILTIN_STRINGS_LIST,
+        },
     },
-    execution::{
-        DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
-        GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
-    },
-    scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
-    types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, BUILTIN_STRINGS_LIST,
-    },
+    engine::{context::GcScope, Executable},
 };
 
-pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
+pub fn heap_gc(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    root_realms: &mut [Option<RealmIdentifier>],
+) {
+    let Agent {
+        heap,
+        execution_context_stack,
+        stack_refs,
+        vm_stack,
+        options: _,
+        symbol_id: _,
+        global_symbol_registry: _,
+        host_hooks: _,
+    } = agent;
     let mut bits = HeapBits::new(heap);
     let mut queues = WorkQueues::new(heap);
 
@@ -73,16 +92,32 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         }
     });
 
-    let mut last_filled_global_value = None;
-    heap.globals.iter().enumerate().for_each(|(i, &value)| {
-        if let Some(value) = value {
-            value.mark_values(&mut queues);
-            last_filled_global_value = Some(i);
-        }
+    execution_context_stack.iter().for_each(|ctx| {
+        ctx.mark_values(&mut queues);
     });
+    stack_refs
+        .borrow()
+        .iter()
+        .for_each(|value| value.mark_values(&mut queues));
+    vm_stack.iter().for_each(|vm_ptr| {
+        unsafe { vm_ptr.as_ref() }.mark_values(&mut queues);
+    });
+    let mut last_filled_global_value = None;
+    heap.globals
+        .borrow()
+        .iter()
+        .enumerate()
+        .for_each(|(i, &value)| {
+            if let Some(value) = value {
+                value.mark_values(&mut queues);
+                last_filled_global_value = Some(i);
+            }
+        });
     // Remove as many `None` global values without moving any `Some(Value)` values.
     if let Some(last_filled_global_value) = last_filled_global_value {
-        heap.globals.drain(last_filled_global_value + 1..);
+        heap.globals
+            .borrow_mut()
+            .drain(last_filled_global_value + 1..);
     }
 
     queues.strings.extend(
@@ -117,6 +152,10 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             builtin_functions,
             #[cfg(feature = "array-buffer")]
             data_views,
+            #[cfg(feature = "array-buffer")]
+                data_view_byte_lengths: _,
+            #[cfg(feature = "array-buffer")]
+                data_view_byte_offsets: _,
             #[cfg(feature = "date")]
             dates,
             ecmascript_functions,
@@ -124,6 +163,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             embedder_objects,
             environments,
             errors,
+            executables,
             source_codes,
             finalization_registrys,
             generators,
@@ -139,6 +179,7 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
             promises,
             proxys,
             realms,
+            #[cfg(feature = "regexp")]
             regexps,
             scripts,
             sets,
@@ -382,6 +423,19 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 errors.get(index).mark_values(&mut queues);
             }
         });
+        let mut executable_marks: Box<[Executable]> = queues.executables.drain(..).collect();
+        executable_marks.sort();
+        executable_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.executables.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                executables.get(index).mark_values(&mut queues);
+            }
+        });
         let mut source_code_marks: Box<[SourceCode]> = queues.source_codes.drain(..).collect();
         source_code_marks.sort();
         source_code_marks.iter().for_each(|&idx| {
@@ -618,19 +672,22 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
                 primitive_objects.get(index).mark_values(&mut queues);
             }
         });
-        let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
-        regexp_marks.sort();
-        regexp_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.regexps.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "regexp")]
+        {
+            let mut regexp_marks: Box<[RegExp]> = queues.regexps.drain(..).collect();
+            regexp_marks.sort();
+            regexp_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.regexps.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    regexps.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                regexps.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
         set_marks.sort();
         set_marks.iter().for_each(|&idx| {
@@ -931,15 +988,31 @@ pub fn heap_gc(heap: &mut Heap, root_realms: &mut [Option<RealmIdentifier>]) {
         });
     }
 
-    sweep(heap, &bits, root_realms);
+    sweep(agent, gc, &bits, root_realms);
 }
 
-fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdentifier>]) {
+fn sweep(
+    agent: &mut Agent,
+    _: GcScope<'_, '_>,
+    bits: &HeapBits,
+    root_realms: &mut [Option<RealmIdentifier>],
+) {
     let compactions = CompactionLists::create_from_bits(bits);
 
     for realm in root_realms {
         realm.sweep_values(&compactions);
     }
+
+    let Agent {
+        heap,
+        execution_context_stack,
+        stack_refs,
+        vm_stack,
+        options: _,
+        symbol_id: _,
+        global_symbol_registry: _,
+        host_hooks: _,
+    } = agent;
 
     let Heap {
         #[cfg(feature = "array-buffer")]
@@ -953,6 +1026,10 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         builtin_functions,
         #[cfg(feature = "array-buffer")]
         data_views,
+        #[cfg(feature = "array-buffer")]
+        data_view_byte_lengths,
+        #[cfg(feature = "array-buffer")]
+        data_view_byte_offsets,
         #[cfg(feature = "date")]
         dates,
         ecmascript_functions,
@@ -960,6 +1037,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         embedder_objects,
         environments,
         errors,
+        executables,
         source_codes,
         finalization_registrys,
         generators,
@@ -975,6 +1053,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         promises,
         proxys,
         realms,
+        #[cfg(feature = "regexp")]
         regexps,
         scripts,
         sets,
@@ -1010,9 +1089,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         e2pow32,
     } = elements;
 
+    let mut globals = globals.borrow_mut();
+    let globals_iter = globals.iter_mut();
     thread::scope(|s| {
         s.spawn(|| {
-            for value in globals {
+            for value in globals_iter {
                 value.sweep_values(&compactions);
             }
         });
@@ -1173,6 +1254,16 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !data_views.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(data_views, &compactions, &bits.data_views);
+                sweep_side_table_values(
+                    data_view_byte_lengths,
+                    &compactions.data_views,
+                    &bits.data_views,
+                );
+                sweep_side_table_values(
+                    data_view_byte_offsets,
+                    &compactions.data_views,
+                    &bits.data_views,
+                );
             });
         }
         #[cfg(feature = "date")]
@@ -1203,6 +1294,11 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
         if !errors.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(errors, &compactions, &bits.errors);
+            });
+        }
+        if !executables.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(executables, &compactions, &bits.executables);
             });
         }
         if !finalization_registrys.is_empty() {
@@ -1297,6 +1393,7 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(realms, &compactions, &bits.realms);
             });
         }
+        #[cfg(feature = "regexp")]
         if !regexps.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(regexps, &compactions, &bits.regexps);
@@ -1366,22 +1463,50 @@ fn sweep(heap: &mut Heap, bits: &HeapBits, root_realms: &mut [Option<RealmIdenti
                 sweep_heap_vector_values(weak_sets, &compactions, &bits.weak_sets);
             });
         }
+        if !execution_context_stack.is_empty() {
+            s.spawn(|| {
+                execution_context_stack
+                    .iter_mut()
+                    .for_each(|entry| entry.sweep_values(&compactions));
+            });
+        }
+        if !stack_refs.borrow().is_empty() {
+            stack_refs
+                .borrow_mut()
+                .iter_mut()
+                .for_each(|entry| entry.sweep_values(&compactions));
+        }
+        if !vm_stack.is_empty() {
+            vm_stack
+                .iter_mut()
+                .for_each(|entry| unsafe { entry.as_mut().sweep_values(&compactions) });
+        }
     });
 }
 
 #[test]
 fn test_heap_gc() {
-    use crate::ecmascript::types::Value;
+    use crate::engine::context::GcScope;
+    use crate::{
+        ecmascript::execution::{agent::Options, DefaultHostHooks},
+        engine::rootable::HeapRootData,
+    };
 
-    let mut heap: Heap = Default::default();
-    assert!(heap.objects.is_empty());
-    let obj = Value::Object(heap.create_null_object(&[]));
+    let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
+
+    let (mut gc, mut scope) = unsafe { GcScope::create_root() };
+    let mut gc = GcScope::new(&mut gc, &mut scope);
+    assert!(agent.heap.objects.is_empty());
+    let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
-    heap.globals.push(Some(obj));
-    heap_gc(&mut heap, &mut []);
-    println!("Objects: {:#?}", heap.objects);
-    assert_eq!(heap.objects.len(), 1);
-    assert_eq!(heap.elements.e2pow4.values.len(), 0);
-    assert!(heap.globals.last().is_some());
-    println!("Global #1: {:#?}", heap.globals.last().unwrap());
+    agent.heap.globals.borrow_mut().push(Some(obj));
+    heap_gc(&mut agent, gc.reborrow(), &mut []);
+    println!("Objects: {:#?}", agent.heap.objects);
+    assert_eq!(agent.heap.objects.len(), 1);
+    assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);
+    assert!(agent.heap.globals.borrow().last().is_some());
+    println!(
+        "Global #1: {:#?}",
+        agent.heap.globals.borrow().last().unwrap()
+    );
 }

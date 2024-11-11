@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
+use crate::ecmascript::types::Viewable;
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -181,6 +183,8 @@ pub(crate) fn clone_array_buffer(
 /// completion.
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     options: Value,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
@@ -191,14 +195,14 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     };
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
     let property = PropertyKey::from(BUILTIN_STRING_MEMORY.maxByteLength);
-    let max_byte_length = get(agent, options, property)?;
+    let max_byte_length = get(agent, gc.reborrow(), options, property)?;
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {
         return Ok(None);
     }
     // 4. Return ? ToIndex(maxByteLength).
     // TODO: Consider de-inlining this once ToIndex is implemented.
-    let number = max_byte_length.to_number(agent)?;
+    let number = max_byte_length.to_number(agent, gc)?;
     let integer = if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent)
     {
         0
@@ -311,7 +315,11 @@ pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> boo
 /// The abstract operation RawBytesToNumeric takes arguments type (a
 /// TypedArray element type), rawBytes (a List of byte values), and
 /// isLittleEndian (a Boolean) and returns a Number or a BigInt.
-pub(crate) const fn raw_bytes_to_numeric(_type: (), _raw_bytes: &[u8], _is_little_endian: bool) {
+pub(crate) fn raw_bytes_to_numeric<T: Viewable>(
+    agent: &mut Agent,
+    raw_bytes: T,
+    is_little_endian: bool,
+) -> Value {
     // 1. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 2. If isLittleEndian is false, reverse the order of the elements of rawBytes.
     // 3. If type is FLOAT32, then
@@ -328,6 +336,11 @@ pub(crate) const fn raw_bytes_to_numeric(_type: (), _raw_bytes: &[u8], _is_littl
     // a. Let intValue be the byte elements of rawBytes concatenated and interpreted as a bit string encoding of a binary little-endian two's complement number of bit length elementSize × 8.
     // 7. If IsBigIntElementType(type) is true, return the BigInt value that corresponds to intValue.
     // 8. Otherwise, return the Number value that corresponds to intValue.
+    if is_little_endian {
+        raw_bytes.into_le_value(agent)
+    } else {
+        raw_bytes.into_be_value(agent)
+    }
 }
 
 /// ### [25.1.3.14 GetRawBytesFromSharedBlock ( block, byteIndex, type, isTypedArray, order )](https://tc39.es/ecma262/#sec-getrawbytesfromsharedblock)
@@ -363,18 +376,20 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// integer), type (a TypedArray element type), isTypedArray (a Boolean),
 /// and order (SEQ-CST or UNORDERED) and optional argument isLittleEndian
 /// (a Boolean) and returns a Number or a BigInt.
-pub(crate) fn get_value_from_buffer(
-    _array_buffer: ArrayBuffer,
-    _byte_index: u32,
-    _type: (),
+pub(crate) fn get_value_from_buffer<T: Viewable>(
+    agent: &mut Agent,
+    array_buffer: ArrayBuffer,
+    byte_index: usize,
     _is_typed_array: bool,
     _order: Ordering,
-    _is_little_endian: Option<bool>,
-) {
+    is_little_endian: Option<bool>,
+) -> Value {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+    debug_assert!(!array_buffer.is_detached(agent));
     // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
-    // 3. Let block be arrayBuffer.[[ArrayBufferData]].
     // 4. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
+    // 3. Let block be arrayBuffer.[[ArrayBufferData]].
+    let block = agent[array_buffer].get_data_block();
     // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
     // a. Assert: block is a Shared Data Block.
     // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type, isTypedArray, order).
@@ -382,7 +397,23 @@ pub(crate) fn get_value_from_buffer(
     // a. Let rawValue be a List whose elements are bytes from block at indices in the interval from byteIndex (inclusive) to byteIndex + elementSize (exclusive).
     // 7. Assert: The number of elements in rawValue is elementSize.
     // 8. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
+    let is_little_endian = is_little_endian.unwrap_or({
+        #[cfg(target_endian = "little")]
+        {
+            true
+        }
+        #[cfg(target_endian = "big")]
+        {
+            false
+        }
+    });
+
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
+    raw_bytes_to_numeric::<T>(
+        agent,
+        block.get_offset_by_byte::<T>(byte_index).unwrap(),
+        is_little_endian,
+    )
 }
 
 /// ### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)
@@ -390,12 +421,12 @@ pub(crate) fn get_value_from_buffer(
 /// The abstract operation NumericToRawBytes takes arguments type (a
 /// TypedArray element type), value (a Number or a BigInt), and
 /// isLittleEndian (a Boolean) and returns a List of byte values.
-pub(crate) fn numeric_to_raw_bytes(
-    _array_buffer: ArrayBuffer,
-    _type: (),
-    _value: Number,
-    _is_little_endian: bool,
-) {
+pub(crate) fn numeric_to_raw_bytes<T: Viewable>(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    value: Value,
+    is_little_endian: bool,
+) -> T {
     // 1. If type is FLOAT32, then
     // a. Let rawBytes be a List whose elements are the 4 bytes that are the result of converting value to IEEE 754-2019 binary32 format using roundTiesToEven mode. The bytes are arranged in little endian order. If value is NaN, rawBytes may be set to any implementation chosen IEEE 754-2019 binary32 format Not-a-Number encoding. An implementation must always choose the same encoding for each implementation distinguishable NaN value.
     // 2. Else if type is FLOAT64, then
@@ -410,6 +441,11 @@ pub(crate) fn numeric_to_raw_bytes(
     // i. Let rawBytes be a List whose elements are the n-byte binary two's complement encoding of intValue. The bytes are ordered in little endian order.
     // 4. If isLittleEndian is false, reverse the order of the elements of rawBytes.
     // 5. Return rawBytes.
+    if is_little_endian {
+        T::from_le_value(agent, gc, value)
+    } else {
+        T::from_be_value(agent, gc, value)
+    }
 }
 
 /// ### [25.1.3.17 SetValueInBuffer ( arrayBuffer, byteIndex, type, value, isTypedArray, order \[ , isLittleEndian \] )](https://tc39.es/ecma262/#sec-setvalueinbuffer)
@@ -419,29 +455,49 @@ pub(crate) fn numeric_to_raw_bytes(
 /// type (a TypedArray element type), value (a Number or a BigInt),
 /// isTypedArray (a Boolean), and order (SEQ-CST, UNORDERED, or INIT) and
 /// optional argument isLittleEndian (a Boolean) and returns UNUSED.
-pub(crate) fn set_value_in_buffer(
-    _array_buffer: ArrayBuffer,
-    _byte_index: u32,
-    _type: (),
-    _value: Value,
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn set_value_in_buffer<T: Viewable>(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+    array_buffer: ArrayBuffer,
+    byte_index: usize,
+    value: Value,
     _is_typed_array: bool,
     _order: Ordering,
-    _is_little_endian: Option<bool>,
+    is_little_endian: Option<bool>,
 ) {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
+    debug_assert!(!array_buffer.is_detached(agent));
     // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
     // 3. Assert: value is a BigInt if IsBigIntElementType(type) is true; otherwise, value is a Number.
-    // 4. Let block be arrayBuffer.[[ArrayBufferData]].
+
     // 5. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 6. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
+    let is_little_endian = is_little_endian.unwrap_or({
+        #[cfg(target_endian = "little")]
+        {
+            true
+        }
+        #[cfg(target_endian = "big")]
+        {
+            false
+        }
+    });
+
     // 7. Let rawBytes be NumericToRawBytes(type, value, isLittleEndian).
+    let raw_bytes = numeric_to_raw_bytes::<T>(agent, gc, value, is_little_endian);
     // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
     // a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
     // b. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().
     // c. If isTypedArray is true and IsNoTearConfiguration(type, order) is true, let noTear be true; otherwise let noTear be false.
     // d. Append WriteSharedMemory { [[Order]]: order, [[NoTear]]: noTear, [[Block]]: block, [[ByteIndex]]: byteIndex, [[ElementSize]]: elementSize, [[Payload]]: rawBytes } to eventsRecord.[[EventList]].
     // 9. Else,
+
+    // 4. Let block be arrayBuffer.[[ArrayBufferData]].
+    let block = agent[array_buffer].get_data_block_mut();
+
     // a. Store the individual bytes of rawBytes into block, starting at block[byteIndex].
+    block.set_offset_by_byte::<T>(byte_index, raw_bytes);
     // 10. Return UNUSED.
 }
 

@@ -10,12 +10,13 @@ use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
 };
+use crate::ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number};
 use crate::{
-    ecmascript::{
-        abstract_operations::type_conversion::{to_int32, to_uint32},
-        execution::{Agent, JsResult},
+    ecmascript::execution::Agent,
+    engine::{
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_f64::SmallF64,
     },
-    engine::small_f64::SmallF64,
     heap::{
         indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -51,6 +52,14 @@ pub enum Number {
     /// 56-bit f64 on the stack. The missing byte is a zero least significant
     /// byte.
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum NumberRootRepr {
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
 }
 
 impl IntoValue for HeapNumber {
@@ -108,7 +117,7 @@ impl IntoNumeric for Number {
         match self {
             Number::Number(idx) => Numeric::Number(idx),
             Number::Integer(data) => Numeric::Integer(data),
-            Number::SmallF64(data) => Numeric::Float(data),
+            Number::SmallF64(data) => Numeric::SmallF64(data),
         }
     }
 }
@@ -216,7 +225,7 @@ impl TryFrom<Numeric> for Number {
         match value {
             Numeric::Number(data) => Ok(Number::Number(data)),
             Numeric::Integer(data) => Ok(Number::Integer(data)),
-            Numeric::Float(data) => Ok(Number::SmallF64(data)),
+            Numeric::SmallF64(data) => Ok(Number::SmallF64(data)),
             _ => Err(()),
         }
     }
@@ -299,6 +308,14 @@ impl Number {
             Number::Number(n) => agent[n].is_finite(),
             Number::Integer(_) => true,
             Number::SmallF64(n) => n.into_f64().is_finite(),
+        }
+    }
+
+    pub fn is_integer(self, agent: &impl Index<HeapNumber, Output = f64>) -> bool {
+        match self {
+            Number::Number(n) => agent[n].fract() == 0.0,
+            Number::Integer(_) => true,
+            Number::SmallF64(n) => n.into_f64().fract() == 0.0,
         }
     }
 
@@ -539,12 +556,12 @@ impl Number {
     }
 
     /// ### [6.1.6.1.2 Number::bitwiseNOT ( x )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseNOT)
-    pub fn bitwise_not(agent: &mut Agent, x: Self) -> JsResult<Self> {
+    pub fn bitwise_not(agent: &mut Agent, x: Self) -> Self {
         // 1. Let oldValue be ! ToInt32(x).
-        let old_value = to_int32(agent, x.into_value())?;
+        let old_value = to_int32_number(agent, x);
 
         // 2. Return the result of applying bitwise complement to oldValue. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
-        Ok(Number::from(!old_value))
+        Number::from(!old_value)
     }
 
     /// ### [6.1.6.1.3 Number::exponentiate ( base, exponent )](https://tc39.es/ecma262/#sec-numeric-types-number-exponentiate)
@@ -960,7 +977,7 @@ impl Number {
     /// and y (a Number) and returns a Number. It performs subtraction,
     /// producing the difference of its operands; x is the minuend and y is the
     /// subtrahend.
-    pub(crate) fn subtract(agent: &mut Agent, x: Number, y: Number) -> Number {
+    pub(crate) fn subtract(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Return Number::add(x, Number::unaryMinus(y)).
         let negated_y = Number::unary_minus(agent, y);
         Number::add(agent, x, negated_y)
@@ -972,9 +989,9 @@ impl Number {
     /// (a Number) and y (a Number) and returns an integral Number.
     pub fn left_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToInt32(x).
-        let lnum = to_int32(agent, x.into_value()).unwrap();
+        let lnum = to_int32_number(agent, x);
         // 2. Let rnum be ! ToUint32(y).
-        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        let rnum = to_uint32_number(agent, y);
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
         let shift_count = rnum % 32;
         // 4. Return the result of left shifting lnum by shiftCount bits. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
@@ -987,9 +1004,9 @@ impl Number {
     /// (a Number) and y (a Number) and returns an integral Number.
     pub fn signed_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToInt32(x).
-        let lnum = to_int32(agent, x.into_value()).unwrap();
+        let lnum = to_int32_number(agent, x);
         // 2. Let rnum be ! ToUint32(y).
-        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        let rnum = to_uint32_number(agent, y);
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
         let shift_count = rnum % 32;
         // 4. Return the result of performing a sign-extending right shift of lnum by shiftCount bits. The most significant bit is propagated. The mathematical value of the result is exactly representable as a 32-bit two's complement bit string.
@@ -1002,9 +1019,9 @@ impl Number {
     /// and y (a Number) and returns a Boolean or undefined.
     pub fn unsigned_right_shift(agent: &mut Agent, x: Self, y: Self) -> Self {
         // 1. Let lnum be ! ToUint32(x).
-        let lnum = to_uint32(agent, x.into_value()).unwrap();
+        let lnum = to_uint32_number(agent, x);
         // 2. Let rnum be ! ToUint32(y).
-        let rnum = to_uint32(agent, y.into_value()).unwrap();
+        let rnum = to_uint32_number(agent, y);
         // 3. Let shiftCount be ℝ(rnum) modulo 32.
         let shift_count = rnum % 32;
         // 4. Return the result of performing a zero-filling right shift of lnum by shiftCount bits. Vacated bits are filled with zero. The mathematical value of the result is exactly representable as a 32-bit unsigned bit string.
@@ -1012,7 +1029,7 @@ impl Number {
     }
 
     /// ### [6.1.6.1.12 Number::lessThan ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-lessThan)
-    pub fn less_than(agent: &mut Agent, x: Self, y: Self) -> Option<bool> {
+    pub fn less_than(agent: &Agent, x: Self, y: Self) -> Option<bool> {
         // 1. If x is NaN, return undefined.
         if x.is_nan(agent) {
             return None;
@@ -1160,12 +1177,12 @@ impl Number {
 
     /// ### [6.1.6.1.16 NumberBitwiseOp ( op, x, y )](https://tc39.es/ecma262/#sec-numberbitwiseop)
     #[inline(always)]
-    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> JsResult<i32> {
+    fn bitwise_op(agent: &mut Agent, op: BitwiseOp, x: Self, y: Self) -> i32 {
         // 1. Let lnum be ! ToInt32(x).
-        let lnum = x.into_value().to_int32(agent)?;
+        let lnum = to_int32_number(agent, x);
 
         // 2. Let rnum be ! ToInt32(y).
-        let rnum = y.into_value().to_int32(agent)?;
+        let rnum = to_int32_number(agent, y);
 
         // 3. Let lbits be the 32-bit two's complement bit string representing ℝ(lnum).
         let lbits = lnum;
@@ -1173,7 +1190,8 @@ impl Number {
         // 4. Let rbits be the 32-bit two's complement bit string representing ℝ(rnum).
         let rbits = rnum;
 
-        let result = match op {
+        // 8. Return the Number value for the integer represented by the 32-bit two's complement bit string result.
+        match op {
             // 5. If op is &, then
             BitwiseOp::And => {
                 // a. Let result be the result of applying the bitwise AND operation to lbits and rbits.
@@ -1190,26 +1208,23 @@ impl Number {
                 // b. Let result be the result of applying the bitwise inclusive OR operation to lbits and rbits.
                 lbits | rbits
             }
-        };
-
-        // 8. Return the Number value for the integer represented by the 32-bit two's complement bit string result.
-        Ok(result)
+        }
     }
 
     /// ### [6.1.6.1.17 Number::bitwiseAND ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseAND)
-    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_and(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(&, x, y).
         Number::bitwise_op(agent, BitwiseOp::And, x, y)
     }
 
     /// ### [6.1.6.1.18 Number::bitwiseXOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseXOR)
-    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_xor(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(^, x, y).
         Number::bitwise_op(agent, BitwiseOp::Xor, x, y)
     }
 
     /// ### [6.1.6.1.19 Number::bitwiseOR ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-bitwiseOR)
-    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> JsResult<i32> {
+    pub fn bitwise_or(agent: &mut Agent, x: Self, y: Self) -> i32 {
         // 1. Return NumberBitwiseOp(|, x, y).
         Number::bitwise_op(agent, BitwiseOp::Or, x, y)
     }
@@ -1349,5 +1364,40 @@ impl HeapMarkAndSweep for HeapNumber {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.numbers.shift_index(&mut self.0);
+    }
+}
+
+impl Rootable for Number {
+    type RootRepr = NumberRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
+            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
+            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
+            _ => None,
+        }
     }
 }

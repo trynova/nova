@@ -4,6 +4,8 @@
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
@@ -30,7 +32,6 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObjectHeapData,
         promise::data::PromiseHeapData,
         proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
         set::data::SetHeapData,
         ArrayHeapData,
     },
@@ -58,6 +59,10 @@ pub struct BaseIndex<T: ?Sized>(NonZeroU32, PhantomData<T>);
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =
     assert!(size_of::<Option<BaseIndex<()>>>() == size_of::<u32>());
+
+pub(crate) trait IntoBaseIndex<T: ?Sized> {
+    fn into_base_index(self) -> BaseIndex<T>;
+}
 
 impl<T: ?Sized> Debug for BaseIndex<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -187,6 +192,7 @@ pub type ObjectIndex = BaseIndex<ObjectHeapData>;
 pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
 pub type PromiseIndex = BaseIndex<PromiseHeapData>;
 pub type ProxyIndex = BaseIndex<ProxyHeapData>;
+#[cfg(feature = "regexp")]
 pub type RegExpIndex = BaseIndex<RegExpHeapData>;
 pub type SetIndex = BaseIndex<SetHeapData>;
 pub type SetIteratorIndex = BaseIndex<SetIteratorHeapData>;

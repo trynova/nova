@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builtins::ordinary::{
@@ -205,6 +206,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
@@ -231,6 +234,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -255,10 +260,16 @@ impl InternalMethods for PrimitiveObject {
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_define_own_property(agent, backing_object, property_key, property_descriptor)
+        ordinary_define_own_property(agent, gc, backing_object, property_key, property_descriptor)
     }
 
-    fn internal_has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -271,16 +282,16 @@ impl InternalMethods for PrimitiveObject {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_has_property(agent, backing_object.into_object(), property_key)
+                ordinary_has_property(agent, gc, backing_object.into_object(), property_key)
             }
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = self.internal_get_prototype_of(agent)?;
+                let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, property_key)
+                    parent.internal_has_property(agent, gc, property_key)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -292,6 +303,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_get(
         self,
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -303,18 +316,22 @@ impl InternalMethods for PrimitiveObject {
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_get(agent, backing_object.into_object(), property_key, receiver)
-            }
+            Some(backing_object) => ordinary_get(
+                agent,
+                gc,
+                backing_object.into_object(),
+                property_key,
+                receiver,
+            ),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = self.internal_get_prototype_of(agent)? else {
+                let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
                     // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, property_key, receiver)
+                parent.internal_get(agent, gc, property_key, receiver)
             }
         }
     }
@@ -322,6 +339,8 @@ impl InternalMethods for PrimitiveObject {
     fn internal_set(
         self,
         agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -340,10 +359,16 @@ impl InternalMethods for PrimitiveObject {
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent))
             .into_object();
-        ordinary_set(agent, backing_object, property_key, value, receiver)
+        ordinary_set(agent, gc, backing_object, property_key, value, receiver)
     }
 
-    fn internal_delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
+    fn internal_delete(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
+        property_key: PropertyKey,
+    ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -356,13 +381,17 @@ impl InternalMethods for PrimitiveObject {
         // 1. Return ? OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_delete(agent, backing_object.into_object(), property_key)
+                ordinary_delete(agent, gc, backing_object.into_object(), property_key)
             }
             None => Ok(true),
         }
     }
 
-    fn internal_own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
+    fn internal_own_property_keys(
+        self,
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+    ) -> JsResult<Vec<PropertyKey>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);
@@ -528,8 +557,9 @@ impl PrimitiveObjectHeapData {
 
 impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        match self.data {
+        let Self { object_index, data } = self;
+        object_index.mark_values(queues);
+        match data {
             PrimitiveObjectData::String(data) => data.mark_values(queues),
             PrimitiveObjectData::Symbol(data) => data.mark_values(queues),
             PrimitiveObjectData::Number(data) => data.mark_values(queues),
@@ -539,8 +569,9 @@ impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
-        match &mut self.data {
+        let Self { object_index, data } = self;
+        object_index.sweep_values(compactions);
+        match data {
             PrimitiveObjectData::String(data) => data.sweep_values(compactions),
             PrimitiveObjectData::Symbol(data) => data.sweep_values(compactions),
             PrimitiveObjectData::Number(data) => data.sweep_values(compactions),

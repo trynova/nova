@@ -4,6 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -15,7 +16,10 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{Executable, ExecutionResult, SuspendedVm, Vm},
+    engine::{
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scoped},
+        Executable, ExecutionResult, SuspendedVm, Vm,
+    },
     heap::{
         indexes::{BaseIndex, GeneratorIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -35,7 +39,13 @@ impl Generator {
     }
 
     /// [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
-    pub(crate) fn resume(self, agent: &mut Agent, value: Value) -> JsResult<Object> {
+    pub(crate) fn resume(
+        mut self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        value: Value,
+    ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended { .. } => {
@@ -72,13 +82,19 @@ impl Generator {
         // execution context.
         agent.execution_context_stack.push(execution_context);
 
+        let saved = Scoped::new(agent, self);
+
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
-            VmOrArguments::Arguments(args) => Vm::execute(agent, &executable, Some(&args)),
-            VmOrArguments::Vm(vm) => vm.resume(agent, &executable, value),
+            VmOrArguments::Arguments(args) => {
+                Vm::execute(agent, gc.reborrow(), executable, Some(&args))
+            }
+            VmOrArguments::Vm(vm) => vm.resume(agent, gc.reborrow(), executable, value),
         };
+
+        self = saved.get(agent);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -137,7 +153,13 @@ impl Generator {
 
     /// [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts throw completions.
-    pub(crate) fn resume_throw(self, agent: &mut Agent, value: Value) -> JsResult<Object> {
+    pub(crate) fn resume_throw(
+        self,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        value: Value,
+    ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended {
@@ -194,7 +216,7 @@ impl Generator {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume_throw(agent, &executable, value);
+        let execution_result = vm.resume_throw(agent, gc.reborrow(), executable, value);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -264,6 +286,18 @@ impl From<Generator> for Object {
     }
 }
 
+impl TryFrom<Value> for Generator {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Generator(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
 impl InternalSlots for Generator {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
@@ -319,6 +353,34 @@ impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
     }
 }
 
+impl Rootable for Generator {
+    type RootRepr = HeapRootRef;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Generator(value))
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        if let HeapRootData::Generator(value) = heap_data {
+            Some(value)
+        } else {
+            None
+        }
+    }
+}
+
 impl HeapMarkAndSweep for Generator {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.generators.push(*self);
@@ -355,12 +417,16 @@ pub(crate) enum GeneratorState {
 
 impl HeapMarkAndSweep for GeneratorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
+        let Self {
+            object_index,
+            generator_state,
+        } = self;
+        object_index.mark_values(queues);
         if let Some(GeneratorState::Suspended {
             vm_or_args,
             executable,
             execution_context,
-        }) = &self.generator_state
+        }) = generator_state
         {
             match vm_or_args {
                 VmOrArguments::Vm(vm) => vm.mark_values(queues),
@@ -372,12 +438,16 @@ impl HeapMarkAndSweep for GeneratorHeapData {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.object_index.sweep_values(compactions);
+        let Self {
+            object_index,
+            generator_state,
+        } = self;
+        object_index.sweep_values(compactions);
         if let Some(GeneratorState::Suspended {
             vm_or_args,
             executable,
             execution_context,
-        }) = &mut self.generator_state
+        }) = generator_state
         {
             match vm_or_args {
                 VmOrArguments::Vm(vm) => vm.sweep_values(compactions),

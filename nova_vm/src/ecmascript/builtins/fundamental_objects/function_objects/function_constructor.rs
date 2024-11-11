@@ -4,20 +4,24 @@
 
 use oxc_span::SourceType;
 
-use crate::ecmascript::{
-    builders::builtin_function_builder::BuiltinFunctionBuilder,
-    builtins::{
-        make_constructor, ordinary::get_prototype_from_constructor, ordinary_function_create,
-        set_function_name, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-        ECMAScriptFunction, OrdinaryFunctionCreateParams,
-    },
-    execution::{
-        agent::ExceptionType, Agent, EnvironmentIndex, JsResult, ProtoIntrinsics, RealmIdentifier,
-    },
-    scripts_and_modules::source_code::SourceCode,
-    types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
-};
 use crate::heap::IntrinsicConstructorIndexes;
+use crate::{
+    ecmascript::{
+        builders::builtin_function_builder::BuiltinFunctionBuilder,
+        builtins::{
+            make_constructor, ordinary::get_prototype_from_constructor, ordinary_function_create,
+            set_function_name, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ECMAScriptFunction, OrdinaryFunctionCreateParams,
+        },
+        execution::{
+            agent::ExceptionType, Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
+            RealmIdentifier,
+        },
+        scripts_and_modules::source_code::SourceCode,
+        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+    },
+    engine::context::GcScope,
+};
 
 pub(crate) struct FunctionConstructor;
 
@@ -35,6 +39,8 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 impl FunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -55,6 +61,7 @@ impl FunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, normal, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
+            gc.reborrow(),
             constructor,
             DynamicFunctionKind::Normal,
             parameter_args,
@@ -116,6 +123,8 @@ impl DynamicFunctionKind {
 /// NOTE: This implementation doesn't cover steps 30-32, those should be handled by the caller.
 pub(crate) fn create_dynamic_function(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     constructor: Function,
     kind: DynamicFunctionKind,
     parameter_args: &[Value],
@@ -130,9 +139,9 @@ pub(crate) fn create_dynamic_function(
         // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
         let parameter_strings = parameter_args
             .iter()
-            .map(|param| param.to_string(agent))
+            .map(|param| param.to_string(agent, gc.reborrow()))
             .collect::<JsResult<Vec<_>>>()?;
-        let body_string = body_arg.to_string(agent)?;
+        let body_string = body_arg.to_string(agent, gc.reborrow())?;
 
         let mut str_len = kind.prefix().len() + body_string.len(agent) + 18;
         if !parameter_strings.is_empty() {
@@ -221,6 +230,7 @@ pub(crate) fn create_dynamic_function(
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
+            gc,
             constructor,
             kind.intrinsic_prototype(),
         )?,

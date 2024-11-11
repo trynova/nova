@@ -169,12 +169,16 @@ fn rehash_map_data(
 
 impl HeapMarkAndSweep for MapHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.object_index.mark_values(queues);
-        self.map_data
+        let Self {
+            object_index,
+            map_data,
+        } = self;
+        object_index.mark_values(queues);
+        map_data
             .keys
             .iter()
             .for_each(|value| value.mark_values(queues));
-        self.map_data
+        map_data
             .values
             .iter()
             .for_each(|value| value.mark_values(queues));
@@ -236,7 +240,7 @@ impl HeapMarkAndSweep for MapHeapData {
                 continue;
             }
 
-            if new_key.is_object() {
+            if !new_key.is_object() {
                 // Non-objects do not change their hash even if their identity
                 // changes.
                 continue;

@@ -11,6 +11,8 @@ use super::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
@@ -44,14 +46,17 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            regexp::RegExp,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
     },
-    engine::small_f64::SmallF64,
+    engine::{
+        context::GcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        small_f64::SmallF64,
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
@@ -159,6 +164,7 @@ pub enum Value {
     Map(Map),
     Promise(Promise),
     Proxy(Proxy),
+    #[cfg(feature = "regexp")]
     RegExp(RegExp),
     Set(Set),
     #[cfg(feature = "shared-array-buffer")]
@@ -259,6 +265,7 @@ pub(crate) const ECMASCRIPT_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::ECMAScriptFunction(ECMAScriptFunction::_def()));
 pub(crate) const BOUND_FUNCTION_DISCRIMINANT: u8 =
     value_discriminant(Value::BoundFunction(BoundFunction::_def()));
+#[cfg(feature = "regexp")]
 pub(crate) const REGEXP_DISCRIMINANT: u8 = value_discriminant(Value::RegExp(RegExp::_def()));
 
 pub(crate) const BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT: u8 =
@@ -468,47 +475,47 @@ impl Value {
         }
     }
 
-    pub fn to_number(self, agent: &mut Agent) -> JsResult<Number> {
-        to_number(agent, self)
+    pub fn to_number(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Number> {
+        to_number(agent, gc, self)
     }
 
-    pub fn to_bigint(self, agent: &mut Agent) -> JsResult<BigInt> {
-        to_big_int(agent, self)
+    pub fn to_bigint(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<BigInt> {
+        to_big_int(agent, gc, self)
     }
 
-    pub fn to_numeric(self, agent: &mut Agent) -> JsResult<Numeric> {
-        to_numeric(agent, self)
+    pub fn to_numeric(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Numeric> {
+        to_numeric(agent, gc, self)
     }
 
-    pub fn to_int32(self, agent: &mut Agent) -> JsResult<i32> {
-        to_int32(agent, self)
+    pub fn to_int32(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<i32> {
+        to_int32(agent, gc, self)
     }
 
-    pub fn to_uint32(self, agent: &mut Agent) -> JsResult<u32> {
-        to_uint32(agent, self)
+    pub fn to_uint32(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<u32> {
+        to_uint32(agent, gc, self)
     }
 
-    pub fn to_int16(self, agent: &mut Agent) -> JsResult<i16> {
-        to_int16(agent, self)
+    pub fn to_int16(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<i16> {
+        to_int16(agent, gc, self)
     }
 
-    pub fn to_uint16(self, agent: &mut Agent) -> JsResult<u16> {
-        to_uint16(agent, self)
+    pub fn to_uint16(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<u16> {
+        to_uint16(agent, gc, self)
     }
 
-    pub fn to_string(self, agent: &mut Agent) -> JsResult<String> {
-        to_string(agent, self)
+    pub fn to_string(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<String> {
+        to_string(agent, gc, self)
     }
 
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
-    pub fn string_repr(self, agent: &mut Agent) -> String {
+    pub fn string_repr(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> String {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
             return symbol_idx.descriptive_string(agent);
         };
-        match self.to_string(agent) {
+        match self.to_string(agent, gc) {
             Ok(result) => result,
             Err(_) => {
                 debug_assert!(self.is_object());
@@ -518,13 +525,13 @@ impl Value {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent) -> JsResult<f64> {
+    pub fn to_real(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<f64> {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, self)?.into_f64(agent),
+            _ => to_number(agent, gc, self)?.into_f64(agent),
         })
     }
 
@@ -645,6 +652,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -865,6 +873,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1067,6 +1076,239 @@ impl IntoValue for Value {
     }
 }
 
+impl Rootable for Value {
+    type RootRepr = ValueRootRepr;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::Undefined => Ok(Self::RootRepr::Undefined),
+            Self::Null => Ok(Self::RootRepr::Null),
+            Self::Boolean(bool) => Ok(Self::RootRepr::Boolean(bool)),
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
+            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
+            Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+            Self::Object(ordinary_object) => Err(HeapRootData::Object(ordinary_object)),
+            Self::BoundFunction(bound_function) => Err(HeapRootData::BoundFunction(bound_function)),
+            Self::BuiltinFunction(builtin_function) => {
+                Err(HeapRootData::BuiltinFunction(builtin_function))
+            }
+            Self::ECMAScriptFunction(ecmascript_function) => {
+                Err(HeapRootData::ECMAScriptFunction(ecmascript_function))
+            }
+            Self::BuiltinGeneratorFunction => Err(HeapRootData::BuiltinGeneratorFunction),
+            Self::BuiltinConstructorFunction(builtin_constructor_function) => Err(
+                HeapRootData::BuiltinConstructorFunction(builtin_constructor_function),
+            ),
+            Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => Err(
+                HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function),
+            ),
+            Self::BuiltinPromiseCollectorFunction => {
+                Err(HeapRootData::BuiltinPromiseCollectorFunction)
+            }
+            Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinProxyRevokerFunction),
+            Self::PrimitiveObject(primitive_object) => {
+                Err(HeapRootData::PrimitiveObject(primitive_object))
+            }
+            Self::Arguments(ordinary_object) => Err(HeapRootData::Arguments(ordinary_object)),
+            Self::Array(array) => Err(HeapRootData::Array(array)),
+            #[cfg(feature = "array-buffer")]
+            Self::ArrayBuffer(array_buffer) => Err(HeapRootData::ArrayBuffer(array_buffer)),
+            #[cfg(feature = "array-buffer")]
+            Self::DataView(data_view) => Err(HeapRootData::DataView(data_view)),
+            #[cfg(feature = "date")]
+            Self::Date(date) => Err(HeapRootData::Date(date)),
+            Self::Error(error) => Err(HeapRootData::Error(error)),
+            Self::FinalizationRegistry(finalization_registry) => {
+                Err(HeapRootData::FinalizationRegistry(finalization_registry))
+            }
+            Self::Map(map) => Err(HeapRootData::Map(map)),
+            Self::Promise(promise) => Err(HeapRootData::Promise(promise)),
+            Self::Proxy(proxy) => Err(HeapRootData::Proxy(proxy)),
+            Self::RegExp(reg_exp) => Err(HeapRootData::RegExp(reg_exp)),
+            Self::Set(set) => Err(HeapRootData::Set(set)),
+            #[cfg(feature = "shared-array-buffer")]
+            Self::SharedArrayBuffer(shared_array_buffer) => {
+                Err(HeapRootData::SharedArrayBuffer(shared_array_buffer))
+            }
+            #[cfg(feature = "weak-refs")]
+            Self::WeakMap(weak_map) => Err(HeapRootData::WeakMap(weak_map)),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakRef(weak_ref) => Err(HeapRootData::WeakRef(weak_ref)),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakSet(weak_set) => Err(HeapRootData::WeakSet(weak_set)),
+            #[cfg(feature = "array-buffer")]
+            Self::Int8Array(base_index) => Err(HeapRootData::Int8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(base_index) => Err(HeapRootData::Uint8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(base_index) => Err(HeapRootData::Uint8ClampedArray(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Int16Array(base_index) => Err(HeapRootData::Int16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint16Array(base_index) => Err(HeapRootData::Uint16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Int32Array(base_index) => Err(HeapRootData::Int32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint32Array(base_index) => Err(HeapRootData::Uint32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(base_index) => Err(HeapRootData::BigInt64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(base_index) => Err(HeapRootData::BigUint64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Float32Array(base_index) => Err(HeapRootData::Float32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index)),
+            Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
+            Self::AsyncIterator => Err(HeapRootData::AsyncIterator),
+            Self::Iterator => Err(HeapRootData::Iterator),
+            Self::ArrayIterator(array_iterator) => Err(HeapRootData::ArrayIterator(array_iterator)),
+            Self::SetIterator(set_iterator) => Err(HeapRootData::SetIterator(set_iterator)),
+            Self::MapIterator(map_iterator) => Err(HeapRootData::MapIterator(map_iterator)),
+            Self::Generator(generator) => Err(HeapRootData::Generator(generator)),
+            Self::Module(module) => Err(HeapRootData::Module(module)),
+            Self::EmbedderObject(embedder_object) => {
+                Err(HeapRootData::EmbedderObject(embedder_object))
+            }
+        }
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::Undefined => Ok(Self::Undefined),
+            Self::RootRepr::Null => Ok(Self::Null),
+            Self::RootRepr::Boolean(bool) => Ok(Self::Boolean(bool)),
+            Self::RootRepr::SmallString(small_string) => Ok(Self::SmallString(small_string)),
+            Self::RootRepr::Integer(small_integer) => Ok(Self::Integer(small_integer)),
+            Self::RootRepr::SmallF64(small_f64) => Ok(Self::SmallF64(small_f64)),
+            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::String(heap_string) => Some(Self::String(heap_string)),
+            HeapRootData::Symbol(symbol) => Some(Self::Symbol(symbol)),
+            HeapRootData::Number(heap_number) => Some(Self::Number(heap_number)),
+            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+            HeapRootData::Object(ordinary_object) => Some(Self::Object(ordinary_object)),
+            HeapRootData::BoundFunction(bound_function) => {
+                Some(Self::BoundFunction(bound_function))
+            }
+            HeapRootData::BuiltinFunction(builtin_function) => {
+                Some(Self::BuiltinFunction(builtin_function))
+            }
+            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
+                Some(Self::ECMAScriptFunction(ecmascript_function))
+            }
+            HeapRootData::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
+            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Some(
+                Self::BuiltinConstructorFunction(builtin_constructor_function),
+            ),
+            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+                Some(Self::BuiltinPromiseResolvingFunction(
+                    builtin_promise_resolving_function,
+                ))
+            }
+            HeapRootData::BuiltinPromiseCollectorFunction => {
+                Some(Self::BuiltinPromiseCollectorFunction)
+            }
+            HeapRootData::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
+            HeapRootData::PrimitiveObject(primitive_object) => {
+                Some(Self::PrimitiveObject(primitive_object))
+            }
+            HeapRootData::Arguments(ordinary_object) => Some(Self::Arguments(ordinary_object)),
+            HeapRootData::Array(array) => Some(Self::Array(array)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::ArrayBuffer(array_buffer) => Some(Self::ArrayBuffer(array_buffer)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::DataView(data_view) => Some(Self::DataView(data_view)),
+            #[cfg(feature = "date")]
+            HeapRootData::Date(date) => Some(Self::Date(date)),
+            HeapRootData::Error(error) => Some(Self::Error(error)),
+            HeapRootData::FinalizationRegistry(finalization_registry) => {
+                Some(Self::FinalizationRegistry(finalization_registry))
+            }
+            HeapRootData::Map(map) => Some(Self::Map(map)),
+            HeapRootData::Promise(promise) => Some(Self::Promise(promise)),
+            HeapRootData::Proxy(proxy) => Some(Self::Proxy(proxy)),
+            HeapRootData::RegExp(reg_exp) => Some(Self::RegExp(reg_exp)),
+            HeapRootData::Set(set) => Some(Self::Set(set)),
+            #[cfg(feature = "shared-array-buffer")]
+            HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
+                Some(Self::SharedArrayBuffer(shared_array_buffer))
+            }
+            #[cfg(feature = "weak-refs")]
+            HeapRootData::WeakMap(weak_map) => Some(Self::WeakMap(weak_map)),
+            #[cfg(feature = "weak-refs")]
+            HeapRootData::WeakRef(weak_ref) => Some(Self::WeakRef(weak_ref)),
+            #[cfg(feature = "weak-refs")]
+            HeapRootData::WeakSet(weak_set) => Some(Self::WeakSet(weak_set)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Int8Array(base_index) => Some(Self::Int8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Uint8Array(base_index) => Some(Self::Uint8Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Uint8ClampedArray(base_index) => {
+                Some(Self::Uint8ClampedArray(base_index))
+            }
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Int16Array(base_index) => Some(Self::Int16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Uint16Array(base_index) => Some(Self::Uint16Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Int32Array(base_index) => Some(Self::Int32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Uint32Array(base_index) => Some(Self::Uint32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::BigInt64Array(base_index) => Some(Self::BigInt64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::BigUint64Array(base_index) => Some(Self::BigUint64Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Float32Array(base_index) => Some(Self::Float32Array(base_index)),
+            #[cfg(feature = "array-buffer")]
+            HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
+            HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
+            HeapRootData::AsyncIterator => Some(Self::AsyncIterator),
+            HeapRootData::Iterator => Some(Self::Iterator),
+            HeapRootData::ArrayIterator(array_iterator) => {
+                Some(Self::ArrayIterator(array_iterator))
+            }
+            HeapRootData::SetIterator(set_iterator) => Some(Self::SetIterator(set_iterator)),
+            HeapRootData::MapIterator(map_iterator) => Some(Self::MapIterator(map_iterator)),
+            HeapRootData::Generator(generator) => Some(Self::Generator(generator)),
+            HeapRootData::Module(module) => Some(Self::Module(module)),
+            HeapRootData::EmbedderObject(embedder_object) => {
+                Some(Self::EmbedderObject(embedder_object))
+            } // Note: Do not use _ => Err(()) to make sure any added
+              // HeapRootData Value variants cause compile errors if not handled.
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum ValueRootRepr {
+    Undefined = UNDEFINED_DISCRIMINANT,
+    Null = NULL_DISCRIMINANT,
+    Boolean(bool) = BOOLEAN_DISCRIMINANT,
+    SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
+    Integer(SmallInteger) = INTEGER_DISCRIMINANT,
+    SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
+}
+
 impl HeapMarkAndSweep for Value {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
@@ -1093,6 +1335,7 @@ impl HeapMarkAndSweep for Value {
             Value::BoundFunction(data) => data.mark_values(queues),
             Value::BuiltinFunction(data) => data.mark_values(queues),
             Value::ECMAScriptFunction(data) => data.mark_values(queues),
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => data.mark_values(queues),
             Value::PrimitiveObject(data) => data.mark_values(queues),
             Value::Arguments(data) => data.mark_values(queues),
@@ -1175,6 +1418,7 @@ impl HeapMarkAndSweep for Value {
             Value::BoundFunction(data) => data.sweep_values(compactions),
             Value::BuiltinFunction(data) => data.sweep_values(compactions),
             Value::ECMAScriptFunction(data) => data.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
             Value::RegExp(data) => data.sweep_values(compactions),
             Value::PrimitiveObject(data) => data.sweep_values(compactions),
             Value::Arguments(data) => data.sweep_values(compactions),

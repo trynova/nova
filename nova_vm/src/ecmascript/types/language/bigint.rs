@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
+    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
     heap::{
         indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -166,6 +167,15 @@ impl TryFrom<i64> for SmallBigInt {
     }
 }
 
+impl TryFrom<u64> for SmallBigInt {
+    type Error = ();
+
+    #[inline(always)]
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        Ok(Self(value.try_into()?))
+    }
+}
+
 impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
     type Error = ();
 
@@ -189,6 +199,13 @@ pub enum BigInt {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum BigIntRootRepr {
+    SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
+    HeapRef(HeapRootRef) = 0x80,
+}
+
 impl BigInt {
     pub const fn zero() -> Self {
         Self::SmallBigInt(SmallBigInt::zero())
@@ -196,6 +213,15 @@ impl BigInt {
 
     #[inline]
     pub fn from_i64(agent: &mut Agent, value: i64) -> Self {
+        if let Ok(result) = SmallBigInt::try_from(value) {
+            Self::SmallBigInt(result)
+        } else {
+            agent.heap.create(BigIntHeapData { data: value.into() })
+        }
+    }
+
+    #[inline]
+    pub fn from_u64(agent: &mut Agent, value: u64) -> Self {
         if let Ok(result) = SmallBigInt::try_from(value) {
             Self::SmallBigInt(result)
         } else {
@@ -494,7 +520,6 @@ impl BigInt {
         }
     }
 
-    /// ### [
     /// ### [6.1.6.2.13 BigInt::equal ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-equal)
     ///
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
@@ -665,5 +690,38 @@ impl HeapMarkAndSweep for HeapBigInt {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         compactions.bigints.shift_index(&mut self.0);
+    }
+}
+
+impl Rootable for BigInt {
+    type RootRepr = BigIntRootRepr;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        match *value {
+            Self::RootRepr::SmallBigInt(small_big_int) => Ok(Self::SmallBigInt(small_big_int)),
+            Self::RootRepr::HeapRef(heap_root_ref) => Err(heap_root_ref),
+        }
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        Self::RootRepr::HeapRef(heap_ref)
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BigInt(heap_big_int) => Some(Self::BigInt(heap_big_int)),
+            _ => None,
+        }
     }
 }

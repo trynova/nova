@@ -3,10 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use ahash::{AHashMap, AHashSet};
-use oxc_ast::{
-    ast::{FormalParameters, FunctionBody},
-    syntax_directed_operations::BoundNames,
-};
+use oxc_ast::ast::{FormalParameters, FunctionBody};
+use oxc_ecmascript::BoundNames;
 use oxc_span::Atom;
 
 use crate::{
@@ -21,7 +19,7 @@ use crate::{
         },
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::{bytecode::executable::CompileContext, Instruction},
+    engine::{bytecode::bytecode_compiler::CompileContext, Instruction},
 };
 
 use super::{complex_array_pattern, simple_array_pattern, CompileEvaluation};

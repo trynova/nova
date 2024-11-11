@@ -4,6 +4,7 @@
 
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_numeric,
@@ -104,9 +105,9 @@ pub(crate) fn is_constructor(
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn is_extensible(agent: &mut Agent, o: Object) -> JsResult<bool> {
+pub(crate) fn is_extensible(agent: &mut Agent, gc: GcScope<'_, '_>, o: Object) -> JsResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
-    o.internal_is_extensible(agent)
+    o.internal_is_extensible(agent, gc)
 }
 
 pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {
@@ -121,7 +122,12 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 }
 
 /// ### [7.2.6 IsIntegralNumber ( argument )](https://tc39.es/ecma262/#sec-isintegralnumber)
-pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<Value>) -> bool {
+pub(crate) fn is_integral_number(
+    agent: &mut Agent,
+    gc: GcScope<'_, '_>,
+
+    argument: impl Copy + Into<Value>,
+) -> bool {
     let argument = argument.into();
 
     // OPTIMIZATION: If the number is a small integer, then know that it must be
@@ -144,7 +150,7 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
     // 4. Return true.
     // NOTE: Checking if the fractional component is 0.0 is the same as the
     // specification's operation.
-    argument.into_value().to_real(agent).unwrap().fract() == 0.0
+    argument.into_value().to_real(agent, gc).unwrap().fract() == 0.0
 }
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
@@ -257,16 +263,18 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(
 /// and operations must be performed upon y before x.
 pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> JsResult<Option<bool>> {
     // 1. If LeftFirst is true, then
     let (px, py) = if LEFT_FIRST {
         // a. Let px be ? ToPrimitive(x, NUMBER).
-        let px = to_primitive(agent, x.into(), Some(PreferredType::Number))?;
+        let px = to_primitive(agent, gc.reborrow(), x.into(), Some(PreferredType::Number))?;
 
         // b. Let py be ? ToPrimitive(y, NUMBER).
-        let py = to_primitive(agent, y.into(), Some(PreferredType::Number))?;
+        let py = to_primitive(agent, gc.reborrow(), y.into(), Some(PreferredType::Number))?;
 
         (px, py)
     }
@@ -274,10 +282,10 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     else {
         // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
         // b. Let py be ? ToPrimitive(y, NUMBER).
-        let py = to_primitive(agent, y.into(), Some(PreferredType::Number))?;
+        let py = to_primitive(agent, gc.reborrow(), y.into(), Some(PreferredType::Number))?;
 
         // c. Let px be ? ToPrimitive(x, NUMBER).
-        let px = to_primitive(agent, x.into(), Some(PreferredType::Number))?;
+        let px = to_primitive(agent, gc.reborrow(), x.into(), Some(PreferredType::Number))?;
 
         (px, py)
     };
@@ -320,10 +328,10 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
         // d. Let nx be ? ToNumeric(px).
-        let nx = to_numeric(agent, px)?;
+        let nx = to_numeric(agent, gc.reborrow(), px)?;
 
         // e. Let ny be ? ToNumeric(py).
-        let ny = to_numeric(agent, py)?;
+        let ny = to_numeric(agent, gc.reborrow(), py)?;
 
         // f. If Type(nx) is Type(ny), then
         if is_same_type(nx, ny) {
@@ -363,8 +371,8 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         }
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
-        let rnx = nx.to_real(agent)?;
-        let rny = nx.to_real(agent)?;
+        let rnx = nx.to_real(agent, gc.reborrow())?;
+        let rny = nx.to_real(agent, gc)?;
         Ok(Some(rnx < rny))
     }
 }
@@ -377,6 +385,8 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 /// the semantics for the == operator.
 pub(crate) fn is_loosely_equal(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> JsResult<bool> {
@@ -402,14 +412,16 @@ pub(crate) fn is_loosely_equal(
 
     // 5. If x is a Number and y is a String, return ! IsLooselyEqual(x, ! ToNumber(y)).
     if let (Ok(x), Ok(y)) = (Number::try_from(x), String::try_from(y)) {
-        let y = to_number(agent, y).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        // TODO: We know GC cannot be triggered here.
+        let y = to_number(agent, gc.reborrow(), y).unwrap();
+        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
     if let (Ok(x), Ok(y)) = (String::try_from(x), Number::try_from(y)) {
-        let x = to_number(agent, x).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        // TODO: We know GC cannot be triggered here.
+        let x = to_number(agent, gc.reborrow(), x).unwrap();
+        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 7. If x is a BigInt and y is a String, then
@@ -418,7 +430,8 @@ pub(crate) fn is_loosely_equal(
         // b. If n is undefined, return false.
         if let Some(n) = string_to_big_int(agent, y) {
             // c. Return ! IsLooselyEqual(x, n).
-            return Ok(is_loosely_equal(agent, x, n).unwrap());
+            // TODO: We know GC cannot be triggered here.
+            return Ok(is_loosely_equal(agent, gc, x, n).unwrap());
         } else {
             return Ok(false);
         }
@@ -426,38 +439,41 @@ pub(crate) fn is_loosely_equal(
 
     // 8. If x is a String and y is a BigInt, return ! IsLooselyEqual(y, x).
     if let (Ok(x), Ok(y)) = (String::try_from(x), BigInt::try_from(y)) {
-        return Ok(is_loosely_equal(agent, y, x).unwrap());
+        // TODO: We know GC cannot be triggered here.
+        return Ok(is_loosely_equal(agent, gc, y, x).unwrap());
     }
 
     // 9. If x is a Boolean, return ! IsLooselyEqual(! ToNumber(x), y).
     if let Ok(x) = bool::try_from(x) {
-        let x = to_number(agent, x).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        // TODO: We know GC cannot be triggered here.
+        let x = to_number(agent, gc.reborrow(), x).unwrap();
+        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 10. If y is a Boolean, return ! IsLooselyEqual(x, ! ToNumber(y)).
     if let Ok(y) = bool::try_from(y) {
-        let y = to_number(agent, y).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        // TODO: We know GC cannot be triggered here.
+        let y = to_number(agent, gc.reborrow(), y).unwrap();
+        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 11. If x is either a String, a Number, a BigInt, or a Symbol and y is an Object, return ! IsLooselyEqual(x, ? ToPrimitive(y)).
     if (x.is_string() || x.is_number() || x.is_bigint() || x.is_symbol()) && y.is_object() {
-        let y = to_primitive(agent, y, None)?;
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        let y = to_primitive(agent, gc.reborrow(), y, None)?;
+        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 12. If x is an Object and y is either a String, a Number, a BigInt, or a Symbol, return ! IsLooselyEqual(? ToPrimitive(x), y).
     if x.is_object() && (y.is_string() || y.is_number() || y.is_bigint() || y.is_symbol()) {
-        let x = to_primitive(agent, x, None)?;
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        let x = to_primitive(agent, gc.reborrow(), x, None)?;
+        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then
     if let Some(xy) = if x.is_bigint() {
-        y.to_number(agent).ok()
+        y.to_number(agent, gc.reborrow()).ok()
     } else if y.is_bigint() {
-        x.to_number(agent).ok()
+        x.to_number(agent, gc.reborrow()).ok()
     } else {
         None
     } {
@@ -467,8 +483,8 @@ pub(crate) fn is_loosely_equal(
         }
 
         // b. If ℝ(x) = ℝ(y), return true; otherwise return false.
-        let rx = x.to_real(agent)?;
-        let ry = y.to_real(agent)?;
+        let rx = x.to_real(agent, gc.reborrow())?;
+        let ry = y.to_real(agent, gc)?;
         return Ok(rx == ry);
     }
 

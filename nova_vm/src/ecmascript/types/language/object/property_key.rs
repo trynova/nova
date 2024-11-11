@@ -71,7 +71,7 @@ impl PropertyKey {
         s == n.to_string()
     }
 
-    pub fn equals(self, agent: &mut Agent, y: Self) -> bool {
+    pub fn equals(self, agent: &Agent, y: Self) -> bool {
         let x = self;
 
         match (x, y) {

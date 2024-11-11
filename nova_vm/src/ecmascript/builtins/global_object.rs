@@ -3,12 +3,14 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use ahash::AHashSet;
-use oxc_ast::{
-    ast::{BindingIdentifier, Program, VariableDeclarationKind},
-    syntax_directed_operations::BoundNames,
-};
+use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
+use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 
+use crate::ecmascript::abstract_operations::type_conversion::{
+    is_trimmable_whitespace, to_int32, to_string,
+};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,
@@ -75,7 +77,7 @@ impl BuiltinIntrinsic for GlobalObjectParseFloat {
 struct GlobalObjectParseInt;
 impl Builtin for GlobalObjectParseInt {
     const NAME: String = BUILTIN_STRING_MEMORY.parseInt;
-    const LENGTH: u8 = 1;
+    const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_int);
 }
 impl BuiltinIntrinsic for GlobalObjectParseInt {
@@ -144,6 +146,8 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// or a throw completion.
 pub fn perform_eval(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     x: Value,
     direct: bool,
     strict_caller: bool,
@@ -322,6 +326,7 @@ pub fn perform_eval(
     // 28. Let result be Completion(EvalDeclarationInstantiation(body, varEnv, lexEnv, privateEnv, strictEval)).
     let result = eval_declaration_instantiation(
         agent,
+        gc.reborrow(),
         &script,
         ecmascript_code.variable_environment,
         ecmascript_code.lexical_environment,
@@ -335,7 +340,10 @@ pub fn perform_eval(
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).
-        Vm::execute(agent, &exe, None).into_js_result()
+        let result = Vm::execute(agent, gc.reborrow(), exe, None).into_js_result();
+        // SAFETY: No one can access the bytecode anymore.
+        unsafe { exe.try_drop(agent) };
+        result
     } else {
         Err(result.err().unwrap())
     };
@@ -359,6 +367,8 @@ pub fn perform_eval(
 /// containing UNUSED or a throw completion.
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+
     script: &Program,
     var_env: EnvironmentIndex,
     lex_env: EnvironmentIndex,
@@ -406,7 +416,7 @@ pub fn eval_declaration_instantiation(
                     let name = String::from_str(agent, name.as_str());
                     // a. If ! thisEnv.HasBinding(name) is true, then
                     // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
-                    if this_env.has_binding(agent, name).unwrap() {
+                    if this_env.has_binding(agent, gc.reborrow(), name).unwrap() {
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
                         return Err(agent.throw_exception(
@@ -470,7 +480,8 @@ pub fn eval_declaration_instantiation(
                 if let EnvironmentIndex::Global(var_env) = var_env {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
                     let function_name = String::from_str(agent, function_name.as_str());
-                    let fn_definable = var_env.can_declare_global_function(agent, function_name)?;
+                    let fn_definable =
+                        var_env.can_declare_global_function(agent, gc.reborrow(), function_name)?;
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
@@ -510,7 +521,8 @@ pub fn eval_declaration_instantiation(
                     // a. If varEnv is a Global Environment Record, then
                     if let EnvironmentIndex::Global(var_env) = var_env {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
-                        let vn_definable = var_env.can_declare_global_var(agent, vn)?;
+                        let vn_definable =
+                            var_env.can_declare_global_var(agent, gc.reborrow(), vn)?;
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
                             return Err(agent.throw_exception(
@@ -566,7 +578,7 @@ pub fn eval_declaration_instantiation(
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
-            lex_env.create_mutable_binding(agent, dn, false)?;
+            lex_env.create_mutable_binding(agent, gc.reborrow(), dn, false)?;
         }
     }
 
@@ -581,33 +593,42 @@ pub fn eval_declaration_instantiation(
         let function_name = String::from_str(agent, function_name.unwrap().as_str());
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
-        let fo = instantiate_function_object(agent, f, lex_env, private_env).into_value();
+        let fo =
+            instantiate_function_object(agent, gc.reborrow(), f, lex_env, private_env).into_value();
 
         // c. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
-            var_env.create_global_function_binding(agent, function_name, fo, true)?;
+            var_env.create_global_function_binding(
+                agent,
+                gc.reborrow(),
+                function_name,
+                fo,
+                true,
+            )?;
         } else {
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
-            let binding_exists = var_env.has_binding(agent, function_name).unwrap();
+            let binding_exists = var_env
+                .has_binding(agent, gc.reborrow(), function_name)
+                .unwrap();
 
             // ii. If bindingExists is false, then
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
                 var_env
-                    .create_mutable_binding(agent, function_name, true)
+                    .create_mutable_binding(agent, gc.reborrow(), function_name, true)
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 var_env
-                    .initialize_binding(agent, function_name, fo)
+                    .initialize_binding(agent, gc.reborrow(), function_name, fo)
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
                 var_env
-                    .set_mutable_binding(agent, function_name, fo, false)
+                    .set_mutable_binding(agent, gc.reborrow(), function_name, fo, false)
                     .unwrap();
             }
         }
@@ -617,20 +638,22 @@ pub fn eval_declaration_instantiation(
         // a. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-            var_env.create_global_var_binding(agent, vn, true)?;
+            var_env.create_global_var_binding(agent, gc.reborrow(), vn, true)?;
         } else {
             // b. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(vn).
-            let binding_exists = var_env.has_binding(agent, vn).unwrap();
+            let binding_exists = var_env.has_binding(agent, gc.reborrow(), vn).unwrap();
 
             // ii. If bindingExists is false, then
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
-                var_env.create_mutable_binding(agent, vn, true).unwrap();
+                var_env
+                    .create_mutable_binding(agent, gc.reborrow(), vn, true)
+                    .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
                 var_env
-                    .initialize_binding(agent, vn, Value::Undefined)
+                    .initialize_binding(agent, gc.reborrow(), vn, Value::Undefined)
                     .unwrap();
             }
         }
@@ -644,20 +667,32 @@ impl GlobalObject {
     /// ### [19.2.1 eval ( x )](https://tc39.es/ecma262/#sec-eval-x)
     ///
     /// This function is the %eval% intrinsic object.
-    fn eval(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn eval(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let x = arguments.get(0);
 
         // 1. Return ? PerformEval(x, false, false).
-        perform_eval(agent, x, false, false)
+        perform_eval(agent, gc.reborrow(), x, false, false)
     }
 
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
     ///
     /// This function is the %isFinite% intrinsic object.
-    fn is_finite(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_finite(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        _: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number)?;
+        let num = to_number(agent, gc.reborrow(), number)?;
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
         Ok(num.is_finite(agent).into())
@@ -670,44 +705,311 @@ impl GlobalObject {
     /// > NOTE: A reliable way for ECMAScript code to test if a value X is NaN
     /// > is an expression of the form X !== X. The result will be true if and
     /// > only if X is NaN.
-    fn is_nan(agent: &mut Agent, _: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_nan(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        _: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number)?;
+        let num = to_number(agent, gc.reborrow(), number)?;
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())
     }
-    fn parse_float(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+
+    /// ### [19.2.4 parseFloat ( string )](https://tc39.es/ecma262/#sec-parsefloat-string)
+    ///
+    /// This function produces a Number value dictated by interpretation of the
+    /// contents of the string argument as a decimal literal.
+    fn parse_float(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        if arguments.len() == 0 {
+            return Ok(Value::nan());
+        }
+
+        let string = arguments.get(0);
+
+        // 1. Let inputString be ? ToString(string).
+        let input_string = to_string(agent, gc, string)?;
+
+        // 2. Let trimmedString be ! TrimString(inputString, start).
+        let trimmed_string = input_string
+            .as_str(agent)
+            .trim_start_matches(is_trimmable_whitespace);
+
+        // 3. Let trimmed be StringToCodePoints(trimmedString).
+        // 4. Let trimmedPrefix be the longest prefix of trimmed that satisfies the syntax of a StrDecimalLiteral, which might be trimmed itself. If there is no such prefix, return NaN.
+        // 5. Let parsedNumber be ParseText(trimmedPrefix, StrDecimalLiteral).
+        // 6. Assert: parsedNumber is a Parse Node.
+        // 7. Return the StringNumericValue of parsedNumber.
+        if trimmed_string.starts_with("Infinity") || trimmed_string.starts_with("+Infinity") {
+            return Ok(Value::pos_inf());
+        }
+
+        if trimmed_string.starts_with("-Infinity") {
+            return Ok(Value::neg_inf());
+        }
+
+        if let Ok((f, len)) = fast_float::parse_partial::<f64, _>(trimmed_string) {
+            if len == 0 {
+                return Ok(Value::nan());
+            }
+
+            // NOTE: This check is used to prevent fast_float from parsing any
+            // other kinds of infinity strings as we have already checked for
+            // those which are valid javascript.
+            if f.is_infinite() {
+                let trimmed_string = &trimmed_string[..len];
+                if trimmed_string.eq_ignore_ascii_case("infinity")
+                    || trimmed_string.eq_ignore_ascii_case("+infinity")
+                    || trimmed_string.eq_ignore_ascii_case("-infinity")
+                    || trimmed_string.eq_ignore_ascii_case("inf")
+                    || trimmed_string.eq_ignore_ascii_case("+inf")
+                    || trimmed_string.eq_ignore_ascii_case("-inf")
+                {
+                    return Ok(Value::nan());
+                }
+            }
+
+            Ok(Value::from_f64(agent, f))
+        } else {
+            Ok(Value::nan())
+        }
     }
-    fn parse_int(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
-        todo!()
+
+    /// ### [19.2.5 parseInt ( string, radix )](https://tc39.es/ecma262/#sec-parseint-string-radix)
+    ///
+    /// This function produces an integral Number dictated by interpretation of
+    /// the contents of string according to the specified radix. Leading white
+    /// space in string is ignored. If radix coerces to 0 (such as when it is
+    /// undefined), it is assumed to be 10 except when the number
+    /// representation begins with "0x" or "0X", in which case it is assumed to
+    /// be 16. If radix is 16, the number representation may optionally begin
+    /// with "0x" or "0X".
+    fn parse_int(
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
+        let string = arguments.get(0);
+        let radix = arguments.get(1);
+
+        // OPTIMIZATION: If the string is empty, undefined, null or a boolean, return NaN.
+        if string.is_undefined()
+            || string.is_null()
+            || string.is_boolean()
+            || string.is_empty_string()
+        {
+            return Ok(Value::nan());
+        }
+
+        // OPTIMIZATION: If the string is an integer and the radix is 10, return the number.
+        if let Value::Integer(radix) = radix {
+            let radix = radix.into_i64();
+            if radix == 10 && matches!(string, Value::Integer(_)) {
+                return Ok(string);
+            }
+        }
+
+        // 1. Let inputString be ? ToString(string).
+        let s = to_string(agent, gc.reborrow(), string)?;
+
+        // 6. Let R be ℝ(? ToInt32(radix)).
+        let r = to_int32(agent, gc.reborrow(), radix)?;
+
+        // 2. Let S be ! TrimString(inputString, start).
+        let s = s.as_str(agent).trim_start_matches(is_trimmable_whitespace);
+
+        // 3. Let sign be 1.
+        // 4. If S is not empty and the first code unit of S is the code unit 0x002D (HYPHEN-MINUS), set sign to -1.
+        // 5. If S is not empty and the first code unit of S is either the code unit 0x002B (PLUS SIGN) or the code unit 0x002D (HYPHEN-MINUS), set S to the substring of S from index 1.
+        let (sign, mut s) = if let Some(s) = s.strip_prefix('-') {
+            (-1, s)
+        } else if let Some(s) = s.strip_prefix('+') {
+            (1, s)
+        } else {
+            (1, s)
+        };
+
+        // 7. Let stripPrefix be true.
+        // 8. If R ≠ 0, then
+        let (mut r, strip_prefix) = if r != 0 {
+            // a. If R < 2 or R > 36, return NaN.
+            if !(2..=36).contains(&r) {
+                return Ok(Value::nan());
+            }
+            // b. If R ≠ 16, set stripPrefix to false.
+            (r as u32, r == 16)
+        } else {
+            // 9. Else,
+            // a. Set R to 10.
+            (10, true)
+        };
+
+        // 10. If stripPrefix is true, then
+        if strip_prefix {
+            // a. If the length of S is at least 2 and the first two code units of S are either "0x" or "0X", then
+            if s.starts_with("0x") || s.starts_with("0X") {
+                // i. Set S to the substring of S from index 2.
+                s = &s[2..];
+                // ii. Set R to 16.
+                r = 16;
+            }
+        };
+
+        // 11. If S contains a code unit that is not a radix-R digit, let end be the index within S of the first such code unit; otherwise, let end be the length of S.
+        let end = s.find(|c: char| !c.is_digit(r)).unwrap_or(s.len());
+
+        // 12. Let Z be the substring of S from 0 to end.
+        let z = &s[..end];
+
+        // 13. If Z is empty, return NaN.
+        if z.is_empty() {
+            return Ok(Value::nan());
+        }
+
+        /// OPTIMIZATION: Quick path for known safe radix and length combinations.
+        /// E.g. we know that a number in base 2 with less than 8 characters is
+        /// guaranteed to be safe to parse as an u8, and so on. To calculate the
+        /// known safe radix and length combinations, the following pseudocode
+        /// can be consulted:
+        /// ```ignore
+        /// u8.MAX                  .toString(radix).length
+        /// u16.MAX                 .toString(radix).length
+        /// u32.MAX                 .toString(radix).length
+        /// Number.MAX_SAFE_INTEGER .toString(radix).length
+        /// ```
+        macro_rules! parse_known_safe_radix_and_length {
+            ($unsigned: ty, $signed: ty, $signed_large: ty) => {{
+                let math_int = <$unsigned>::from_str_radix(z, r).unwrap();
+
+                Ok(if sign == -1 {
+                    if math_int <= (<$signed>::MAX as $unsigned) {
+                        Value::try_from(-(math_int as $signed)).unwrap()
+                    } else {
+                        Value::try_from(-(math_int as $signed_large)).unwrap()
+                    }
+                } else {
+                    Value::try_from(math_int).unwrap()
+                })
+            }};
+        }
+
+        // 14. Let mathInt be the integer value that is represented by Z in
+        //     radix-R notation, using the letters A through Z and a through z
+        //     for digits with values 10 through 35. (However, if R = 10 and Z
+        //     contains more than 20 significant digits, every significant
+        //     digit after the 20th may be replaced by a 0 digit, at the option
+        //     of the implementation; and if R is not one of 2, 4, 8, 10, 16,
+        //     or 32, then mathInt may be an implementation-approximated
+        //     integer representing the integer value denoted by Z in radix-R
+        //     notation.)
+        match (r, z.len()) {
+            (2, 0..8) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (2, 8..16) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (2, 16..32) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (2, 32..53) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (8, 0..3) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (8, 3..6) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (8, 6..11) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (8, 11..18) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (10..=11, 0..3) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (10..=11, 3..5) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (10..=11, 5..10) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (10..=11, 10..16) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (16, 0..2) => parse_known_safe_radix_and_length!(u8, i8, i16),
+            (16, 2..4) => parse_known_safe_radix_and_length!(u16, i16, i32),
+            (16, 4..8) => parse_known_safe_radix_and_length!(u32, i32, i64),
+            (16, 8..14) => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+            (_, z_len) => {
+                match z_len {
+                    // OPTIMIZATION: These are the known safe upper bounds for any
+                    // integer represented in a radix up to 36.
+                    0..2 => parse_known_safe_radix_and_length!(u8, i8, i16),
+                    2..4 => parse_known_safe_radix_and_length!(u16, i16, i32),
+                    4..7 => parse_known_safe_radix_and_length!(u32, i32, i64),
+                    7..11 => parse_known_safe_radix_and_length!(i64, i64, i64),
+
+                    _ => {
+                        let math_int = i128::from_str_radix(z, r).unwrap() as f64;
+
+                        // 15. If mathInt = 0, then
+                        // a. If sign = -1, return -0𝔽.
+                        // b. Return +0𝔽.
+                        // 16. Return 𝔽(sign × mathInt).
+                        Ok(Value::from_f64(agent, sign as f64 * math_int))
+                    }
+                }
+            }
+        }
     }
-    fn decode_uri(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+
+    fn decode_uri(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
     fn decode_uri_component(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
-    fn encode_uri(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn encode_uri(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
     fn encode_uri_component(
         _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         todo!()
     }
-    fn escape(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn escape(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
-    fn unescape(_agent: &mut Agent, _this_value: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn unescape(
+        _agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        _: ArgumentsList,
+    ) -> JsResult<Value> {
         todo!()
     }
 

@@ -3,21 +3,34 @@ use nova_vm::ecmascript::{
     execution::{agent::ExceptionType, Agent, JsResult},
     types::{InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value},
 };
+use nova_vm::engine::context::GcScope;
 use oxc_diagnostics::OxcDiagnostic;
 
 /// Initialize the global object with the built-in functions.
-pub fn initialize_global_object(agent: &mut Agent, global: Object) {
+pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, global: Object) {
     // `print` function
-    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn print(
+        agent: &mut Agent,
+        gc: GcScope<'_, '_>,
+
+        _this: Value,
+        args: ArgumentsList,
+    ) -> JsResult<Value> {
         if args.len() == 0 {
             println!();
         } else {
-            println!("{}", args[0].to_string(agent)?.as_str(agent));
+            println!("{}", args[0].to_string(agent, gc)?.as_str(agent));
         }
         Ok(Value::Undefined)
     }
     // 'readTextFile' function
-    fn read_text_file(agent: &mut Agent, _: Value, args: ArgumentsList) -> JsResult<Value> {
+    fn read_text_file(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _: Value,
+        args: ArgumentsList,
+    ) -> JsResult<Value> {
         if args.len() != 1 {
             return Err(agent
                 .throw_exception_with_static_message(ExceptionType::Error, "Expected 1 argument"));
@@ -42,6 +55,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object) {
     global
         .internal_define_own_property(
             agent,
+            gc.reborrow(),
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
@@ -62,6 +76,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object) {
     global
         .internal_define_own_property(
             agent,
+            gc.reborrow(),
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),

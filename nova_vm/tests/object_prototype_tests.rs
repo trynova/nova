@@ -27,15 +27,15 @@ fn object_prototype_tests() {
 
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
     let realm = agent.create_default_realm();
-    agent.run_in_realm(&realm, |agent| {
+    agent.run_in_realm(&realm, |agent, mut gc| {
         let realm = agent.current_realm_id();
         let source_text = String::from_string(agent, contents);
         let script = parse_script(agent, source_text, realm, false, None).unwrap();
-        let _ = script_evaluation(agent, script).unwrap_or_else(|err| {
+        let _ = script_evaluation(agent, gc.reborrow(), script).unwrap_or_else(|err| {
             panic!(
                 "Test '{}' failed: {:?}",
                 d.display(),
-                err.to_string(agent).as_str(agent)
+                err.to_string(agent, gc).as_str(agent)
             )
         });
     });

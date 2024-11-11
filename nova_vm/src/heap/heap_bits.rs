@@ -1,3 +1,5 @@
+use std::{hash::Hash, num::NonZeroU32};
+
 use ahash::AHashMap;
 
 // This Source Code Form is subject to the terms of the Mozilla Public
@@ -7,11 +9,13 @@ use ahash::AHashMap;
 use super::indexes::TypedArrayIndex;
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
-    indexes::{BaseIndex, ElementIndex},
+    indexes::{BaseIndex, ElementIndex, IntoBaseIndex},
     Heap,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -42,7 +46,6 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
-        regexp::RegExp,
         set::Set,
         Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
@@ -56,6 +59,7 @@ use crate::ecmascript::{
         BUILTIN_STRINGS_LIST,
     },
 };
+use crate::engine::Executable;
 
 #[derive(Debug)]
 pub struct HeapBits {
@@ -84,6 +88,7 @@ pub struct HeapBits {
     pub ecmascript_functions: Box<[bool]>,
     pub embedder_objects: Box<[bool]>,
     pub errors: Box<[bool]>,
+    pub executables: Box<[bool]>,
     pub source_codes: Box<[bool]>,
     pub finalization_registrys: Box<[bool]>,
     pub function_environments: Box<[bool]>,
@@ -101,6 +106,7 @@ pub struct HeapBits {
     pub promises: Box<[bool]>,
     pub proxys: Box<[bool]>,
     pub realms: Box<[bool]>,
+    #[cfg(feature = "regexp")]
     pub regexps: Box<[bool]>,
     pub scripts: Box<[bool]>,
     pub sets: Box<[bool]>,
@@ -147,6 +153,7 @@ pub(crate) struct WorkQueues {
     pub embedder_objects: Vec<EmbedderObject>,
     pub source_codes: Vec<SourceCode>,
     pub errors: Vec<Error>,
+    pub executables: Vec<Executable>,
     pub finalization_registrys: Vec<FinalizationRegistry>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
     pub generators: Vec<Generator>,
@@ -163,6 +170,7 @@ pub(crate) struct WorkQueues {
     pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction>,
     pub proxys: Vec<Proxy>,
     pub realms: Vec<RealmIdentifier>,
+    #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp>,
     pub scripts: Vec<ScriptIdentifier>,
     pub sets: Vec<Set>,
@@ -208,6 +216,7 @@ impl HeapBits {
         let ecmascript_functions = vec![false; heap.ecmascript_functions.len()];
         let embedder_objects = vec![false; heap.embedder_objects.len()];
         let errors = vec![false; heap.errors.len()];
+        let executables = vec![false; heap.executables.len()];
         let source_codes = vec![false; heap.source_codes.len()];
         let finalization_registrys = vec![false; heap.finalization_registrys.len()];
         let function_environments = vec![false; heap.environments.function.len()];
@@ -225,6 +234,7 @@ impl HeapBits {
         let promises = vec![false; heap.promises.len()];
         let proxys = vec![false; heap.proxys.len()];
         let realms = vec![false; heap.realms.len()];
+        #[cfg(feature = "regexp")]
         let regexps = vec![false; heap.regexps.len()];
         let scripts = vec![false; heap.scripts.len()];
         let sets = vec![false; heap.sets.len()];
@@ -267,6 +277,7 @@ impl HeapBits {
             ecmascript_functions: ecmascript_functions.into_boxed_slice(),
             embedder_objects: embedder_objects.into_boxed_slice(),
             errors: errors.into_boxed_slice(),
+            executables: executables.into_boxed_slice(),
             source_codes: source_codes.into_boxed_slice(),
             finalization_registrys: finalization_registrys.into_boxed_slice(),
             function_environments: function_environments.into_boxed_slice(),
@@ -284,6 +295,7 @@ impl HeapBits {
             promises: promises.into_boxed_slice(),
             proxys: proxys.into_boxed_slice(),
             realms: realms.into_boxed_slice(),
+            #[cfg(feature = "regexp")]
             regexps: regexps.into_boxed_slice(),
             scripts: scripts.into_boxed_slice(),
             sets: sets.into_boxed_slice(),
@@ -332,6 +344,7 @@ impl WorkQueues {
             ecmascript_functions: Vec::with_capacity(heap.ecmascript_functions.len() / 4),
             embedder_objects: Vec::with_capacity(heap.embedder_objects.len() / 4),
             errors: Vec::with_capacity(heap.errors.len() / 4),
+            executables: Vec::with_capacity(heap.executables.len() / 4),
             source_codes: Vec::with_capacity(heap.source_codes.len() / 4),
             finalization_registrys: Vec::with_capacity(heap.finalization_registrys.len() / 4),
             function_environments: Vec::with_capacity(heap.environments.function.len() / 4),
@@ -351,6 +364,7 @@ impl WorkQueues {
             promises: Vec::with_capacity(heap.promises.len() / 4),
             proxys: Vec::with_capacity(heap.proxys.len() / 4),
             realms: Vec::with_capacity(heap.realms.len() / 4),
+            #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
             sets: Vec::with_capacity(heap.sets.len() / 4),
@@ -421,6 +435,7 @@ impl WorkQueues {
             embedder_objects,
             source_codes,
             errors,
+            executables,
             finalization_registrys,
             function_environments,
             generators,
@@ -437,6 +452,7 @@ impl WorkQueues {
             promise_resolving_functions,
             proxys,
             realms,
+            #[cfg(feature = "regexp")]
             regexps,
             scripts,
             sets,
@@ -471,6 +487,8 @@ impl WorkQueues {
         let weak_refs: &[bool; 0] = &[];
         #[cfg(not(feature = "weak-refs"))]
         let weak_sets: &[bool; 0] = &[];
+        #[cfg(not(feature = "regexp"))]
+        let regexps: &[bool; 0] = &[];
 
         array_buffers.is_empty()
             && arrays.is_empty()
@@ -494,6 +512,7 @@ impl WorkQueues {
             && ecmascript_functions.is_empty()
             && embedder_objects.is_empty()
             && errors.is_empty()
+            && executables.is_empty()
             && source_codes.is_empty()
             && finalization_registrys.is_empty()
             && function_environments.is_empty()
@@ -545,6 +564,20 @@ impl CompactionList {
     pub(crate) fn shift_index<T: ?Sized>(&self, index: &mut BaseIndex<T>) {
         let base_index = index.into_u32_index();
         *index = BaseIndex::from_u32_index(base_index - self.get_shift_for_index(base_index));
+    }
+
+    pub(crate) fn shift_u32_index(&self, index: &mut u32) {
+        *index -= self.get_shift_for_index(*index);
+    }
+
+    pub(crate) fn shift_non_zero_u32_index(&self, index: &mut NonZeroU32) {
+        // 1-indexed value
+        let base_index: u32 = (*index).into();
+        // 0-indexed value
+        let base_index = base_index - 1;
+        let shifted_base_index = base_index - self.get_shift_for_index(base_index);
+        // SAFETY: Shifted base index can be 0, adding 1 makes it non-zero.
+        *index = unsafe { NonZeroU32::new_unchecked(shifted_base_index + 1) };
     }
 
     fn build(indexes: Vec<u32>, shifts: Vec<u32>) -> Self {
@@ -690,6 +723,7 @@ pub(crate) struct CompactionLists {
     pub embedder_objects: CompactionList,
     pub source_codes: CompactionList,
     pub errors: CompactionList,
+    pub executables: CompactionList,
     pub finalization_registrys: CompactionList,
     pub function_environments: CompactionList,
     pub generators: CompactionList,
@@ -706,6 +740,7 @@ pub(crate) struct CompactionLists {
     pub promises: CompactionList,
     pub proxys: CompactionList,
     pub realms: CompactionList,
+    #[cfg(feature = "regexp")]
     pub regexps: CompactionList,
     pub scripts: CompactionList,
     pub sets: CompactionList,
@@ -769,6 +804,7 @@ impl CompactionLists {
             #[cfg(feature = "date")]
             dates: CompactionList::from_mark_bits(&bits.dates),
             errors: CompactionList::from_mark_bits(&bits.errors),
+            executables: CompactionList::from_mark_bits(&bits.executables),
             maps: CompactionList::from_mark_bits(&bits.maps),
             map_iterators: CompactionList::from_mark_bits(&bits.map_iterators),
             numbers: CompactionList::from_mark_bits(&bits.numbers),
@@ -781,6 +817,7 @@ impl CompactionLists {
             ),
             promises: CompactionList::from_mark_bits(&bits.promises),
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
+            #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
             sets: CompactionList::from_mark_bits(&bits.sets),
             set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),
@@ -1035,5 +1072,42 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
         // the key must necessarily exist in the descriptors hash map.
         let descriptor = unsafe { descriptors.remove(&old_key).unwrap_unchecked() };
         descriptors.insert(new_key, descriptor);
+    }
+}
+
+pub(crate) fn sweep_side_table_values<T, K, V>(
+    side_table: &mut AHashMap<K, V>,
+    compactions: &CompactionList,
+    marks: &[bool],
+) where
+    T: ?Sized,
+    K: IntoBaseIndex<T> + From<BaseIndex<T>> + Copy + Ord + Hash,
+{
+    let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
+    let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);
+    for (key, _) in side_table.iter_mut() {
+        let old_key = *key;
+        if !marks.get(key.into_base_index().into_index()).unwrap() {
+            keys_to_remove.push(old_key);
+        } else {
+            let mut new_key = old_key.into_base_index();
+            compactions.shift_index(&mut new_key);
+            let new_key = K::from(new_key);
+            if new_key != old_key {
+                keys_to_reassign.push((old_key, new_key));
+            }
+        }
+    }
+    keys_to_remove.sort();
+    keys_to_reassign.sort();
+    for old_key in keys_to_remove.iter() {
+        side_table.remove(old_key);
+    }
+    for (old_key, new_key) in keys_to_reassign {
+        // SAFETY: The old key came from iterating the side table, and the same
+        // key cannot appear in both keys to remove and keys to reassign. Thus
+        // the key must necessarily exist in the side table hash map.
+        let value = unsafe { side_table.remove(&old_key).unwrap_unchecked() };
+        side_table.insert(new_key, value);
     }
 }

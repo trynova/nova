@@ -22,12 +22,19 @@ use crate::ecmascript::builtins::numbers_and_dates::date_objects::{
 };
 #[cfg(feature = "math")]
 use crate::ecmascript::builtins::numbers_and_dates::math_object::MathObject;
+#[cfg(feature = "atomics")]
+use crate::ecmascript::builtins::structured_data::atomics_object::AtomicsObject;
 #[cfg(feature = "json")]
 use crate::ecmascript::builtins::structured_data::json_object::JSONObject;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::structured_data::shared_array_buffer_objects::{
     shared_array_buffer_constructor::SharedArrayBufferConstructor,
     shared_array_buffer_prototype::SharedArrayBufferPrototype,
+};
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::text_processing::regexp_objects::{
+    regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
+    regexp_string_iterator_prototype::RegExpStringIteratorPrototype,
 };
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
@@ -96,17 +103,10 @@ use crate::{
             },
             primitive_objects::PrimitiveObject,
             reflection::{proxy_constructor::ProxyConstructor, reflect_object::ReflectObject},
-            structured_data::atomics_object::AtomicsObject,
-            text_processing::{
-                regexp_objects::{
-                    regexp_constructor::RegExpConstructor, regexp_prototype::RegExpPrototype,
-                    regexp_string_iterator_prototype::RegExpStringIteratorPrototype,
-                },
-                string_objects::{
-                    string_constructor::StringConstructor,
-                    string_iterator_objects::StringIteratorPrototype,
-                    string_prototype::StringPrototype,
-                },
+            text_processing::string_objects::{
+                string_constructor::StringConstructor,
+                string_iterator_objects::StringIteratorPrototype,
+                string_prototype::StringPrototype,
             },
             Array, BuiltinFunction,
         },
@@ -149,7 +149,6 @@ use crate::{
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
     },
 };
-
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
     pub(crate) object_index_base: ObjectIndex,
@@ -204,6 +203,7 @@ pub enum ProtoIntrinsics {
     Promise,
     RangeError,
     ReferenceError,
+    #[cfg(feature = "regexp")]
     RegExp,
     Set,
     SetIterator,
@@ -289,8 +289,11 @@ impl Intrinsics {
         StringPrototype::create_intrinsic(agent, realm);
         StringConstructor::create_intrinsic(agent, realm);
         StringIteratorPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "regexp")]
         RegExpPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "regexp")]
         RegExpConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "regexp")]
         RegExpStringIteratorPrototype::create_intrinsic(agent, realm);
         ArrayPrototype::create_intrinsic(agent, realm);
         ArrayConstructor::create_intrinsic(agent, realm);
@@ -329,6 +332,7 @@ impl Intrinsics {
         DataViewPrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "array-buffer")]
         DataViewConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "atomics")]
         AtomicsObject::create_intrinsic(agent, realm);
         #[cfg(feature = "json")]
         JSONObject::create_intrinsic(agent, realm);
@@ -410,6 +414,7 @@ impl Intrinsics {
             ProtoIntrinsics::Map => self.map_prototype().into(),
             ProtoIntrinsics::MapIterator => self.map_iterator_prototype().into(),
             ProtoIntrinsics::Promise => self.promise_prototype().into(),
+            #[cfg(feature = "regexp")]
             ProtoIntrinsics::RegExp => self.reg_exp_prototype().into(),
             ProtoIntrinsics::Set => self.set_prototype().into(),
             ProtoIntrinsics::SetIterator => self.set_iterator_prototype().into(),
@@ -612,6 +617,7 @@ impl Intrinsics {
     }
 
     /// %Atomics%
+    #[cfg(feature = "atomics")]
     pub(crate) fn atomics(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::AtomicsObject
             .get_object_index(self.object_index_base)
@@ -1209,6 +1215,7 @@ impl Intrinsics {
     }
 
     /// %RegExp.prototype.exec%
+    #[cfg(feature = "regexp")]
     pub(crate) fn reg_exp_prototype_exec(&self) -> BuiltinFunction {
         IntrinsicFunctionIndexes::RegExpPrototypeExec
             .get_builtin_function_index(self.builtin_function_index_base)
@@ -1216,6 +1223,7 @@ impl Intrinsics {
     }
 
     /// %RegExp.prototype%
+    #[cfg(feature = "regexp")]
     pub(crate) fn reg_exp_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::RegExpPrototype
             .get_object_index(self.object_index_base)
@@ -1223,17 +1231,20 @@ impl Intrinsics {
     }
 
     /// %RegExp%
+    #[cfg(feature = "regexp")]
     pub(crate) fn reg_exp(&self) -> BuiltinFunction {
         IntrinsicConstructorIndexes::RegExp
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
+    #[cfg(feature = "regexp")]
     pub(crate) fn reg_exp_base_object(&self) -> ObjectIndex {
         IntrinsicConstructorIndexes::RegExp.get_object_index(self.object_index_base)
     }
 
     /// %RegExpStringIteratorPrototype%
+    #[cfg(feature = "regexp")]
     pub(crate) fn reg_exp_string_iterator_prototype(&self) -> OrdinaryObject {
         IntrinsicObjectIndexes::RegExpStringIteratorPrototype
             .get_object_index(self.object_index_base)
@@ -1618,6 +1629,7 @@ impl HeapMarkAndSweep for Intrinsics {
         self.async_generator_function().mark_values(queues);
         self.async_generator_prototype().mark_values(queues);
         self.async_iterator_prototype().mark_values(queues);
+        #[cfg(feature = "atomics")]
         self.atomics().mark_values(queues);
         self.big_int_prototype().mark_values(queues);
         self.big_int().mark_values(queues);
@@ -1706,9 +1718,13 @@ impl HeapMarkAndSweep for Intrinsics {
         self.reference_error_prototype().mark_values(queues);
         self.reference_error().mark_values(queues);
         self.reflect().mark_values(queues);
+        #[cfg(feature = "regexp")]
         self.reg_exp_prototype_exec().mark_values(queues);
+        #[cfg(feature = "regexp")]
         self.reg_exp_prototype().mark_values(queues);
+        #[cfg(feature = "regexp")]
         self.reg_exp().mark_values(queues);
+        #[cfg(feature = "regexp")]
         self.reg_exp_string_iterator_prototype().mark_values(queues);
         self.set_prototype_values().mark_values(queues);
         self.set_prototype().mark_values(queues);
@@ -1773,11 +1789,19 @@ impl HeapMarkAndSweep for Intrinsics {
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        OrdinaryObject(self.object_index_base).sweep_values(compactions);
-        BuiltinFunction(self.builtin_function_index_base).sweep_values(compactions);
+        let Self {
+            object_index_base,
+            primitive_object_index_base,
+            array_prototype,
+            builtin_function_index_base,
+        } = self;
+        compactions.objects.shift_index(object_index_base);
         compactions
             .primitive_objects
-            .shift_index(&mut self.primitive_object_index_base);
-        self.array_prototype.sweep_values(compactions);
+            .shift_index(primitive_object_index_base);
+        array_prototype.sweep_values(compactions);
+        compactions
+            .builtin_functions
+            .shift_index(builtin_function_index_base);
     }
 }

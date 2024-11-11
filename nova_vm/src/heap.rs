@@ -9,17 +9,16 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
-use std::ops::Index;
+use std::{cell::RefCell, ops::Index};
 
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes,
+    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{
     LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX, LAST_INTRINSIC_OBJECT_INDEX,
-    LAST_WELL_KNOWN_SYMBOL_INDEX,
 };
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
@@ -31,6 +30,8 @@ use self::{
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
@@ -42,50 +43,51 @@ use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
 };
-use crate::ecmascript::{
-    builtins::ArrayHeapData,
-    execution::{Environments, Realm, RealmIdentifier},
-    scripts_and_modules::{
-        module::ModuleIdentifier,
-        script::{Script, ScriptIdentifier},
-    },
-    types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-        NumberHeapData, Object, ObjectHeapData, String, StringHeapData, SymbolHeapData, Value,
-    },
-};
-use crate::ecmascript::{
-    builtins::{
-        control_abstraction_objects::{
-            async_function_objects::await_reaction::AwaitReaction,
-            generator_objects::GeneratorHeapData,
-            promise_objects::promise_abstract_operations::{
-                promise_reaction_records::PromiseReactionRecord,
-                promise_resolving_functions::PromiseResolvingFunctionHeapData,
+use crate::{
+    ecmascript::{
+        builtins::{
+            control_abstraction_objects::{
+                async_function_objects::await_reaction::AwaitReaction,
+                generator_objects::GeneratorHeapData,
+                promise_objects::promise_abstract_operations::{
+                    promise_reaction_records::PromiseReactionRecord,
+                    promise_resolving_functions::PromiseResolvingFunctionHeapData,
+                },
             },
+            data_view::DataView,
+            embedder_object::data::EmbedderObjectHeapData,
+            error::ErrorHeapData,
+            finalization_registry::data::FinalizationRegistryHeapData,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+                set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+            },
+            map::data::MapHeapData,
+            module::data::ModuleHeapData,
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            set::data::SetHeapData,
+            ArrayHeapData,
         },
-        embedder_object::data::EmbedderObjectHeapData,
-        error::ErrorHeapData,
-        finalization_registry::data::FinalizationRegistryHeapData,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-            set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+        execution::{Environments, Realm, RealmIdentifier},
+        scripts_and_modules::{
+            module::ModuleIdentifier,
+            script::{Script, ScriptIdentifier},
+            source_code::SourceCodeHeapData,
         },
-        map::data::MapHeapData,
-        module::data::ModuleHeapData,
-        primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        regexp::RegExpHeapData,
-        set::data::SetHeapData,
+        types::{
+            bigint::HeapBigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
+            BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, HeapNumber, HeapString,
+            NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String, StringHeapData,
+            SymbolHeapData, BUILTIN_STRINGS_LIST,
+        },
     },
-    scripts_and_modules::source_code::SourceCodeHeapData,
-    types::{
-        bigint::HeapBigInt, BuiltinConstructorHeapData, HeapNumber, HeapString, OrdinaryObject,
-        BUILTIN_STRINGS_LIST,
-    },
+    engine::{rootable::HeapRootData, ExecutableHeapData},
 };
+#[cfg(feature = "array-buffer")]
+use ahash::AHashMap;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
@@ -101,6 +103,10 @@ pub struct Heap {
     pub builtin_functions: Vec<Option<BuiltinFunctionHeapData>>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
+    #[cfg(feature = "array-buffer")]
+    pub data_view_byte_lengths: AHashMap<DataView, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub data_view_byte_offsets: AHashMap<DataView, usize>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,
@@ -111,9 +117,11 @@ pub struct Heap {
     pub embedder_objects: Vec<Option<EmbedderObjectHeapData>>,
     pub environments: Environments,
     pub errors: Vec<Option<ErrorHeapData>>,
+    /// Stores compiled bytecodes
+    pub(crate) executables: Vec<ExecutableHeapData>,
     pub finalization_registrys: Vec<Option<FinalizationRegistryHeapData>>,
     pub generators: Vec<Option<GeneratorHeapData>>,
-    pub globals: Vec<Option<Value>>,
+    pub(crate) globals: RefCell<Vec<Option<HeapRootData>>>,
     pub maps: Vec<Option<MapHeapData>>,
     pub map_iterators: Vec<Option<MapIteratorHeapData>>,
     pub numbers: Vec<Option<NumberHeapData>>,
@@ -124,6 +132,7 @@ pub struct Heap {
     pub promises: Vec<Option<PromiseHeapData>>,
     pub proxys: Vec<Option<ProxyHeapData>>,
     pub realms: Vec<Option<Realm>>,
+    #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData>>,
     pub sets: Vec<Option<SetHeapData>>,
     pub set_iterators: Vec<Option<SetIteratorHeapData>>,
@@ -190,6 +199,10 @@ impl Heap {
             builtin_functions: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             data_views: Vec::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            data_view_byte_offsets: AHashMap::with_capacity(0),
             #[cfg(feature = "date")]
             dates: Vec::with_capacity(1024),
             ecmascript_functions: Vec::with_capacity(1024),
@@ -206,10 +219,11 @@ impl Heap {
             embedder_objects: Vec::with_capacity(0),
             environments: Default::default(),
             errors: Vec::with_capacity(1024),
+            executables: Vec::with_capacity(1024),
             source_codes: Vec::with_capacity(0),
             finalization_registrys: Vec::with_capacity(0),
             generators: Vec::with_capacity(1024),
-            globals: Vec::with_capacity(1024),
+            globals: RefCell::new(Vec::with_capacity(1024)),
             maps: Vec::with_capacity(128),
             map_iterators: Vec::with_capacity(128),
             modules: Vec::with_capacity(0),
@@ -221,6 +235,7 @@ impl Heap {
             promises: Vec::with_capacity(0),
             proxys: Vec::with_capacity(0),
             realms: Vec::with_capacity(1),
+            #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(1024),
             scripts: Vec::with_capacity(1),
             sets: Vec::with_capacity(128),

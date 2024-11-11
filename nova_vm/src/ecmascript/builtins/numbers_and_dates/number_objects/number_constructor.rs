@@ -26,6 +26,7 @@ use crate::ecmascript::types::Object;
 
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::GcScope;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
@@ -70,6 +71,8 @@ impl Builtin for NumberIsSafeInteger {
 impl NumberConstructor {
     fn behaviour(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -79,7 +82,7 @@ impl NumberConstructor {
         // 1. If value is present, then
         let n = if !value.is_undefined() {
             // a. Let prim be ? ToNumeric(value).
-            let prim = value.to_numeric(agent)?;
+            let prim = value.to_numeric(agent, gc.reborrow())?;
 
             // b. If prim is a BigInt, let n be 𝔽(ℝ(prim)).
             if prim.is_bigint() {
@@ -106,6 +109,7 @@ impl NumberConstructor {
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
+            gc.reborrow(),
             new_target,
             ProtoIntrinsics::Number,
         )?)
@@ -114,7 +118,7 @@ impl NumberConstructor {
         agent[o].data = match n {
             Numeric::Number(d) => PrimitiveObjectData::Number(d),
             Numeric::Integer(d) => PrimitiveObjectData::Integer(d),
-            Numeric::Float(d) => PrimitiveObjectData::Float(d),
+            Numeric::SmallF64(d) => PrimitiveObjectData::Float(d),
             _ => unreachable!(),
         };
         // 6. Return O.
@@ -124,6 +128,8 @@ impl NumberConstructor {
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn is_finite(
         agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -142,17 +148,25 @@ impl NumberConstructor {
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn is_integer(
         agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
-        Ok(is_integral_number(agent, maybe_number).into())
+        Ok(is_integral_number(agent, gc.reborrow(), maybe_number).into())
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
-    fn is_nan(agent: &mut Agent, _this_value: Value, arguments: ArgumentsList) -> JsResult<Value> {
+    fn is_nan(
+        agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
+        _this_value: Value,
+        arguments: ArgumentsList,
+    ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -168,6 +182,8 @@ impl NumberConstructor {
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
     fn is_safe_integer(
         agent: &mut Agent,
+        _gc: GcScope<'_, '_>,
+
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
