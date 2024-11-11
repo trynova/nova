@@ -109,6 +109,17 @@ impl IntoValue for ArrayBuffer {
     }
 }
 
+impl TryFrom<Value> for ArrayBuffer {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::ArrayBuffer(base_index) => Ok(base_index),
+            _ => Err(()),
+        }
+    }
+}
+
 impl From<ArrayBufferIndex> for ArrayBuffer {
     fn from(value: ArrayBufferIndex) -> Self {
         ArrayBuffer(value)

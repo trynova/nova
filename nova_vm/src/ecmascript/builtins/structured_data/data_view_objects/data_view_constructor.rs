@@ -76,7 +76,7 @@ impl DataViewConstructor {
         }
 
         // 5. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst) as usize;
+        let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst);
 
         // 6. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {
@@ -126,7 +126,7 @@ impl DataViewConstructor {
         }
 
         // 12. Set bufferByteLength to ArrayBufferByteLength(buffer, seq-cst).
-        let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst) as usize;
+        let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst);
 
         // 13. If offset > bufferByteLength, throw a RangeError exception.
         if offset > buffer_byte_length {

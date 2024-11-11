@@ -61,7 +61,7 @@ pub(crate) fn make_data_view_with_buffer_witness_record(
     let byte_length = if buffer.is_detached(agent) {
         ByteLength::detached()
     } else {
-        ByteLength::value(array_buffer_byte_length(agent, buffer, order) as usize)
+        ByteLength::value(array_buffer_byte_length(agent, buffer, order))
     };
     DataViewWithBufferWitnessRecord {
         object: obj,

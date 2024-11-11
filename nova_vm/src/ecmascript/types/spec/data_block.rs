@@ -13,9 +13,9 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
             to_big_int64, to_big_uint64, to_int16, to_int32, to_int8, to_uint16, to_uint32,
-            to_uint8,
+            to_uint8, to_uint8_clamp,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{BigInt, IntoValue, Value},
     },
     engine::context::GcScope,
@@ -57,9 +57,15 @@ impl Drop for DataBlock {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct U8Clamped(pub u8);
+
 mod private {
+    use super::U8Clamped;
+
     pub trait Sealed {}
     impl Sealed for u8 {}
+    impl Sealed for U8Clamped {}
     impl Sealed for i8 {}
     impl Sealed for u16 {}
     impl Sealed for i16 {}
@@ -73,6 +79,9 @@ mod private {
 
 pub trait Viewable: private::Sealed + Copy {
     const IS_BIGINT: bool;
+    // TODO: Is this needed?
+    const IS_CLAMPED: bool = false;
+    const PROTO: ProtoIntrinsics;
 
     fn into_be_value(self, agent: &mut Agent) -> Value;
     fn into_le_value(self, agent: &mut Agent) -> Value;
@@ -86,6 +95,7 @@ pub trait Viewable: private::Sealed + Copy {
 
 impl Viewable for u8 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -103,8 +113,30 @@ impl Viewable for u8 {
         to_uint8(agent, gc, value).unwrap().to_le()
     }
 }
+impl Viewable for U8Clamped {
+    const IS_BIGINT: bool = false;
+    const IS_CLAMPED: bool = true;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
+
+    fn into_be_value(self, _: &mut Agent) -> Value {
+        Value::from(self.0.to_be())
+    }
+
+    fn into_le_value(self, _: &mut Agent) -> Value {
+        Value::from(self.0.to_le())
+    }
+
+    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        Self(to_uint8_clamp(agent, gc, value).unwrap().to_be())
+    }
+
+    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
+        Self(to_uint8_clamp(agent, gc, value).unwrap().to_le())
+    }
+}
 impl Viewable for i8 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -124,6 +156,7 @@ impl Viewable for i8 {
 }
 impl Viewable for u16 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -143,6 +176,7 @@ impl Viewable for u16 {
 }
 impl Viewable for i16 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -162,6 +196,7 @@ impl Viewable for i16 {
 }
 impl Viewable for u32 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -181,6 +216,7 @@ impl Viewable for u32 {
 }
 impl Viewable for i32 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(self.to_be())
@@ -200,6 +236,7 @@ impl Viewable for i32 {
 }
 impl Viewable for u64 {
     const IS_BIGINT: bool = true;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
         BigInt::from_u64(agent, self.to_be()).into_value()
@@ -219,6 +256,7 @@ impl Viewable for u64 {
 }
 impl Viewable for i64 {
     const IS_BIGINT: bool = true;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
         BigInt::from_i64(agent, self.to_be()).into_value()
@@ -238,6 +276,7 @@ impl Viewable for i64 {
 }
 impl Viewable for f32 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
         Value::from(Self::from_ne_bytes(self.to_be_bytes()))
@@ -257,6 +296,7 @@ impl Viewable for f32 {
 }
 impl Viewable for f64 {
     const IS_BIGINT: bool = false;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
         Value::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()))
