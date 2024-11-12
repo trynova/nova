@@ -78,6 +78,9 @@ mod private {
 }
 
 pub trait Viewable: private::Sealed + Copy {
+    /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
+    /// as a marker for data views. Used to determine that the viewable type is
+    /// a BigInt.
     const IS_BIGINT: bool;
     const PROTO: ProtoIntrinsics;
 

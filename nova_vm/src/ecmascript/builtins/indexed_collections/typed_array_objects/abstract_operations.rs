@@ -107,6 +107,37 @@ pub(crate) fn typed_array_create<T: Viewable>(
     a
 }
 
+/// ### [10.4.5.11 TypedArrayByteLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraybytelength)
+/// 
+/// The abstract operation TypedArrayByteLength takes argument taRecord (a
+/// TypedArray With Buffer Witness Record) and returns a non-negative integer.
+pub(crate) fn typed_array_byte_length<T: Viewable>(agent: &mut Agent, ta_record: &TypedArrayWithBufferWitnessRecords) -> usize {
+    // 1. If IsTypedArrayOutOfBounds(taRecord) is true, return 0.
+    if is_typed_array_out_of_bounds::<T>(agent, ta_record) {
+        return 0;
+    }
+
+    // 2. Let length be TypedArrayLength(taRecord).
+    let length = typed_array_length::<T>(agent, ta_record);
+
+    // 3. If length = 0, return 0.
+    if length == 0 {
+        return 0;
+    }
+
+    // 4. Let O be taRecord.[[Object]].
+    let o = ta_record.object;
+    // 5. If O.[[ByteLength]] is not auto, return O.[[ByteLength]].
+    if let Some(byte_length) = o.byte_length(agent) {
+        return byte_length;
+    }
+
+    // 6. Let elementSize be TypedArrayElementSize(O).
+    let element_size = size_of::<T>();
+    // 7. Return length × elementSize.
+    length * element_size
+}
+
 /// ### [10.4.5.12 TypedArrayLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraylength)
 ///
 /// The abstract operation TypedArrayLength takes argument taRecord (a
@@ -303,25 +334,12 @@ pub(crate) fn initialize_typed_array_from_typed_array<T: Viewable, U: Viewable>(
         )?;
 
         // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
-        match (src_array, o) {
-            (TypedArray::Int8Array(_), TypedArray::Int8Array(_))
-            | (TypedArray::Uint8Array(_), TypedArray::Uint8Array(_))
-            | (TypedArray::Uint8ClampedArray(_), TypedArray::Uint8ClampedArray(_))
-            | (TypedArray::Int16Array(_), TypedArray::Int16Array(_))
-            | (TypedArray::Uint16Array(_), TypedArray::Uint16Array(_))
-            | (TypedArray::Int32Array(_), TypedArray::Int32Array(_))
-            | (TypedArray::Uint32Array(_), TypedArray::Uint32Array(_))
-            | (TypedArray::BigInt64Array(_), TypedArray::BigInt64Array(_))
-            | (TypedArray::BigUint64Array(_), TypedArray::BigUint64Array(_))
-            | (TypedArray::Float32Array(_), TypedArray::Float32Array(_))
-            | (TypedArray::Float64Array(_), TypedArray::Float64Array(_)) => (),
-            _ => {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "TypedArray content type mismatch",
-                ))
-            }
-        };
+        if T::IS_BIGINT != U::IS_BIGINT {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray content type mismatch",
+            ));
+        }
 
         // c. Let srcByteIndex be srcByteOffset.
         let mut src_byte_index = src_byte_offset;

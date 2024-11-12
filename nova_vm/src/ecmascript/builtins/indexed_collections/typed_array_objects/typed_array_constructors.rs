@@ -638,6 +638,7 @@ impl TypedArrayPrototypes {
     }
 }
 
+#[inline(always)]
 fn typed_array_constructor<T: Viewable>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
