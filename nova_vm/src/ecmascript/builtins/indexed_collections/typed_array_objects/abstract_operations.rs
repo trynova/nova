@@ -108,10 +108,13 @@ pub(crate) fn typed_array_create<T: Viewable>(
 }
 
 /// ### [10.4.5.11 TypedArrayByteLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraybytelength)
-/// 
+///
 /// The abstract operation TypedArrayByteLength takes argument taRecord (a
 /// TypedArray With Buffer Witness Record) and returns a non-negative integer.
-pub(crate) fn typed_array_byte_length<T: Viewable>(agent: &mut Agent, ta_record: &TypedArrayWithBufferWitnessRecords) -> usize {
+pub(crate) fn typed_array_byte_length<T: Viewable>(
+    agent: &mut Agent,
+    ta_record: &TypedArrayWithBufferWitnessRecords,
+) -> usize {
     // 1. If IsTypedArrayOutOfBounds(taRecord) is true, return 0.
     if is_typed_array_out_of_bounds::<T>(agent, ta_record) {
         return 0;
