@@ -8,11 +8,11 @@ use crate::{
             array_buffer::{
                 allocate_array_buffer, array_buffer_byte_length, clone_array_buffer,
                 get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
-                set_value_in_buffer, Ordering,
+                set_value_in_buffer, Ordering, ViewedArrayBufferByteLength,
             },
             ordinary::get_prototype_from_constructor,
             typed_array::{
-                data::{TypedArrayArrayLength, TypedArrayByteLength, TypedArrayHeapData},
+                data::{TypedArrayArrayLength, TypedArrayHeapData},
                 TypedArray,
             },
             ArrayBuffer,
@@ -466,7 +466,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
         }
 
         // b. Set O.[[ByteLength]] to auto.
-        o_heap_data.byte_length = TypedArrayByteLength::auto();
+        o_heap_data.byte_length = ViewedArrayBufferByteLength::auto();
         // c. Set O.[[ArrayLength]] to auto.
         o_heap_data.array_length = TypedArrayArrayLength::auto();
     } else {
@@ -627,7 +627,7 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
     // 8. Set O.[[ArrayLength]] to length.
     o_heap_data.array_length = Some(length).into();
 
-    let is_heap_byte_length = o_heap_data.byte_length == TypedArrayByteLength::heap();
+    let is_heap_byte_length = o_heap_data.byte_length == ViewedArrayBufferByteLength::heap();
     let is_heap_array_length = o_heap_data.array_length == TypedArrayArrayLength::heap();
 
     if is_heap_byte_length {

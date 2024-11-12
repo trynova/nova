@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::array_buffer::{
+    ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
+};
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -12,10 +15,7 @@ use crate::{
                 array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer,
                 Ordering,
             },
-            data_view::{
-                data::{DataViewByteLength, DataViewByteOffset},
-                DataView,
-            },
+            data_view::DataView,
             ordinary::ordinary_create_from_constructor,
             structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer,
             ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
@@ -160,14 +160,14 @@ impl DataViewConstructor {
         let byte_offset = offset.into();
         heap_data.byte_offset = byte_offset;
 
-        if byte_length == DataViewByteLength::heap() {
+        if byte_length == ViewedArrayBufferByteLength::heap() {
             agent
                 .heap
                 .data_view_byte_lengths
                 .insert(o, view_byte_length.unwrap());
         }
 
-        if byte_offset == DataViewByteOffset::heap() {
+        if byte_offset == ViewedArrayBufferByteOffset::heap() {
             agent.heap.data_view_byte_offsets.insert(o, offset);
         }
 

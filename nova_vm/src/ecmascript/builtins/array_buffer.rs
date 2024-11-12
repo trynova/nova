@@ -23,7 +23,7 @@ pub(crate) use abstract_operations::{
     allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
     is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, Ordering,
 };
-pub use data::ArrayBufferHeapData;
+pub use data::*;
 use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]

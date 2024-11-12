@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use data::{TypedArrayArrayLength, TypedArrayByteLength, TypedArrayByteOffset};
+use data::TypedArrayArrayLength;
 
 use crate::{
     ecmascript::{
@@ -26,7 +26,10 @@ use crate::{
 
 use self::data::TypedArrayHeapData;
 
-use super::ArrayBuffer;
+use super::{
+    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
+    ArrayBuffer,
+};
 
 pub mod data;
 
@@ -67,9 +70,9 @@ impl TypedArray {
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = agent[self].byte_length;
-        if byte_length == TypedArrayByteLength::heap() {
+        if byte_length == ViewedArrayBufferByteLength::heap() {
             Some(*agent.heap.typed_array_byte_lengths.get(&self).unwrap())
-        } else if byte_length == TypedArrayByteLength::auto() {
+        } else if byte_length == ViewedArrayBufferByteLength::auto() {
             None
         } else {
             Some(byte_length.0 as usize)
@@ -91,7 +94,7 @@ impl TypedArray {
     #[inline]
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = agent[self].byte_offset;
-        if byte_offset == TypedArrayByteOffset::heap() {
+        if byte_offset == ViewedArrayBufferByteOffset::heap() {
             *agent.heap.typed_array_byte_offsets.get(&self).unwrap()
         } else {
             byte_offset.0 as usize
