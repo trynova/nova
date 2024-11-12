@@ -161,7 +161,7 @@ pub(crate) struct Intrinsics {
 
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtoIntrinsics {
     AggregateError,
     Array,

@@ -6,8 +6,9 @@ use crate::{
         },
         builtins::{
             array_buffer::{
-                allocate_array_buffer, array_buffer_byte_length, is_detached_buffer,
-                is_fixed_length_array_buffer, Ordering,
+                allocate_array_buffer, array_buffer_byte_length, clone_array_buffer,
+                get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
+                set_value_in_buffer, Ordering,
             },
             ordinary::get_prototype_from_constructor,
             typed_array::{
@@ -27,7 +28,7 @@ use crate::{
     SmallInteger,
 };
 
-struct TypedArrayWithBufferWitnessRecords {
+pub(crate) struct TypedArrayWithBufferWitnessRecords {
     object: TypedArray,
     cached_buffer_byte_length: Option<usize>,
 }
@@ -106,15 +107,54 @@ pub(crate) fn typed_array_create<T: Viewable>(
     a
 }
 
+/// ### [10.4.5.12 TypedArrayLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraylength)
+///
+/// The abstract operation TypedArrayLength takes argument taRecord (a
+/// TypedArray With Buffer Witness Record) and returns a non-negative integer.
+pub(crate) fn typed_array_length<T: Viewable>(
+    agent: &Agent,
+    ta_record: &TypedArrayWithBufferWitnessRecords,
+) -> usize {
+    // 1. Assert: IsTypedArrayOutOfBounds(taRecord) is false.
+    assert!(!is_typed_array_out_of_bounds::<T>(agent, ta_record));
+
+    // 2. Let O be taRecord.[[Object]].
+    let o = ta_record.object;
+
+    // 3. If O.[[ArrayLength]] is not auto, return O.[[ArrayLength]].
+    if let Some(array_length) = o.array_length(agent) {
+        return array_length;
+    }
+
+    // 4. Assert: IsFixedLengthArrayBuffer(O.[[ViewedArrayBuffer]]) is false.
+    assert!(!is_fixed_length_array_buffer(
+        agent,
+        o.get_viewed_array_buffer(agent)
+    ));
+
+    // 5. Let byteOffset be O.[[ByteOffset]].
+    let byte_offset = o.byte_offset(agent);
+
+    // 6. Let elementSize be TypedArrayElementSize(O).
+    let element_size = size_of::<T>();
+
+    // 7. Let byteLength be taRecord.[[CachedBufferByteLength]].
+    // 8. Assert: byteLength is not detached.
+    let byte_length = ta_record.cached_buffer_byte_length.unwrap();
+
+    // 9. Return floor((byteLength - byteOffset) / elementSize).
+    (byte_length - byte_offset) / element_size
+}
+
 /// ### [10.4.5.13 IsTypedArrayOutOfBounds ( taRecord )](https://tc39.es/ecma262/#sec-istypedarrayoutofbounds)
 ///
 /// The abstract operation IsTypedArrayOutOfBounds takes argument taRecord (a
 /// TypedArray With Buffer Witness Record) and returns a Boolean. It checks if
 /// any of the object's numeric properties reference a value at an index not
 /// contained within the underlying buffer's bounds.
-pub(crate) fn is_typed_array_out_of_bounds(
+pub(crate) fn is_typed_array_out_of_bounds<T: Viewable>(
     agent: &Agent,
-    ta_record: TypedArrayWithBufferWitnessRecords,
+    ta_record: &TypedArrayWithBufferWitnessRecords,
 ) -> bool {
     // 1. Let O be taRecord.[[Object]].
     let o = ta_record.object;
@@ -129,19 +169,30 @@ pub(crate) fn is_typed_array_out_of_bounds(
     );
 
     // 4. If bufferByteLength is detached, return true.
-    if buffer_byte_length.is_none() {
+    let Some(buffer_byte_length) = buffer_byte_length else {
         return true;
-    }
+    };
 
     // 5. Let byteOffsetStart be O.[[ByteOffset]].
     let byte_offset_start = o.byte_offset(agent);
 
     // 6. If O.[[ArrayLength]] is auto, then
-    // a. Let byteOffsetEnd be bufferByteLength.
-    // 7. Else,
-    // a. Let elementSize be TypedArrayElementSize(O).
-    // b. Let byteOffsetEnd be byteOffsetStart + O.[[ArrayLength]] × elementSize.
+    let byte_offset_end = if let Some(array_length) = o.array_length(agent) {
+        // 7. Else,
+        // a. Let elementSize be TypedArrayElementSize(O).
+        let element_size = size_of::<T>();
+        // b. Let byteOffsetEnd be byteOffsetStart + O.[[ArrayLength]] × elementSize.
+        byte_offset_start + array_length * element_size
+    } else {
+        // a. Let byteOffsetEnd be bufferByteLength.
+        buffer_byte_length
+    };
+
     // 8. If byteOffsetStart > bufferByteLength or byteOffsetEnd > bufferByteLength, return true.
+    if byte_offset_start > buffer_byte_length || byte_offset_end > buffer_byte_length {
+        return true;
+    }
+
     // 9. NOTE: 0-length TypedArrays are not considered out-of-bounds.
     // 10. Return false.
     false
@@ -198,10 +249,10 @@ pub(crate) fn allocate_typed_array<T: Viewable>(
 /// completion containing unused or a throw completion.
 pub(crate) fn initialize_typed_array_from_typed_array<T: Viewable, U: Viewable>(
     agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
     o: TypedArray,
     src_array: TypedArray,
 ) -> JsResult<()> {
-    let o_heap_data = &agent[o];
     let src_heap_data = &agent[src_array];
 
     // 1. Let srcData be srcArray.[[ViewedArrayBuffer]].
@@ -223,7 +274,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<T: Viewable, U: Viewable>(
         make_typed_array_with_buffer_witness_record(agent, src_array, Ordering::SeqCst);
 
     // 8. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
-    if is_typed_array_out_of_bounds(agent, src_record) {
+    if is_typed_array_out_of_bounds::<U>(agent, &src_record) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray out of bounds",
@@ -231,26 +282,99 @@ pub(crate) fn initialize_typed_array_from_typed_array<T: Viewable, U: Viewable>(
     }
 
     // 9. Let elementLength be TypedArrayLength(srcRecord).
+    let element_length = typed_array_length::<T>(agent, &src_record);
+
     // 10. Let byteLength be elementSize × elementLength.
+    let byte_length = element_size * element_length;
+
     // 11. If elementType is srcType, then
-    // a. Let data be ? CloneArrayBuffer(srcData, srcByteOffset, byteLength).
-    // 12. Else,
-    // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
-    // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
-    // c. Let srcByteIndex be srcByteOffset.
-    // d. Let targetByteIndex be 0.
-    // e. Let count be elementLength.
-    // f. Repeat, while count > 0,
-    // i. Let value be GetValueFromBuffer(srcData, srcByteIndex, srcType, true, unordered).
-    // ii. Perform SetValueInBuffer(data, targetByteIndex, elementType, value, true, unordered).
-    // iii. Set srcByteIndex to srcByteIndex + srcElementSize.
-    // iv. Set targetByteIndex to targetByteIndex + elementSize.
-    // v. Set count to count - 1.
+    let data = if T::PROTO == U::PROTO {
+        // a. Let data be ? CloneArrayBuffer(srcData, srcByteOffset, byteLength).
+        clone_array_buffer(agent, src_data, src_byte_offset, byte_length)?
+    } else {
+        // 12. Else,
+        // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
+        let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
+        let data = allocate_array_buffer(
+            agent,
+            array_buffer_constructor.into_function(),
+            byte_length as u64,
+            None,
+        )?;
+
+        // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
+        match (src_array, o) {
+            (TypedArray::Int8Array(_), TypedArray::Int8Array(_))
+            | (TypedArray::Uint8Array(_), TypedArray::Uint8Array(_))
+            | (TypedArray::Uint8ClampedArray(_), TypedArray::Uint8ClampedArray(_))
+            | (TypedArray::Int16Array(_), TypedArray::Int16Array(_))
+            | (TypedArray::Uint16Array(_), TypedArray::Uint16Array(_))
+            | (TypedArray::Int32Array(_), TypedArray::Int32Array(_))
+            | (TypedArray::Uint32Array(_), TypedArray::Uint32Array(_))
+            | (TypedArray::BigInt64Array(_), TypedArray::BigInt64Array(_))
+            | (TypedArray::BigUint64Array(_), TypedArray::BigUint64Array(_))
+            | (TypedArray::Float32Array(_), TypedArray::Float32Array(_))
+            | (TypedArray::Float64Array(_), TypedArray::Float64Array(_)) => (),
+            _ => {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "TypedArray content type mismatch",
+                ))
+            }
+        };
+
+        // c. Let srcByteIndex be srcByteOffset.
+        let mut src_byte_index = src_byte_offset;
+        // d. Let targetByteIndex be 0.
+        let mut target_byte_index = 0;
+        // e. Let count be elementLength.
+        let mut count = element_length;
+        // f. Repeat, while count > 0,
+        while count != 0 {
+            // i. Let value be GetValueFromBuffer(srcData, srcByteIndex, srcType, true, unordered).
+            let value = get_value_from_buffer::<T>(
+                agent,
+                src_data,
+                src_byte_index,
+                true,
+                Ordering::Unordered,
+                None,
+            );
+
+            // ii. Perform SetValueInBuffer(data, targetByteIndex, elementType, value, true, unordered).
+            set_value_in_buffer::<T>(
+                agent,
+                gc.reborrow(),
+                data,
+                target_byte_index,
+                value,
+                true,
+                Ordering::Unordered,
+                None,
+            );
+
+            // iii. Set srcByteIndex to srcByteIndex + srcElementSize.
+            src_byte_index += src_element_size;
+            // iv. Set targetByteIndex to targetByteIndex + elementSize.
+            target_byte_index += element_size;
+            // v. Set count to count - 1.
+            count -= 1;
+        }
+        data
+    };
+
+    let o_heap_data = &mut agent[o];
+
     // 13. Set O.[[ViewedArrayBuffer]] to data.
+    o_heap_data.viewed_array_buffer = data;
     // 14. Set O.[[ByteLength]] to byteLength.
+    o_heap_data.byte_length = Some(byte_length).into();
     // 15. Set O.[[ByteOffset]] to 0.
+    o_heap_data.byte_offset = 0.into();
     // 16. Set O.[[ArrayLength]] to elementLength.
+    o_heap_data.array_length = Some(element_length).into();
     // 17. Return unused.
+
     Ok(())
 }
 

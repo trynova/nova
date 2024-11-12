@@ -675,43 +675,75 @@ fn typed_array_constructor<T: Viewable>(
         let o = allocate_typed_array::<T>(agent, gc.reborrow(), new_target, proto, None)?;
 
         // ii. If firstArgument has a [[TypedArrayName]] internal slot, then
-        if let Ok(first_argument) = TypedArray::try_from(o) {
+        if let Ok(first_argument) = TypedArray::try_from(first_argument) {
             // 1. Perform ? InitializeTypedArrayFromTypedArray(O, firstArgument).
             match first_argument {
-                TypedArray::Int8Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, i8>(agent, o, first_argument)?
-                }
-                TypedArray::Uint8Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, u8>(agent, o, first_argument)?
-                }
+                TypedArray::Int8Array(_) => initialize_typed_array_from_typed_array::<T, i8>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::Uint8Array(_) => initialize_typed_array_from_typed_array::<T, u8>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
                 TypedArray::Uint8ClampedArray(_) => initialize_typed_array_from_typed_array::<
                     T,
                     U8Clamped,
-                >(agent, o, first_argument)?,
-                TypedArray::Int16Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, i16>(agent, o, first_argument)?
-                }
-                TypedArray::Uint16Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, u16>(agent, o, first_argument)?
-                }
-                TypedArray::Int32Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, i32>(agent, o, first_argument)?
-                }
-                TypedArray::Uint32Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, u32>(agent, o, first_argument)?
-                }
-                TypedArray::BigInt64Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, i64>(agent, o, first_argument)?
-                }
-                TypedArray::BigUint64Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, u64>(agent, o, first_argument)?
-                }
-                TypedArray::Float32Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, f32>(agent, o, first_argument)?
-                }
-                TypedArray::Float64Array(_) => {
-                    initialize_typed_array_from_typed_array::<T, f64>(agent, o, first_argument)?
-                }
+                >(
+                    agent, gc.reborrow(), o, first_argument
+                )?,
+                TypedArray::Int16Array(_) => initialize_typed_array_from_typed_array::<T, i16>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::Uint16Array(_) => initialize_typed_array_from_typed_array::<T, u16>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::Int32Array(_) => initialize_typed_array_from_typed_array::<T, i32>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::Uint32Array(_) => initialize_typed_array_from_typed_array::<T, u32>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::BigInt64Array(_) => initialize_typed_array_from_typed_array::<T, i64>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::BigUint64Array(_) => initialize_typed_array_from_typed_array::<T, u64>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::Float32Array(_) => initialize_typed_array_from_typed_array::<T, f32>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
+                TypedArray::Float64Array(_) => initialize_typed_array_from_typed_array::<T, f64>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?,
             }
         } else if let Ok(first_argument) = ArrayBuffer::try_from(first_argument) {
             // iii. Else if firstArgument has an [[ArrayBufferData]] internal slot, then

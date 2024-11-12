@@ -79,8 +79,6 @@ mod private {
 
 pub trait Viewable: private::Sealed + Copy {
     const IS_BIGINT: bool;
-    // TODO: Is this needed?
-    const IS_CLAMPED: bool = false;
     const PROTO: ProtoIntrinsics;
 
     fn into_be_value(self, agent: &mut Agent) -> Value;
@@ -115,7 +113,6 @@ impl Viewable for u8 {
 }
 impl Viewable for U8Clamped {
     const IS_BIGINT: bool = false;
-    const IS_CLAMPED: bool = true;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
