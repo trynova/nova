@@ -638,6 +638,7 @@ impl TypedArrayPrototypes {
     }
 }
 
+/// ### [23.2.5.1 TypedArray ( ...args )](https://tc39.es/ecma262/#sec-typedarray)
 #[inline(always)]
 fn typed_array_constructor<T: Viewable>(
     agent: &mut Agent,
@@ -771,32 +772,42 @@ fn typed_array_constructor<T: Viewable>(
                 byte_offset,
                 length,
             )?;
-        }
-        // iv. Else,
-
-        // 1. Assert: firstArgument is an Object and firstArgument does not have either a [[TypedArrayName]] or an [[ArrayBufferData]] internal slot.
-        // 2. Let usingIterator be ? GetMethod(firstArgument, %Symbol.iterator%).
-        let using_iterator = get_method(
-            agent,
-            gc.reborrow(),
-            first_argument,
-            PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-        )?;
-
-        // 3. If usingIterator is not undefined, then
-        if let Some(using_iterator) = using_iterator {
-            // a. Let values be ? IteratorToList(? GetIteratorFromMethod(firstArgument, usingIterator)).
-            let iterator_record =
-                &get_iterator_from_method(agent, gc.reborrow(), first_argument, using_iterator)?;
-            let values = iterator_to_list(agent, gc.reborrow(), iterator_record)?;
-            // b. Perform ? InitializeTypedArrayFromList(O, values).
-            initialize_typed_array_from_list::<T>(agent, gc.reborrow(), o, values)?;
         } else {
-            // 4. Else,
-            // a. NOTE: firstArgument is not an iterable object, so assume it is already an array-like object.
-            let first_argument = Object::try_from(first_argument).unwrap();
-            // b. Perform ? InitializeTypedArrayFromArrayLike(O, firstArgument).
-            initialize_typed_array_from_array_like::<T>(agent, gc.reborrow(), o, first_argument)?;
+            // iv. Else,
+
+            // 1. Assert: firstArgument is an Object and firstArgument does not have either a [[TypedArrayName]] or an [[ArrayBufferData]] internal slot.
+            // 2. Let usingIterator be ? GetMethod(firstArgument, %Symbol.iterator%).
+            let using_iterator = get_method(
+                agent,
+                gc.reborrow(),
+                first_argument,
+                PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            )?;
+
+            // 3. If usingIterator is not undefined, then
+            if let Some(using_iterator) = using_iterator {
+                // a. Let values be ? IteratorToList(? GetIteratorFromMethod(firstArgument, usingIterator)).
+                let iterator_record = &get_iterator_from_method(
+                    agent,
+                    gc.reborrow(),
+                    first_argument,
+                    using_iterator,
+                )?;
+                let values = iterator_to_list(agent, gc.reborrow(), iterator_record)?;
+                // b. Perform ? InitializeTypedArrayFromList(O, values).
+                initialize_typed_array_from_list::<T>(agent, gc.reborrow(), o, values)?;
+            } else {
+                // 4. Else,
+                // a. NOTE: firstArgument is not an iterable object, so assume it is already an array-like object.
+                let first_argument = Object::try_from(first_argument).unwrap();
+                // b. Perform ? InitializeTypedArrayFromArrayLike(O, firstArgument).
+                initialize_typed_array_from_array_like::<T>(
+                    agent,
+                    gc.reborrow(),
+                    o,
+                    first_argument,
+                )?;
+            }
         }
 
         // v. Return O.
