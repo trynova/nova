@@ -58,6 +58,7 @@ impl Drop for DataBlock {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
 pub(crate) struct U8Clamped(pub u8);
 
 mod private {
@@ -81,7 +82,7 @@ pub trait Viewable: private::Sealed + Copy {
     /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
-    const IS_BIGINT: bool;
+    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics;
 
     fn into_be_value(self, agent: &mut Agent) -> Value;
@@ -95,7 +96,6 @@ pub trait Viewable: private::Sealed + Copy {
 }
 
 impl Viewable for u8 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -115,7 +115,6 @@ impl Viewable for u8 {
     }
 }
 impl Viewable for U8Clamped {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -135,7 +134,6 @@ impl Viewable for U8Clamped {
     }
 }
 impl Viewable for i8 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -155,7 +153,6 @@ impl Viewable for i8 {
     }
 }
 impl Viewable for u16 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -175,7 +172,6 @@ impl Viewable for u16 {
     }
 }
 impl Viewable for i16 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -195,7 +191,6 @@ impl Viewable for i16 {
     }
 }
 impl Viewable for u32 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -215,7 +210,6 @@ impl Viewable for u32 {
     }
 }
 impl Viewable for i32 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -275,7 +269,6 @@ impl Viewable for i64 {
     }
 }
 impl Viewable for f32 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
     fn into_be_value(self, _: &mut Agent) -> Value {
@@ -295,7 +288,6 @@ impl Viewable for f32 {
     }
 }
 impl Viewable for f64 {
-    const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
     fn into_be_value(self, agent: &mut Agent) -> Value {
