@@ -10,6 +10,7 @@ use crate::{
                 get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
                 set_value_in_buffer, Ordering, ViewedArrayBufferByteLength,
             },
+            indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
             typed_array::{
                 data::{TypedArrayArrayLength, TypedArrayHeapData},
@@ -19,8 +20,8 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, Object, PropertyKey, Value,
-            Viewable,
+            Function, InternalMethods, InternalSlots, IntoFunction, Object, PropertyKey, U8Clamped,
+            Value, Viewable,
         },
     },
     engine::context::GcScope,
@@ -29,8 +30,8 @@ use crate::{
 };
 
 pub(crate) struct TypedArrayWithBufferWitnessRecords {
-    object: TypedArray,
-    cached_buffer_byte_length: Option<usize>,
+    pub object: TypedArray,
+    pub cached_buffer_byte_length: Option<usize>,
 }
 
 /// ### [10.4.5.9 MakeTypedArrayWithBufferWitnessRecord ( obj, order )](https://tc39.es/ecma262/#sec-maketypedarraywithbufferwitnessrecord)
@@ -230,6 +231,48 @@ pub(crate) fn is_typed_array_out_of_bounds<T: Viewable>(
     // 9. NOTE: 0-length TypedArrays are not considered out-of-bounds.
     // 10. Return false.
     false
+}
+
+/// ### [23.2.4.4 ValidateTypedArray ( O, order )](https://tc39.es/ecma262/#sec-validatetypedarray)
+///
+/// The abstract operation ValidateTypedArray takes arguments O (an ECMAScript
+/// language value) and order (seq-cst or unordered) and returns either a normal
+/// completion containing a TypedArray With Buffer Witness Record or a throw
+/// completion.
+pub(crate) fn validate_typed_array(
+    agent: &mut Agent,
+    o: Value,
+    order: Ordering,
+) -> JsResult<TypedArrayWithBufferWitnessRecords> {
+    // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
+    let o = require_internal_slot_typed_array(agent, o)?;
+    // 2. Assert: O has a [[ViewedArrayBuffer]] internal slot.
+    // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, order);
+    // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+    if match o {
+        TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record),
+        TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record),
+        TypedArray::Uint8ClampedArray(_) => {
+            is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
+        }
+        TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record),
+        TypedArray::Uint16Array(_) => is_typed_array_out_of_bounds::<u16>(agent, &ta_record),
+        TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record),
+        TypedArray::Uint32Array(_) => is_typed_array_out_of_bounds::<u32>(agent, &ta_record),
+        TypedArray::BigInt64Array(_) => is_typed_array_out_of_bounds::<i64>(agent, &ta_record),
+        TypedArray::BigUint64Array(_) => is_typed_array_out_of_bounds::<u64>(agent, &ta_record),
+        TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record),
+        TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record),
+    } {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray out of bounds",
+        ));
+    }
+
+    // 5. Return taRecord.
+    Ok(ta_record)
 }
 
 /// ### [23.2.5.1.1 AllocateTypedArray ( constructorName, newTarget, defaultProto \[ , length \] )](https://tc39.es/ecma262/#sec-allocatetypedarray)

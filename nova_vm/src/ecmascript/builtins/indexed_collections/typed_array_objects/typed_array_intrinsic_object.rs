@@ -6,6 +6,8 @@ use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builders::ordinary_object_builder::OrdinaryObjectBuilder;
 use crate::ecmascript::builtins::array_buffer::Ordering;
+use crate::ecmascript::builtins::indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator;
+use crate::ecmascript::builtins::indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind;
 use crate::ecmascript::builtins::typed_array::TypedArray;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
@@ -33,6 +35,8 @@ use crate::heap::WellKnownSymbolIndexes;
 use super::abstract_operations::is_typed_array_out_of_bounds;
 use super::abstract_operations::make_typed_array_with_buffer_witness_record;
 use super::abstract_operations::typed_array_byte_length;
+use super::abstract_operations::typed_array_length;
+use super::abstract_operations::validate_typed_array;
 
 pub struct TypedArrayIntrinsicObject;
 
@@ -487,14 +491,24 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
     fn entries(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _gc: GcScope<'_, '_>,
 
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be the this value.
+        // 2. Perform ? ValidateTypedArray(O, seq-cst).
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst)?;
+        // 3. Return CreateArrayIterator(O, key+value).
+        Ok(ArrayIterator::from_object(
+            agent,
+            o.object.into_object(),
+            CollectionIteratorKind::KeyAndValue,
+        )
+        .into_value())
     }
 
     fn every(
@@ -607,14 +621,22 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
     fn keys(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _gc: GcScope<'_, '_>,
 
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be the this value.
+        // 2. Perform ? ValidateTypedArray(O, seq-cst).
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst)?;
+        // 3. Return CreateArrayIterator(O, key).
+        Ok(
+            ArrayIterator::from_object(agent, o.object.into_object(), CollectionIteratorKind::Key)
+                .into_value(),
+        )
     }
 
     fn last_index_of(
@@ -627,14 +649,54 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
     fn get_length(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _gc: GcScope<'_, '_>,
 
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be the this value.
+        // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
+        // 3. Assert: O has [[ViewedArrayBuffer]] and [[ArrayLength]] internal slots.
+        let o = require_internal_slot_typed_array(agent, this_value)?;
+        // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+        let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
+        if match o {
+            TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record),
+            TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record),
+            TypedArray::Uint8ClampedArray(_) => {
+                is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
+            }
+            TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record),
+            TypedArray::Uint16Array(_) => is_typed_array_out_of_bounds::<u16>(agent, &ta_record),
+            TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record),
+            TypedArray::Uint32Array(_) => is_typed_array_out_of_bounds::<u32>(agent, &ta_record),
+            TypedArray::BigInt64Array(_) => is_typed_array_out_of_bounds::<i64>(agent, &ta_record),
+            TypedArray::BigUint64Array(_) => is_typed_array_out_of_bounds::<u64>(agent, &ta_record),
+            TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record),
+            TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record),
+        } {
+            return Ok(Value::pos_zero());
+        }
+        // 6. Let length be TypedArrayLength(taRecord).
+        let length = match o {
+            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record),
+            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record),
+            TypedArray::Uint8ClampedArray(_) => typed_array_length::<U8Clamped>(agent, &ta_record),
+            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record),
+            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record),
+            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record),
+            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record),
+            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record),
+            TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record),
+            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record),
+            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record),
+        } as i64;
+        // 7. Return 𝔽(length).
+        Ok(Value::try_from(length).unwrap())
     }
 
     fn map(
@@ -767,14 +829,26 @@ impl TypedArrayPrototype {
         todo!();
     }
 
+    /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn values(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _gc: GcScope<'_, '_>,
 
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // 1. Let O be the this value.
+        // 2. Perform ? ValidateTypedArray(O, seq-cst).
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst)?;
+        // 3. Return CreateArrayIterator(O, value).
+        Ok(
+            ArrayIterator::from_object(
+                agent,
+                o.object.into_object(),
+                CollectionIteratorKind::Value,
+            )
+            .into_value(),
+        )
     }
 
     fn with(
@@ -787,14 +861,39 @@ impl TypedArrayPrototype {
         todo!();
     }
 
+    /// ### [23.2.3.38 get %TypedArray%.prototype \[ %Symbol.toStringTag% \]](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn get_to_string_tag(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
 
-        _this_value: Value,
+        this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // 1. Let O be the this value.
+        if let Ok(o) = TypedArray::try_from(this_value) {
+            // 4. Let name be O.[[TypedArrayName]].
+            // 5. Assert: name is a String.
+            // 6. Return name.
+            match o {
+                TypedArray::Int8Array(_) => Ok(BUILTIN_STRING_MEMORY.Int8Array.into()),
+                TypedArray::Uint8Array(_) => Ok(BUILTIN_STRING_MEMORY.Uint8Array.into()),
+                TypedArray::Uint8ClampedArray(_) => {
+                    Ok(BUILTIN_STRING_MEMORY.Uint8ClampedArray.into())
+                }
+                TypedArray::Int16Array(_) => Ok(BUILTIN_STRING_MEMORY.Int16Array.into()),
+                TypedArray::Uint16Array(_) => Ok(BUILTIN_STRING_MEMORY.Uint16Array.into()),
+                TypedArray::Int32Array(_) => Ok(BUILTIN_STRING_MEMORY.Int32Array.into()),
+                TypedArray::Uint32Array(_) => Ok(BUILTIN_STRING_MEMORY.Uint32Array.into()),
+                TypedArray::BigInt64Array(_) => Ok(BUILTIN_STRING_MEMORY.BigInt64Array.into()),
+                TypedArray::BigUint64Array(_) => Ok(BUILTIN_STRING_MEMORY.BigUint64Array.into()),
+                TypedArray::Float32Array(_) => Ok(BUILTIN_STRING_MEMORY.Float32Array.into()),
+                TypedArray::Float64Array(_) => Ok(BUILTIN_STRING_MEMORY.Float64Array.into()),
+            }
+        } else {
+            // 2. If O is not an Object, return undefined.
+            // 3. If O does not have a [[TypedArrayName]] internal slot, return undefined.
+            Ok(Value::Undefined)
+        }
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
