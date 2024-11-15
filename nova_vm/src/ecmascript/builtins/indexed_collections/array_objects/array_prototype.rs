@@ -3086,8 +3086,8 @@ impl ArrayPrototype {
 
     /// ### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
     ///
-    /// This method prepends the arguments to the start of the array, such that 
-    /// their order within the array is the same as the order in which they appear 
+    /// This method prepends the arguments to the start of the array, such that
+    /// their order within the array is the same as the order in which they appear
     /// in the argument list.
     ///
     /// > ### Note
