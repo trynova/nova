@@ -17,7 +17,7 @@ pub(crate) struct IteratorPrototype;
 
 struct IteratorPrototypeIterator;
 impl Builtin for IteratorPrototypeIterator {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_iterator_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_iterator_;
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Iterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
@@ -27,7 +27,6 @@ impl IteratorPrototype {
     fn iterator(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

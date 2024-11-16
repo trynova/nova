@@ -32,7 +32,7 @@ pub struct StringConstructor;
 impl Builtin for StringConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.String;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.String;
 }
 impl BuiltinIntrinsicConstructor for StringConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::String;
@@ -42,25 +42,24 @@ struct StringFromCharCode;
 impl Builtin for StringFromCharCode {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_char_code);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCharCode;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCharCode;
 }
 struct StringFromCodePoint;
 impl Builtin for StringFromCodePoint {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_code_point);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCodePoint;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCodePoint;
 }
 struct StringRaw;
 impl Builtin for StringRaw {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::raw);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.raw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -124,7 +123,6 @@ impl StringConstructor {
     fn from_char_code(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         code_units: ArgumentsList,
     ) -> JsResult<Value> {
@@ -164,7 +162,6 @@ impl StringConstructor {
     fn from_code_point(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -183,7 +180,6 @@ impl StringConstructor {
     fn raw(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

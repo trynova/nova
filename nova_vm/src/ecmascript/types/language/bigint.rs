@@ -561,7 +561,7 @@ impl BigInt {
     }
 
     // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String> {
+    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String<'static>> {
         Ok(String::from_string(
             agent,
             match x {

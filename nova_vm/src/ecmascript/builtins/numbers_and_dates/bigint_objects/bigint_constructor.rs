@@ -40,7 +40,7 @@ pub struct BigIntConstructor;
 impl Builtin for BigIntConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.BigInt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.BigInt;
 }
 impl BuiltinIntrinsicConstructor for BigIntConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::BigInt;
@@ -50,20 +50,19 @@ struct BigIntAsIntN;
 impl Builtin for BigIntAsIntN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_int_n);
     const LENGTH: u8 = 2;
-    const NAME: String = BUILTIN_STRING_MEMORY.asIntN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asIntN;
 }
 struct BigIntAsUintN;
 impl Builtin for BigIntAsUintN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_uint_n);
     const LENGTH: u8 = 2;
-    const NAME: String = BUILTIN_STRING_MEMORY.asUintN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asUintN;
 }
 
 impl BigIntConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -93,7 +92,6 @@ impl BigIntConstructor {
     fn as_int_n(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -171,7 +169,6 @@ impl BigIntConstructor {
     fn as_uint_n(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -209,7 +206,6 @@ impl BigIntConstructor {
 fn number_to_big_int(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     value: Number,
 ) -> JsResult<BigInt> {
     if !is_integral_number(agent, gc.reborrow(), value) {

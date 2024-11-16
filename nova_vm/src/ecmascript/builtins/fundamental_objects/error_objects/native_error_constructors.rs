@@ -21,7 +21,7 @@ use super::error_constructor::get_error_cause;
 
 struct EvalErrorConstructor;
 impl Builtin for EvalErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.EvalError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.EvalError;
 
     const LENGTH: u8 = 1;
 
@@ -32,7 +32,7 @@ impl BuiltinIntrinsicConstructor for EvalErrorConstructor {
 }
 struct RangeErrorConstructor;
 impl Builtin for RangeErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.RangeError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.RangeError;
 
     const LENGTH: u8 = 1;
 
@@ -43,7 +43,7 @@ impl BuiltinIntrinsicConstructor for RangeErrorConstructor {
 }
 struct ReferenceErrorConstructor;
 impl Builtin for ReferenceErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.ReferenceError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ReferenceError;
 
     const LENGTH: u8 = 1;
 
@@ -55,7 +55,7 @@ impl BuiltinIntrinsicConstructor for ReferenceErrorConstructor {
 }
 struct SyntaxErrorConstructor;
 impl Builtin for SyntaxErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.SyntaxError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.SyntaxError;
 
     const LENGTH: u8 = 1;
 
@@ -66,7 +66,7 @@ impl BuiltinIntrinsicConstructor for SyntaxErrorConstructor {
 }
 struct TypeErrorConstructor;
 impl Builtin for TypeErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.TypeError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.TypeError;
 
     const LENGTH: u8 = 1;
 
@@ -77,7 +77,7 @@ impl BuiltinIntrinsicConstructor for TypeErrorConstructor {
 }
 struct URIErrorConstructor;
 impl Builtin for URIErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.URIError;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.URIError;
 
     const LENGTH: u8 = 1;
 
@@ -93,7 +93,6 @@ impl NativeErrorConstructors {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         error_kind: ExceptionType,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -143,7 +142,6 @@ impl NativeErrorConstructors {
     fn eval_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -154,7 +152,6 @@ impl NativeErrorConstructors {
     fn range_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -165,7 +162,6 @@ impl NativeErrorConstructors {
     fn reference_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -182,7 +178,6 @@ impl NativeErrorConstructors {
     fn syntax_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -193,7 +188,6 @@ impl NativeErrorConstructors {
     fn type_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -204,7 +198,6 @@ impl NativeErrorConstructors {
     fn uri_behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,

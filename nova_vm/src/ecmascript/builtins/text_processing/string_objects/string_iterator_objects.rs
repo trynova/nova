@@ -17,7 +17,7 @@ pub(crate) struct StringIteratorPrototype;
 
 struct StringIteratorPrototypeNext;
 impl Builtin for StringIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
@@ -29,7 +29,6 @@ impl StringIteratorPrototype {
     fn next(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

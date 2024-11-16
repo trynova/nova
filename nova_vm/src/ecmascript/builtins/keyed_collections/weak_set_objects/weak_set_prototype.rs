@@ -17,19 +17,19 @@ pub(crate) struct WeakSetPrototype;
 
 struct WeakSetPrototypeAdd;
 impl Builtin for WeakSetPrototypeAdd {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::add);
 }
 struct WeakSetPrototypeDelete;
 impl Builtin for WeakSetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::delete);
 }
 struct WeakSetPrototypeHas;
 impl Builtin for WeakSetPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::has);
 }
@@ -38,7 +38,6 @@ impl WeakSetPrototype {
     fn add(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -48,7 +47,6 @@ impl WeakSetPrototype {
     fn delete(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -58,7 +56,6 @@ impl WeakSetPrototype {
     fn has(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

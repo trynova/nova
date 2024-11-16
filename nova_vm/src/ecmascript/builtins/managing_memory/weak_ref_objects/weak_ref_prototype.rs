@@ -17,7 +17,7 @@ pub(crate) struct WeakRefPrototype;
 
 struct WeakRefPrototypeDeref;
 impl Builtin for WeakRefPrototypeDeref {
-    const NAME: String = BUILTIN_STRING_MEMORY.deref;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.deref;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakRefPrototype::deref);
 }
@@ -26,7 +26,6 @@ impl WeakRefPrototype {
     fn deref(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

@@ -20,7 +20,6 @@ use crate::{
 pub(crate) fn base_class_default_constructor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     new_target: Object,
 ) -> JsResult<Object> {
     // ii. If NewTarget is undefined, throw a TypeError exception.
@@ -49,7 +48,6 @@ pub(crate) fn base_class_default_constructor(
 pub(crate) fn derived_class_default_constructor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     args: ArgumentsList,
     new_target: Object,
 ) -> JsResult<Object> {

@@ -77,7 +77,6 @@ impl IntoFunction for BoundFunction {
 pub(crate) fn bound_function_create(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target_function: Function,
     bound_this: Value,
     bound_args: &[Value],
@@ -150,7 +149,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -160,7 +158,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -177,7 +174,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc.reborrow(), property_key)
@@ -187,7 +183,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -198,7 +193,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -210,7 +204,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc.reborrow(), property_key)
@@ -235,7 +228,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -275,7 +267,6 @@ impl InternalMethods for BoundFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {

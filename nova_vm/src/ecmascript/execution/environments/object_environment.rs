@@ -107,7 +107,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         n: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -157,7 +156,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         n: String,
         d: bool,
     ) -> JsResult<()> {
@@ -204,7 +202,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         n: String,
         v: Value,
     ) -> JsResult<()> {
@@ -234,7 +231,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         n: String,
         v: Value,
         s: bool,
@@ -273,7 +269,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         n: String,
         s: bool,
     ) -> JsResult<Value> {
@@ -314,7 +309,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];

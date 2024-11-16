@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct WeakMapConstructor;
 impl Builtin for WeakMapConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.WeakMap;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.WeakMap;
 
     const LENGTH: u8 = 0;
 
@@ -29,7 +29,6 @@ impl WeakMapConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,

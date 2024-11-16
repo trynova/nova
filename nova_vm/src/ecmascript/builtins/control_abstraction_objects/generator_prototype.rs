@@ -20,7 +20,7 @@ pub(crate) struct GeneratorPrototype;
 
 pub(crate) struct GeneratorPrototypeNext;
 impl Builtin for GeneratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 1;
 
@@ -32,7 +32,7 @@ impl BuiltinIntrinsic for GeneratorPrototypeNext {
 }
 pub(crate) struct GeneratorPrototypeReturn;
 impl Builtin for GeneratorPrototypeReturn {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#return;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#return;
 
     const LENGTH: u8 = 1;
 
@@ -40,7 +40,7 @@ impl Builtin for GeneratorPrototypeReturn {
 }
 pub(crate) struct GeneratorPrototypeThrow;
 impl Builtin for GeneratorPrototypeThrow {
-    const NAME: String = BUILTIN_STRING_MEMORY.throw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.throw;
 
     const LENGTH: u8 = 1;
 
@@ -51,7 +51,6 @@ impl GeneratorPrototype {
     fn next(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -70,7 +69,6 @@ impl GeneratorPrototype {
     fn r#return(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -124,7 +122,6 @@ impl GeneratorPrototype {
     fn throw(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

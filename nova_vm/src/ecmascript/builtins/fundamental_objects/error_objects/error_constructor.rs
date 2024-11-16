@@ -31,7 +31,7 @@ use crate::heap::IntrinsicConstructorIndexes;
 pub(crate) struct ErrorConstructor;
 
 impl Builtin for ErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Error;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Error;
 
     const LENGTH: u8 = 1;
 
@@ -46,7 +46,6 @@ impl ErrorConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -100,7 +99,6 @@ impl ErrorConstructor {
 pub(super) fn get_error_cause(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<Value>> {
     let Ok(options) = Object::try_from(options) else {

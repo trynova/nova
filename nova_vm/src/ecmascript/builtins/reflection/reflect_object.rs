@@ -27,7 +27,7 @@ pub(crate) struct ReflectObject;
 
 struct ReflectObjectApply;
 impl Builtin for ReflectObjectApply {
-    const NAME: String = BUILTIN_STRING_MEMORY.apply;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.apply;
 
     const LENGTH: u8 = 3;
 
@@ -37,7 +37,7 @@ impl Builtin for ReflectObjectApply {
 
 struct ReflectObjectConstruct;
 impl Builtin for ReflectObjectConstruct {
-    const NAME: String = BUILTIN_STRING_MEMORY.construct;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.construct;
 
     const LENGTH: u8 = 2;
 
@@ -46,7 +46,7 @@ impl Builtin for ReflectObjectConstruct {
 }
 struct ReflectObjectDefineProperty;
 impl Builtin for ReflectObjectDefineProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.defineProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperty;
 
     const LENGTH: u8 = 2;
 
@@ -55,7 +55,7 @@ impl Builtin for ReflectObjectDefineProperty {
 }
 struct ReflectObjectDeleteProperty;
 impl Builtin for ReflectObjectDeleteProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.deleteProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.deleteProperty;
 
     const LENGTH: u8 = 2;
 
@@ -64,7 +64,7 @@ impl Builtin for ReflectObjectDeleteProperty {
 }
 struct ReflectObjectGet;
 impl Builtin for ReflectObjectGet {
-    const NAME: String = BUILTIN_STRING_MEMORY.get;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get;
 
     const LENGTH: u8 = 2;
 
@@ -73,7 +73,7 @@ impl Builtin for ReflectObjectGet {
 }
 struct ReflectObjectGetOwnPropertyDescriptor;
 impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
 
     const LENGTH: u8 = 2;
 
@@ -82,7 +82,7 @@ impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
 }
 struct ReflectObjectGetPrototypeOf;
 impl Builtin for ReflectObjectGetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.getPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -92,7 +92,7 @@ impl Builtin for ReflectObjectGetPrototypeOf {
 
 struct ReflectObjectHas;
 impl Builtin for ReflectObjectHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
 
     const LENGTH: u8 = 2;
 
@@ -101,7 +101,7 @@ impl Builtin for ReflectObjectHas {
 }
 struct ReflectObjectIsExtensible;
 impl Builtin for ReflectObjectIsExtensible {
-    const NAME: String = BUILTIN_STRING_MEMORY.isExtensible;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isExtensible;
 
     const LENGTH: u8 = 1;
 
@@ -110,7 +110,7 @@ impl Builtin for ReflectObjectIsExtensible {
 }
 struct ReflectObjectOwnKeys;
 impl Builtin for ReflectObjectOwnKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.ownKeys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ownKeys;
 
     const LENGTH: u8 = 1;
 
@@ -119,7 +119,7 @@ impl Builtin for ReflectObjectOwnKeys {
 }
 struct ReflectObjectPreventExtensions;
 impl Builtin for ReflectObjectPreventExtensions {
-    const NAME: String = BUILTIN_STRING_MEMORY.preventExtensions;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.preventExtensions;
 
     const LENGTH: u8 = 1;
 
@@ -128,7 +128,7 @@ impl Builtin for ReflectObjectPreventExtensions {
 }
 struct ReflectObjectSet;
 impl Builtin for ReflectObjectSet {
-    const NAME: String = BUILTIN_STRING_MEMORY.set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
 
     const LENGTH: u8 = 3;
 
@@ -137,7 +137,7 @@ impl Builtin for ReflectObjectSet {
 }
 struct ReflectObjectSetPrototypeOf;
 impl Builtin for ReflectObjectSetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.setPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setPrototypeOf;
 
     const LENGTH: u8 = 2;
 
@@ -150,7 +150,6 @@ impl ReflectObject {
     fn apply(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -176,7 +175,6 @@ impl ReflectObject {
     fn construct(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -223,7 +221,6 @@ impl ReflectObject {
     fn define_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -250,7 +247,6 @@ impl ReflectObject {
     fn delete_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -274,7 +270,6 @@ impl ReflectObject {
     fn get(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -304,7 +299,6 @@ impl ReflectObject {
     fn get_own_property_descriptor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -332,7 +326,6 @@ impl ReflectObject {
     fn get_prototype_of(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -355,7 +348,6 @@ impl ReflectObject {
     fn has(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -379,7 +371,6 @@ impl ReflectObject {
     fn is_extensible(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -400,7 +391,6 @@ impl ReflectObject {
     fn own_keys(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -428,7 +418,6 @@ impl ReflectObject {
     fn prevent_extensions(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -449,7 +438,6 @@ impl ReflectObject {
     fn set(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -483,7 +471,6 @@ impl ReflectObject {
     fn set_prototype_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

@@ -177,7 +177,7 @@ pub(crate) struct WorkQueues {
     pub set_iterators: Vec<SetIterator>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
-    pub strings: Vec<HeapString>,
+    pub strings: Vec<HeapString<'static>>,
     pub symbols: Vec<Symbol>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<TypedArrayIndex>,

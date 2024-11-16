@@ -28,9 +28,29 @@ pub use data::StringHeapData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct HeapString(pub(crate) StringIndex);
+pub struct HeapString<'a>(pub(crate) StringIndex<'a>);
 
-impl HeapString {
+impl HeapString<'_> {
+    /// Unbind this HeapString from its current lifetime. This is necessary to
+    /// use the HeapString as a parameter in a call that can perform garbage
+    /// collection.
+    pub const fn unbind(self) -> HeapString<'static> {
+        unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'static>>(self) }
+    }
+
+    // Bind this HeapString to the garbage collection lifetime. This enables
+    // Rust's borrow checker to verify that your HeapStrings cannot not be
+    // invalidated by garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let heap_string = heap_string.bind(&gc);
+    // ```
+    // to make sure that the unbound HeapString cannot be used after binding.
+    pub const fn bind<'gc>(self, _: &GcScope<'gc, '_>) -> HeapString<'gc> {
+        unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'gc>>(self) }
+    }
+
     pub fn len(self, agent: &Agent) -> usize {
         agent[self].len()
     }
@@ -48,32 +68,32 @@ impl HeapString {
     }
 }
 
-impl Index<HeapString> for PrimitiveHeap<'_> {
+impl Index<HeapString<'_>> for PrimitiveHeap<'_> {
     type Output = StringHeapData;
 
-    fn index(&self, index: HeapString) -> &Self::Output {
+    fn index(&self, index: HeapString<'_>) -> &Self::Output {
         &self.strings[index]
     }
 }
 
-impl Index<HeapString> for Agent {
+impl Index<HeapString<'_>> for Agent {
     type Output = StringHeapData;
 
-    fn index(&self, index: HeapString) -> &Self::Output {
+    fn index(&self, index: HeapString<'_>) -> &Self::Output {
         &self.heap.strings[index]
     }
 }
 
-impl IndexMut<HeapString> for Agent {
-    fn index_mut(&mut self, index: HeapString) -> &mut Self::Output {
+impl IndexMut<HeapString<'_>> for Agent {
+    fn index_mut(&mut self, index: HeapString<'_>) -> &mut Self::Output {
         &mut self.heap.strings[index]
     }
 }
 
-impl Index<HeapString> for Vec<Option<StringHeapData>> {
+impl Index<HeapString<'_>> for Vec<Option<StringHeapData>> {
     type Output = StringHeapData;
 
-    fn index(&self, index: HeapString) -> &Self::Output {
+    fn index(&self, index: HeapString<'_>) -> &Self::Output {
         self.get(index.get_index())
             .expect("HeapString out of bounds")
             .as_ref()
@@ -81,8 +101,8 @@ impl Index<HeapString> for Vec<Option<StringHeapData>> {
     }
 }
 
-impl IndexMut<HeapString> for Vec<Option<StringHeapData>> {
-    fn index_mut(&mut self, index: HeapString) -> &mut Self::Output {
+impl IndexMut<HeapString<'_>> for Vec<Option<StringHeapData>> {
+    fn index_mut(&mut self, index: HeapString<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("HeapString out of bounds")
             .as_mut()
@@ -93,8 +113,8 @@ impl IndexMut<HeapString> for Vec<Option<StringHeapData>> {
 /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
-pub enum String {
-    String(HeapString) = STRING_DISCRIMINANT,
+pub enum String<'a> {
+    String(HeapString<'a>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
 }
 
@@ -105,13 +125,13 @@ pub enum StringRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl IntoValue for HeapString {
+impl IntoValue for HeapString<'_> {
     fn into_value(self) -> Value {
-        Value::String(self)
+        Value::String(self.unbind())
     }
 }
 
-impl TryFrom<Value> for HeapString {
+impl TryFrom<Value> for HeapString<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -123,44 +143,44 @@ impl TryFrom<Value> for HeapString {
     }
 }
 
-impl IntoValue for String {
+impl IntoValue for String<'_> {
     fn into_value(self) -> Value {
         match self {
-            String::String(idx) => Value::String(idx),
+            String::String(idx) => Value::String(idx.unbind()),
             String::SmallString(data) => Value::SmallString(data),
         }
     }
 }
 
-impl IntoPrimitive for String {
+impl IntoPrimitive for String<'_> {
     fn into_primitive(self) -> Primitive {
         match self {
-            String::String(idx) => Primitive::String(idx),
+            String::String(idx) => Primitive::String(idx.unbind()),
             String::SmallString(data) => Primitive::SmallString(data),
         }
     }
 }
 
-impl From<HeapString> for String {
-    fn from(value: HeapString) -> Self {
+impl<'a> From<HeapString<'a>> for String<'a> {
+    fn from(value: HeapString<'a>) -> Self {
         String::String(value)
     }
 }
 
-impl From<HeapString> for Primitive {
-    fn from(value: HeapString) -> Self {
-        Self::String(value)
+impl From<HeapString<'_>> for Primitive {
+    fn from(value: HeapString<'_>) -> Self {
+        Self::String(value.unbind())
     }
 }
 
-impl TryFrom<&str> for String {
+impl TryFrom<&str> for String<'static> {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         SmallString::try_from(value).map(String::SmallString)
     }
 }
 
-impl TryFrom<Value> for String {
+impl TryFrom<Value> for String<'_> {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
@@ -171,7 +191,7 @@ impl TryFrom<Value> for String {
     }
 }
 
-impl TryFrom<Primitive> for String {
+impl TryFrom<Primitive> for String<'_> {
     type Error = ();
     fn try_from(value: Primitive) -> Result<Self, Self::Error> {
         match value {
@@ -182,10 +202,10 @@ impl TryFrom<Primitive> for String {
     }
 }
 
-impl From<String> for Value {
+impl From<String<'_>> for Value {
     fn from(value: String) -> Self {
         match value {
-            String::String(x) => Value::String(x),
+            String::String(x) => Value::String(x.unbind()),
             String::SmallString(x) => Value::SmallString(x),
         }
     }
@@ -197,7 +217,7 @@ impl From<SmallString> for Value {
     }
 }
 
-impl From<SmallString> for String {
+impl From<SmallString> for String<'static> {
     fn from(value: SmallString) -> Self {
         Self::SmallString(value)
     }
@@ -221,14 +241,14 @@ impl IntoPrimitive for SmallString {
     }
 }
 
-impl String {
-    pub const EMPTY_STRING: String = String::from_small_string("");
+impl String<'_> {
+    pub const EMPTY_STRING: String<'static> = String::from_small_string("");
 
     /// Unbind this String from its current lifetime. This is necessary to use
     /// the String as a parameter in a call that can perform garbage
     /// collection.
-    pub fn unbind(self) -> Self {
-        self
+    pub fn unbind(self) -> String<'static> {
+        unsafe { std::mem::transmute::<String<'_>, String<'static>>(self) }
     }
 
     // Bind this String to the garbage collection lifetime. This enables Rust's
@@ -240,25 +260,25 @@ impl String {
     // let string = string.bind(&gc);
     // ```
     // to make sure that the unbound String cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
-        self
+    pub fn bind<'gc>(self, _: &GcScope<'gc, '_>) -> String<'gc> {
+        unsafe { std::mem::transmute::<String<'_>, String<'gc>>(self) }
     }
 
     pub fn is_empty_string(self) -> bool {
         self == Self::EMPTY_STRING
     }
 
-    pub fn from_str(agent: &mut Agent, str: &str) -> String {
+    pub fn from_str(agent: &mut Agent, str: &str) -> Self {
         agent.heap.create(str)
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> String {
+    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
         agent.heap.create(string)
     }
 
     pub const fn to_property_key(self) -> PropertyKey {
         match self {
-            String::String(data) => PropertyKey::String(data),
+            String::String(data) => PropertyKey::String(data.unbind()),
             String::SmallString(data) => PropertyKey::SmallString(data),
         }
     }
@@ -272,7 +292,7 @@ impl String {
         }
     }
 
-    pub const fn from_small_string(message: &'static str) -> String {
+    pub const fn from_small_string(message: &'static str) -> Self {
         assert!(
             message.len() < 8
                 && (message.is_empty() || message.as_bytes()[message.as_bytes().len() - 1] != 0)
@@ -280,16 +300,16 @@ impl String {
         String::SmallString(SmallString::from_str_unchecked(message))
     }
 
-    pub fn concat(agent: &mut Agent, strings: impl AsRef<[String]>) -> String {
+    pub fn concat(agent: &mut Agent, strings: impl AsRef<[Self]>) -> Self {
         // TODO: This function will need heavy changes once we support creating
         // WTF-8 strings, since WTF-8 concatenation isn't byte concatenation.
 
         // We use this status enum so we can reuse one of the heap string inputs
         // if the output would be identical, and so we don't allocate at all
         // until it's clear we need a new heap string.
-        enum Status {
+        enum Status<'a> {
             Empty,
-            ExistingString(HeapString),
+            ExistingString(HeapString<'a>),
             SmallString { data: [u8; 7], len: usize },
             String(std::string::String),
         }
@@ -357,17 +377,20 @@ impl String {
     }
 
     /// Byte length of the string.
-    pub fn len(self, agent: &impl Index<HeapString, Output = StringHeapData>) -> usize {
+    pub fn len(self, agent: &impl Index<HeapString<'static>, Output = StringHeapData>) -> usize {
         match self {
-            String::String(s) => agent[s].len(),
+            String::String(s) => agent[s.unbind()].len(),
             String::SmallString(s) => s.len(),
         }
     }
 
     /// UTF-16 length of the string.
-    pub fn utf16_len(self, agent: &impl Index<HeapString, Output = StringHeapData>) -> usize {
+    pub fn utf16_len(
+        self,
+        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+    ) -> usize {
         match self {
-            String::String(s) => agent[s].utf16_len(),
+            String::String(s) => agent[s.unbind()].utf16_len(),
             String::SmallString(s) => s.utf16_len(),
         }
     }
@@ -375,11 +398,11 @@ impl String {
     // TODO: This should return a wtf8::CodePoint.
     pub fn utf16_char(
         self,
-        agent: &impl Index<HeapString, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
         idx: usize,
     ) -> char {
         match self {
-            String::String(s) => agent[s].utf16_char(idx),
+            String::String(s) => agent[s.unbind()].utf16_char(idx),
             String::SmallString(s) => s.utf16_char(idx),
         }
     }
@@ -394,11 +417,11 @@ impl String {
     /// UTF-16 string length.
     pub fn utf8_index(
         self,
-        agent: &impl Index<HeapString, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
         utf16_idx: usize,
     ) -> Option<usize> {
         match self {
-            String::String(s) => agent[s].utf8_index(utf16_idx),
+            String::String(s) => agent[s.unbind()].utf8_index(utf16_idx),
             String::SmallString(s) => s.utf8_index(utf16_idx),
         }
     }
@@ -412,21 +435,21 @@ impl String {
     /// or if it is past the end (but not *at* the end) of the UTF-8 string.
     pub fn utf16_index(
         self,
-        agent: &impl Index<HeapString, Output = StringHeapData>,
+        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
         utf8_idx: usize,
     ) -> usize {
         match self {
-            String::String(s) => agent[s].utf16_index(utf8_idx),
+            String::String(s) => agent[s.unbind()].utf16_index(utf8_idx),
             String::SmallString(s) => s.utf16_index(utf8_idx),
         }
     }
 
     pub fn as_str<'string, 'agent: 'string>(
         &'string self,
-        agent: &'agent impl Index<HeapString, Output = StringHeapData>,
+        agent: &'agent impl Index<HeapString<'static>, Output = StringHeapData>,
     ) -> &'string str {
         match self {
-            String::String(s) => agent[*s].as_str(),
+            String::String(s) => agent[s.unbind()].as_str(),
             String::SmallString(s) => s.as_str(),
         }
     }
@@ -434,17 +457,17 @@ impl String {
     /// If x and y have the same length and the same code units in the same
     /// positions, return true; otherwise, return false.
     pub fn eq(
-        agent: &impl Index<HeapString, Output = StringHeapData>,
-        x: String,
-        y: String,
+        agent: &impl Index<HeapString<'static>, Output = StringHeapData>,
+        x: Self,
+        y: Self,
     ) -> bool {
         match (x, y) {
-            (String::String(x), String::String(y)) => {
-                let x = &agent[x];
-                let y = &agent[y];
+            (Self::String(x), Self::String(y)) => {
+                let x = &agent[x.unbind()];
+                let y = &agent[y.unbind()];
                 x == y
             }
-            (String::SmallString(x), String::SmallString(y)) => x == y,
+            (Self::SmallString(x), Self::SmallString(y)) => x == y,
             // The string heap guarantees that small strings must never equal
             // heap strings.
             _ => false,
@@ -488,14 +511,14 @@ impl String {
     }
 }
 
-impl CreateHeapData<StringHeapData, String> for Heap {
-    fn create(&mut self, data: StringHeapData) -> String {
+impl CreateHeapData<StringHeapData, String<'static>> for Heap {
+    fn create(&mut self, data: StringHeapData) -> String<'static> {
         self.strings.push(Some(data));
         String::String(HeapString(StringIndex::last(&self.strings)))
     }
 }
 
-impl HeapMarkAndSweep for String {
+impl HeapMarkAndSweep for String<'static> {
     #[inline(always)]
     fn mark_values(&self, queues: &mut WorkQueues) {
         if let Self::String(idx) = self {
@@ -511,7 +534,7 @@ impl HeapMarkAndSweep for String {
     }
 }
 
-impl HeapMarkAndSweep for HeapString {
+impl HeapMarkAndSweep for HeapString<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.strings.push(*self);
     }
@@ -521,7 +544,7 @@ impl HeapMarkAndSweep for HeapString {
     }
 }
 
-impl Rootable for String {
+impl Rootable for String<'static> {
     type RootRepr = StringRootRepr;
 
     #[inline]

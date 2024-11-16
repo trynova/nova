@@ -35,19 +35,19 @@ pub(crate) struct PromisePrototype;
 
 struct PromisePrototypeCatch;
 impl Builtin for PromisePrototypeCatch {
-    const NAME: String = BUILTIN_STRING_MEMORY.catch;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.catch;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::catch);
 }
 struct PromisePrototypeFinally;
 impl Builtin for PromisePrototypeFinally {
-    const NAME: String = BUILTIN_STRING_MEMORY.finally;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.finally;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::finally);
 }
 struct PromisePrototypeThen;
 impl Builtin for PromisePrototypeThen {
-    const NAME: String = BUILTIN_STRING_MEMORY.then;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.then;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::then);
 }
@@ -56,7 +56,6 @@ impl PromisePrototype {
     fn catch(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -77,7 +76,6 @@ impl PromisePrototype {
     fn finally(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -87,7 +85,6 @@ impl PromisePrototype {
     fn then(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {

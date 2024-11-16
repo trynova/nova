@@ -42,7 +42,7 @@ impl JsError {
         self.0
     }
 
-    pub fn to_string(self, agent: &mut Agent, mut gc: GcScope<'_, '_>) -> String {
+    pub fn to_string<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> String<'gc> {
         to_string(agent, gc.reborrow(), self.0).unwrap()
     }
 }
@@ -405,7 +405,7 @@ impl Agent {
     ) -> JsError {
         JsError(
             self.heap
-                .create(ErrorHeapData::new(kind, Some(message), None))
+                .create(ErrorHeapData::new(kind, Some(message.unbind()), None))
                 .into_value(),
         )
     }
@@ -463,7 +463,6 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 pub(crate) fn resolve_binding(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     name: String,
     env: Option<EnvironmentIndex>,
 ) -> JsResult<Reference> {

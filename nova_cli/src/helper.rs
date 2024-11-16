@@ -12,7 +12,6 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
     fn print(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -27,7 +26,6 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
     fn read_text_file(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {

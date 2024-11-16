@@ -102,7 +102,6 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 pub(crate) fn get_value(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     reference: &Reference,
 ) -> JsResult<Value> {
     let referenced_name = reference.referenced_name;
@@ -211,7 +210,6 @@ pub(crate) fn get_value(
 pub(crate) fn put_value(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     v: &Reference,
     w: Value,
 ) -> JsResult<()> {
@@ -290,7 +288,6 @@ pub(crate) fn put_value(
 pub(crate) fn initialize_referenced_binding(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     v: Reference,
     w: Value,
 ) -> JsResult<()> {

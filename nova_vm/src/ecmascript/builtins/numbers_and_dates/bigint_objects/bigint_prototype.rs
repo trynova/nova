@@ -17,7 +17,7 @@ pub(crate) struct BigIntPrototype;
 
 struct BigIntPrototypeToLocaleString;
 impl Builtin for BigIntPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -27,7 +27,7 @@ impl Builtin for BigIntPrototypeToLocaleString {
 
 struct BigIntPrototypeToString;
 impl Builtin for BigIntPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -37,7 +37,7 @@ impl Builtin for BigIntPrototypeToString {
 
 struct BigIntPrototypeValueOf;
 impl Builtin for BigIntPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -49,7 +49,6 @@ impl BigIntPrototype {
     fn to_locale_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -59,7 +58,6 @@ impl BigIntPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -76,7 +74,6 @@ impl BigIntPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

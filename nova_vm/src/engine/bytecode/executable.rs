@@ -196,7 +196,7 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn fetch_identifier(self, agent: &Agent, index: usize) -> String {
+    pub(super) fn fetch_identifier(self, agent: &Agent, index: usize) -> String<'static> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable

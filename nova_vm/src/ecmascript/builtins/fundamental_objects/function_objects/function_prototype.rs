@@ -32,7 +32,7 @@ use crate::{
 
 pub(crate) struct FunctionPrototype;
 impl Builtin for FunctionPrototype {
-    const NAME: String = String::EMPTY_STRING;
+    const NAME: String<'static> = String::EMPTY_STRING;
 
     const LENGTH: u8 = 0;
 
@@ -44,7 +44,7 @@ impl BuiltinIntrinsicConstructor for FunctionPrototype {
 
 struct FunctionPrototypeApply;
 impl Builtin for FunctionPrototypeApply {
-    const NAME: String = BUILTIN_STRING_MEMORY.apply;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.apply;
 
     const LENGTH: u8 = 2;
 
@@ -54,7 +54,7 @@ impl Builtin for FunctionPrototypeApply {
 
 struct FunctionPrototypeBind;
 impl Builtin for FunctionPrototypeBind {
-    const NAME: String = BUILTIN_STRING_MEMORY.bind;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.bind;
 
     const LENGTH: u8 = 1;
 
@@ -64,7 +64,7 @@ impl Builtin for FunctionPrototypeBind {
 
 struct FunctionPrototypeCall;
 impl Builtin for FunctionPrototypeCall {
-    const NAME: String = BUILTIN_STRING_MEMORY.call;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.call;
 
     const LENGTH: u8 = 1;
 
@@ -74,7 +74,7 @@ impl Builtin for FunctionPrototypeCall {
 
 struct FunctionPrototypeToString;
 impl Builtin for FunctionPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -84,7 +84,7 @@ impl Builtin for FunctionPrototypeToString {
 
 struct FunctionPrototypeHasInstance;
 impl Builtin for FunctionPrototypeHasInstance {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::HasInstance.to_property_key());
 
@@ -106,7 +106,6 @@ impl FunctionPrototype {
     fn apply(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -149,7 +148,6 @@ impl FunctionPrototype {
     fn bind(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -248,7 +246,6 @@ impl FunctionPrototype {
     fn call(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -267,7 +264,6 @@ impl FunctionPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -342,7 +338,6 @@ impl FunctionPrototype {
     fn has_instance(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -397,7 +392,7 @@ impl FunctionPrototype {
 
 struct ThrowTypeError;
 impl Builtin for ThrowTypeError {
-    const NAME: String = String::EMPTY_STRING;
+    const NAME: String<'static> = String::EMPTY_STRING;
 
     const LENGTH: u8 = 0;
 
@@ -411,7 +406,6 @@ impl ThrowTypeError {
     fn behaviour(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

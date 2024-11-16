@@ -228,7 +228,7 @@ impl CompileContext<'_> {
         })
     }
 
-    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String {
+    pub(crate) fn create_identifier(&mut self, atom: &Atom<'_>) -> String<'static> {
         let existing = self.constants.iter().find_map(|constant| {
             if let Ok(existing_identifier) = String::try_from(*constant) {
                 if existing_identifier.as_str(self.agent) == atom.as_str() {

@@ -179,7 +179,6 @@ impl PropertyDescriptor {
     pub fn to_property_descriptor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         obj: Value,
     ) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.

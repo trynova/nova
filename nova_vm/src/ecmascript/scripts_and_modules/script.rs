@@ -250,7 +250,6 @@ pub fn parse_script(
 pub fn script_evaluation(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     script: Script,
 ) -> JsResult<Value> {
     let realm_id = script.realm;
@@ -341,7 +340,6 @@ pub fn script_evaluation(
 pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     script: ScriptIdentifier,
     env: GlobalEnvironmentIndex,
 ) -> JsResult<()> {
@@ -1003,7 +1001,7 @@ mod test {
         struct TestBuiltinFunction;
 
         impl Builtin for TestBuiltinFunction {
-            const NAME: String = String::from_small_string("test");
+            const NAME: String<'static> = String::from_small_string("test");
 
             const LENGTH: u8 = 1;
 

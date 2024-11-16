@@ -36,7 +36,7 @@ use crate::{
 pub(crate) struct ObjectConstructor;
 
 impl Builtin for ObjectConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Object;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Object;
 
     const LENGTH: u8 = 1;
 
@@ -49,7 +49,7 @@ impl BuiltinIntrinsicConstructor for ObjectConstructor {
 struct ObjectAssign;
 
 impl Builtin for ObjectAssign {
-    const NAME: String = BUILTIN_STRING_MEMORY.assign;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.assign;
 
     const LENGTH: u8 = 2;
 
@@ -59,7 +59,7 @@ impl Builtin for ObjectAssign {
 struct ObjectCreate;
 
 impl Builtin for ObjectCreate {
-    const NAME: String = BUILTIN_STRING_MEMORY.create;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.create;
 
     const LENGTH: u8 = 2;
 
@@ -68,7 +68,7 @@ impl Builtin for ObjectCreate {
 struct ObjectDefineProperties;
 
 impl Builtin for ObjectDefineProperties {
-    const NAME: String = BUILTIN_STRING_MEMORY.defineProperties;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperties;
 
     const LENGTH: u8 = 2;
 
@@ -77,7 +77,7 @@ impl Builtin for ObjectDefineProperties {
 struct ObjectDefineProperty;
 
 impl Builtin for ObjectDefineProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.defineProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperty;
 
     const LENGTH: u8 = 2;
 
@@ -86,7 +86,7 @@ impl Builtin for ObjectDefineProperty {
 struct ObjectEntries;
 
 impl Builtin for ObjectEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
 
     const LENGTH: u8 = 1;
 
@@ -95,7 +95,7 @@ impl Builtin for ObjectEntries {
 struct ObjectFreeze;
 
 impl Builtin for ObjectFreeze {
-    const NAME: String = BUILTIN_STRING_MEMORY.freeze;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.freeze;
 
     const LENGTH: u8 = 1;
 
@@ -104,7 +104,7 @@ impl Builtin for ObjectFreeze {
 struct ObjectFromEntries;
 
 impl Builtin for ObjectFromEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.fromEntries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromEntries;
 
     const LENGTH: u8 = 1;
 
@@ -113,7 +113,7 @@ impl Builtin for ObjectFromEntries {
 struct ObjectGetOwnPropertyDescriptor;
 
 impl Builtin for ObjectGetOwnPropertyDescriptor {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor;
 
     const LENGTH: u8 = 2;
 
@@ -122,7 +122,7 @@ impl Builtin for ObjectGetOwnPropertyDescriptor {
 struct ObjectGetOwnPropertyDescriptors;
 
 impl Builtin for ObjectGetOwnPropertyDescriptors {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptors;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyDescriptors;
 
     const LENGTH: u8 = 1;
 
@@ -132,7 +132,7 @@ impl Builtin for ObjectGetOwnPropertyDescriptors {
 struct ObjectGetOwnPropertyNames;
 
 impl Builtin for ObjectGetOwnPropertyNames {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertyNames;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertyNames;
 
     const LENGTH: u8 = 1;
 
@@ -141,7 +141,7 @@ impl Builtin for ObjectGetOwnPropertyNames {
 struct ObjectGetOwnPropertySymbols;
 
 impl Builtin for ObjectGetOwnPropertySymbols {
-    const NAME: String = BUILTIN_STRING_MEMORY.getOwnPropertySymbols;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getOwnPropertySymbols;
 
     const LENGTH: u8 = 1;
 
@@ -150,7 +150,7 @@ impl Builtin for ObjectGetOwnPropertySymbols {
 struct ObjectGetPrototypeOf;
 
 impl Builtin for ObjectGetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.getPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -159,7 +159,7 @@ impl Builtin for ObjectGetPrototypeOf {
 struct ObjectGroupBy;
 
 impl Builtin for ObjectGroupBy {
-    const NAME: String = BUILTIN_STRING_MEMORY.groupBy;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.groupBy;
 
     const LENGTH: u8 = 2;
 
@@ -168,7 +168,7 @@ impl Builtin for ObjectGroupBy {
 struct ObjectHasOwn;
 
 impl Builtin for ObjectHasOwn {
-    const NAME: String = BUILTIN_STRING_MEMORY.hasOwn;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.hasOwn;
 
     const LENGTH: u8 = 2;
 
@@ -177,7 +177,7 @@ impl Builtin for ObjectHasOwn {
 struct ObjectIs;
 
 impl Builtin for ObjectIs {
-    const NAME: String = BUILTIN_STRING_MEMORY.is;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.is;
 
     const LENGTH: u8 = 2;
 
@@ -186,7 +186,7 @@ impl Builtin for ObjectIs {
 struct ObjectIsExtensible;
 
 impl Builtin for ObjectIsExtensible {
-    const NAME: String = BUILTIN_STRING_MEMORY.isExtensible;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isExtensible;
 
     const LENGTH: u8 = 1;
 
@@ -195,7 +195,7 @@ impl Builtin for ObjectIsExtensible {
 struct ObjectIsFrozen;
 
 impl Builtin for ObjectIsFrozen {
-    const NAME: String = BUILTIN_STRING_MEMORY.isFrozen;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isFrozen;
 
     const LENGTH: u8 = 1;
 
@@ -204,7 +204,7 @@ impl Builtin for ObjectIsFrozen {
 struct ObjectIsSealed;
 
 impl Builtin for ObjectIsSealed {
-    const NAME: String = BUILTIN_STRING_MEMORY.isSealed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSealed;
 
     const LENGTH: u8 = 1;
 
@@ -213,7 +213,7 @@ impl Builtin for ObjectIsSealed {
 struct ObjectKeys;
 
 impl Builtin for ObjectKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
 
     const LENGTH: u8 = 1;
 
@@ -222,7 +222,7 @@ impl Builtin for ObjectKeys {
 struct ObjectPreventExtensions;
 
 impl Builtin for ObjectPreventExtensions {
-    const NAME: String = BUILTIN_STRING_MEMORY.preventExtensions;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.preventExtensions;
 
     const LENGTH: u8 = 1;
 
@@ -232,7 +232,7 @@ impl Builtin for ObjectPreventExtensions {
 struct ObjectSeal;
 
 impl Builtin for ObjectSeal {
-    const NAME: String = BUILTIN_STRING_MEMORY.seal;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.seal;
 
     const LENGTH: u8 = 1;
 
@@ -241,7 +241,7 @@ impl Builtin for ObjectSeal {
 struct ObjectSetPrototypeOf;
 
 impl Builtin for ObjectSetPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.setPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setPrototypeOf;
 
     const LENGTH: u8 = 2;
 
@@ -250,7 +250,7 @@ impl Builtin for ObjectSetPrototypeOf {
 struct ObjectValues;
 
 impl Builtin for ObjectValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
 
     const LENGTH: u8 = 1;
 
@@ -262,7 +262,6 @@ impl ObjectConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -304,7 +303,6 @@ impl ObjectConstructor {
     fn assign(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -350,7 +348,6 @@ impl ObjectConstructor {
     fn create(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -380,7 +377,6 @@ impl ObjectConstructor {
     fn define_properties(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -406,7 +402,6 @@ impl ObjectConstructor {
     fn define_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -434,7 +429,6 @@ impl ObjectConstructor {
     fn entries(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -453,7 +447,6 @@ impl ObjectConstructor {
     fn freeze(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -480,7 +473,6 @@ impl ObjectConstructor {
     fn from_entries(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -600,7 +592,6 @@ impl ObjectConstructor {
     fn get_own_property_descriptor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -621,7 +612,6 @@ impl ObjectConstructor {
     fn get_own_property_descriptors(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -660,7 +650,6 @@ impl ObjectConstructor {
     fn get_own_property_names(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -674,7 +663,6 @@ impl ObjectConstructor {
     fn get_own_property_symbols(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -688,7 +676,6 @@ impl ObjectConstructor {
     fn get_prototype_of(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -701,7 +688,6 @@ impl ObjectConstructor {
     fn group_by(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -731,7 +717,6 @@ impl ObjectConstructor {
     fn has_own(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -743,7 +728,6 @@ impl ObjectConstructor {
     fn is(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -753,7 +737,6 @@ impl ObjectConstructor {
     fn is_extensible(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -768,7 +751,6 @@ impl ObjectConstructor {
     fn is_frozen(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -783,7 +765,6 @@ impl ObjectConstructor {
     fn is_sealed(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -799,7 +780,6 @@ impl ObjectConstructor {
     fn keys(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -821,7 +801,6 @@ impl ObjectConstructor {
     fn prevent_extensions(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -848,7 +827,6 @@ impl ObjectConstructor {
     fn seal(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -875,7 +853,6 @@ impl ObjectConstructor {
     fn set_prototype_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -915,7 +892,6 @@ impl ObjectConstructor {
     fn values(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -974,7 +950,6 @@ impl ObjectConstructor {
 fn object_define_properties<T: InternalMethods>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: T,
     properties: Value,
 ) -> JsResult<T> {
@@ -1033,7 +1008,6 @@ fn object_define_properties<T: InternalMethods>(
 pub fn add_entries_from_iterable_from_entries(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: OrdinaryObject,
     iterable: Value,
 ) -> JsResult<OrdinaryObject> {
@@ -1097,7 +1071,6 @@ pub fn add_entries_from_iterable_from_entries(
 fn get_own_string_property_keys(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Vec<Value>> {
     // 1. Let obj be ? ToObject(O).
@@ -1127,7 +1100,6 @@ fn get_own_string_property_keys(
 fn get_own_symbol_property_keys(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Vec<Value>> {
     // 1. Let obj be ? ToObject(O).

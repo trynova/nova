@@ -54,7 +54,7 @@ pub struct ArrayConstructor;
 impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Array;
 }
 impl BuiltinIntrinsicConstructor for ArrayConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Array;
@@ -64,25 +64,25 @@ struct ArrayFrom;
 impl Builtin for ArrayFrom {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::from);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.from;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
 }
 struct ArrayIsArray;
 impl Builtin for ArrayIsArray {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::is_array);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isArray;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isArray;
 }
 struct ArrayOf;
 impl Builtin for ArrayOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::of);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.of;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.of;
 }
 struct ArrayGetSpecies;
 impl Builtin for ArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for ArrayGetSpecies {}
@@ -93,7 +93,6 @@ impl ArrayConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -203,7 +202,6 @@ impl ArrayConstructor {
     fn from(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -419,7 +417,6 @@ impl ArrayConstructor {
     fn is_array(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -430,7 +427,6 @@ impl ArrayConstructor {
     fn of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -493,7 +489,6 @@ impl ArrayConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

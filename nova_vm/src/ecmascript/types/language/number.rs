@@ -1253,7 +1253,7 @@ impl Number {
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> String {
+    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> String<'static> {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();

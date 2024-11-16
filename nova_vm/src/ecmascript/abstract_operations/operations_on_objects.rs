@@ -71,7 +71,6 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 pub(crate) fn get(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: impl IntoObject,
     p: PropertyKey,
 ) -> JsResult<Value> {
@@ -90,7 +89,6 @@ pub(crate) fn get(
 pub(crate) fn get_v(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     v: Value,
     p: PropertyKey,
 ) -> JsResult<Value> {
@@ -110,7 +108,6 @@ pub(crate) fn get_v(
 pub(crate) fn set(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     p: PropertyKey,
     v: Value,
@@ -144,7 +141,6 @@ pub(crate) fn set(
 pub(crate) fn create_data_property(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     object: impl InternalMethods,
     property_key: PropertyKey,
     value: Value,
@@ -172,7 +168,6 @@ pub(crate) fn create_data_property(
 pub(crate) fn create_data_property_or_throw(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     object: impl InternalMethods,
     property_key: PropertyKey,
     value: Value,
@@ -202,7 +197,6 @@ pub(crate) fn create_data_property_or_throw(
 pub(crate) fn define_property_or_throw(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     object: impl InternalMethods,
     property_key: PropertyKey,
     desc: PropertyDescriptor,
@@ -230,7 +224,6 @@ pub(crate) fn define_property_or_throw(
 pub(crate) fn delete_property_or_throw(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     p: PropertyKey,
 ) -> JsResult<()> {
@@ -259,7 +252,6 @@ pub(crate) fn delete_property_or_throw(
 pub(crate) fn get_method(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     v: Value,
     p: PropertyKey,
 ) -> JsResult<Option<Function>> {
@@ -291,7 +283,6 @@ pub(crate) fn get_method(
 pub(crate) fn has_property(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     p: PropertyKey,
 ) -> JsResult<bool> {
@@ -308,7 +299,6 @@ pub(crate) fn has_property(
 pub(crate) fn has_own_property(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     p: PropertyKey,
 ) -> JsResult<bool> {
@@ -333,7 +323,6 @@ pub(crate) fn has_own_property(
 pub(crate) fn call(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: Value,
     v: Value,
     arguments_list: Option<ArgumentsList>,
@@ -385,7 +374,6 @@ pub(crate) mod integrity {
 pub(crate) fn set_integrity_level<T: Level>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
 ) -> JsResult<bool> {
     // 1. Let status be ? O.[[PreventExtensions]]().
@@ -455,7 +443,6 @@ pub(crate) fn set_integrity_level<T: Level>(
 pub(crate) fn test_integrity_level<T: Level>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
 ) -> JsResult<bool> {
     // 1. Let extensible be ? IsExtensible(O).
@@ -519,7 +506,6 @@ pub(crate) fn create_array_from_list(agent: &mut Agent, elements: &[Value]) -> A
 pub(crate) fn length_of_array_like(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Object,
 ) -> JsResult<i64> {
     // NOTE: Fast path for Array objects.
@@ -550,7 +536,6 @@ pub(crate) fn length_of_array_like(
 pub(crate) fn create_list_from_array_like(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Value,
 ) -> JsResult<Vec<Value>> {
     match obj {
@@ -597,7 +582,6 @@ pub(crate) fn create_list_from_array_like(
 pub(crate) fn call_function(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: Function,
     v: Value,
     arguments_list: Option<ArgumentsList>,
@@ -609,7 +593,6 @@ pub(crate) fn call_function(
 pub(crate) fn construct(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: Function,
     arguments_list: Option<ArgumentsList>,
     new_target: Option<Function>,
@@ -634,7 +617,6 @@ pub(crate) fn construct(
 pub(crate) fn invoke(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     v: Value,
     p: PropertyKey,
     arguments_list: Option<ArgumentsList>,
@@ -657,7 +639,6 @@ pub(crate) fn invoke(
 pub(crate) fn ordinary_has_instance(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     c: impl TryInto<Function>,
     o: impl IntoValue,
 ) -> JsResult<bool> {
@@ -743,7 +724,6 @@ pub(crate) mod enumerable_properties_kind {
 pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
 ) -> JsResult<Vec<Value>> {
     // 1. Let ownKeys be ? O.[[OwnPropertyKeys]]().
@@ -857,7 +837,6 @@ pub(crate) fn get_function_realm(
 pub(crate) fn copy_data_properties(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: OrdinaryObject,
     source: Value,
 ) -> JsResult<()> {
@@ -913,7 +892,6 @@ pub(crate) fn copy_data_properties(
 pub(crate) fn copy_data_properties_into_object(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     source: impl IntoObject,
     excluded_items: &AHashSet<PropertyKey>,
 ) -> JsResult<OrdinaryObject> {
@@ -962,7 +940,6 @@ pub(crate) fn copy_data_properties_into_object(
 pub(crate) fn initialize_instance_elements(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     constructor: BuiltinConstructorFunction,
 ) -> JsResult<()> {
@@ -1065,7 +1042,6 @@ pub(crate) struct GroupByRecord<K: Copy + Into<Value>> {
 pub(crate) fn group_by_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     items: Value,
     callback_fn: Value,
 ) -> JsResult<Vec<GroupByRecord<PropertyKey>>> {
@@ -1158,7 +1134,6 @@ pub(crate) fn group_by_property(
 pub(crate) fn group_by_collection(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     items: Value,
     callback_fn: Value,
 ) -> JsResult<Vec<GroupByRecord<Value>>> {

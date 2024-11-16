@@ -184,7 +184,6 @@ pub(crate) fn clone_array_buffer(
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.

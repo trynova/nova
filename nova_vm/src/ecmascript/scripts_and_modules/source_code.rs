@@ -55,7 +55,7 @@ impl SourceCode {
                 // Thus the source text is kept from garbage collection.
                 let source_text =
                     unsafe { std::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
-                (source, source_text)
+                (source.unbind(), source_text)
             }
             String::SmallString(source) => {
                 // Add 10 whitespace bytes to the end of the eval string. This
@@ -135,7 +135,7 @@ pub(crate) struct SourceCodeHeapData {
     /// in the eval call may keep references to the string data. If the eval
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
-    source: HeapString,
+    source: HeapString<'static>,
     /// The arena that contains the parsed data of the eval source.
     allocator: NonNull<Allocator>,
 }

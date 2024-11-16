@@ -37,7 +37,7 @@ pub struct NumberConstructor;
 impl Builtin for NumberConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.Number;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Number;
 }
 impl BuiltinIntrinsicConstructor for NumberConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Number;
@@ -47,32 +47,31 @@ struct NumberIsFinite;
 impl Builtin for NumberIsFinite {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_finite);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isFinite;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isFinite;
 }
 struct NumberIsInteger;
 impl Builtin for NumberIsInteger {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_integer);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isInteger;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isInteger;
 }
 struct NumberIsNaN;
 impl Builtin for NumberIsNaN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_nan);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isNaN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isNaN;
 }
 struct NumberIsSafeInteger;
 impl Builtin for NumberIsSafeInteger {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberConstructor::is_safe_integer);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isSafeInteger;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSafeInteger;
 }
 
 impl NumberConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -129,7 +128,6 @@ impl NumberConstructor {
     fn is_finite(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -149,7 +147,6 @@ impl NumberConstructor {
     fn is_integer(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -163,7 +160,6 @@ impl NumberConstructor {
     fn is_nan(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -183,7 +179,6 @@ impl NumberConstructor {
     fn is_safe_integer(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

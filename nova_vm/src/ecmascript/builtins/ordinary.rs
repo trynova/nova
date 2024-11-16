@@ -240,7 +240,6 @@ pub(crate) fn ordinary_get_own_property(
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
@@ -517,7 +516,6 @@ fn validate_and_apply_property_descriptor(
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
 ) -> JsResult<bool> {
@@ -546,7 +544,6 @@ pub(crate) fn ordinary_has_property(
 pub(crate) fn ordinary_get(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     receiver: Value,
@@ -588,7 +585,6 @@ pub(crate) fn ordinary_get(
 pub(crate) fn ordinary_set(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     value: Value,
@@ -613,7 +609,6 @@ pub(crate) fn ordinary_set(
 pub(crate) fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     value: Value,
@@ -722,7 +717,6 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
 ) -> JsResult<bool> {
@@ -1037,7 +1031,6 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 pub(crate) fn ordinary_create_from_constructor(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Object> {
@@ -1074,7 +1067,6 @@ pub(crate) fn ordinary_create_from_constructor(
 pub(crate) fn get_prototype_from_constructor(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Option<Object>> {
@@ -1204,7 +1196,6 @@ pub(crate) fn get_prototype_from_constructor(
 pub(crate) fn set_immutable_prototype(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     v: Option<Object>,
 ) -> JsResult<bool> {

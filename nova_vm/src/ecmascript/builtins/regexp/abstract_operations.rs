@@ -49,7 +49,6 @@ fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
 pub(crate) fn reg_exp_alloc(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     new_target: Function,
 ) -> JsResult<RegExp> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
@@ -95,7 +94,7 @@ pub(crate) fn reg_exp_initialize_from_string(
     //     14. If parseResult is a non-empty List of SyntaxError objects, throw a SyntaxError exception.
     //     15. Assert: parseResult is a Pattern Parse Node.
     //     16. Set obj.[[OriginalSource]] to P.
-    agent[obj].original_source = p;
+    agent[obj].original_source = p.unbind();
     //     17. Set obj.[[OriginalFlags]] to F.
     agent[obj].original_flags = f;
     //     18. Let capturingGroupsCount be CountLeftCapturingParensWithin(parseResult).

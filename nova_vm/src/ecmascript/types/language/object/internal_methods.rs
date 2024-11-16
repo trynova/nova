@@ -48,7 +48,6 @@ where
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
         _gc: GcScope<'_, '_>,
-
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
@@ -130,7 +129,6 @@ where
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -149,7 +147,6 @@ where
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -165,7 +162,6 @@ where
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
@@ -194,7 +190,6 @@ where
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -225,7 +220,6 @@ where
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -243,7 +237,6 @@ where
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
@@ -273,7 +266,6 @@ where
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -285,7 +277,6 @@ where
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _arguments_list: ArgumentsList,
         _new_target: Function,
     ) -> JsResult<Object> {

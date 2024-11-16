@@ -18,7 +18,7 @@ pub(crate) struct ErrorPrototype;
 struct ErrorPrototypeToString;
 
 impl Builtin for ErrorPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -31,7 +31,6 @@ impl ErrorPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

@@ -23,7 +23,6 @@ fn initialize_global_object(agent: &mut Agent, gc: GcScope<'_, '_>, global: Obje
     fn print(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {

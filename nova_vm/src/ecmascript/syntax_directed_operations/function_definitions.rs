@@ -96,7 +96,6 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 pub(crate) fn instantiate_ordinary_function_object(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
@@ -266,7 +265,6 @@ impl CompileFunctionBodyData<'static> {
 pub(crate) fn evaluate_function_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -288,7 +286,6 @@ pub(crate) fn evaluate_function_body(
 pub(crate) fn evaluate_async_function_body(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> Promise {
@@ -362,7 +359,6 @@ pub(crate) fn evaluate_async_function_body(
 pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {

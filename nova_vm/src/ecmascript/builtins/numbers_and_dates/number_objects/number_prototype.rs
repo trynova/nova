@@ -21,7 +21,7 @@ pub(crate) struct NumberPrototype;
 
 struct NumberPrototypeToExponential;
 impl Builtin for NumberPrototypeToExponential {
-    const NAME: String = BUILTIN_STRING_MEMORY.toExponential;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toExponential;
 
     const LENGTH: u8 = 1;
 
@@ -31,7 +31,7 @@ impl Builtin for NumberPrototypeToExponential {
 
 struct NumberPrototypeToFixed;
 impl Builtin for NumberPrototypeToFixed {
-    const NAME: String = BUILTIN_STRING_MEMORY.toFixed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toFixed;
 
     const LENGTH: u8 = 1;
 
@@ -41,7 +41,7 @@ impl Builtin for NumberPrototypeToFixed {
 
 struct NumberPrototypeToLocaleString;
 impl Builtin for NumberPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -51,7 +51,7 @@ impl Builtin for NumberPrototypeToLocaleString {
 
 struct NumberPrototypeToPrecision;
 impl Builtin for NumberPrototypeToPrecision {
-    const NAME: String = BUILTIN_STRING_MEMORY.toPrecision;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toPrecision;
 
     const LENGTH: u8 = 1;
 
@@ -61,7 +61,7 @@ impl Builtin for NumberPrototypeToPrecision {
 
 struct NumberPrototypeToString;
 impl Builtin for NumberPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 1;
 
@@ -71,7 +71,7 @@ impl Builtin for NumberPrototypeToString {
 
 struct NumberPrototypeValueOf;
 impl Builtin for NumberPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -83,7 +83,6 @@ impl NumberPrototype {
     fn to_exponential(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -124,7 +123,6 @@ impl NumberPrototype {
     fn to_fixed(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -164,7 +162,6 @@ impl NumberPrototype {
     fn to_locale_string(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -178,7 +175,6 @@ impl NumberPrototype {
     fn to_precision(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -415,7 +411,6 @@ impl NumberPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -431,7 +426,6 @@ impl NumberPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

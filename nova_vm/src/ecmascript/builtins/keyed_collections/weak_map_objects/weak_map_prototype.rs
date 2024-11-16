@@ -17,25 +17,25 @@ pub(crate) struct WeakMapPrototype;
 
 struct WeakMapPrototypeDelete;
 impl Builtin for WeakMapPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::delete);
 }
 struct WeakMapPrototypeGet;
 impl Builtin for WeakMapPrototypeGet {
-    const NAME: String = BUILTIN_STRING_MEMORY.get;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::get);
 }
 struct WeakMapPrototypeHas;
 impl Builtin for WeakMapPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::has);
 }
 struct WeakMapPrototypeSet;
 impl Builtin for WeakMapPrototypeSet {
-    const NAME: String = BUILTIN_STRING_MEMORY.set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::set);
 }
@@ -44,7 +44,6 @@ impl WeakMapPrototype {
     fn delete(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -54,7 +53,6 @@ impl WeakMapPrototype {
     fn get(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -64,7 +62,6 @@ impl WeakMapPrototype {
     fn has(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -74,7 +71,6 @@ impl WeakMapPrototype {
     fn set(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

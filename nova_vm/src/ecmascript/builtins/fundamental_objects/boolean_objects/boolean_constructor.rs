@@ -27,7 +27,7 @@ use crate::heap::IntrinsicConstructorIndexes;
 pub(crate) struct BooleanConstructor;
 
 impl Builtin for BooleanConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Boolean;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Boolean;
 
     const LENGTH: u8 = 1;
 
@@ -41,7 +41,6 @@ impl BooleanConstructor {
     fn behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,

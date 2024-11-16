@@ -25,7 +25,7 @@ pub(crate) struct ObjectPrototype;
 
 struct ObjectPrototypeHasOwnProperty;
 impl Builtin for ObjectPrototypeHasOwnProperty {
-    const NAME: String = BUILTIN_STRING_MEMORY.hasOwnProperty;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.hasOwnProperty;
 
     const LENGTH: u8 = 1;
 
@@ -34,7 +34,7 @@ impl Builtin for ObjectPrototypeHasOwnProperty {
 
 struct ObjectPrototypeIsPrototypeOf;
 impl Builtin for ObjectPrototypeIsPrototypeOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.isPrototypeOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isPrototypeOf;
 
     const LENGTH: u8 = 1;
 
@@ -43,7 +43,7 @@ impl Builtin for ObjectPrototypeIsPrototypeOf {
 
 struct ObjectPrototypePropertyIsEnumerable;
 impl Builtin for ObjectPrototypePropertyIsEnumerable {
-    const NAME: String = BUILTIN_STRING_MEMORY.propertyIsEnumerable;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.propertyIsEnumerable;
 
     const LENGTH: u8 = 1;
 
@@ -52,7 +52,7 @@ impl Builtin for ObjectPrototypePropertyIsEnumerable {
 
 struct ObjectPrototypeToLocaleString;
 impl Builtin for ObjectPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -61,7 +61,7 @@ impl Builtin for ObjectPrototypeToLocaleString {
 
 struct ObjectPrototypeToString;
 impl Builtin for ObjectPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -73,7 +73,7 @@ impl BuiltinIntrinsic for ObjectPrototypeToString {
 
 struct ObjectPrototypeValueOf;
 impl Builtin for ObjectPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -84,7 +84,6 @@ impl ObjectPrototype {
     fn has_own_property(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -96,7 +95,6 @@ impl ObjectPrototype {
     fn is_prototype_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -121,7 +119,6 @@ impl ObjectPrototype {
     fn property_is_enumerable(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -138,7 +135,6 @@ impl ObjectPrototype {
     fn to_locale_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -150,7 +146,6 @@ impl ObjectPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -252,7 +247,6 @@ impl ObjectPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

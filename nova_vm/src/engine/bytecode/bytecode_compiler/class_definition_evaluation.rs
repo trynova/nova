@@ -510,7 +510,7 @@ impl CompileEvaluation for ast::Class<'_> {
 #[derive(Debug)]
 enum PropertyInitializerField<'a> {
     Static((&'a ast::PropertyKey<'a>, &'a Option<ast::Expression<'a>>)),
-    Computed((String, &'a Option<ast::Expression<'a>>)),
+    Computed((String<'static>, &'a Option<ast::Expression<'a>>)),
 }
 
 fn compile_computed_field_name<'a>(

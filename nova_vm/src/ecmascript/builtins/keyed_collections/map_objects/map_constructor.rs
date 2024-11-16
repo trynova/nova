@@ -37,7 +37,7 @@ use crate::{
 
 pub(crate) struct MapConstructor;
 impl Builtin for MapConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Map;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Map;
 
     const LENGTH: u8 = 0;
 
@@ -50,14 +50,14 @@ struct MapGroupBy;
 impl Builtin for MapGroupBy {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::group_by);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.groupBy;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.groupBy;
 }
 struct MapGetSpecies;
 impl Builtin for MapGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::get_species);
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
 impl BuiltinGetter for MapGetSpecies {}
 
@@ -65,7 +65,6 @@ impl MapConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -123,7 +122,6 @@ impl MapConstructor {
     fn group_by(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -133,7 +131,6 @@ impl MapConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -161,7 +158,6 @@ impl MapConstructor {
 pub fn add_entries_from_iterable_map_constructor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Map,
     iterable: Value,
     adder: Function,
@@ -288,7 +284,6 @@ pub fn add_entries_from_iterable_map_constructor(
 pub(crate) fn add_entries_from_iterable(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Object,
     iterable: Value,
     adder: Function,

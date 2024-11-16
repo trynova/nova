@@ -26,7 +26,7 @@ use crate::{
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
@@ -81,7 +81,7 @@ impl PropertyKey {
                 s1.as_str() == s2.as_str()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent[s].as_str();
+                let s = agent[s.unbind()].as_str();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -177,10 +177,10 @@ impl From<Symbol> for PropertyKey {
     }
 }
 
-impl From<String> for PropertyKey {
+impl From<String<'_>> for PropertyKey {
     fn from(value: String) -> Self {
         match value {
-            String::String(x) => PropertyKey::String(x),
+            String::String(x) => PropertyKey::String(x.unbind()),
             String::SmallString(x) => PropertyKey::SmallString(x),
         }
     }

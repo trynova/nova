@@ -43,7 +43,6 @@ impl Generator {
         mut self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         value: Value,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -157,7 +156,6 @@ impl Generator {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         value: Value,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).

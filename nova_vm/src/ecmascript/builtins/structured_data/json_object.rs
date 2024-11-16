@@ -33,7 +33,7 @@ pub(crate) struct JSONObject;
 
 struct JSONObjectParse;
 impl Builtin for JSONObjectParse {
-    const NAME: String = BUILTIN_STRING_MEMORY.parse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parse;
 
     const LENGTH: u8 = 2;
 
@@ -43,7 +43,7 @@ impl Builtin for JSONObjectParse {
 
 struct JSONObjectStringify;
 impl Builtin for JSONObjectStringify {
-    const NAME: String = BUILTIN_STRING_MEMORY.stringify;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.stringify;
 
     const LENGTH: u8 = 3;
 
@@ -86,7 +86,6 @@ impl JSONObject {
     fn parse(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -149,7 +148,6 @@ impl JSONObject {
     fn stringify(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -195,7 +193,6 @@ impl JSONObject {
 pub(crate) fn internalize_json_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     holder: Object,
     name: PropertyKey,
     reviver: Function,
@@ -274,7 +271,6 @@ pub(crate) fn internalize_json_property(
 pub(crate) fn value_from_json(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     json: &sonic_rs::Value,
 ) -> JsResult<Value> {
     match json.get_type() {

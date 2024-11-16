@@ -120,7 +120,6 @@ impl VmIterator {
     pub(super) fn from_value(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         value: Value,
     ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).

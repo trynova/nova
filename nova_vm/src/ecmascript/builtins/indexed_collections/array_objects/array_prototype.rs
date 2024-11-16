@@ -45,175 +45,175 @@ pub(crate) struct ArrayPrototype;
 
 struct ArrayPrototypeAt;
 impl Builtin for ArrayPrototypeAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.at;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.at;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::at);
 }
 struct ArrayPrototypeConcat;
 impl Builtin for ArrayPrototypeConcat {
-    const NAME: String = BUILTIN_STRING_MEMORY.concat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.concat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::concat);
 }
 struct ArrayPrototypeCopyWithin;
 impl Builtin for ArrayPrototypeCopyWithin {
-    const NAME: String = BUILTIN_STRING_MEMORY.copyWithin;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.copyWithin;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::copy_within);
 }
 struct ArrayPrototypeEntries;
 impl Builtin for ArrayPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::entries);
 }
 struct ArrayPrototypeEvery;
 impl Builtin for ArrayPrototypeEvery {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.every;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::every);
 }
 struct ArrayPrototypeFill;
 impl Builtin for ArrayPrototypeFill {
-    const NAME: String = BUILTIN_STRING_MEMORY.fill;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fill;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::fill);
 }
 struct ArrayPrototypeFilter;
 impl Builtin for ArrayPrototypeFilter {
-    const NAME: String = BUILTIN_STRING_MEMORY.filter;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.filter;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::filter);
 }
 struct ArrayPrototypeFind;
 impl Builtin for ArrayPrototypeFind {
-    const NAME: String = BUILTIN_STRING_MEMORY.find;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.find;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find);
 }
 struct ArrayPrototypeFindIndex;
 impl Builtin for ArrayPrototypeFindIndex {
-    const NAME: String = BUILTIN_STRING_MEMORY.findIndex;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_index);
 }
 struct ArrayPrototypeFindLast;
 impl Builtin for ArrayPrototypeFindLast {
-    const NAME: String = BUILTIN_STRING_MEMORY.findLast;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findLast;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last);
 }
 struct ArrayPrototypeFindLastIndex;
 impl Builtin for ArrayPrototypeFindLastIndex {
-    const NAME: String = BUILTIN_STRING_MEMORY.findLastIndex;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findLastIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last_index);
 }
 struct ArrayPrototypeFlat;
 impl Builtin for ArrayPrototypeFlat {
-    const NAME: String = BUILTIN_STRING_MEMORY.flat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flat;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::flat);
 }
 struct ArrayPrototypeFlatMap;
 impl Builtin for ArrayPrototypeFlatMap {
-    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flatMap;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::flat_map);
 }
 struct ArrayPrototypeForEach;
 impl Builtin for ArrayPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::for_each);
 }
 struct ArrayPrototypeIncludes;
 impl Builtin for ArrayPrototypeIncludes {
-    const NAME: String = BUILTIN_STRING_MEMORY.includes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.includes;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::includes);
 }
 struct ArrayPrototypeIndexOf;
 impl Builtin for ArrayPrototypeIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.indexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.indexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::index_of);
 }
 struct ArrayPrototypeJoin;
 impl Builtin for ArrayPrototypeJoin {
-    const NAME: String = BUILTIN_STRING_MEMORY.join;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.join;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::join);
 }
 struct ArrayPrototypeKeys;
 impl Builtin for ArrayPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::keys);
 }
 struct ArrayPrototypeLastIndexOf;
 impl Builtin for ArrayPrototypeLastIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.lastIndexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.lastIndexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::last_index_of);
 }
 struct ArrayPrototypeMap;
 impl Builtin for ArrayPrototypeMap {
-    const NAME: String = BUILTIN_STRING_MEMORY.map;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.map;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::map);
 }
 struct ArrayPrototypePop;
 impl Builtin for ArrayPrototypePop {
-    const NAME: String = BUILTIN_STRING_MEMORY.pop;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.pop;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::pop);
 }
 struct ArrayPrototypePush;
 impl Builtin for ArrayPrototypePush {
-    const NAME: String = BUILTIN_STRING_MEMORY.push;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.push;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::push);
 }
 struct ArrayPrototypeReduce;
 impl Builtin for ArrayPrototypeReduce {
-    const NAME: String = BUILTIN_STRING_MEMORY.reduce;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reduce;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reduce);
 }
 struct ArrayPrototypeReduceRight;
 impl Builtin for ArrayPrototypeReduceRight {
-    const NAME: String = BUILTIN_STRING_MEMORY.reduceRight;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reduceRight;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reduce_right);
 }
 struct ArrayPrototypeReverse;
 impl Builtin for ArrayPrototypeReverse {
-    const NAME: String = BUILTIN_STRING_MEMORY.reverse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reverse;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reverse);
 }
 struct ArrayPrototypeShift;
 impl Builtin for ArrayPrototypeShift {
-    const NAME: String = BUILTIN_STRING_MEMORY.shift;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.shift;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::shift);
 }
 struct ArrayPrototypeSlice;
 impl Builtin for ArrayPrototypeSlice {
-    const NAME: String = BUILTIN_STRING_MEMORY.slice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.slice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::slice);
 }
 struct ArrayPrototypeSome;
 impl Builtin for ArrayPrototypeSome {
-    const NAME: String = BUILTIN_STRING_MEMORY.some;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.some;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::some);
 }
 struct ArrayPrototypeSort;
 impl Builtin for ArrayPrototypeSort {
-    const NAME: String = BUILTIN_STRING_MEMORY.sort;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sort;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::sort);
 }
@@ -222,37 +222,37 @@ impl BuiltinIntrinsic for ArrayPrototypeSort {
 }
 struct ArrayPrototypeSplice;
 impl Builtin for ArrayPrototypeSplice {
-    const NAME: String = BUILTIN_STRING_MEMORY.splice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.splice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::splice);
 }
 struct ArrayPrototypeToLocaleString;
 impl Builtin for ArrayPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_locale_string);
 }
 struct ArrayPrototypeToReversed;
 impl Builtin for ArrayPrototypeToReversed {
-    const NAME: String = BUILTIN_STRING_MEMORY.toReversed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toReversed;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_reversed);
 }
 struct ArrayPrototypeToSorted;
 impl Builtin for ArrayPrototypeToSorted {
-    const NAME: String = BUILTIN_STRING_MEMORY.toSorted;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toSorted;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_sorted);
 }
 struct ArrayPrototypeToSpliced;
 impl Builtin for ArrayPrototypeToSpliced {
-    const NAME: String = BUILTIN_STRING_MEMORY.toSpliced;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toSpliced;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_spliced);
 }
 struct ArrayPrototypeToString;
 impl Builtin for ArrayPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_string);
 }
@@ -261,13 +261,13 @@ impl BuiltinIntrinsic for ArrayPrototypeToString {
 }
 struct ArrayPrototypeUnshift;
 impl Builtin for ArrayPrototypeUnshift {
-    const NAME: String = BUILTIN_STRING_MEMORY.unshift;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.unshift;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::unshift);
 }
 struct ArrayPrototypeValues;
 impl Builtin for ArrayPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::values);
 }
@@ -276,7 +276,7 @@ impl BuiltinIntrinsic for ArrayPrototypeValues {
 }
 struct ArrayPrototypeWith;
 impl Builtin for ArrayPrototypeWith {
-    const NAME: String = BUILTIN_STRING_MEMORY.with;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.with;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::with);
 }
@@ -286,7 +286,6 @@ impl ArrayPrototype {
     fn at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -344,7 +343,6 @@ impl ArrayPrototype {
     fn concat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
@@ -454,7 +452,6 @@ impl ArrayPrototype {
     fn copy_within(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -610,7 +607,6 @@ impl ArrayPrototype {
     fn entries(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -664,7 +660,6 @@ impl ArrayPrototype {
     fn every(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -738,7 +733,6 @@ impl ArrayPrototype {
     fn fill(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -870,7 +864,6 @@ impl ArrayPrototype {
     fn filter(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -952,7 +945,6 @@ impl ArrayPrototype {
     fn find(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -988,7 +980,6 @@ impl ArrayPrototype {
     fn find_index(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1008,7 +999,6 @@ impl ArrayPrototype {
     fn find_last(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1029,7 +1019,6 @@ impl ArrayPrototype {
     fn find_last_index(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1050,7 +1039,6 @@ impl ArrayPrototype {
     fn flat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1092,7 +1080,6 @@ impl ArrayPrototype {
     fn flat_map(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1165,7 +1152,6 @@ impl ArrayPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1249,7 +1235,6 @@ impl ArrayPrototype {
     fn includes(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1373,7 +1358,6 @@ impl ArrayPrototype {
     fn index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1487,7 +1471,6 @@ impl ArrayPrototype {
     fn join(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1549,7 +1532,6 @@ impl ArrayPrototype {
     fn keys(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1588,7 +1570,6 @@ impl ArrayPrototype {
     fn last_index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1728,7 +1709,6 @@ impl ArrayPrototype {
     fn map(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1796,7 +1776,6 @@ impl ArrayPrototype {
     fn pop(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1893,7 +1872,6 @@ impl ArrayPrototype {
     fn push(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1987,7 +1965,6 @@ impl ArrayPrototype {
     fn reduce(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2134,7 +2111,6 @@ impl ArrayPrototype {
     fn reduce_right(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2245,7 +2221,6 @@ impl ArrayPrototype {
     fn reverse(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2333,7 +2308,6 @@ impl ArrayPrototype {
     fn shift(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2459,7 +2433,6 @@ impl ArrayPrototype {
     fn slice(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2673,7 +2646,6 @@ impl ArrayPrototype {
     fn some(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2754,7 +2726,6 @@ impl ArrayPrototype {
     fn sort(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2987,7 +2958,6 @@ impl ArrayPrototype {
     fn to_locale_string(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3038,7 +3008,6 @@ impl ArrayPrototype {
     fn to_sorted(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3048,7 +3017,6 @@ impl ArrayPrototype {
     fn to_spliced(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3059,7 +3027,6 @@ impl ArrayPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3195,7 +3162,6 @@ impl ArrayPrototype {
     fn values(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3213,7 +3179,6 @@ impl ArrayPrototype {
     fn with(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3341,7 +3306,6 @@ impl ArrayPrototype {
 fn is_concat_spreadable(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Option<Object>> {
     // 1. If O is not an Object, return false.
@@ -3412,7 +3376,6 @@ fn is_concat_spreadable(
 fn find_via_predicate(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
     len: i64,
     ascending: bool,
@@ -3429,7 +3392,6 @@ fn find_via_predicate(
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
                  mut gc: GcScope<'_, '_>,
-
                  o: Object,
                  predicate: Function,
                  this_arg: Value,
@@ -3491,7 +3453,6 @@ fn find_via_predicate(
 fn flatten_into_array(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Object,
     source: Object,
     source_len: usize,
@@ -3646,7 +3607,6 @@ fn flatten_into_array(
 fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Object,
     len: usize,
     comparator: Option<Function>,
@@ -3715,7 +3675,6 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
 fn compare_array_elements(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: Value,
     y: Value,
     comparator: Option<Function>,

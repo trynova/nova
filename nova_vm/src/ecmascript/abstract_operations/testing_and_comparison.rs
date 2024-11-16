@@ -125,7 +125,6 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 pub(crate) fn is_integral_number(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     argument: impl Copy + Into<Value>,
 ) -> bool {
     let argument = argument.into();
@@ -264,7 +263,6 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(
 pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> JsResult<Option<bool>> {
@@ -386,7 +384,6 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 pub(crate) fn is_loosely_equal(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> JsResult<bool> {

@@ -28,7 +28,7 @@ use crate::{
 
 pub(crate) struct DataViewConstructor;
 impl Builtin for DataViewConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.DataView;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.DataView;
 
     const LENGTH: u8 = 1;
 

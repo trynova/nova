@@ -34,43 +34,43 @@ pub(crate) struct SetPrototype;
 
 struct SetPrototypeAdd;
 impl Builtin for SetPrototypeAdd {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::add);
 }
 struct SetPrototypeClear;
 impl Builtin for SetPrototypeClear {
-    const NAME: String = BUILTIN_STRING_MEMORY.clear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::clear);
 }
 struct SetPrototypeDelete;
 impl Builtin for SetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::delete);
 }
 struct SetPrototypeEntries;
 impl Builtin for SetPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::entries);
 }
 struct SetPrototypeForEach;
 impl Builtin for SetPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::for_each);
 }
 struct SetPrototypeHas;
 impl Builtin for SetPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::has);
 }
 struct SetPrototypeGetSize;
 impl Builtin for SetPrototypeGetSize {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_size;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_size;
     const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::get_size);
@@ -78,7 +78,7 @@ impl Builtin for SetPrototypeGetSize {
 impl BuiltinGetter for SetPrototypeGetSize {}
 struct SetPrototypeValues;
 impl Builtin for SetPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::values);
 }
@@ -91,7 +91,6 @@ impl SetPrototype {
     fn add(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -153,7 +152,6 @@ impl SetPrototype {
     fn clear(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -178,7 +176,6 @@ impl SetPrototype {
     fn delete(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -229,7 +226,6 @@ impl SetPrototype {
     fn entries(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -278,7 +274,6 @@ impl SetPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -330,7 +325,6 @@ impl SetPrototype {
     fn has(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -378,7 +372,6 @@ impl SetPrototype {
     fn get_size(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -394,7 +387,6 @@ impl SetPrototype {
     fn values(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

@@ -1093,7 +1093,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         match self {
@@ -1385,7 +1384,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match self {
@@ -1496,7 +1494,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -1658,7 +1655,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         match self {
@@ -1762,7 +1758,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -1869,7 +1864,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -2015,7 +2009,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         match self {
@@ -2215,7 +2208,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2238,7 +2230,6 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {

@@ -149,7 +149,6 @@ impl SuspendedVm {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         executable: Executable,
         value: Value,
     ) -> ExecutionResult {
@@ -161,7 +160,6 @@ impl SuspendedVm {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         executable: Executable,
         err: Value,
     ) -> ExecutionResult {
@@ -217,7 +215,6 @@ impl Vm {
     pub(crate) fn execute(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         executable: Executable,
         arguments: Option<&[Value]>,
     ) -> ExecutionResult {
@@ -266,7 +263,6 @@ impl Vm {
         mut self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         executable: Executable,
         value: Value,
     ) -> ExecutionResult {
@@ -278,7 +274,6 @@ impl Vm {
         mut self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         executable: Executable,
         err: Value,
     ) -> ExecutionResult {
@@ -293,7 +288,6 @@ impl Vm {
         mut self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         executable: Executable,
     ) -> ExecutionResult {
         #[cfg(feature = "interleaved-gc")]
@@ -373,7 +367,6 @@ impl Vm {
     fn execute_instruction(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         instr: &Instr,
@@ -1977,7 +1970,6 @@ impl Vm {
     fn execute_simple_array_binding(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         mut iterator: VmIterator,
@@ -2074,7 +2066,6 @@ impl Vm {
     fn execute_simple_object_binding(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         object: Object,
@@ -2155,7 +2146,6 @@ impl Vm {
     fn execute_nested_simple_binding(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         vm: &mut Vm,
         executable: Executable,
         value: Value,
@@ -2201,7 +2191,6 @@ impl Vm {
 fn apply_string_or_numeric_binary_operator(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
@@ -2420,7 +2409,6 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 pub(crate) fn instanceof_operator(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     value: impl IntoValue,
     target: impl IntoValue,
 ) -> JsResult<bool> {

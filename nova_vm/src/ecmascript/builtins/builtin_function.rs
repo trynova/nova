@@ -62,7 +62,7 @@ impl Behaviour {
 }
 
 pub trait Builtin {
-    const NAME: String;
+    const NAME: String<'static>;
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
 
@@ -236,7 +236,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -246,7 +245,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -257,7 +255,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
@@ -267,7 +264,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -278,7 +274,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -290,7 +285,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
@@ -315,7 +309,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_argument: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -333,7 +326,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -353,7 +345,6 @@ impl InternalMethods for BuiltinFunction {
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,

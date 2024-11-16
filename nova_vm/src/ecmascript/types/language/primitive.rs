@@ -40,7 +40,7 @@ pub enum Primitive {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -99,7 +99,7 @@ pub(crate) enum HeapPrimitive {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.

@@ -103,7 +103,6 @@ impl Array {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -227,7 +226,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
@@ -281,7 +279,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -367,7 +364,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         let has_own = self.internal_get_own_property(agent, gc.reborrow(), property_key)?;
@@ -392,7 +388,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -448,7 +443,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {

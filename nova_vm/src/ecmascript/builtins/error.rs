@@ -167,7 +167,6 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
         match self.get_backing_object(agent) {
@@ -199,7 +198,6 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
@@ -220,7 +218,6 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {

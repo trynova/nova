@@ -345,7 +345,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -355,7 +354,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -366,7 +364,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
@@ -376,7 +373,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -387,7 +383,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -399,7 +394,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
@@ -424,7 +418,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
@@ -478,7 +471,6 @@ impl InternalMethods for ECMAScriptFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -684,7 +676,6 @@ pub(crate) fn ordinary_call_bind_this(
 pub(crate) fn evaluate_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -755,7 +746,6 @@ pub(crate) fn evaluate_body(
 pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {

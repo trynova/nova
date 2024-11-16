@@ -121,7 +121,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         _: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -131,7 +130,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -142,7 +140,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
@@ -152,7 +149,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -163,7 +159,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -175,7 +170,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
@@ -193,7 +187,6 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {

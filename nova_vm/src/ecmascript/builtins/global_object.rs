@@ -40,7 +40,7 @@ pub(crate) struct GlobalObject;
 
 struct GlobalObjectEval;
 impl Builtin for GlobalObjectEval {
-    const NAME: String = BUILTIN_STRING_MEMORY.eval;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.eval;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::eval);
 }
@@ -49,7 +49,7 @@ impl BuiltinIntrinsic for GlobalObjectEval {
 }
 struct GlobalObjectIsFinite;
 impl Builtin for GlobalObjectIsFinite {
-    const NAME: String = BUILTIN_STRING_MEMORY.isFinite;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isFinite;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::is_finite);
 }
@@ -58,7 +58,7 @@ impl BuiltinIntrinsic for GlobalObjectIsFinite {
 }
 struct GlobalObjectIsNaN;
 impl Builtin for GlobalObjectIsNaN {
-    const NAME: String = BUILTIN_STRING_MEMORY.isNaN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isNaN;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::is_nan);
 }
@@ -67,7 +67,7 @@ impl BuiltinIntrinsic for GlobalObjectIsNaN {
 }
 struct GlobalObjectParseFloat;
 impl Builtin for GlobalObjectParseFloat {
-    const NAME: String = BUILTIN_STRING_MEMORY.parseFloat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parseFloat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_float);
 }
@@ -76,7 +76,7 @@ impl BuiltinIntrinsic for GlobalObjectParseFloat {
 }
 struct GlobalObjectParseInt;
 impl Builtin for GlobalObjectParseInt {
-    const NAME: String = BUILTIN_STRING_MEMORY.parseInt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parseInt;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::parse_int);
 }
@@ -85,7 +85,7 @@ impl BuiltinIntrinsic for GlobalObjectParseInt {
 }
 struct GlobalObjectDecodeURI;
 impl Builtin for GlobalObjectDecodeURI {
-    const NAME: String = BUILTIN_STRING_MEMORY.decodeURI;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.decodeURI;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::decode_uri);
 }
@@ -94,7 +94,7 @@ impl BuiltinIntrinsic for GlobalObjectDecodeURI {
 }
 struct GlobalObjectDecodeURIComponent;
 impl Builtin for GlobalObjectDecodeURIComponent {
-    const NAME: String = BUILTIN_STRING_MEMORY.decodeURIComponent;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.decodeURIComponent;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::decode_uri_component);
 }
@@ -103,7 +103,7 @@ impl BuiltinIntrinsic for GlobalObjectDecodeURIComponent {
 }
 struct GlobalObjectEncodeURI;
 impl Builtin for GlobalObjectEncodeURI {
-    const NAME: String = BUILTIN_STRING_MEMORY.encodeURI;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.encodeURI;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::encode_uri);
 }
@@ -112,7 +112,7 @@ impl BuiltinIntrinsic for GlobalObjectEncodeURI {
 }
 struct GlobalObjectEncodeURIComponent;
 impl Builtin for GlobalObjectEncodeURIComponent {
-    const NAME: String = BUILTIN_STRING_MEMORY.encodeURIComponent;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.encodeURIComponent;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::encode_uri_component);
 }
@@ -121,7 +121,7 @@ impl BuiltinIntrinsic for GlobalObjectEncodeURIComponent {
 }
 struct GlobalObjectEscape;
 impl Builtin for GlobalObjectEscape {
-    const NAME: String = BUILTIN_STRING_MEMORY.escape;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.escape;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::escape);
 }
@@ -130,7 +130,7 @@ impl BuiltinIntrinsic for GlobalObjectEscape {
 }
 struct GlobalObjectUnescape;
 impl Builtin for GlobalObjectUnescape {
-    const NAME: String = BUILTIN_STRING_MEMORY.unescape;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.unescape;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GlobalObject::unescape);
 }
@@ -147,7 +147,6 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 pub fn perform_eval(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: Value,
     direct: bool,
     strict_caller: bool,
@@ -368,7 +367,6 @@ pub fn perform_eval(
 pub fn eval_declaration_instantiation(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     script: &Program,
     var_env: EnvironmentIndex,
     lex_env: EnvironmentIndex,
@@ -670,7 +668,6 @@ impl GlobalObject {
     fn eval(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -686,7 +683,6 @@ impl GlobalObject {
     fn is_finite(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -708,7 +704,6 @@ impl GlobalObject {
     fn is_nan(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -727,7 +722,6 @@ impl GlobalObject {
     fn parse_float(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -797,7 +791,6 @@ impl GlobalObject {
     fn parse_int(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -961,7 +954,6 @@ impl GlobalObject {
     fn decode_uri(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -970,7 +962,6 @@ impl GlobalObject {
     fn decode_uri_component(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -979,7 +970,6 @@ impl GlobalObject {
     fn encode_uri(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -988,7 +978,6 @@ impl GlobalObject {
     fn encode_uri_component(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -997,7 +986,6 @@ impl GlobalObject {
     fn escape(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1006,7 +994,6 @@ impl GlobalObject {
     fn unescape(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

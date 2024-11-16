@@ -116,7 +116,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _prototype: Option<Object>,
     ) -> JsResult<bool> {
         todo!();
@@ -139,7 +138,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
@@ -149,7 +147,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -160,7 +157,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();
@@ -170,7 +166,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _receiver: Value,
     ) -> JsResult<Value> {
@@ -181,7 +176,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -193,7 +187,6 @@ impl InternalMethods for EmbedderObject {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();

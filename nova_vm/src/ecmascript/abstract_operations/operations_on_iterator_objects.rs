@@ -39,7 +39,6 @@ pub(crate) struct IteratorRecord {
 pub(crate) fn get_iterator_from_method(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Value,
     method: Function,
 ) -> JsResult<IteratorRecord> {
@@ -79,7 +78,6 @@ pub(crate) fn get_iterator_from_method(
 pub(crate) fn get_iterator(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Value,
     is_async: bool,
 ) -> JsResult<IteratorRecord> {
@@ -151,7 +149,6 @@ pub(crate) fn get_iterator(
 pub(crate) fn iterator_next(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iterator_record: &IteratorRecord,
     value: Option<Value>,
 ) -> JsResult<Object> {
@@ -187,7 +184,6 @@ pub(crate) fn iterator_next(
 pub(crate) fn iterator_complete(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iter_result: Object,
 ) -> JsResult<bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
@@ -208,7 +204,6 @@ pub(crate) fn iterator_complete(
 pub(crate) fn iterator_value(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iter_result: Object,
 ) -> JsResult<Value> {
     // 1. Return ? Get(iterResult, "value").
@@ -235,7 +230,6 @@ pub(crate) fn iterator_value(
 pub(crate) fn iterator_step(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iterator_record: &IteratorRecord,
 ) -> JsResult<Option<Object>> {
     // 1. Let result be ? IteratorNext(iteratorRecord).
@@ -264,7 +258,6 @@ pub(crate) fn iterator_step(
 pub(crate) fn iterator_step_value(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iterator_record: &mut IteratorRecord,
 ) -> JsResult<Option<Value>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
@@ -336,7 +329,6 @@ pub(crate) fn iterator_step_value(
 pub(crate) fn iterator_close<T>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iterator_record: &IteratorRecord,
     completion: JsResult<T>,
 ) -> JsResult<T> {
@@ -392,7 +384,6 @@ pub(crate) fn iterator_close<T>(
 pub(crate) fn if_abrupt_close_iterator<T>(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     value: JsResult<T>,
     iterator_record: &IteratorRecord,
 ) -> JsResult<T> {
@@ -416,7 +407,6 @@ pub(crate) fn if_abrupt_close_iterator<T>(
 pub(crate) fn async_iterator_close(
     _agent: &mut Agent,
     _gc: GcScope<'_, '_>,
-
     _iterator_record: &IteratorRecord,
     _completion: JsResult<Value>,
 ) -> JsResult<Value> {
@@ -469,7 +459,6 @@ pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: b
 pub(crate) fn create_list_iterator_record(
     _agent: &mut Agent,
     _gc: GcScope<'_, '_>,
-
     _list: &[Value],
 ) -> JsResult<Value> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
@@ -489,7 +478,6 @@ pub(crate) fn create_list_iterator_record(
 pub(crate) fn iterator_to_list(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     iterator_record: &IteratorRecord,
 ) -> JsResult<Vec<Value>> {
     // 1. Let values be a new empty List.

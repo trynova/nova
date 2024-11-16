@@ -26,7 +26,7 @@ use crate::{
 pub(crate) struct FunctionConstructor;
 
 impl Builtin for FunctionConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Function;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Function;
 
     const LENGTH: u8 = 1;
 
@@ -40,7 +40,6 @@ impl FunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -124,7 +123,6 @@ impl DynamicFunctionKind {
 pub(crate) fn create_dynamic_function(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     constructor: Function,
     kind: DynamicFunctionKind,
     parameter_args: &[Value],

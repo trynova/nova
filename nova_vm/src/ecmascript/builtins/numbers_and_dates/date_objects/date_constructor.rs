@@ -32,7 +32,7 @@ pub struct DateConstructor;
 impl Builtin for DateConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 7;
-    const NAME: String = BUILTIN_STRING_MEMORY.Date;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Date;
 }
 impl BuiltinIntrinsicConstructor for DateConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Date;
@@ -42,25 +42,24 @@ struct DateNow;
 impl Builtin for DateNow {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::now);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.now;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.now;
 }
 struct DateParse;
 impl Builtin for DateParse {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::parse);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.parse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parse;
 }
 struct DateUTC;
 impl Builtin for DateUTC {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::utc);
     const LENGTH: u8 = 7;
-    const NAME: String = BUILTIN_STRING_MEMORY.utc;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
 impl DateConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -129,7 +128,6 @@ impl DateConstructor {
     fn now(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -149,7 +147,6 @@ impl DateConstructor {
     fn parse(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -160,7 +157,6 @@ impl DateConstructor {
     fn utc(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

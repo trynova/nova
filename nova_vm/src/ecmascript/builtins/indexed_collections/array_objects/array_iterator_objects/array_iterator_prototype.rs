@@ -26,7 +26,7 @@ pub(crate) struct ArrayIteratorPrototype;
 
 struct ArrayIteratorPrototypeNext;
 impl Builtin for ArrayIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
@@ -38,7 +38,6 @@ impl ArrayIteratorPrototype {
     fn next(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

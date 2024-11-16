@@ -194,7 +194,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -204,7 +203,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -221,7 +219,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc.reborrow(), property_key)
@@ -231,7 +228,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -242,7 +238,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -254,7 +249,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc.reborrow(), property_key)
@@ -279,7 +273,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -301,7 +294,6 @@ impl InternalMethods for BuiltinConstructorFunction {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -320,7 +312,6 @@ impl InternalMethods for BuiltinConstructorFunction {
 fn builtin_call_or_construct(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     f: BuiltinConstructorFunction,
     arguments_list: ArgumentsList,
     new_target: Function,
@@ -378,9 +369,9 @@ fn builtin_call_or_construct(
     result
 }
 
-pub(crate) struct BuiltinConstructorArgs {
+pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) is_derived: bool,
-    pub(crate) class_name: String,
+    pub(crate) class_name: String<'a>,
     pub(crate) prototype: Option<Object>,
     pub(crate) prototype_property: Object,
     pub(crate) compiled_initializer_bytecode: Option<Executable>,

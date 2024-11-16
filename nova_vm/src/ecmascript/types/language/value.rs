@@ -86,7 +86,7 @@ pub enum Value {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString),
+    String(HeapString<'static>),
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -522,13 +522,13 @@ impl Value {
         to_uint16(agent, gc, self)
     }
 
-    pub fn to_string(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<String> {
+    pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<String<'gc>> {
         to_string(agent, gc, self)
     }
 
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
-    pub fn string_repr(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> String {
+    pub fn string_repr<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
@@ -557,7 +557,7 @@ impl Value {
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString, Output = StringHeapData>
+        A: Index<HeapString<'static>, Output = StringHeapData>
             + Index<HeapNumber, Output = f64>
             + Index<HeapBigInt, Output = BigIntHeapData>,
     {

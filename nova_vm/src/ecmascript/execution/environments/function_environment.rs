@@ -292,7 +292,7 @@ impl FunctionEnvironmentIndex {
             return Ok(());
         };
 
-        let binding = agent[dcl_rec].bindings.get_mut(&name).unwrap();
+        let binding = agent[dcl_rec].bindings.get_mut(&name.unbind()).unwrap();
 
         // 2. If the binding for N in envRec is a strict binding, set S to true.
         if binding.strict {

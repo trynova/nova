@@ -58,7 +58,7 @@ pub struct GlobalEnvironment {
     /// VariableDeclaration declarations in global code for the associated
     /// realm.
     // TODO: Use the Heap to set this.
-    var_names: AHashSet<String>,
+    var_names: AHashSet<String<'static>>,
 }
 
 impl GlobalEnvironment {
@@ -147,7 +147,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -235,7 +234,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         value: Value,
     ) -> JsResult<()> {
@@ -270,7 +268,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         value: Value,
         is_strict: bool,
@@ -304,7 +301,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         n: String,
         s: bool,
     ) -> JsResult<Value> {
@@ -333,7 +329,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -360,7 +355,7 @@ impl GlobalEnvironmentIndex {
                 let env_rec = &mut agent[self];
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
-                    env_rec.var_names.remove(&name);
+                    env_rec.var_names.remove(&name.unbind());
                 }
             }
             // c. Return status.
@@ -455,7 +450,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -487,7 +481,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -518,7 +511,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -560,7 +552,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
@@ -585,7 +576,7 @@ impl GlobalEnvironmentIndex {
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
         let env_rec = &mut agent[self];
-        env_rec.var_names.insert(name);
+        env_rec.var_names.insert(name.unbind());
 
         // 7. Return UNUSED.
         Ok(())
@@ -604,7 +595,6 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         name: String,
         value: Value,
         d: bool,
@@ -647,7 +637,7 @@ impl GlobalEnvironmentIndex {
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
         let env_rec = &mut agent[self];
-        env_rec.var_names.insert(name);
+        env_rec.var_names.insert(name.unbind());
         // 9. Return UNUSED.
         Ok(())
         // NOTE

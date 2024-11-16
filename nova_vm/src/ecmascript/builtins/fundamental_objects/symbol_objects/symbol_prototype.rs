@@ -19,7 +19,7 @@ pub(crate) struct SymbolPrototype;
 
 struct SymbolPrototypeGetDescription;
 impl Builtin for SymbolPrototypeGetDescription {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_description;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_description;
 
     const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.description.to_property_key());
 
@@ -32,7 +32,7 @@ impl BuiltinGetter for SymbolPrototypeGetDescription {}
 
 struct SymbolPrototypeToString;
 impl Builtin for SymbolPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -42,7 +42,7 @@ impl Builtin for SymbolPrototypeToString {
 
 struct SymbolPrototypeValueOf;
 impl Builtin for SymbolPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -52,7 +52,7 @@ impl Builtin for SymbolPrototypeValueOf {
 
 struct SymbolPrototypeToPrimitive;
 impl Builtin for SymbolPrototypeToPrimitive {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
 
@@ -72,7 +72,6 @@ impl SymbolPrototype {
     fn get_description(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -88,7 +87,6 @@ impl SymbolPrototype {
     fn to_string(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -99,7 +97,6 @@ impl SymbolPrototype {
     fn value_of(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

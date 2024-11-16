@@ -22,7 +22,7 @@ use crate::{
 
 pub(crate) struct ArrayBufferConstructor;
 impl Builtin for ArrayBufferConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.ArrayBuffer;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ArrayBuffer;
 
     const LENGTH: u8 = 1;
 
@@ -34,7 +34,7 @@ impl BuiltinIntrinsicConstructor for ArrayBufferConstructor {
 
 struct ArrayBufferIsView;
 impl Builtin for ArrayBufferIsView {
-    const NAME: String = BUILTIN_STRING_MEMORY.isView;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isView;
 
     const LENGTH: u8 = 1;
 
@@ -43,7 +43,7 @@ impl Builtin for ArrayBufferIsView {
 
 struct ArrayBufferGetSpecies;
 impl Builtin for ArrayBufferGetSpecies {
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 
@@ -58,7 +58,6 @@ impl ArrayBufferConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -92,7 +91,6 @@ impl ArrayBufferConstructor {
     fn is_view(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -131,7 +129,6 @@ impl ArrayBufferConstructor {
     fn species(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -162,7 +159,6 @@ impl ArrayBufferConstructor {
 fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<u64>> {
     // 1. If options is not an Object, return empty.

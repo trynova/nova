@@ -30,19 +30,19 @@ pub(crate) struct MapPrototype;
 
 struct MapPrototypeClear;
 impl Builtin for MapPrototypeClear {
-    const NAME: String = BUILTIN_STRING_MEMORY.clear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::clear);
 }
 struct MapPrototypeDelete;
 impl Builtin for MapPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::delete);
 }
 struct MapPrototypeEntries;
 impl Builtin for MapPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::entries);
 }
@@ -51,37 +51,37 @@ impl BuiltinIntrinsic for MapPrototypeEntries {
 }
 struct MapPrototypeForEach;
 impl Builtin for MapPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::for_each);
 }
 struct MapPrototypeGet;
 impl Builtin for MapPrototypeGet {
-    const NAME: String = BUILTIN_STRING_MEMORY.get;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get);
 }
 struct MapPrototypeHas;
 impl Builtin for MapPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::has);
 }
 struct MapPrototypeKeys;
 impl Builtin for MapPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::keys);
 }
 pub(super) struct MapPrototypeSet;
 impl Builtin for MapPrototypeSet {
-    const NAME: String = BUILTIN_STRING_MEMORY.set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::set);
 }
 struct MapPrototypeGetSize;
 impl Builtin for MapPrototypeGetSize {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_size;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_size;
     const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get_size);
@@ -89,7 +89,7 @@ impl Builtin for MapPrototypeGetSize {
 impl BuiltinGetter for MapPrototypeGetSize {}
 struct MapPrototypeValues;
 impl Builtin for MapPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::values);
 }
@@ -104,7 +104,6 @@ impl MapPrototype {
     fn clear(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -128,7 +127,6 @@ impl MapPrototype {
     fn delete(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -184,7 +182,6 @@ impl MapPrototype {
     fn entries(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -225,7 +222,6 @@ impl MapPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -278,7 +274,6 @@ impl MapPrototype {
     fn get(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -329,7 +324,6 @@ impl MapPrototype {
     fn has(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -372,7 +366,6 @@ impl MapPrototype {
     fn keys(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -389,7 +382,6 @@ impl MapPrototype {
     fn set(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -458,7 +450,6 @@ impl MapPrototype {
     fn get_size(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -470,7 +461,6 @@ impl MapPrototype {
     fn values(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

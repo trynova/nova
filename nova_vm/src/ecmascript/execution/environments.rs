@@ -222,7 +222,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         match self {
@@ -242,7 +241,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
@@ -302,7 +300,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         value: Value,
     ) -> JsResult<()> {
@@ -331,7 +328,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         value: Value,
         is_strict: bool,
@@ -365,7 +361,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
@@ -387,7 +382,6 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         match self {
@@ -488,7 +482,6 @@ impl Default for Environments {
 pub(crate) fn get_identifier_reference(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     env: Option<EnvironmentIndex>,
     name: String,
     strict: bool,

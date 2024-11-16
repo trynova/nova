@@ -27,7 +27,7 @@ pub(crate) struct DeclarativeEnvironment {
     pub(crate) outer_env: OuterEnv,
 
     /// The environment's bindings.
-    pub(crate) bindings: AHashMap<String, Binding>,
+    pub(crate) bindings: AHashMap<String<'static>, Binding>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -70,7 +70,7 @@ impl DeclarativeEnvironment {
         // uninitialized. If D is true, record that the newly created binding
         // may be deleted by a subsequent DeleteBinding call.
         self.bindings.insert(
-            name,
+            name.unbind(),
             Binding {
                 value: None,
                 // Strictness only seems to matter for immutable bindings.
@@ -91,7 +91,7 @@ impl DeclarativeEnvironment {
         // uninitialized. If S is true, record that the newly created binding is
         // a strict binding.
         self.bindings.insert(
-            name,
+            name.unbind(),
             Binding {
                 value: None,
                 strict: is_strict,
@@ -105,7 +105,7 @@ impl DeclarativeEnvironment {
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(super) fn initialize_binding(&mut self, name: String, value: Value) {
         // 1. Assert: envRec must have an uninitialized binding for N.
-        let binding = self.bindings.get_mut(&name).unwrap();
+        let binding = self.bindings.get_mut(&name.unbind()).unwrap();
 
         // 2. Set the bound value for N in envRec to V.
         // 3. Record that the binding for N in envRec has been initialized.
@@ -143,7 +143,7 @@ impl DeclarativeEnvironment {
         }
 
         // 3. Remove the binding for N from envRec.
-        self.bindings.remove(&name);
+        self.bindings.remove(&name.unbind());
 
         // 4. Return true.
         true
@@ -258,7 +258,7 @@ impl DeclarativeEnvironmentIndex {
     ) -> JsResult<()> {
         let env_rec = &mut agent[self];
         // 1. If envRec does not have a binding for N, then
-        let Some(binding) = env_rec.bindings.get_mut(&name) else {
+        let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
