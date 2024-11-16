@@ -351,6 +351,25 @@ pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
 impl Value {
+    /// Unbind this Value from its current lifetime. This is necessary to use
+    /// the Value as a parameter in a call that can perform garbage collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Value to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Values cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let value = value.bind(&gc);
+    // ```
+    // to make sure that the unbound Value cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub fn from_str(agent: &mut Agent, str: &str) -> Value {
         String::from_str(agent, str).into_value()
     }

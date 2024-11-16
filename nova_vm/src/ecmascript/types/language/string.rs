@@ -13,7 +13,10 @@ use super::{
 };
 use crate::{
     ecmascript::{execution::Agent, types::PropertyDescriptor},
-    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{
+        context::GcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{
         indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -220,6 +223,26 @@ impl IntoPrimitive for SmallString {
 
 impl String {
     pub const EMPTY_STRING: String = String::from_small_string("");
+
+    /// Unbind this String from its current lifetime. This is necessary to use
+    /// the String as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this String to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Strings cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let string = string.bind(&gc);
+    // ```
+    // to make sure that the unbound String cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
 
     pub fn is_empty_string(self) -> bool {
         self == Self::EMPTY_STRING

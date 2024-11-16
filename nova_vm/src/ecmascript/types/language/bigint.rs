@@ -11,7 +11,10 @@ use super::{
 };
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
-    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{
+        context::GcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{
         indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         PrimitiveHeap, WorkQueues,
@@ -207,6 +210,26 @@ pub enum BigIntRootRepr {
 }
 
 impl BigInt {
+    /// Unbind this BigInt from its current lifetime. This is necessary to use
+    /// the BigInt as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this BigInt to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your BigInts cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let bigint = bigint.bind(&gc);
+    // ```
+    // to make sure that the unbound BigInt cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub const fn zero() -> Self {
         Self::SmallBigInt(SmallBigInt::zero())
     }

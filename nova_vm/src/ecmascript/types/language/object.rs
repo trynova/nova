@@ -532,6 +532,26 @@ impl TryFrom<Value> for Object {
 }
 
 impl Object {
+    /// Unbind this Object from its current lifetime. This is necessary to use
+    /// the Object as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Object to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Objects cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let object = object.bind(&gc);
+    // ```
+    // to make sure that the unbound Object cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub fn into_value(self) -> Value {
         self.into()
     }

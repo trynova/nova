@@ -6,6 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     engine::{
+        context::GcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
@@ -152,6 +153,26 @@ impl IntoValue for Primitive {
 }
 
 impl Primitive {
+    /// Unbind this Primitive from its current lifetime. This is necessary to
+    /// use the Primitive as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Primitive to the garbage collection lifetime. This enables
+    // Rust's borrow checker to verify that your Primitives cannot not be
+    // invalidated by garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let primitive = primitive.bind(&gc);
+    // ```
+    // to make sure that the unbound Primitive cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
     }
