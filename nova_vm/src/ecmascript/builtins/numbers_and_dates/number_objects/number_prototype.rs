@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_integer_or_infinity,
@@ -88,7 +88,7 @@ impl NumberPrototype {
     ) -> JsResult<Value> {
         let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value)?;
+        let x = this_number_value(agent, *gc, this_value)?;
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
         let f = to_integer_or_infinity(agent, gc.reborrow(), fraction_digits)?;
         // 3. Assert: If fractionDigits is undefined, then f is 0.
@@ -101,6 +101,7 @@ impl NumberPrototype {
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -114,9 +115,9 @@ impl NumberPrototype {
             x = 0.0;
         };
         if f == 0 {
-            Ok(f64_to_exponential(agent, x))
+            Ok(f64_to_exponential(agent, *gc, x))
         } else {
-            Ok(f64_to_exponential_with_precision(agent, x, f))
+            Ok(f64_to_exponential_with_precision(agent, *gc, x, f))
         }
     }
 
@@ -128,7 +129,7 @@ impl NumberPrototype {
     ) -> JsResult<Value> {
         let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value)?;
+        let x = this_number_value(agent, *gc, this_value)?;
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
         let f = to_integer_or_infinity(agent, gc.reborrow(), fraction_digits)?;
         // 3. Assert: If fractionDigits is undefined, then f is 0.
@@ -136,6 +137,7 @@ impl NumberPrototype {
         // 4. If f is not finite, throw a RangeError exception.
         if !f.is_finite(agent) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -144,6 +146,7 @@ impl NumberPrototype {
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -156,7 +159,7 @@ impl NumberPrototype {
         let x = x.into_f64(agent);
         let mut buffer = ryu_js::Buffer::new();
         let string = buffer.format_to_fixed(x, f as u8);
-        Ok(Value::from_str(agent, string))
+        Ok(Value::from_str(agent, *gc, string))
     }
 
     fn to_locale_string(
@@ -181,7 +184,7 @@ impl NumberPrototype {
         let precision = arguments.get(0);
 
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value)?;
+        let x = this_number_value(agent, *gc, this_value)?;
 
         // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
@@ -203,6 +206,7 @@ impl NumberPrototype {
         let precision = p.into_i64(agent) as i32;
         if !(1..=100).contains(&precision) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Precision out of range",
             ));
@@ -287,14 +291,14 @@ impl NumberPrototype {
                 // zeroes).
                 m.push_str(&e.to_string());
 
-                return Ok(Value::from_string(agent, s + &m));
+                return Ok(Value::from_string(agent, *gc, s + &m));
             }
         }
 
         // 11. If e = p - 1, return the string-concatenation of s and m.
         let e_inc = e + 1;
         if e_inc == precision as i32 {
-            return Ok(String::from_string(agent, s + &m).into_value());
+            return Ok(String::from_string(agent, *gc, s + &m).into_value());
         }
 
         // 12. If e ≥ 0, then
@@ -315,7 +319,7 @@ impl NumberPrototype {
         }
 
         // 14. Return the string-concatenation of s and m.
-        Ok(String::from_string(agent, s + &m).into_value())
+        Ok(String::from_string(agent, *gc, s + &m).into_value())
     }
 
     /// round_to_precision - used in to_precision
@@ -414,7 +418,7 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let x = this_number_value(agent, this_value)?;
+        let x = this_number_value(agent, *gc, this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
             Ok(Number::to_string_radix_10(agent, *gc, x).into_value())
@@ -425,11 +429,11 @@ impl NumberPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_number_value(agent, this_value).map(|result| result.into_value())
+        this_number_value(agent, *gc, this_value).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -464,27 +468,29 @@ impl NumberPrototype {
     }
 }
 
-fn f64_to_exponential(agent: &mut Agent, x: f64) -> Value {
+fn f64_to_exponential(agent: &mut Agent, gc: NoGcScope, x: f64) -> Value {
     match x.abs() {
-        x if x >= 1.0 || x == 0.0 => Value::from_string(agent, format!("{x:e}").replace('e', "e+")),
-        _ => Value::from_string(agent, format!("{x:e}")),
+        x if x >= 1.0 || x == 0.0 => {
+            Value::from_string(agent, gc, format!("{x:e}").replace('e', "e+"))
+        }
+        _ => Value::from_string(agent, gc, format!("{x:e}")),
     }
 }
 
-fn f64_to_exponential_with_precision(agent: &mut Agent, x: f64, f: usize) -> Value {
+fn f64_to_exponential_with_precision(agent: &mut Agent, gc: NoGcScope, x: f64, f: usize) -> Value {
     let mut res = format!("{x:.f$e}");
     let idx = res.find('e').unwrap();
     if res.as_bytes()[idx + 1] != b'-' {
         res.insert(idx + 1, '+');
     }
-    Value::from_string(agent, res)
+    Value::from_string(agent, gc, res)
 }
 
 /// ### [21.1.3.7.1 ThisNumberValue ( value )](https://tc39.es/ecma262/#sec-thisnumbervalue)
 ///
 /// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion. It performs the following steps when called:
 #[inline(always)]
-fn this_number_value(agent: &mut Agent, value: Value) -> JsResult<Number> {
+fn this_number_value(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Number> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
         return Ok(value);
@@ -500,5 +506,5 @@ fn this_number_value(agent: &mut Agent, value: Value) -> JsResult<Number> {
         }
     }
     // 3. Throw a TypeError exception.
-    Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a Number"))
+    Err(agent.throw_exception_with_static_message(gc, ExceptionType::TypeError, "Not a Number"))
 }

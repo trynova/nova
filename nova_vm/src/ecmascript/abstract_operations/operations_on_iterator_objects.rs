@@ -46,8 +46,9 @@ pub(crate) fn get_iterator_from_method(
     let iterator = call(agent, gc.reborrow(), method.into(), obj, None)?;
 
     // 2. If iterator is not an Object, throw a TypeError exception.
-    let Ok(iterator) = to_object(agent, iterator) else {
+    let Ok(iterator) = to_object(agent, *gc, iterator) else {
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Iterator is not an object",
         ));
@@ -103,6 +104,7 @@ pub(crate) fn get_iterator(
             else {
                 // ii. If syncMethod is undefined, throw a TypeError exception.
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "No iterator on object",
                 ));
@@ -131,6 +133,7 @@ pub(crate) fn get_iterator(
     // 3. If method is undefined, throw a TypeError exception.
     let Some(method) = method else {
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Iterator method cannot be undefined",
         ));
@@ -171,6 +174,7 @@ pub(crate) fn iterator_next(
     result
         .try_into()
         .or(Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "The iterator result was not an object",
         )))
@@ -368,6 +372,7 @@ pub(crate) fn iterator_close<T>(
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     if !inner_result.is_object() {
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Invalid iterator 'return' method return value",
         ));

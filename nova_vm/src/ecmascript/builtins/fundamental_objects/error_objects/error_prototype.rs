@@ -38,6 +38,7 @@ impl ErrorPrototype {
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "'this' is not an object",
             ));
@@ -62,7 +63,7 @@ impl ErrorPrototype {
         let msg = if msg.is_undefined() {
             String::EMPTY_STRING
         } else {
-            to_string(agent, gc, msg)?
+            to_string(agent, gc.reborrow(), msg)?
         };
         if name.is_empty_string() {
             // 7. If name is the empty String, return msg.
@@ -73,7 +74,7 @@ impl ErrorPrototype {
         } else {
             // 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
             let result = format!("{}: {}", name.as_str(agent), msg.as_str(agent));
-            Ok(String::from_string(agent, result).into_value())
+            Ok(String::from_string(agent, *gc, result).into_value())
         }
     }
 

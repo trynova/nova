@@ -52,6 +52,7 @@ impl Generator {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "The generator is currently running",
                 ))
@@ -181,6 +182,7 @@ impl Generator {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "The generator is currently running",
                 ));

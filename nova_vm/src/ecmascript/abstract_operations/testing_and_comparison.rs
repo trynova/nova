@@ -4,7 +4,7 @@
 
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_numeric,
@@ -25,9 +25,14 @@ use super::type_conversion::{string_to_big_int, to_number, to_primitive, Preferr
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn require_object_coercible(
+    agent: &mut Agent,
+    gc: NoGcScope,
+    argument: Value,
+) -> JsResult<Value> {
     if argument.is_undefined() || argument.is_null() {
         Err(agent.throw_exception_with_static_message(
+            gc,
             ExceptionType::TypeError,
             "Argument cannot be converted into an object",
         ))

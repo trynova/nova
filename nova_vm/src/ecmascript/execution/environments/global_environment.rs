@@ -12,7 +12,7 @@ use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::types::{Object, PropertyDescriptor, PropertyKey, String, Value};
 use crate::ecmascript::{execution::Agent, types::InternalMethods};
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 use super::{
@@ -174,6 +174,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         is_deletable: bool,
     ) -> JsResult<()> {
@@ -184,7 +185,7 @@ impl GlobalEnvironmentIndex {
         if dcl_rec.has_binding(agent, name) {
             let error_message =
                 format!("Redeclaration of global binding '{}'.", name.as_str(agent));
-            Err(agent.throw_exception(ExceptionType::TypeError, error_message))
+            Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message))
         } else {
             // 3. Return ! DclRec.CreateMutableBinding(N, D).
             dcl_rec.create_mutable_binding(agent, name, is_deletable);
@@ -204,6 +205,7 @@ impl GlobalEnvironmentIndex {
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         is_strict: bool,
     ) -> JsResult<()> {
@@ -214,7 +216,7 @@ impl GlobalEnvironmentIndex {
         if dcl_rec.has_binding(agent, name) {
             let error_message =
                 format!("Redeclaration of global binding '{}'.", name.as_str(agent));
-            Err(agent.throw_exception(ExceptionType::TypeError, error_message))
+            Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message))
         } else {
             // 3. Return ! DclRec.CreateImmutableBinding(N, S).
             dcl_rec.create_immutable_binding(agent, name, is_strict);
@@ -278,7 +280,7 @@ impl GlobalEnvironmentIndex {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
-            dcl_rec.set_mutable_binding(agent, name, value, is_strict)
+            dcl_rec.set_mutable_binding(agent, *gc, name, value, is_strict)
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -310,7 +312,7 @@ impl GlobalEnvironmentIndex {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, n) {
             // a. Return ? DclRec.GetBindingValue(N, S).
-            dcl_rec.get_binding_value(agent, n, s)
+            dcl_rec.get_binding_value(agent, *gc, n, s)
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;

@@ -16,7 +16,7 @@
 
 use num_bigint::Sign;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::{
@@ -93,7 +93,7 @@ pub(crate) fn to_primitive(
             // iv. Let result be ? Call(exoticToPrim, input, « hint »).
             let result: Value = call_function(
                 agent,
-                gc,
+                gc.reborrow(),
                 exotic_to_prim,
                 input.into(),
                 Some(ArgumentsList(&[hint.into()])),
@@ -102,6 +102,7 @@ pub(crate) fn to_primitive(
             Primitive::try_from(result).map_err(|_| {
                 // vi. Throw a TypeError exception.
                 agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Invalid toPrimitive return value",
                 )
@@ -163,6 +164,7 @@ pub(crate) fn ordinary_to_primitive(
     }
     // 4. Throw a TypeError exception.
     Err(agent.throw_exception_with_static_message(
+        *gc,
         ExceptionType::TypeError,
         "Could not convert to primitive",
     ))
@@ -231,6 +233,7 @@ pub(crate) fn to_number(
         Value::SmallString(str) => Ok(string_to_number(agent, str.into())),
         // 2. If argument is either a Symbol or a BigInt, throw a TypeError exception.
         Value::Symbol(_) => Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "cannot convert symbol to number",
         )),
@@ -239,6 +242,7 @@ pub(crate) fn to_number(
         Value::Integer(idx) => Ok(idx.into()),
         Value::SmallF64(idx) => Ok(idx.into()),
         Value::BigInt(_) | Value::SmallBigInt(_) => Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "cannot convert bigint to number",
         )),
@@ -633,19 +637,21 @@ pub(crate) fn to_uint8_clamp(
 #[inline(always)]
 pub(crate) fn to_big_int(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
+    mut gc: GcScope<'_, '_>,
     argument: Value,
 ) -> JsResult<BigInt> {
     // 1. Let prim be ? ToPrimitive(argument, number).
-    let prim = to_primitive(agent, gc, argument, Some(PreferredType::Number))?;
+    let prim = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::Number))?;
 
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
         Primitive::Undefined => Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Invalid primitive 'undefined'",
         )),
         Primitive::Null => Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Invalid primitive 'null'",
         )),
@@ -660,6 +666,7 @@ pub(crate) fn to_big_int(
             let result = string_to_big_int(agent, idx.into());
             let Some(result) = result else {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Invalid BigInt string",
                 ));
@@ -670,6 +677,7 @@ pub(crate) fn to_big_int(
             let result = string_to_big_int(agent, data.into());
             let Some(result) = result else {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Invalid BigInt string",
                 ));
@@ -677,11 +685,13 @@ pub(crate) fn to_big_int(
             Ok(result)
         }
         Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Cannot convert Symbol to BigInt",
         )),
         Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => Err(agent
             .throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Cannot convert Number to BigInt",
             )),
@@ -799,6 +809,7 @@ pub(crate) fn to_string<'gc>(
         Value::SmallString(data) => Ok(String::SmallString(data)),
         // 2. If argument is a Symbol, throw a TypeError exception.
         Value::Symbol(_) => Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Cannot turn Symbol into string",
         )),
@@ -808,7 +819,7 @@ pub(crate) fn to_string<'gc>(
         ),
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
         Value::BigInt(_) | Value::SmallBigInt(_) => {
-            BigInt::to_string_radix_10(agent, BigInt::try_from(argument).unwrap())
+            BigInt::to_string_radix_10(agent, *gc, BigInt::try_from(argument).unwrap())
         }
         _ => {
             // 9. Assert: argument is an Object.
@@ -829,9 +840,10 @@ pub(crate) fn to_string<'gc>(
 /// language value) and returns either a normal completion containing an Object
 /// or a throw completion. It converts argument to a value of type Object
 /// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
-pub(crate) fn to_object(agent: &mut Agent, argument: Value) -> JsResult<Object> {
+pub(crate) fn to_object(agent: &mut Agent, gc: NoGcScope, argument: Value) -> JsResult<Object> {
     match argument {
         Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
+            gc,
             ExceptionType::TypeError,
             "Argument cannot be converted into an object",
         )),
@@ -1069,12 +1081,17 @@ pub(crate) fn canonical_numeric_index_string(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
-pub(crate) fn to_index(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -> JsResult<i64> {
+pub(crate) fn to_index(
+    agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+    argument: Value,
+) -> JsResult<i64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
         let integer = integer.into_i64();
         if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Index is out of range",
             ));
@@ -1084,13 +1101,14 @@ pub(crate) fn to_index(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) 
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let integer be ? ToIntegerOrInfinity(value).
-    let integer = to_integer_or_infinity(agent, gc, argument)?;
+    let integer = to_integer_or_infinity(agent, gc.reborrow(), argument)?;
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
     let integer = if let Number::Integer(n) = integer {
         let integer = n.into_i64();
         if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Index is out of range",
             ));
@@ -1099,6 +1117,7 @@ pub(crate) fn to_index(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) 
     } else {
         // to_integer_or_infinity returns +0, +Infinity, -Infinity, or an integer.
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::RangeError,
             "Index is out of range",
         ));

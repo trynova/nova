@@ -153,7 +153,7 @@ impl StringConstructor {
         }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        Ok(String::from_string(agent, result).into())
+        Ok(String::from_string(agent, *gc, result).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)

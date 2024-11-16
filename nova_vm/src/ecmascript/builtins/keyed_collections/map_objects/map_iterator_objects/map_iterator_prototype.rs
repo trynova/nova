@@ -35,7 +35,7 @@ impl Builtin for MapIteratorPrototypeNext {
 impl MapIteratorPrototype {
     fn next(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -43,6 +43,7 @@ impl MapIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "MapIterator expected",
             ));
@@ -91,7 +92,7 @@ impl MapIteratorPrototype {
                         continue;
                     };
                     let value = agent[map].values()[index].unwrap();
-                    create_array_from_list(agent, &[key, value]).into_value()
+                    create_array_from_list(agent, *gc, &[key, value]).into_value()
                 }
             };
 

@@ -183,12 +183,12 @@ impl PropertyDescriptor {
     ) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            let obj_repr = obj.string_repr(agent, gc);
+            let obj_repr = obj.string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
         };
         // 2. Let desc be a new Property Descriptor that initially has no
         // fields.
@@ -283,6 +283,7 @@ impl PropertyDescriptor {
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter) else {
                     return Err(agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::TypeError,
                         "getter is not callable",
                     ));
@@ -296,12 +297,13 @@ impl PropertyDescriptor {
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = get(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
+            let setter = get(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.set.into())?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter) else {
                     return Err(agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::TypeError,
                         "setter is not callable",
                     ));
@@ -316,6 +318,7 @@ impl PropertyDescriptor {
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
                 ));

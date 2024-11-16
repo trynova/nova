@@ -10,6 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{Object, String, Value},
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -252,6 +253,7 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         value: Value,
         mut is_strict: bool,
@@ -262,7 +264,11 @@ impl DeclarativeEnvironmentIndex {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+                return Err(agent.throw_exception(
+                    gc,
+                    ExceptionType::ReferenceError,
+                    error_message,
+                ));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -287,7 +293,7 @@ impl DeclarativeEnvironmentIndex {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+            return Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -306,7 +312,7 @@ impl DeclarativeEnvironmentIndex {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                return Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message));
             }
         }
 
@@ -325,6 +331,7 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
@@ -335,7 +342,7 @@ impl DeclarativeEnvironmentIndex {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
+                Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message))
             },
             Ok,
         )

@@ -12,7 +12,7 @@ mod data;
 use std::ops::{Index, IndexMut, RangeInclusive};
 
 use super::{array_set_length, ordinary::ordinary_define_own_property};
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -51,8 +51,8 @@ impl Array {
     /// This is equal to the [CreateArrayFromList](https://tc39.es/ecma262/#sec-createarrayfromlist)
     /// abstract operation.
     #[inline]
-    pub fn from_slice(agent: &mut Agent, elements: &[Value]) -> Self {
-        create_array_from_list(agent, elements)
+    pub fn from_slice(agent: &mut Agent, gc: NoGcScope, elements: &[Value]) -> Self {
+        create_array_from_list(agent, gc, elements)
     }
 
     pub(crate) fn get_index(self) -> usize {

@@ -146,16 +146,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
                         let realm = agent.current_realm_id();
                         let file = std::fs::read_to_string(&path)?;
-                        let source_text = JsString::from_string(agent, file);
-                        let script = match parse_script(agent, source_text, realm, !no_strict, None)
-                        {
-                            Ok(script) => script,
-                            Err(errors) => {
-                                // Borrow the string data from the Agent
-                                let source_text = source_text.as_str(agent);
-                                exit_with_parse_errors(errors, &path, source_text)
-                            }
-                        };
+                        let source_text = JsString::from_string(agent, *gc, file);
+                        let script =
+                            match parse_script(agent, *gc, source_text, realm, !no_strict, None) {
+                                Ok(script) => script,
+                                Err(errors) => {
+                                    // Borrow the string data from the Agent
+                                    let source_text = source_text.as_str(agent);
+                                    exit_with_parse_errors(errors, &path, source_text)
+                                }
+                            };
                         let mut result = script_evaluation(agent, gc.reborrow(), script);
 
                         if result.is_ok() {
@@ -228,8 +228,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 placeholder = input.to_string();
                 agent.run_in_realm(&realm, |agent, mut gc| {
                     let realm = agent.current_realm_id();
-                    let source_text = JsString::from_string(agent, input);
-                    let script = match parse_script(agent, source_text, realm, true, None) {
+                    let source_text = JsString::from_string(agent, *gc, input);
+                    let script = match parse_script(agent, *gc, source_text, realm, true, None) {
                         Ok(script) => script,
                         Err(errors) => {
                             exit_with_parse_errors(errors, "<stdin>", &placeholder);

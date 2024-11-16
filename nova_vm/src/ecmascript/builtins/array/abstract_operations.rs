@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -27,6 +27,7 @@ use super::{data::SealableElementsVector, Array, ArrayHeapData};
 /// It is used to specify the creation of new Arrays.
 pub fn array_create(
     agent: &mut Agent,
+    gc: NoGcScope,
     length: usize,
     capacity: usize,
     proto: Option<Object>,
@@ -34,6 +35,7 @@ pub fn array_create(
     // 1. If length > 2**32 - 1, throw a RangeError exception.
     if length > (2usize.pow(32) - 1) {
         return Err(agent.throw_exception_with_static_message(
+            gc,
             ExceptionType::RangeError,
             "invalid array length",
         ));
@@ -97,7 +99,7 @@ pub(crate) fn array_species_create(
     let original_is_array = is_array(agent, original_array.into_value())?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
-        let new_array = array_create(agent, length, length, None)?;
+        let new_array = array_create(agent, *gc, length, length, None)?;
         return Ok(new_array.into_object());
     }
     // 3. Let C be ? Get(originalArray, "constructor").
@@ -137,13 +139,16 @@ pub(crate) fn array_species_create(
     }
     // 6. If C is undefined, return ? ArrayCreate(length).
     if c.is_undefined() {
-        let new_array = array_create(agent, length, length, None)?;
+        let new_array = array_create(agent, *gc, length, length, None)?;
         return Ok(new_array.into_object());
     }
     // 7. If IsConstructor(C) is false, throw a TypeError exception.
     let Some(c) = is_constructor(agent, c) else {
-        return Err(agent
-            .throw_exception_with_static_message(ExceptionType::TypeError, "Not a constructor"));
+        return Err(agent.throw_exception_with_static_message(
+            *gc,
+            ExceptionType::TypeError,
+            "Not a constructor",
+        ));
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
     let length = Value::from_f64(agent, length as f64);
@@ -189,10 +194,11 @@ pub fn array_set_length(
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     let new_len = to_uint32(agent, gc.reborrow(), desc_value)?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
-    let number_len = to_number(agent, gc, desc_value)?;
+    let number_len = to_number(agent, gc.reborrow(), desc_value)?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::RangeError,
             "invalid array length",
         ));

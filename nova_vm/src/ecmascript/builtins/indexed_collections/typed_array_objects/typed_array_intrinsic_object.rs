@@ -61,12 +61,13 @@ impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
     fn behaviour(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
     ) -> JsResult<Value> {
         Err(agent.throw_exception_with_static_message(
+            *gc,
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Abstract class TypedArray not directly constructable",
         ))

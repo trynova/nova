@@ -4,7 +4,7 @@
 
 use std::ops::{Deref, Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{
@@ -384,7 +384,7 @@ pub(crate) fn builtin_call_or_construct(
     let result = match func {
         Behaviour::Regular(func) => {
             if new_target.is_some() {
-                Err(agent.throw_exception_with_static_message(
+                Err(agent.throw_exception_with_static_message(*gc,
                     ExceptionType::TypeError,
                     "Not a constructor",
                 ))
@@ -431,6 +431,7 @@ pub(crate) fn builtin_call_or_construct(
 /// built-in function object.
 pub fn create_builtin_function(
     agent: &mut Agent,
+    gc: NoGcScope,
     behaviour: Behaviour,
     args: BuiltinFunctionArgs,
 ) -> BuiltinFunction {
@@ -442,11 +443,11 @@ pub fn create_builtin_function(
     let initial_name = if let Some(prefix) = args.prefix {
         // 12. Else,
         // a. Perform SetFunctionName(func, name, prefix).
-        String::from_string(agent, format!("{} {}", args.name, prefix))
+        String::from_string(agent, gc, format!("{} {}", args.name, prefix))
     } else {
         // 11. If prefix is not present, then
         // a. Perform SetFunctionName(func, name).
-        String::from_str(agent, args.name)
+        String::from_str(agent, gc, args.name)
     };
 
     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
@@ -511,7 +512,7 @@ pub fn create_builtin_function(
     // 13. Return func.
     agent.heap.create(BuiltinFunctionHeapData {
         behaviour,
-        initial_name: Some(initial_name),
+        initial_name: Some(initial_name.unbind()),
         // 10. Perform SetFunctionLength(func, length).
         length: args.length as u8,
         // 8. Set func.[[Realm]] to realm.

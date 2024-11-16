@@ -17,6 +17,7 @@ use crate::{
             String, Symbol, Value,
         },
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
@@ -33,19 +34,19 @@ pub enum PropertyKey {
 
 impl PropertyKey {
     // FIXME: This API is not necessarily in the right place.
-    pub fn from_str(agent: &mut Agent, str: &str) -> Self {
+    pub fn from_str(agent: &mut Agent, gc: NoGcScope, str: &str) -> Self {
         parse_string_to_integer_property_key(str)
-            .unwrap_or_else(|| String::from_str(agent, str).into())
+            .unwrap_or_else(|| String::from_str(agent, gc, str).into())
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
+    pub fn from_static_str(agent: &mut Agent, gc: NoGcScope, str: &'static str) -> Self {
         parse_string_to_integer_property_key(str)
-            .unwrap_or_else(|| String::from_static_str(agent, str).into())
+            .unwrap_or_else(|| String::from_static_str(agent, gc, str).into())
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
+    pub fn from_string(agent: &mut Agent, gc: NoGcScope, string: std::string::String) -> Self {
         parse_string_to_integer_property_key(&string)
-            .unwrap_or_else(|| String::from_string(agent, string).into())
+            .unwrap_or_else(|| String::from_string(agent, gc, string).into())
     }
 
     pub fn into_value(self) -> Value {

@@ -277,27 +277,10 @@ impl String<'_> {
         self == Self::EMPTY_STRING
     }
 
-    pub fn from_str(agent: &mut Agent, str: &str) -> Self {
-        agent.heap.create(str)
-    }
-
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
-        agent.heap.create(string)
-    }
-
     pub const fn to_property_key(self) -> PropertyKey {
         match self {
             String::String(data) => PropertyKey::String(data.unbind()),
             String::SmallString(data) => PropertyKey::SmallString(data),
-        }
-    }
-
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
-        if let Ok(value) = String::try_from(str) {
-            value
-        } else {
-            // SAFETY: String couldn't be represented as a SmallString.
-            unsafe { agent.heap.alloc_static_str(str) }
         }
     }
 
@@ -381,7 +364,7 @@ impl String<'_> {
                 let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
                 SmallString::from_str_unchecked(str_slice).into()
             }
-            Status::String(string) => agent.heap.create(string),
+            Status::String(string) => agent.heap.create(string).bind(gc),
         }
     }
 
@@ -520,6 +503,29 @@ impl String<'_> {
             }
         } else {
             None
+        }
+    }
+}
+
+impl<'gc> String<'gc> {
+    pub fn from_str(agent: &mut Agent, _gc: NoGcScope<'gc, '_>, str: &str) -> Self {
+        agent.heap.create(str)
+    }
+
+    pub fn from_string(
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+        string: std::string::String,
+    ) -> Self {
+        agent.heap.create(string).bind(gc)
+    }
+
+    pub fn from_static_str(agent: &mut Agent, _gc: NoGcScope<'gc, '_>, str: &'static str) -> Self {
+        if let Ok(value) = String::try_from(str) {
+            value
+        } else {
+            // SAFETY: String couldn't be represented as a SmallString.
+            unsafe { agent.heap.alloc_static_str(str) }
         }
     }
 }

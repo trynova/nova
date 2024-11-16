@@ -132,14 +132,14 @@ pub(crate) fn get_value(
                             "Cannot read property '{}' of undefined.",
                             referenced_name.as_display(agent)
                         );
-                        Err(agent.throw_exception(ExceptionType::TypeError, error_message))
+                        Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message))
                     }
                     Value::Null => {
                         let error_message = format!(
                             "Cannot read property '{}' of null.",
                             referenced_name.as_display(agent)
                         );
-                        Err(agent.throw_exception(ExceptionType::TypeError, error_message))
+                        Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message))
                     }
                     Value::Boolean(_) => agent
                         .current_realm()
@@ -197,7 +197,7 @@ pub(crate) fn get_value(
                 "Cannot access undeclared variable '{}'.",
                 referenced_name.as_display(agent)
             );
-            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
+            Err(agent.throw_exception(*gc, ExceptionType::ReferenceError, error_message))
         }
     }
 }
@@ -222,7 +222,7 @@ pub(crate) fn put_value(
                 "Cannot assign to undeclared variable '{}'.",
                 v.referenced_name.as_display(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+            return Err(agent.throw_exception(*gc, ExceptionType::ReferenceError, error_message));
         }
         // b. Let globalObj be GetGlobalObject().
         let global_obj = get_global_object(agent);
@@ -238,7 +238,7 @@ pub(crate) fn put_value(
             Base::Value(value) => value,
             Base::Environment(_) | Base::Unresolvable => unreachable!(),
         };
-        let base_obj = to_object(agent, base)?;
+        let base_obj = to_object(agent, *gc, base)?;
         // b. If IsPrivateReference(V) is true, then
         if is_private_reference(v) {
             // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
@@ -251,13 +251,13 @@ pub(crate) fn put_value(
             base_obj.internal_set(agent, gc.reborrow(), referenced_name, w, this_value)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let base_obj_repr = base_obj.into_value().string_repr(agent, gc);
+            let base_obj_repr = base_obj.into_value().string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Could not set property '{}' of {}.",
                 referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
         }
         // e. Return UNUSED.
         Ok(())

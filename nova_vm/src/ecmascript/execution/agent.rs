@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::GcScope, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -367,10 +367,11 @@ impl Agent {
 
     pub fn create_exception_with_static_message(
         &mut self,
+        gc: NoGcScope,
         kind: ExceptionType,
         message: &'static str,
     ) -> Value {
-        let message = String::from_static_str(self, message);
+        let message = String::from_static_str(self, gc, message).unbind();
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
             .into_value()
@@ -379,18 +380,23 @@ impl Agent {
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception_with_static_message(
         &mut self,
+        gc: NoGcScope,
         kind: ExceptionType,
         message: &'static str,
     ) -> JsError {
-        JsError(self.create_exception_with_static_message(kind, message))
+        JsError(
+            self.create_exception_with_static_message(gc, kind, message)
+                .unbind(),
+        )
     }
 
     pub fn throw_exception(
         &mut self,
+        gc: NoGcScope,
         kind: ExceptionType,
         message: std::string::String,
     ) -> JsError {
-        let message = String::from_string(self, message);
+        let message = String::from_string(self, gc, message).unbind();
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message), None))

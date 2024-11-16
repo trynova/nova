@@ -42,7 +42,7 @@ impl CompileEvaluation for ast::Class<'_> {
         let mut class_identifier = None;
         if let Some(class_binding) = &self.id {
             // a. Perform ! classEnv.CreateImmutableBinding(classBinding, true).
-            let identifier = String::from_str(ctx.agent, class_binding.name.as_str());
+            let identifier = String::from_str(ctx.agent, ctx.gc, class_binding.name.as_str());
             class_identifier = Some(identifier);
             ctx.add_instruction_with_identifier(Instruction::CreateImmutableBinding, identifier);
         } else if let Some(anonymous_class_name) = anonymous_class_name {
@@ -73,7 +73,7 @@ impl CompileEvaluation for ast::Class<'_> {
             .filter(|class_element| class_element.private_bound_identifiers().is_some())
         {
             let dn = dn.private_bound_identifiers().unwrap();
-            let _dn = String::from_str(ctx.agent, dn.name.as_str());
+            let _dn = String::from_str(ctx.agent, ctx.gc, dn.name.as_str());
             // TODO: Private elements.
             // a. For each String dn of the PrivateBoundIdentifiers of ClassBody, do
             //     i. If classPrivateEnvironment.[[Names]] contains a Private Name pn such that pn.[[Description]] is dn, then
@@ -146,8 +146,11 @@ impl CompileEvaluation for ast::Class<'_> {
                 // Pop the superclass from the stack.
                 ctx.add_instruction(Instruction::Store);
                 // i. Throw a TypeError exception.
-                let error_message =
-                    String::from_static_str(ctx.agent, "class heritage is not a constructor");
+                let error_message = String::from_static_str(
+                    ctx.agent,
+                    ctx.gc,
+                    "class heritage is not a constructor",
+                );
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, error_message);
                 ctx.add_instruction_with_immediate(
                     Instruction::ThrowError,
@@ -178,8 +181,11 @@ impl CompileEvaluation for ast::Class<'_> {
                 let jump_over_throw = ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
 
                 // ... throw a TypeError exception.
-                let error_message =
-                    String::from_static_str(ctx.agent, "class heritage is not an object or null");
+                let error_message = String::from_static_str(
+                    ctx.agent,
+                    ctx.gc,
+                    "class heritage is not an object or null",
+                );
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, error_message);
                 ctx.add_instruction_with_immediate(
                     Instruction::ThrowError,
@@ -508,18 +514,20 @@ impl CompileEvaluation for ast::Class<'_> {
 }
 
 #[derive(Debug)]
-enum PropertyInitializerField<'a> {
+enum PropertyInitializerField<'a, 'gc> {
     Static((&'a ast::PropertyKey<'a>, &'a Option<ast::Expression<'a>>)),
-    Computed((String<'static>, &'a Option<ast::Expression<'a>>)),
+    Computed((String<'gc>, &'a Option<ast::Expression<'a>>)),
 }
 
-fn compile_computed_field_name<'a>(
-    ctx: &mut CompileContext,
-    property_fields: &mut Vec<PropertyInitializerField<'a>>,
+fn compile_computed_field_name<'a, 'gc>(
+    ctx: &mut CompileContext<'_, 'gc, '_>,
+    property_fields: &mut Vec<PropertyInitializerField<'a, 'gc>>,
     key: &ast::PropertyKey<'_>,
     value: &'a Option<ast::Expression<'a>>,
 ) {
-    let computed_key_id = String::from_string(ctx.agent, format!("^{}", property_fields.len()));
+    // TODO: Handle lifetime logic.
+    let computed_key_id =
+        String::from_string(ctx.agent, ctx.gc, format!("^{}", property_fields.len()));
     let key = match key {
         // These should not show up as computed
         ast::PropertyKey::StaticMemberExpression(_)
@@ -596,7 +604,7 @@ fn define_constructor_method(
 fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) -> IndexType {
     // 1. Let propKey be ? Evaluation of ClassElementName.
     if let Some(prop_name) = class_element.prop_name() {
-        let prop_name = String::from_str(ctx.agent, prop_name.0);
+        let prop_name = String::from_str(ctx.agent, ctx.gc, prop_name.0);
         ctx.add_instruction_with_constant(Instruction::LoadConstant, prop_name);
     } else {
         // Computed method name.
@@ -682,7 +690,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
                 continue;
             }
             // 1. Append n to instantiatedVarNames.
-            let n_string = String::from_str(ctx.agent, &n);
+            let n_string = String::from_str(ctx.agent, ctx.gc, &n);
             instantiated_var_names.insert(n);
             // 2. Perform ! env.CreateMutableBinding(n, false).
             ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, n_string);
@@ -701,7 +709,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
                 LexicallyScopedDeclaration::Variable(decl) if decl.kind.is_const() => {
                     {
                         decl.id.bound_names(&mut |identifier| {
-                            let dn = String::from_str(ctx.agent, &identifier.name);
+                            let dn = String::from_str(ctx.agent, ctx.gc, &identifier.name);
                             // 1. Perform ! lexEnv.CreateImmutableBinding(dn, true).
                             ctx.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
@@ -714,16 +722,16 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
                 //   1. Perform ! lexEnv.CreateMutableBinding(dn, false).
                 LexicallyScopedDeclaration::Variable(decl) => {
                     decl.id.bound_names(&mut |identifier| {
-                        let dn = String::from_str(ctx.agent, &identifier.name);
+                        let dn = String::from_str(ctx.agent, ctx.gc, &identifier.name);
                         ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                     })
                 }
                 LexicallyScopedDeclaration::Function(decl) => {
-                    let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
+                    let dn = String::from_str(ctx.agent, ctx.gc, &decl.id.as_ref().unwrap().name);
                     ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
-                    let dn = String::from_str(ctx.agent, &decl.id.as_ref().unwrap().name);
+                    let dn = String::from_str(ctx.agent, ctx.gc, &decl.id.as_ref().unwrap().name);
                     ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
                 }
                 LexicallyScopedDeclaration::DefaultExport => {
@@ -738,7 +746,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
             f.compile(ctx);
             // a. Let fn be the sole element of the BoundNames of f.
-            let f_name = String::from_str(ctx.agent, &f.id.as_ref().unwrap().name);
+            let f_name = String::from_str(ctx.agent, ctx.gc, &f.id.as_ref().unwrap().name);
             // c. Perform ! varEnv.SetMutableBinding(fn, fo, false).
             // TODO: This compilation is incorrect if !strict, when varEnv != lexEnv.
             ctx.add_instruction_with_identifier(Instruction::ResolveBinding, f_name);

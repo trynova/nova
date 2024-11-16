@@ -65,6 +65,7 @@ impl ArrayBufferConstructor {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Constructor ArrayBuffer requires 'new'",
             ));
@@ -73,13 +74,14 @@ impl ArrayBufferConstructor {
         let byte_length = to_index(agent, gc.reborrow(), arguments.get(0))? as u64;
         // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
         let requested_max_byte_length = if arguments.len() > 1 {
-            get_array_buffer_max_byte_length_option(agent, gc, arguments.get(1))?
+            get_array_buffer_max_byte_length_option(agent, gc.reborrow(), arguments.get(1))?
         } else {
             None
         };
         // 4. Return ? AllocateArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_array_buffer(
             agent,
+            *gc,
             Function::try_from(new_target).unwrap(),
             byte_length,
             requested_max_byte_length,

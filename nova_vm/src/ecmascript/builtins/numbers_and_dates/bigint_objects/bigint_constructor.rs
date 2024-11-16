@@ -69,6 +69,7 @@ impl BigIntConstructor {
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "BigInt is not a constructor",
             ));
@@ -78,6 +79,7 @@ impl BigIntConstructor {
         if let Ok(prim) = Number::try_from(prim) {
             if !prim.is_integer(agent) {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::RangeError,
                     "Can't convert number to BigInt because it isn't an integer",
                 ));
@@ -98,6 +100,7 @@ impl BigIntConstructor {
         let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asIntN",
             ));
@@ -175,6 +178,7 @@ impl BigIntConstructor {
         let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asUintN",
             ));
@@ -209,7 +213,11 @@ fn number_to_big_int(
     value: Number,
 ) -> JsResult<BigInt> {
     if !is_integral_number(agent, gc.reborrow(), value) {
-        Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
+        Err(agent.throw_exception_with_static_message(
+            *gc,
+            ExceptionType::RangeError,
+            "Not an integer",
+        ))
     } else {
         match value {
             Number::Number(idx) => {

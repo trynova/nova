@@ -42,7 +42,7 @@ pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -253,7 +253,9 @@ impl EnvironmentIndex {
                 idx.create_mutable_binding(agent, name, is_deletable);
                 Ok(())
             }
-            EnvironmentIndex::Global(idx) => idx.create_mutable_binding(agent, name, is_deletable),
+            EnvironmentIndex::Global(idx) => {
+                idx.create_mutable_binding(agent, *gc, name, is_deletable)
+            }
             EnvironmentIndex::Object(idx) => {
                 idx.create_mutable_binding(agent, gc, name, is_deletable)
             }
@@ -270,6 +272,7 @@ impl EnvironmentIndex {
     pub(crate) fn create_immutable_binding(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         is_strict: bool,
     ) -> JsResult<()> {
@@ -282,7 +285,9 @@ impl EnvironmentIndex {
                 idx.create_immutable_binding(agent, name, is_strict);
                 Ok(())
             }
-            EnvironmentIndex::Global(idx) => idx.create_immutable_binding(agent, name, is_strict),
+            EnvironmentIndex::Global(idx) => {
+                idx.create_immutable_binding(agent, gc, name, is_strict)
+            }
             EnvironmentIndex::Object(idx) => {
                 idx.create_immutable_binding(agent, name, is_strict);
                 Ok(())
@@ -334,10 +339,10 @@ impl EnvironmentIndex {
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                idx.set_mutable_binding(agent, name, value, is_strict)
+                idx.set_mutable_binding(agent, *gc, name, value, is_strict)
             }
             EnvironmentIndex::Function(idx) => {
-                idx.set_mutable_binding(agent, name, value, is_strict)
+                idx.set_mutable_binding(agent, *gc, name, value, is_strict)
             }
             EnvironmentIndex::Global(idx) => {
                 idx.set_mutable_binding(agent, gc, name, value, is_strict)
@@ -365,8 +370,10 @@ impl EnvironmentIndex {
         is_strict: bool,
     ) -> JsResult<Value> {
         match self {
-            EnvironmentIndex::Declarative(idx) => idx.get_binding_value(agent, name, is_strict),
-            EnvironmentIndex::Function(idx) => idx.get_binding_value(agent, name, is_strict),
+            EnvironmentIndex::Declarative(idx) => {
+                idx.get_binding_value(agent, *gc, name, is_strict)
+            }
+            EnvironmentIndex::Function(idx) => idx.get_binding_value(agent, *gc, name, is_strict),
             EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, gc, name, is_strict),
             EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, gc, name, is_strict),
         }

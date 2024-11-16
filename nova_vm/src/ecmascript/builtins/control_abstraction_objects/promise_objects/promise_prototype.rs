@@ -84,7 +84,7 @@ impl PromisePrototype {
 
     fn then(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -92,6 +92,7 @@ impl PromisePrototype {
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "'this' is not a promise",
             ));

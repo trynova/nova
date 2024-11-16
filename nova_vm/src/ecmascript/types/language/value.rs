@@ -370,16 +370,16 @@ impl Value {
         self
     }
 
-    pub fn from_str(agent: &mut Agent, str: &str) -> Value {
-        String::from_str(agent, str).into_value()
+    pub fn from_str(agent: &mut Agent, gc: NoGcScope<'_, '_>, str: &str) -> Value {
+        String::from_str(agent, gc, str).into_value()
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Value {
-        String::from_string(agent, string).into_value()
+    pub fn from_string(agent: &mut Agent, gc: NoGcScope, string: std::string::String) -> Value {
+        String::from_string(agent, gc, string).into_value()
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Value {
-        String::from_static_str(agent, str).into_value()
+    pub fn from_static_str(agent: &mut Agent, gc: NoGcScope, str: &'static str) -> Value {
+        String::from_static_str(agent, gc, str).into_value()
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64) -> Value {

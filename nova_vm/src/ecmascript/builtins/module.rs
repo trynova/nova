@@ -382,6 +382,7 @@ impl InternalMethods for Module {
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     match target_env {
                         None => Err(agent.throw_exception(
+                            *gc,
                             ExceptionType::ReferenceError,
                             format!("Could not resolve module '{}'.", key.as_str(agent)),
                         )),

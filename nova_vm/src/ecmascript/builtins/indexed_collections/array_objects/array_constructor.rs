@@ -117,7 +117,7 @@ impl ArrayConstructor {
         // 4. If numberOfArgs = 0, then
         if number_of_args == 0 {
             // a. Return ! ArrayCreate(0, proto).
-            return Ok(array_create(agent, 0, 0, proto).unwrap().into_value());
+            return Ok(array_create(agent, *gc, 0, 0, proto).unwrap().into_value());
         }
 
         // 5. Else if numberOfArgs = 1, then
@@ -128,7 +128,7 @@ impl ArrayConstructor {
             // c. If len is not a Number, then
             let array = if !len.is_number() {
                 // b. Let array be ! ArrayCreate(0, proto).
-                let array = array_create(agent, 1, 1, proto).unwrap();
+                let array = array_create(agent, *gc, 1, 1, proto).unwrap();
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
                 create_data_property_or_throw(
                     agent,
@@ -149,11 +149,13 @@ impl ArrayConstructor {
                 // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
                 if !same_value_zero(agent, int_len, len) {
                     return Err(agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::RangeError,
                         "Invalid array length",
                     ));
                 }
-                let array = array_create(agent, int_len as usize, int_len as usize, proto).unwrap();
+                let array =
+                    array_create(agent, *gc, int_len as usize, int_len as usize, proto).unwrap();
                 // e. Perform ! Set(array, "length", intLen, true).
                 debug_assert_eq!(agent[array].elements.len(), int_len);
                 array
@@ -168,7 +170,7 @@ impl ArrayConstructor {
         debug_assert!(number_of_args >= 2);
 
         // b. Let array be ? ArrayCreate(numberOfArgs, proto).
-        let array = array_create(agent, number_of_args, number_of_args, proto)?;
+        let array = array_create(agent, *gc, number_of_args, number_of_args, proto)?;
         // NOTE: `array_create` guarantees that it is less than `u32::MAX`
         let number_of_args = number_of_args as u32;
 
@@ -219,6 +221,7 @@ impl ArrayConstructor {
             // a. If IsCallable(mapfn) is false, throw a TypeError exception.
             let Some(mapfn) = is_callable(mapfn) else {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "The map function of Array.from is not callable",
                 ));
@@ -245,7 +248,7 @@ impl ArrayConstructor {
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
-                array_create(agent, 0, 0, None).unwrap().into_object()
+                array_create(agent, *gc, 0, 0, None).unwrap().into_object()
             };
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
@@ -262,6 +265,7 @@ impl ArrayConstructor {
                 if k >= u32::MAX as usize {
                     // 1. Let error be ThrowCompletion(a newly created TypeError object).
                     let error = agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::TypeError,
                         "Maximum array size of 2**53-1 exceeded",
                     );
@@ -339,7 +343,7 @@ impl ArrayConstructor {
 
         // 6. NOTE: items is not an Iterable so assume it is an array-like object.
         // 7. Let arrayLike be ! ToObject(items).
-        let array_like = to_object(agent, items).unwrap();
+        let array_like = to_object(agent, *gc, items).unwrap();
 
         // 8. Let len be ? LengthOfArrayLike(arrayLike).
         let len = length_of_array_like(agent, gc.reborrow(), array_like)?;
@@ -358,7 +362,7 @@ impl ArrayConstructor {
         } else {
             // 10. Else,
             // a. Let A be ? ArrayCreate(len).
-            array_create(agent, len as usize, len as usize, None)?.into_object()
+            array_create(agent, *gc, len as usize, len as usize, None)?.into_object()
         };
 
         // 11. Let k be 0.
@@ -450,7 +454,7 @@ impl ArrayConstructor {
         } else {
             // 5. Else,
             // a. Let A be ? ArrayCreate(len).
-            array_create(agent, len, len, None)?.into_object()
+            array_create(agent, *gc, len, len, None)?.into_object()
         };
 
         // 6. Let k be 0.

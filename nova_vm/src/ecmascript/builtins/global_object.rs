@@ -218,12 +218,13 @@ pub fn perform_eval(
     // call happens.
     // The Program thus refers to a valid, live Allocator for the duration of
     // this call.
-    let parse_result = unsafe { SourceCode::parse_source(agent, x, source_type) };
+    let parse_result = unsafe { SourceCode::parse_source(agent, *gc, x, source_type) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
     let Ok((script, source_code)) = parse_result else {
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::SyntaxError,
             "Invalid eval source text.",
         ));
@@ -385,11 +386,12 @@ pub fn eval_declaration_instantiation(
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. For each element name of varNames, do
             for name in &var_names {
-                let name = String::from_str(agent, name.as_str());
+                let name = String::from_str(agent, *gc, name.as_str());
                 // 1. If varEnv.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
                 // 2. NOTE: eval will not create a global var declaration that would be shadowed by a global lexical declaration.
                 if var_env.has_lexical_declaration(agent, name) {
                     return Err(agent.throw_exception(
+                        *gc,
                         ExceptionType::SyntaxError,
                         format!(
                             "Redeclaration of lexical declaration '{}'",
@@ -411,13 +413,14 @@ pub fn eval_declaration_instantiation(
                 // 1. NOTE: The environment of with statements cannot contain any lexical declaration so it doesn't need to be checked for var/let hoisting conflicts.
                 // 2. For each element name of varNames, do
                 for name in &var_names {
-                    let name = String::from_str(agent, name.as_str());
+                    let name = String::from_str(agent, *gc, name.as_str());
                     // a. If ! thisEnv.HasBinding(name) is true, then
                     // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
                     if this_env.has_binding(agent, gc.reborrow(), name).unwrap() {
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
                         return Err(agent.throw_exception(
+                            *gc,
                             ExceptionType::SyntaxError,
                             format!("Redeclaration of variable '{}'", name.as_str(agent)),
                         ));
@@ -477,13 +480,14 @@ pub fn eval_declaration_instantiation(
                 // 1. If varEnv is a Global Environment Record, then
                 if let EnvironmentIndex::Global(var_env) = var_env {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
-                    let function_name = String::from_str(agent, function_name.as_str());
+                    let function_name = String::from_str(agent, *gc, function_name.as_str());
                     let fn_definable =
                         var_env.can_declare_global_function(agent, gc.reborrow(), function_name)?;
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
                         return Err(agent.throw_exception(
+                            *gc,
                             ExceptionType::TypeError,
                             format!(
                                 "Cannot declare global function '{}'.",
@@ -515,7 +519,7 @@ pub fn eval_declaration_instantiation(
             for vn in bound_names {
                 // 1. If declaredFunctionNames does not contain vn, then
                 if !declared_function_names.contains(&vn) {
-                    let vn = String::from_str(agent, vn.as_str());
+                    let vn = String::from_str(agent, *gc, vn.as_str());
                     // a. If varEnv is a Global Environment Record, then
                     if let EnvironmentIndex::Global(var_env) = var_env {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
@@ -524,6 +528,7 @@ pub fn eval_declaration_instantiation(
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
                             return Err(agent.throw_exception(
+                                *gc,
                                 ExceptionType::TypeError,
                                 format!("Cannot declare global variable '{}'.", vn.as_str(agent)),
                             ));
@@ -549,13 +554,17 @@ pub fn eval_declaration_instantiation(
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
         let mut closure = |identifier: &BindingIdentifier| {
-            bound_names.push(String::from_str(agent, identifier.name.as_str()));
+            bound_names.push(String::from_str(agent, *gc, identifier.name.as_str()));
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
                 if decl.kind == VariableDeclarationKind::Const {
                     decl.id.bound_names(&mut |identifier| {
-                        const_bound_names.push(String::from_str(agent, identifier.name.as_str()))
+                        const_bound_names.push(String::from_str(
+                            agent,
+                            *gc,
+                            identifier.name.as_str(),
+                        ))
                     });
                 } else {
                     decl.id.bound_names(&mut closure)
@@ -571,7 +580,7 @@ pub fn eval_declaration_instantiation(
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? lexEnv.CreateImmutableBinding(dn, true).
-            lex_env.create_immutable_binding(agent, dn, true)?;
+            lex_env.create_immutable_binding(agent, *gc, dn, true)?;
         }
         for dn in bound_names {
             // ii. Else,
@@ -588,7 +597,7 @@ pub fn eval_declaration_instantiation(
             assert!(function_name.is_none());
             function_name = Some(identifier.name.clone());
         });
-        let function_name = String::from_str(agent, function_name.unwrap().as_str());
+        let function_name = String::from_str(agent, *gc, function_name.unwrap().as_str());
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
         let fo =

@@ -259,7 +259,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let len be the length of S.
@@ -293,7 +293,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let position be ? ToIntegerOrInfinity(pos).
@@ -317,7 +317,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let position be ? ToIntegerOrInfinity(pos).
@@ -342,7 +342,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let position be ? ToIntegerOrInfinity(pos).
@@ -371,7 +371,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let R be S.
@@ -394,7 +394,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -442,7 +442,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -481,7 +481,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let searchStr be ? ToString(searchString).
@@ -522,7 +522,7 @@ impl StringPrototype {
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -553,7 +553,7 @@ impl StringPrototype {
         let position = args.get(1);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
         // 3. Let searchStr be ? ToString(searchString).
@@ -645,7 +645,7 @@ impl StringPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
@@ -663,6 +663,7 @@ impl StringPrototype {
                 // 5. If f is not one of "NFC", "NFD", "NFKC", or "NFKD", throw a RangeError exception.
                 Err(()) => {
                     return Err(agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::RangeError,
                         "The normalization form should be one of NFC, NFD, NFKC, NFKD.",
                     ))
@@ -674,7 +675,7 @@ impl StringPrototype {
         match unicode_normalize(s.as_str(agent), f) {
             // 7. Return ns.
             None => Ok(s.into_value()),
-            Some(ns) => Ok(Value::from_string(agent, ns).into_value()),
+            Some(ns) => Ok(Value::from_string(agent, *gc, ns).into_value()),
         }
     }
 
@@ -689,7 +690,7 @@ impl StringPrototype {
         let fill_string = arguments.get(1);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, end).
         string_padding_builtins_impl(agent, gc.reborrow(), o, max_length, fill_string, false)
@@ -706,7 +707,7 @@ impl StringPrototype {
         let fill_string = arguments.get(1);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, start).
         string_padding_builtins_impl(agent, gc.reborrow(), o, max_length, fill_string, true)
@@ -722,7 +723,7 @@ impl StringPrototype {
         let count = arguments.get(0);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
@@ -733,6 +734,7 @@ impl StringPrototype {
         // 4. If n < 0 or n = +∞, throw a RangeError exception.
         if n.is_pos_infinity(agent) {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "count must be less than infinity",
             ));
@@ -742,6 +744,7 @@ impl StringPrototype {
 
         if n < 0 {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::RangeError,
                 "count must not be negative",
             ));
@@ -759,6 +762,7 @@ impl StringPrototype {
         // 6. Return the String value that is made from n copies of S appended together.
         Ok(Value::from_string(
             agent,
+            *gc,
             s.as_str(agent).repeat(n as usize),
         ))
     }
@@ -771,7 +775,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         let search_value = args.get(0);
         let replace_value = args.get(1);
@@ -837,7 +841,7 @@ impl StringPrototype {
 
             // 14. Return the string-concatenation of preceding, replacement, and following.
             let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
-            return Ok(String::from_string(agent, concatenated_result).into_value());
+            return Ok(String::from_string(agent, *gc, concatenated_result).into_value());
         }
 
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
@@ -846,7 +850,7 @@ impl StringPrototype {
         let result =
             s.as_str(agent)
                 .replacen(search_string.as_str(agent), replace_string.as_str(agent), 1);
-        Ok(String::from_string(agent, result).into_value())
+        Ok(String::from_string(agent, *gc, result).into_value())
     }
 
     /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replaceall)
@@ -857,7 +861,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         let search_value = args.get(0);
         let replace_value = args.get(1);
@@ -963,7 +967,7 @@ impl StringPrototype {
             }
 
             // 16. Return result.
-            return Ok(String::from_string(agent, result).into_value());
+            return Ok(String::from_string(agent, *gc, result).into_value());
         }
 
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
@@ -972,7 +976,7 @@ impl StringPrototype {
         let result = s
             .as_str(agent)
             .replace(search_string.as_str(agent), replace_string.as_str(agent));
-        Ok(String::from_string(agent, result).into_value())
+        Ok(String::from_string(agent, *gc, result).into_value())
     }
 
     fn search(
@@ -991,7 +995,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -1063,7 +1067,7 @@ impl StringPrototype {
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
         let substring: &'static str = unsafe { std::mem::transmute(substring) };
-        Ok(String::from_str(agent, substring).into_value())
+        Ok(String::from_str(agent, *gc, substring).into_value())
     }
 
     /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.split)
@@ -1074,7 +1078,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
 
         // 2. If separator is neither undefined nor null, then
         let separator = args.get(0);
@@ -1112,12 +1116,12 @@ impl StringPrototype {
 
         // 6. If lim is zero, return an empty array
         if lim == 0 {
-            return Ok(create_array_from_list(agent, &[]).into_value());
+            return Ok(create_array_from_list(agent, *gc, &[]).into_value());
         }
 
         // 7. If separator is undefined, return an array with the whole string
         if separator.is_undefined() {
-            return Ok(create_array_from_list(agent, &[s.into_value()]).into_value());
+            return Ok(create_array_from_list(agent, *gc, &[s.into_value()]).into_value());
         }
 
         // 8. Let separatorLength be the length of R.
@@ -1140,14 +1144,14 @@ impl StringPrototype {
                 results.pop();
             }
 
-            let results = Array::from_slice(agent, results.as_slice());
+            let results = Array::from_slice(agent, *gc, results.as_slice());
             return Ok(results.into_value());
         }
 
         // 10. If S is the empty String, return CreateArrayFromList(« S »).
         if s.is_empty_string() {
             let list: [Value; 1] = [s.into_value()];
-            return Ok(create_array_from_list(agent, &list).into_value());
+            return Ok(create_array_from_list(agent, *gc, &list).into_value());
         }
 
         // 11-17. Normal split
@@ -1160,10 +1164,10 @@ impl StringPrototype {
             if lim as usize == i {
                 break;
             }
-            results.push(Value::from_str(agent, part));
+            results.push(Value::from_str(agent, *gc, part));
         }
 
-        let results = Array::from_slice(agent, results.as_slice());
+        let results = Array::from_slice(agent, *gc, results.as_slice());
         Ok(results.into_value())
     }
 
@@ -1174,7 +1178,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -1226,7 +1230,7 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -1281,7 +1285,7 @@ impl StringPrototype {
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
         let substring: &'static str = unsafe { std::mem::transmute(substring) };
-        Ok(String::from_str(agent, substring).into_value())
+        Ok(String::from_str(agent, *gc, substring).into_value())
     }
 
     fn to_locale_lower_case(
@@ -1310,7 +1314,7 @@ impl StringPrototype {
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -1319,7 +1323,7 @@ impl StringPrototype {
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
         let lower_case_string = s.as_str(agent).to_lowercase();
-        Ok(String::from_string(agent, lower_case_string).into_value())
+        Ok(String::from_string(agent, *gc, lower_case_string).into_value())
     }
 
     /// > NOTE: The implementation might not reflect the spec.
@@ -1330,7 +1334,7 @@ impl StringPrototype {
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -1339,7 +1343,7 @@ impl StringPrototype {
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
         let upper_case_string = s.as_str(agent).to_uppercase();
-        Ok(String::from_string(agent, upper_case_string).into_value())
+        Ok(String::from_string(agent, *gc, upper_case_string).into_value())
     }
 
     fn to_well_formed(
@@ -1349,7 +1353,7 @@ impl StringPrototype {
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value)?;
+        let o = require_object_coercible(agent, *gc, this_value)?;
         // 2. Let S be ? ToString(O).
         let s = to_string(agent, gc.reborrow(), o)?;
 
@@ -1391,7 +1395,7 @@ impl StringPrototype {
         trim_where: TrimWhere,
     ) -> JsResult<Value> {
         // 1. Let str be ? RequireObjectCoercible(string).
-        let str = require_object_coercible(agent, value)?;
+        let str = require_object_coercible(agent, *gc, value)?;
 
         // 2. Let S be ? ToString(str)
         let s = to_string(agent, gc.reborrow(), str)?;
@@ -1415,7 +1419,7 @@ impl StringPrototype {
             // No need to allocate a String if the string was not trimmed
             Ok(s.into_value())
         } else {
-            let t = String::from_string(agent, t.to_string());
+            let t = String::from_string(agent, *gc, t.to_string());
             Ok(t.into_value())
         }
     }
@@ -1451,12 +1455,12 @@ impl StringPrototype {
     /// > different functions but have the exact same steps.
     fn value_of(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Return ? ThisStringValue(this value).
-        this_string_value(agent, this_value).map(|string| string.into_value())
+        this_string_value(agent, *gc, this_value).map(|string| string.into_value())
     }
 
     fn iterator(
@@ -1620,7 +1624,7 @@ fn string_pad(
         }
         let sub_string = std::str::from_utf8(&sub_string).unwrap();
         // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
-        vec.push_back(String::from_string(agent, sub_string.to_owned()));
+        vec.push_back(String::from_string(agent, gc, sub_string.to_owned()));
         vec
     } else {
         let fill_count = (fill_len / fill_string_len) as usize;
@@ -1634,7 +1638,7 @@ fn string_pad(
                 .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap()..]);
         }
         let sub_string = std::str::from_utf8(&sub_string).unwrap();
-        vec.push_back(String::from_string(agent, sub_string.to_owned()));
+        vec.push_back(String::from_string(agent, gc, sub_string.to_owned()));
         vec
     };
 
@@ -1654,7 +1658,11 @@ fn string_pad(
 /// The abstract operation ThisStringValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a String
 /// or a throw completion.
-fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
+fn this_string_value<'gc>(
+    agent: &mut Agent,
+    gc: NoGcScope<'gc, '_>,
+    value: Value,
+) -> JsResult<String<'gc>> {
     match value {
         // 1. If value is a String, return value.
         Value::String(data) => Ok(data.into()),
@@ -1673,6 +1681,7 @@ fn this_string_value(agent: &mut Agent, value: Value) -> JsResult<String> {
         _ => {
             // 3. Throw a TypeError exception.
             Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::TypeError,
                 "Not a string value",
             ))

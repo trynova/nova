@@ -27,9 +27,9 @@ enum IteratorKind {
     Async,
 }
 
-fn for_in_of_head_evaluation(
-    ctx: &mut CompileContext,
-    uninitialized_bound_names: Vec<String>,
+fn for_in_of_head_evaluation<'gc>(
+    ctx: &mut CompileContext<'_, 'gc, '_>,
+    uninitialized_bound_names: Vec<String<'gc>>,
     expr: &ast::Expression<'_>,
     iteration_kind: IterationKind,
 ) -> Option<JumpIndex> {
@@ -186,8 +186,11 @@ fn for_in_of_body_evaluation(
                         let declaration = decl.declarations.first().unwrap();
                         match &declaration.id.kind {
                             ast::BindingPatternKind::BindingIdentifier(binding_identifier) => {
-                                let identifier =
-                                    String::from_str(ctx.agent, binding_identifier.name.as_str());
+                                let identifier = String::from_str(
+                                    ctx.agent,
+                                    ctx.gc,
+                                    binding_identifier.name.as_str(),
+                                );
                                 ctx.add_instruction_with_identifier(
                                     Instruction::ResolveBinding,
                                     identifier,
@@ -200,7 +203,7 @@ fn for_in_of_body_evaluation(
                     }
                     ast::ForStatementLeft::AssignmentTargetIdentifier(identifier_reference) => {
                         let identifier =
-                            String::from_str(ctx.agent, identifier_reference.name.as_str());
+                            String::from_str(ctx.agent, ctx.gc, identifier_reference.name.as_str());
                         ctx.add_instruction_with_identifier(
                             Instruction::ResolveBinding,
                             identifier,
@@ -233,7 +236,8 @@ fn for_in_of_body_evaluation(
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                     entered_declarative_environment = true;
                 }
-                let identifier = String::from_str(ctx.agent, binding_identifier.name.as_str());
+                let identifier =
+                    String::from_str(ctx.agent, ctx.gc, binding_identifier.name.as_str());
                 ctx.add_instruction_with_identifier(
                     if lhs.kind.is_const() {
                         Instruction::CreateImmutableBinding
@@ -256,7 +260,8 @@ fn for_in_of_body_evaluation(
                     assert!(!bound);
                     bound = true;
                     // 2. Let lhsName be the sole element of the BoundNames of lhs.
-                    let lhs_name = String::from_str(ctx.agent, binding_identifier.name.as_str());
+                    let lhs_name =
+                        String::from_str(ctx.agent, ctx.gc, binding_identifier.name.as_str());
                     // 3. Let lhsRef be ! ResolveBinding(lhsName).
                     ctx.add_instruction_with_identifier(Instruction::ResolveBinding, lhs_name);
                     // 4. Let status be Completion(InitializeReferencedBinding(lhsRef, nextValue)).
@@ -341,6 +346,7 @@ impl CompileEvaluation for ast::ForInStatement<'_> {
                     var_decl.bound_names(&mut |binding_identifier| {
                         uninitialized_bound_names.push(String::from_str(
                             ctx.agent,
+                            ctx.gc,
                             binding_identifier.name.as_str(),
                         ));
                     });
@@ -393,6 +399,7 @@ impl CompileEvaluation for ast::ForOfStatement<'_> {
                     var_decl.bound_names(&mut |binding_identifier| {
                         uninitialized_bound_names.push(String::from_str(
                             ctx.agent,
+                            ctx.gc,
                             binding_identifier.name.as_str(),
                         ));
                     });

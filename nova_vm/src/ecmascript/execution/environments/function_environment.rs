@@ -5,7 +5,7 @@
 use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -218,7 +218,7 @@ impl FunctionEnvironmentIndex {
     /// The GetThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing an ECMAScript language value or a throw completion.
-    pub(crate) fn get_this_binding(self, agent: &mut Agent) -> JsResult<Value> {
+    pub(crate) fn get_this_binding(self, agent: &mut Agent, gc: NoGcScope) -> JsResult<Value> {
         // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
         // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
         // 3. Return envRec.[[ThisValue]].
@@ -227,6 +227,7 @@ impl FunctionEnvironmentIndex {
             ThisBindingStatus::Lexical => unreachable!(),
             ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
             ThisBindingStatus::Uninitialized => Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::ReferenceError,
                 "Uninitialized this binding",
             )),
@@ -268,6 +269,7 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         value: Value,
         mut is_strict: bool,
@@ -279,7 +281,11 @@ impl FunctionEnvironmentIndex {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+                return Err(agent.throw_exception(
+                    gc,
+                    ExceptionType::ReferenceError,
+                    error_message,
+                ));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -306,7 +312,7 @@ impl FunctionEnvironmentIndex {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+            return Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -325,7 +331,7 @@ impl FunctionEnvironmentIndex {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                return Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message));
             }
         }
 
@@ -337,12 +343,13 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
         agent[self]
             .declarative_environment
-            .get_binding_value(agent, name, is_strict)
+            .get_binding_value(agent, gc, name, is_strict)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
@@ -364,7 +371,12 @@ impl FunctionEnvironmentIndex {
     /// envRec takes argument V (an ECMAScript language value) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    pub(crate) fn bind_this_value(self, agent: &mut Agent, value: Value) -> JsResult<Value> {
+    pub(crate) fn bind_this_value(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope,
+        value: Value,
+    ) -> JsResult<Value> {
         let env_rec = &mut agent[self];
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
@@ -373,6 +385,7 @@ impl FunctionEnvironmentIndex {
         // ReferenceError exception.
         if env_rec.this_binding_status == ThisBindingStatus::Initialized {
             return Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::ReferenceError,
                 "[[ThisBindingStatus]] is INITIALIZED",
             ));

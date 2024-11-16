@@ -68,6 +68,7 @@ impl SymbolConstructor {
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Symbol is not a constructor",
             ));

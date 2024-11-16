@@ -6,7 +6,7 @@ use std::{hash::Hasher, ops::Index};
 
 use ahash::AHasher;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -103,13 +103,13 @@ impl MapPrototype {
     /// > iterating over that List.
     fn clear(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
         // b. Set p.[[Value]] to EMPTY.
@@ -126,13 +126,13 @@ impl MapPrototype {
     /// > such as physically removing the entry from internal data structures.
     fn delete(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
 
         let Heap {
             bigints,
@@ -181,7 +181,7 @@ impl MapPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -190,7 +190,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
@@ -229,10 +229,11 @@ impl MapPrototype {
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
             ));
@@ -273,13 +274,13 @@ impl MapPrototype {
     /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
     fn get(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
 
         let Heap {
             bigints,
@@ -323,13 +324,13 @@ impl MapPrototype {
     /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
     fn has(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
 
         let Heap {
             bigints,
@@ -365,7 +366,7 @@ impl MapPrototype {
 
     fn keys(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -374,21 +375,21 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
     fn set(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let value = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
 
         let Heap {
             bigints,
@@ -449,18 +450,18 @@ impl MapPrototype {
 
     fn get_size(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
         let count = agent[m].size();
         Ok(count.into())
     }
 
     fn values(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -469,7 +470,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
@@ -515,11 +516,14 @@ impl MapPrototype {
 }
 
 #[inline(always)]
-fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
+fn require_map_data_internal_slot(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Map> {
     match value {
         Value::Map(map) => Ok(map),
-        _ => Err(agent
-            .throw_exception_with_static_message(ExceptionType::TypeError, "Object is not a Map")),
+        _ => Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Object is not a Map",
+        )),
     }
 }
 

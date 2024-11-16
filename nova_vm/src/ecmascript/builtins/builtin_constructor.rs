@@ -272,13 +272,14 @@ impl InternalMethods for BuiltinConstructorFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "class constructors must be invoked with 'new'",
         ))

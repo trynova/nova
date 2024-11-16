@@ -21,6 +21,7 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
+    engine::context::NoGcScope,
     heap::{
         indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -41,6 +42,7 @@ impl SourceCode {
     /// they drop the parsed code.
     pub(crate) unsafe fn parse_source(
         agent: &mut Agent,
+        gc: NoGcScope,
         source: String,
         source_type: SourceType,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
@@ -62,7 +64,7 @@ impl SourceCode {
                 // should guarantee that the string gets heap-allocated.
                 let original_length = source.len();
                 let data = format!("{}          ", source.as_str());
-                let source = String::from_string(agent, data);
+                let source = String::from_string(agent, gc, data);
                 let String::String(source) = source else {
                     unreachable!()
                 };
@@ -115,7 +117,10 @@ impl SourceCode {
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
         let program = unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) };
-        let source_code = agent.heap.create(SourceCodeHeapData { source, allocator });
+        let source_code = agent.heap.create(SourceCodeHeapData {
+            source: source.unbind(),
+            allocator,
+        });
 
         Ok((program, source_code))
     }

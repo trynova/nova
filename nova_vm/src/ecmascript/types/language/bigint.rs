@@ -12,7 +12,7 @@ use super::{
 use crate::{
     ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
     engine::{
-        context::GcScope,
+        context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -300,6 +300,7 @@ impl BigInt {
     /// containing a BigInt or a throw completion.
     pub(crate) fn exponentiate(
         agent: &mut Agent,
+        gc: NoGcScope,
         base: BigInt,
         exponent: BigInt,
     ) -> JsResult<BigInt> {
@@ -310,6 +311,7 @@ impl BigInt {
             _ => false,
         } {
             return Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::RangeError,
                 "exponent must be positive",
             ));
@@ -317,12 +319,14 @@ impl BigInt {
 
         let BigInt::SmallBigInt(exponent) = exponent else {
             return Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::RangeError,
                 "exponent over bounds",
             ));
         };
         let Ok(exponent) = u32::try_from(exponent.into_i64()) else {
             return Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::RangeError,
                 "exponent over bounds",
             ));
@@ -447,12 +451,18 @@ impl BigInt {
     }
 
     /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
-    pub(crate) fn divide(agent: &mut Agent, x: BigInt, y: BigInt) -> JsResult<BigInt> {
+    pub(crate) fn divide(
+        agent: &mut Agent,
+        gc: NoGcScope,
+        x: BigInt,
+        y: BigInt,
+    ) -> JsResult<BigInt> {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
                 match y {
                     0 => Err(agent.throw_exception_with_static_message(
+                        gc,
                         ExceptionType::RangeError,
                         "Division by zero",
                     )),
@@ -472,6 +482,7 @@ impl BigInt {
                 let y = y.into_i64();
                 match y {
                     0 => Err(agent.throw_exception_with_static_message(
+                        gc,
                         ExceptionType::RangeError,
                         "Division by zero",
                     )),
@@ -504,11 +515,17 @@ impl BigInt {
     }
 
     /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
-    pub(crate) fn remainder(agent: &mut Agent, n: BigInt, d: BigInt) -> JsResult<BigInt> {
+    pub(crate) fn remainder(
+        agent: &mut Agent,
+        gc: NoGcScope,
+        n: BigInt,
+        d: BigInt,
+    ) -> JsResult<BigInt> {
         match (n, d) {
             (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
                     return Err(agent.throw_exception_with_static_message(
+                        gc,
                         ExceptionType::RangeError,
                         "Division by zero",
                     ));
@@ -524,6 +541,7 @@ impl BigInt {
             (BigInt::BigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
                     return Err(agent.throw_exception_with_static_message(
+                        gc,
                         ExceptionType::RangeError,
                         "Division by zero",
                     ));
@@ -561,9 +579,14 @@ impl BigInt {
     }
 
     // ### [6.1.6.2.21 BigInt::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-bigint-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> JsResult<String<'static>> {
+    pub(crate) fn to_string_radix_10<'gc>(
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+        x: Self,
+    ) -> JsResult<String<'gc>> {
         Ok(String::from_string(
             agent,
+            gc,
             match x {
                 BigInt::SmallBigInt(x) => x.into_i64().to_string(),
                 BigInt::BigInt(x) => agent[x].data.to_string(),

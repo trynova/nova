@@ -160,6 +160,7 @@ impl ReflectObject {
         // 1. If IsCallable(target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not callable",
             ));
@@ -184,6 +185,7 @@ impl ReflectObject {
         // 1. If IsConstructor(target) is false, throw a TypeError exception.
         let Some(target) = is_constructor(agent, target) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not a constructor",
             ));
@@ -195,6 +197,7 @@ impl ReflectObject {
             let new_target = arguments.get(2);
             let Some(new_target) = is_constructor(agent, new_target) else {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Value is not a constructor",
                 ));
@@ -227,6 +230,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -253,6 +257,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -276,6 +281,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -305,6 +311,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -332,6 +339,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -354,6 +362,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -377,6 +386,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -397,6 +407,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(arguments.get(0)) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -411,7 +422,7 @@ impl ReflectObject {
             .map(PropertyKey::into_value)
             .collect();
         // 3. Return CreateArrayFromList(keys).
-        Ok(create_array_from_list(agent, &keys).into_value())
+        Ok(create_array_from_list(agent, *gc, &keys).into_value())
     }
 
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
@@ -424,6 +435,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -444,6 +456,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -477,6 +490,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));
@@ -491,6 +505,7 @@ impl ReflectObject {
             None
         } else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Prototype must be an object or null",
             ));

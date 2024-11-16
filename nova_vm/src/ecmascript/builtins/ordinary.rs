@@ -7,7 +7,7 @@ use std::{
     vec,
 };
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -264,11 +264,12 @@ pub(crate) fn ordinary_define_own_property(
 /// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
 pub(crate) fn is_compatible_property_descriptor(
     agent: &mut Agent,
+    gc: NoGcScope,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
 ) -> JsResult<bool> {
-    let property_key = PropertyKey::from_str(agent, "");
+    let property_key = PropertyKey::from_str(agent, gc, "");
     validate_and_apply_property_descriptor(
         agent,
         None,

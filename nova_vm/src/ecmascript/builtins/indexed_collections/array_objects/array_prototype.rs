@@ -290,7 +290,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let index = arguments.get(0);
@@ -347,7 +347,7 @@ impl ArrayPrototype {
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, gc.reborrow(), o, 0)?;
         // 3. Let n be 0.
@@ -366,6 +366,7 @@ impl ArrayPrototype {
                 // ii. If n + len > 2**53 - 1, throw a TypeError exception.
                 if (n + len) > SmallInteger::MAX_NUMBER {
                     return Err(agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::TypeError,
                         "Array overflow",
                     ));
@@ -402,6 +403,7 @@ impl ArrayPrototype {
                 // ii. If n ≥ 2**53 - 1, throw a TypeError exception.
                 if n >= SmallInteger::MAX_NUMBER {
                     return Err(agent.throw_exception_with_static_message(
+                        *gc,
                         ExceptionType::TypeError,
                         "Array overflow",
                     ));
@@ -508,7 +510,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len: i64 = length_of_array_like(agent, gc.reborrow(), o)?;
         let len_f64 = len as f64;
@@ -606,13 +608,14 @@ impl ArrayPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Expected this to be an object",
             ));
@@ -664,13 +667,14 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let callback_fn = arguments.get(0);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback is not a function",
             ));
@@ -780,7 +784,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
@@ -871,12 +875,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
@@ -949,7 +954,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -984,7 +989,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -1003,7 +1008,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -1023,7 +1028,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -1044,7 +1049,7 @@ impl ArrayPrototype {
     ) -> JsResult<Value> {
         let depth = arguments.get(0);
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. Let depthNum be 1.
@@ -1087,12 +1092,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
         let Some(mapper_function) = is_callable(mapper_function) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Mapper function is not callable",
             ));
@@ -1156,7 +1162,7 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
@@ -1165,6 +1171,7 @@ impl ArrayPrototype {
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1282,7 +1289,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return false.
@@ -1405,7 +1412,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return -1𝔽.
@@ -1477,7 +1484,7 @@ impl ArrayPrototype {
         let separator = arguments.get(0);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         if len == 0 {
@@ -1526,18 +1533,19 @@ impl ArrayPrototype {
             // d. Set k to k + 1.
         }
         // 8. Return R.
-        Ok(Value::from_string(agent, r).into_value())
+        Ok(Value::from_string(agent, *gc, r).into_value())
     }
 
     fn keys(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Expected this to be an object",
             ));
@@ -1624,7 +1632,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return -1𝔽.
@@ -1716,12 +1724,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1788,6 +1797,7 @@ impl ArrayPrototype {
                 if len == 0 {
                     return if !length_writable {
                         Err(agent.throw_exception_with_static_message(
+                            *gc,
                             ExceptionType::TypeError,
                             "Could not set property.",
                         ))
@@ -1803,6 +1813,7 @@ impl ArrayPrototype {
                         agent[array].elements.len -= 1;
                     } else {
                         return Err(agent.throw_exception_with_static_message(
+                            *gc,
                             ExceptionType::TypeError,
                             "Could not set property.",
                         ));
@@ -1814,7 +1825,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, then
@@ -1876,7 +1887,7 @@ impl ArrayPrototype {
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let mut len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let argCount be the number of elements in items.
@@ -1884,6 +1895,7 @@ impl ArrayPrototype {
         // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
         if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Array length overflow",
             ));
@@ -1976,13 +1988,14 @@ impl ArrayPrototype {
         };
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1991,6 +2004,7 @@ impl ArrayPrototype {
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Array length is 0 and no initial value provided",
             ));
@@ -2029,6 +2043,7 @@ impl ArrayPrototype {
             // c. If kPresent is false, throw a TypeError exception.
             if !k_present {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Array length is 0 and no initial value provided",
                 ));
@@ -2122,7 +2137,7 @@ impl ArrayPrototype {
         };
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
 
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
@@ -2130,6 +2145,7 @@ impl ArrayPrototype {
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -2138,6 +2154,7 @@ impl ArrayPrototype {
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Array length is 0 and no initial value provided",
             ));
@@ -2176,6 +2193,7 @@ impl ArrayPrototype {
             // c. If kPresent is false, throw a TypeError exception.
             if !k_present {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Array length is 0 and no initial value provided",
                 ));
@@ -2234,7 +2252,7 @@ impl ArrayPrototype {
         }
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let middle be floor(len / 2).
@@ -2354,7 +2372,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, then
@@ -2536,7 +2554,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
@@ -2653,12 +2671,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
@@ -2736,10 +2755,14 @@ impl ArrayPrototype {
         } else if let Some(comparator) = is_callable(comparator) {
             Some(comparator)
         } else {
-            return Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, ""));
+            return Err(agent.throw_exception_with_static_message(
+                *gc,
+                ExceptionType::TypeError,
+                "",
+            ));
         };
         // 2. Let obj be ? ToObject(this value).
-        let obj = to_object(agent, this_value)?;
+        let obj = to_object(agent, *gc, this_value)?;
         // 3. Let len be ? LengthOfArrayLike(obj).
         let len = usize::try_from(length_of_array_like(agent, gc.reborrow(), obj)?).unwrap();
         // 4. Let SortCompare be a new Abstract Closure with parameters (x, y)
@@ -2797,7 +2820,7 @@ impl ArrayPrototype {
             &[]
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
@@ -2832,6 +2855,7 @@ impl ArrayPrototype {
         // 11. If len + itemCount - actualDeleteCount > 2**53 - 1, throw a TypeError exception.
         if len as usize + item_count - actual_delete_count > SmallInteger::MAX_NUMBER as usize {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Target index overflowed",
             ));
@@ -2981,11 +3005,11 @@ impl ArrayPrototype {
         }
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, *gc, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let A be ? ArrayCreate(len).
-        let a = array_create(agent, len as usize, len as usize, None)?;
+        let a = array_create(agent, *gc, len as usize, len as usize, None)?;
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
@@ -3031,7 +3055,7 @@ impl ArrayPrototype {
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let array be ? ToObject(this value).
-        let array = to_object(agent, this_value)?;
+        let array = to_object(agent, *gc, this_value)?;
         // 2. Let func be ? Get(array, "join").
         let func = get(
             agent,
@@ -3161,13 +3185,14 @@ impl ArrayPrototype {
 
     fn values(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "Expected this to be an object",
             ));
@@ -3385,6 +3410,7 @@ fn find_via_predicate(
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(predicate) = is_callable(predicate) else {
         return Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "Predicate is not a function",
         ));
@@ -3530,6 +3556,7 @@ fn flatten_into_array(
             // 1. If targetIndex ≥ 2**53 - 1, throw a TypeError exception.
             if target_index >= SmallInteger::MAX_NUMBER as usize {
                 return Err(agent.throw_exception_with_static_message(
+                    *gc,
                     ExceptionType::TypeError,
                     "Target index overflowed",
                 ));

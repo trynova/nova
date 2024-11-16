@@ -11,7 +11,7 @@ use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
@@ -443,6 +443,7 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::TypeError,
                 "class constructors must be invoked with 'new'",
             );
@@ -455,7 +456,7 @@ impl InternalMethods for ECMAScriptFunction {
         let EnvironmentIndex::Function(local_env) = local_env else {
             panic!("localEnv is not a Function Environment Record");
         };
-        ordinary_call_bind_this(agent, self, local_env, this_argument);
+        ordinary_call_bind_this(agent, *gc, self, local_env, this_argument);
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
         let result = ordinary_call_evaluate_body(agent, gc, self, arguments_list);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
@@ -511,6 +512,7 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
             ordinary_call_bind_this(
                 agent,
+                *gc,
                 self,
                 constructor_env,
                 this_argument.unwrap().into_value(),
@@ -545,14 +547,14 @@ impl InternalMethods for ECMAScriptFunction {
         if !value.is_undefined() {
             let message = format!(
                 "derived class constructor returned invalid value {}",
-                value.string_repr(agent, gc).as_str(agent)
+                value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            let message = String::from_string(agent, message);
+            let message = String::from_string(agent, *gc, message);
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
         } else {
             // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
             // 13. Assert: thisBinding is an Object.
-            let Ok(this_binding) = Object::try_from(constructor_env.get_this_binding(agent)?)
+            let Ok(this_binding) = Object::try_from(constructor_env.get_this_binding(agent, *gc)?)
             else {
                 unreachable!();
             };
@@ -621,6 +623,7 @@ pub(crate) fn prepare_for_ordinary_call(
 /// truly used for.
 pub(crate) fn ordinary_call_bind_this(
     agent: &mut Agent,
+    gc: NoGcScope,
     f: ECMAScriptFunction,
     local_env: FunctionEnvironmentIndex,
     this_argument: Value,
@@ -652,7 +655,7 @@ pub(crate) fn ordinary_call_bind_this(
         } else {
             // b. Else,
             // i. Let thisValue be ! ToObject(thisArgument).
-            to_object(agent, this_argument).unwrap().into_value()
+            to_object(agent, gc, this_argument).unwrap().into_value()
             // ii. NOTE: ToObject produces wrapper objects using calleeRealm.
         }
     };
@@ -663,7 +666,7 @@ pub(crate) fn ordinary_call_bind_this(
         ThisBindingStatus::Initialized
     );
     // 9. Perform ! localEnv.BindThisValue(thisValue).
-    local_env.bind_this_value(agent, this_value).unwrap();
+    local_env.bind_this_value(agent, gc, this_value).unwrap();
     // 10. Return UNUSED.
 }
 
@@ -767,6 +770,7 @@ pub(crate) fn ordinary_call_evaluate_body(
 /// the syntactic definition of the function to be created.
 pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
+    gc: NoGcScope,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
 ) -> ECMAScriptFunction {
     let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
@@ -866,7 +870,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         .filter(|par| !par.pattern.kind.is_assignment_pattern())
         .count();
     // 22. Perform SetFunctionLength(F, len).
-    set_ecmascript_function_length(agent, &mut function, len).unwrap();
+    set_ecmascript_function_length(agent, gc, &mut function, len).unwrap();
     // 23. Return F.
     agent.heap.create(function)
 }
@@ -964,6 +968,7 @@ pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object:
 /// prefix (a String) and returns UNUSED. It adds a "name" property to F.
 pub(crate) fn set_function_name(
     agent: &mut Agent,
+    gc: NoGcScope,
     function: impl IntoFunction,
     name: PropertyKey,
     _prefix: Option<String>,
@@ -979,14 +984,14 @@ pub(crate) fn set_function_name(
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.as_str(agent);
-                    String::from_string(agent, format!("[{}]", descriptor))
+                    String::from_string(agent, gc, format!("[{}]", descriptor))
                 })
         }
         // TODO: Private Name
         // 3. Else if name is a Private Name, then
         // a. Set name to name.[[Description]].
         PropertyKey::Integer(integer) => {
-            String::from_string(agent, format!("{}", integer.into_i64()))
+            String::from_string(agent, gc, format!("{}", integer.into_i64()))
         }
         PropertyKey::SmallString(str) => str.into(),
         PropertyKey::String(str) => str.into(),
@@ -1002,7 +1007,7 @@ pub(crate) fn set_function_name(
             // with a non-default prototype. In that case, object_index is
             // already set.
             assert!(function.name.is_none());
-            function.name = Some(name);
+            function.name = Some(name.unbind());
         }
         Function::BuiltinFunction(_idx) => unreachable!(),
         Function::ECMAScriptFunction(idx) => {
@@ -1010,7 +1015,7 @@ pub(crate) fn set_function_name(
             // 1. Assert: F is an extensible object that does not have a "name" own property.
             assert!(function.name.is_none());
             // 6. Perform ! DefinePropertyOrThrow(F, "name", PropertyDescriptor { [[Value]]: name, [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
-            function.name = Some(name);
+            function.name = Some(name.unbind());
             // 7. Return UNUSED.
         }
         Function::BuiltinGeneratorFunction => todo!(),
@@ -1024,6 +1029,7 @@ pub(crate) fn set_function_name(
 /// ### [10.2.10 SetFunctionLength ( F, length )](https://tc39.es/ecma262/#sec-setfunctionlength)
 fn set_ecmascript_function_length(
     agent: &mut Agent,
+    gc: NoGcScope,
     function: &mut ECMAScriptFunctionHeapData,
     length: usize,
 ) -> JsResult<()> {
@@ -1032,6 +1038,7 @@ fn set_ecmascript_function_length(
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     if length > u8::MAX as usize {
         return Err(agent.throw_exception_with_static_message(
+            gc,
             SyntaxError,
             "Too many arguments in function call (only 255 allowed)",
         ));

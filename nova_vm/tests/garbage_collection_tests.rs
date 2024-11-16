@@ -35,10 +35,11 @@ fn initialize_global_object(agent: &mut Agent, gc: GcScope<'_, '_>, global: Obje
     }
     let function = create_builtin_function(
         agent,
+        *gc,
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
     );
-    let property_key = PropertyKey::from_static_str(agent, "print");
+    let property_key = PropertyKey::from_static_str(agent, *gc, "print");
     global
         .internal_define_own_property(
             agent,
@@ -85,8 +86,8 @@ fn garbage_collection_tests() {
     );
     agent.run_in_realm(&realm, |agent, mut gc| {
         let realm = agent.current_realm_id();
-        let source_text = String::from_string(agent, header_contents);
-        let script = parse_script(agent, source_text, realm, false, None).unwrap();
+        let source_text = String::from_string(agent, *gc, header_contents);
+        let script = parse_script(agent, *gc, source_text, realm, false, None).unwrap();
         let _ = script_evaluation(agent, gc.reborrow(), script).unwrap_or_else(|err| {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
@@ -100,8 +101,8 @@ fn garbage_collection_tests() {
     for i in 0..2 {
         agent.run_in_realm(&realm, |agent, mut gc| {
             let realm = agent.current_realm_id();
-            let source_text = String::from_string(agent, call_contents.clone());
-            let script = parse_script(agent, source_text, realm, false, None).unwrap();
+            let source_text = String::from_string(agent, *gc, call_contents.clone());
+            let script = parse_script(agent, *gc, source_text, realm, false, None).unwrap();
             let _ = script_evaluation(agent, gc.reborrow(), script).unwrap_or_else(|err| {
                 println!("Error kind: {:?}", err.value());
                 panic!(

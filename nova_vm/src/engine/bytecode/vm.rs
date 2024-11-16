@@ -377,7 +377,8 @@ impl Vm {
         match instr.kind {
             Instruction::ArrayCreate => {
                 vm.stack.push(
-                    array_create(agent, 0, instr.args[0].unwrap() as usize, None)?.into_value(),
+                    array_create(agent, *gc, 0, instr.args[0].unwrap() as usize, None)?
+                        .into_value(),
                 );
             }
             Instruction::ArrayPush => {
@@ -443,7 +444,7 @@ impl Vm {
                 // 2. Return ? envRec.GetThisBinding().
                 vm.result = Some(match env_rec {
                     EnvironmentIndex::Declarative(_) => unreachable!(),
-                    EnvironmentIndex::Function(idx) => idx.get_this_binding(agent)?,
+                    EnvironmentIndex::Function(idx) => idx.get_this_binding(agent, *gc)?,
                     EnvironmentIndex::Global(idx) => idx.get_this_binding(agent).into_value(),
                     EnvironmentIndex::Object(_) => unreachable!(),
                 });
@@ -507,7 +508,7 @@ impl Vm {
                 );
             }
             Instruction::ToObject => {
-                vm.result = Some(to_object(agent, vm.result.unwrap())?.into_value());
+                vm.result = Some(to_object(agent, *gc, vm.result.unwrap())?.into_value());
             }
             Instruction::ApplyStringOrNumericBinaryOperator(op_text) => {
                 let lval = vm.stack.pop().unwrap();
@@ -572,11 +573,11 @@ impl Vm {
                 //      env,
                 //      privateEnv
                 //  ).
-                let closure = ordinary_function_create(agent, params);
+                let closure = ordinary_function_create(agent, *gc, params);
                 // 8. Perform MakeMethod(closure, object).
                 make_method(agent, closure, object);
                 // 2. Perform SetFunctionName(closure, propKey).
-                set_function_name(agent, closure, prop_key, None);
+                set_function_name(agent, *gc, closure, prop_key, None);
                 // 3. Return ? DefineMethodProperty(
                 //      object,
                 //      methodDef.[[Key]],
@@ -665,12 +666,18 @@ impl Vm {
                 //      env,
                 //      privateEnv
                 //  ).
-                let closure = ordinary_function_create(agent, params);
+                let closure = ordinary_function_create(agent, *gc, params);
                 // 7. Perform MakeMethod(closure, object).
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
                 make_method(agent, closure, object);
                 // 8. Perform SetFunctionName(closure, propKey, "get").
-                set_function_name(agent, closure, prop_key, Some(BUILTIN_STRING_MEMORY.get));
+                set_function_name(
+                    agent,
+                    *gc,
+                    closure,
+                    prop_key,
+                    Some(BUILTIN_STRING_MEMORY.get),
+                );
                 // 9. If propKey is a Private Name, then
                 // a. Return PrivateElement { [[Key]]: propKey, [[Kind]]: accessor, [[Get]]: closure, [[Set]]: undefined }.
                 // 10. Else,
@@ -728,12 +735,18 @@ impl Vm {
                 //      env,
                 //      privateEnv
                 //  ).
-                let closure = ordinary_function_create(agent, params);
+                let closure = ordinary_function_create(agent, *gc, params);
                 // 6. Perform MakeMethod(closure, object).
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
                 make_method(agent, closure, object);
                 // 7. Perform SetFunctionName(closure, propKey, "set").
-                set_function_name(agent, closure, prop_key, Some(BUILTIN_STRING_MEMORY.set));
+                set_function_name(
+                    agent,
+                    *gc,
+                    closure,
+                    prop_key,
+                    Some(BUILTIN_STRING_MEMORY.set),
+                );
                 // 8. If propKey is a Private Name, then
                 // a. Return PrivateElement { [[Key]]: propKey, [[Kind]]: accessor, [[Get]]: undefined, [[Set]]: closure }.
                 // 9. Else,
@@ -876,7 +889,7 @@ impl Vm {
                     env: lexical_environment,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params);
+                let function = ordinary_function_create(agent, *gc, params);
                 let name = if let Some(parameter) = &identifier {
                     match parameter {
                         NamedEvaluationParameter::Result => {
@@ -895,7 +908,7 @@ impl Vm {
                 } else {
                     String::EMPTY_STRING.into()
                 };
-                set_function_name(agent, function, name, None);
+                set_function_name(agent, *gc, function, name, None);
                 vm.result = Some(function.into_value());
             }
             Instruction::InstantiateOrdinaryFunctionExpression => {
@@ -935,7 +948,7 @@ impl Vm {
                     };
                     (name, lexical_environment, false)
                 } else if let Some(binding_identifier) = &function_expression.id {
-                    let name = String::from_str(agent, &binding_identifier.name);
+                    let name = String::from_str(agent, *gc, &binding_identifier.name);
                     let func_env = new_declarative_environment(agent, Some(lexical_environment));
                     func_env.create_immutable_binding(agent, name, false);
                     (name.into(), EnvironmentIndex::Declarative(func_env), true)
@@ -955,11 +968,11 @@ impl Vm {
                     env,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params);
+                let function = ordinary_function_create(agent, *gc, params);
                 if let Some(compiled_bytecode) = compiled_bytecode {
                     agent[function].compiled_bytecode = Some(compiled_bytecode);
                 }
-                set_function_name(agent, function, name, None);
+                set_function_name(agent, *gc, function, name, None);
                 if !function_expression.r#async && !function_expression.generator {
                     make_constructor(agent, function, None, None);
                 }
@@ -1058,11 +1071,11 @@ impl Vm {
                     env: lexical_environment,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params);
+                let function = ordinary_function_create(agent, *gc, params);
                 if let Some(compiled_bytecode) = compiled_bytecode {
                     agent[function].compiled_bytecode = Some(compiled_bytecode);
                 }
-                set_function_name(agent, function, class_name.into(), None);
+                set_function_name(agent, *gc, function, class_name.into(), None);
                 make_constructor(agent, function, Some(false), Some(proto));
                 agent[function].ecmascript_function.home_object = Some(proto);
                 agent[function].ecmascript_function.constructor_status =
@@ -1278,7 +1291,11 @@ impl Vm {
                         "'{}' is not a constructor.",
                         constructor.string_repr(agent, gc.reborrow(),).as_str(agent)
                     );
-                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                    return Err(agent.throw_exception(
+                        *gc,
+                        ExceptionType::TypeError,
+                        error_message,
+                    ));
                 };
 
                 if cfg!(feature = "interleaved-gc") {
@@ -1335,7 +1352,11 @@ impl Vm {
                             .string_repr(agent, gc.reborrow(),)
                             .as_str(agent)
                     );
-                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                    return Err(agent.throw_exception(
+                        *gc,
+                        ExceptionType::TypeError,
+                        error_message,
+                    ));
                 };
                 // 6. Let result be ? Construct(func, argList, newTarget).
                 let result = construct(
@@ -1350,7 +1371,7 @@ impl Vm {
                     unreachable!();
                 };
                 // 8. Perform ? thisER.BindThisValue(result).
-                this_er.bind_this_value(agent, result.into_value())?;
+                this_er.bind_this_value(agent, *gc, result.into_value())?;
                 // 9. Let F be thisER.[[FunctionObject]].
                 // 10. Assert: F is an ECMAScript function object.
                 let Function::ECMAScriptFunction(_f) = agent[this_er].function_object else {
@@ -1475,7 +1496,11 @@ impl Vm {
                         "The right-hand side of an `in` expression must be an object, got '{}'.",
                         rval.string_repr(agent, gc.reborrow(),).as_str(agent)
                     );
-                    return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                    return Err(agent.throw_exception(
+                        *gc,
+                        ExceptionType::TypeError,
+                        error_message,
+                    ));
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
                 let property_key = to_property_key(agent, gc.reborrow(), lval)?;
@@ -1670,7 +1695,9 @@ impl Vm {
                     .unwrap()
                     .lexical_environment;
                 let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
-                lex_env.create_immutable_binding(agent, name, true).unwrap();
+                lex_env
+                    .create_immutable_binding(agent, *gc, name, true)
+                    .unwrap();
             }
             Instruction::CreateCatchBinding => {
                 let lex_env = agent
@@ -1764,7 +1791,7 @@ impl Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                let object = to_object(agent, vm.stack.pop().unwrap())?;
+                let object = to_object(agent, *gc, vm.stack.pop().unwrap())?;
                 Self::execute_simple_object_binding(agent, gc, vm, executable, object, env)?
             }
             Instruction::BindingPatternBind
@@ -1794,7 +1821,7 @@ impl Vm {
                     result_string.push_str(string.as_str(agent));
                 }
                 vm.stack.truncate(last_item);
-                vm.result = Some(String::from_string(agent, result_string).into_value());
+                vm.result = Some(String::from_string(agent, *gc, result_string).into_value());
             }
             Instruction::Delete => {
                 let refer = vm.reference.take().unwrap();
@@ -1813,12 +1840,13 @@ impl Vm {
                         // b. If IsSuperReference(ref) is true, throw a ReferenceError exception.
                         if is_super_reference(&refer) {
                             return Err(agent.throw_exception_with_static_message(
+                                *gc,
                                 ExceptionType::ReferenceError,
                                 "Invalid delete involving 'super'.",
                             ));
                         }
                         // c. Let baseObj be ? ToObject(ref.[[Base]]).
-                        let base_obj = to_object(agent, base)?;
+                        let base_obj = to_object(agent, *gc, base)?;
                         // d. If ref.[[ReferencedName]] is not a property key, then
                         // TODO: Is this relevant?
                         // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
@@ -1831,6 +1859,7 @@ impl Vm {
                         // f. If deleteStatus is false and ref.[[Strict]] is true, throw a TypeError exception.
                         if !delete_status && refer.strict {
                             return Err(agent.throw_exception_with_static_message(
+                                *gc,
                                 ExceptionType::TypeError,
                                 "Cannot delete property",
                             ));
@@ -1870,7 +1899,7 @@ impl Vm {
                 // choose to avoid the actual creation of that object.
             }
             Instruction::EnumerateObjectProperties => {
-                let object = to_object(agent, vm.result.take().unwrap()).unwrap();
+                let object = to_object(agent, *gc, vm.result.take().unwrap()).unwrap();
                 vm.iterator_stack
                     .push(VmIterator::ObjectProperties(ObjectPropertiesIterator::new(
                         object,
@@ -1916,7 +1945,7 @@ impl Vm {
             Instruction::IteratorRestIntoArray => {
                 let mut iterator = vm.iterator_stack.pop().unwrap();
                 let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                let array = array_create(agent, 0, capacity, None)?;
+                let array = array_create(agent, *gc, 0, capacity, None)?;
 
                 let mut idx: u32 = 0;
                 while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
@@ -1996,10 +2025,10 @@ impl Vm {
                 Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
                     break_after_bind = true;
                     if iterator_is_done {
-                        array_create(agent, 0, 0, None).unwrap().into_value()
+                        array_create(agent, *gc, 0, 0, None).unwrap().into_value()
                     } else {
                         let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                        let rest = array_create(agent, 0, capacity, None).unwrap();
+                        let rest = array_create(agent, *gc, 0, capacity, None).unwrap();
                         let mut idx = 0u32;
                         while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
                             create_data_property_or_throw(
@@ -2165,7 +2194,7 @@ impl Vm {
                 )
             }
             Instruction::BeginSimpleObjectBindingPattern => {
-                let object = to_object(agent, value)?;
+                let object = to_object(agent, *gc, value)?;
                 Vm::execute_simple_object_binding(
                     agent,
                     gc.reborrow(),
@@ -2236,15 +2265,15 @@ fn apply_string_or_numeric_binary_operator(
         Ok(match op_text {
             // a. If opText is **, return ? BigInt::exponentiate(lnum, rnum).
             BinaryOperator::Exponential => {
-                BigInt::exponentiate(agent, lnum, rnum).map(|bigint| bigint.into_value())?
+                BigInt::exponentiate(agent, *gc, lnum, rnum).map(|bigint| bigint.into_value())?
             }
             // b. If opText is /, return ? BigInt::divide(lnum, rnum).
             BinaryOperator::Division => {
-                BigInt::divide(agent, lnum, rnum).map(|bigint| bigint.into_value())?
+                BigInt::divide(agent, *gc, lnum, rnum).map(|bigint| bigint.into_value())?
             }
             // c. If opText is %, return ? BigInt::remainder(lnum, rnum).
             BinaryOperator::Remainder => {
-                BigInt::remainder(agent, lnum, rnum).map(|bigint| bigint.into_value())?
+                BigInt::remainder(agent, *gc, lnum, rnum).map(|bigint| bigint.into_value())?
             }
             // d. If opText is >>>, return ? BigInt::unsignedRightShift(lnum, rnum).
             BinaryOperator::ShiftRightZeroFill => todo!(),
@@ -2306,6 +2335,7 @@ fn apply_string_or_numeric_binary_operator(
     } else {
         // 5. If Type(lnum) is not Type(rnum), throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
+            *gc,
             ExceptionType::TypeError,
             "The left and right-hand sides do not have the same type.",
         ))
@@ -2421,7 +2451,7 @@ pub(crate) fn instanceof_operator(
                 .string_repr(agent, gc.reborrow(),)
                 .as_str(agent)
         );
-        return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+        return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
     };
     // 2. Let instOfHandler be ? GetMethod(target, @@hasInstance).
     let inst_of_handler = get_method(
@@ -2451,7 +2481,7 @@ pub(crate) fn instanceof_operator(
                     .string_repr(agent, gc.reborrow(),)
                     .as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
         Ok(ordinary_has_instance(agent, gc, target, value)?)

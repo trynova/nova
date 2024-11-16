@@ -165,7 +165,7 @@ pub(crate) fn create_dynamic_function(
         string.push_str("\n}");
         debug_assert_eq!(string.len(), str_len);
 
-        String::from_string(agent, string)
+        String::from_string(agent, *gc, string)
     };
 
     // The spec says to parse the parameters and the function body separately to
@@ -181,7 +181,8 @@ pub(crate) fn create_dynamic_function(
         // GC'd before the program is dropped. If this function returns
         // successfully, then the program's AST and the SourceCode will both be
         // kept alive in the returned function object.
-        let parsed_result = unsafe { SourceCode::parse_source(agent, source_string, source_type) };
+        let parsed_result =
+            unsafe { SourceCode::parse_source(agent, *gc, source_string, source_type) };
 
         if let Ok((program, sc)) = parsed_result {
             source_code = Some(sc);
@@ -219,6 +220,7 @@ pub(crate) fn create_dynamic_function(
                 );
             }
             return Err(agent.throw_exception_with_static_message(
+                *gc,
                 ExceptionType::SyntaxError,
                 "Invalid function source text.",
             ));
@@ -228,7 +230,7 @@ pub(crate) fn create_dynamic_function(
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
-            gc,
+            gc.reborrow(),
             constructor,
             kind.intrinsic_prototype(),
         )?,
@@ -243,10 +245,11 @@ pub(crate) fn create_dynamic_function(
         env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
         private_env: None,
     };
-    let f = ordinary_function_create(agent, params);
+    let f = ordinary_function_create(agent, *gc, params);
 
     set_function_name(
         agent,
+        *gc,
         f,
         BUILTIN_STRING_MEMORY.anonymous.to_property_key(),
         None,

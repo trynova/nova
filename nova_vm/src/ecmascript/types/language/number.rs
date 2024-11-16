@@ -1261,15 +1261,16 @@ impl Number {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string()).bind(gc)
+                String::from_string(agent, gc, buffer.format(x.into_f64(agent)).to_string())
+                    .bind(gc)
             }
             Number::Integer(x) => {
                 let x = x.into_i64();
-                String::from_string(agent, format!("{x}")).bind(gc)
+                String::from_string(agent, gc, format!("{x}")).bind(gc)
             }
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64()).to_string()).bind(gc)
+                String::from_string(agent, gc, buffer.format(x.into_f64()).to_string()).bind(gc)
             }
         }
     }

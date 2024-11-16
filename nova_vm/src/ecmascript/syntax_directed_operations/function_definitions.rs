@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -105,7 +105,7 @@ pub(crate) fn instantiate_ordinary_function_object(
         // 1. Let name be StringValue of BindingIdentifier.
         let name = &id.name;
         // 4. Perform SetFunctionName(F, name).
-        PropertyKey::from_str(agent, name)
+        PropertyKey::from_str(agent, *gc, name)
     } else {
         // 3. Perform SetFunctionName(F, "default").
         PropertyKey::from(BUILTIN_STRING_MEMORY.default)
@@ -127,10 +127,10 @@ pub(crate) fn instantiate_ordinary_function_object(
         env,
         private_env,
     };
-    let f = ordinary_function_create(agent, params);
+    let f = ordinary_function_create(agent, *gc, params);
 
     // 4. Perform SetFunctionName(F, name).
-    set_function_name(agent, f, pk_name, None);
+    set_function_name(agent, *gc, f, pk_name, None);
     // 5. Perform MakeConstructor(F).
     if !function.r#async && !function.generator {
         make_constructor(agent, f, None, None);
@@ -181,6 +181,7 @@ pub(crate) fn instantiate_ordinary_function_object(
 
 pub(crate) fn instantiate_ordinary_function_expression(
     agent: &mut Agent,
+    gc: NoGcScope,
     function: &FunctionExpression,
     name: Option<String>,
 ) -> ECMAScriptFunction {
@@ -216,10 +217,10 @@ pub(crate) fn instantiate_ordinary_function_expression(
             env: lexical_environment,
             private_env: private_environment,
         };
-        let closure = ordinary_function_create(agent, params);
+        let closure = ordinary_function_create(agent, gc, params);
         // 6. Perform SetFunctionName(closure, name).
         let name = PropertyKey::from(name);
-        set_function_name(agent, closure, name, None);
+        set_function_name(agent, gc, closure, name, None);
         // 7. Perform MakeConstructor(closure).
         if !function.expression.get().r#async && !function.expression.get().generator {
             make_constructor(agent, closure, None, None);
