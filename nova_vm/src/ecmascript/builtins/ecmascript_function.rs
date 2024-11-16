@@ -43,6 +43,7 @@ use crate::{
         WorkQueues,
     },
 };
+use crate::{engine::context::GcScope, tracing};
 
 use super::{
     ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
@@ -421,6 +422,13 @@ impl InternalMethods for ECMAScriptFunction {
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
+        let orig_name = agent[self].name;
+        let name = if let Some(name) = &orig_name {
+            name.as_str(agent)
+        } else {
+            &"anonymous"
+        };
+        tracing::nova::start_function_call!(|| ());
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
@@ -462,6 +470,13 @@ impl InternalMethods for ECMAScriptFunction {
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.execution_context_stack.pop();
+        let orig_name = agent[self].name;
+        let name = if let Some(name) = &orig_name {
+            name.as_str(agent)
+        } else {
+            &"anonymous"
+        };
+        tracing::nova::stop_function_call!(|| ());
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.

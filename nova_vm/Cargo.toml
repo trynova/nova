@@ -22,6 +22,7 @@ ryu-js = { workspace = true }
 small_string = { path = "../small_string" }
 sonic-rs = { workspace = true, optional = true }
 unicode-normalization = { workspace = true }
+usdt = { workspace = true }
 wtf8 = { workspace = true }
 
 [features]
@@ -48,3 +49,4 @@ typescript = []
 
 [build-dependencies]
 small_string = { path = "../small_string" }
+usdt = { workspace = true }

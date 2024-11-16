@@ -19,6 +19,7 @@ use nova_vm::{
         types::{Object, String as JsString},
     },
     engine::context::GcScope,
+    register_probes,
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
@@ -89,6 +90,8 @@ impl HostHooks for CliHostHooks {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
+
+    register_probes().unwrap();
 
     match args.command {
         Command::Parse { path } => {
