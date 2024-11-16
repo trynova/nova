@@ -39,9 +39,11 @@ pub struct GcScope<'a, 'b> {
 ///
 /// Holding this token is required for JavaScript calls.
 #[derive(Debug)]
-pub struct Scope<'a> {
-    inner: ScopeToken,
-    _marker: PhantomData<&'a ScopeToken>,
+pub struct NoGcScope<'a, 'b> {
+    gc: GcToken,
+    scope: ScopeToken,
+    _gc_marker: PhantomData<&'a GcToken>,
+    _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
 impl GcToken {
@@ -86,29 +88,20 @@ impl<'a, 'b> GcScope<'a, 'b> {
         }
     }
 
-    pub(crate) fn print(&mut self) {
-        println!("GC!");
+    #[inline]
+    pub fn nogc(&self) -> NoGcScope<'a, 'b> {
+        NoGcScope::from_gc(self)
     }
 }
 
-impl Scope<'_> {
+impl<'a, 'b> NoGcScope<'a, 'b> {
     #[inline]
-    pub(crate) fn new(_: &mut ScopeToken) -> Self {
+    pub(crate) fn from_gc(_: &GcScope<'a, 'b>) -> Self {
         Self {
-            inner: ScopeToken,
-            _marker: PhantomData,
+            gc: GcToken,
+            scope: ScopeToken,
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
         }
-    }
-
-    #[inline]
-    pub fn reborrow(&self) -> Self {
-        Self {
-            inner: ScopeToken,
-            _marker: PhantomData,
-        }
-    }
-
-    pub(crate) fn print(&self) {
-        println!("GC!");
     }
 }
