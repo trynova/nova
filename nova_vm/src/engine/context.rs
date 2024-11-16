@@ -38,10 +38,8 @@ pub struct GcScope<'a, 'b> {
 /// # Access to the JavaScript call stack
 ///
 /// Holding this token is required for JavaScript calls.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct NoGcScope<'a, 'b> {
-    gc: GcToken,
-    scope: ScopeToken,
     _gc_marker: PhantomData<&'a GcToken>,
     _scope_marker: PhantomData<&'b ScopeToken>,
 }
@@ -98,8 +96,6 @@ impl<'a, 'b> NoGcScope<'a, 'b> {
     #[inline]
     pub(crate) fn from_gc(_: &GcScope<'a, 'b>) -> Self {
         Self {
-            gc: GcToken,
-            scope: ScopeToken,
             _gc_marker: PhantomData,
             _scope_marker: PhantomData,
         }
