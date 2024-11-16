@@ -9,7 +9,7 @@ use unicode_normalization::{
     is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick, IsNormalized, UnicodeNormalization,
 };
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -384,7 +384,7 @@ impl StringPrototype {
             strings.push(to_string(agent, gc.reborrow(), *next)?);
         }
         // 5. Return R.
-        Ok(String::concat(agent, &strings).into_value())
+        Ok(String::concat(agent, *gc, &strings).into_value())
     }
 
     fn ends_with(
@@ -1567,7 +1567,7 @@ fn string_padding_builtins_impl(
     };
 
     // 7. Return StringPad(S, intMaxLength, fillString, placement).
-    string_pad(agent, s, int_max_length, fill_string, placement_start)
+    string_pad(agent, *gc, s, int_max_length, fill_string, placement_start)
 }
 
 /// ### [22.1.3.17.2 StringPad ( S, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpad)
@@ -1577,6 +1577,7 @@ fn string_padding_builtins_impl(
 /// placement (start or end) and returns a String.
 fn string_pad(
     agent: &mut Agent,
+    gc: NoGcScope,
     s: String,
     max_len: i64,
     fill_string: String,
@@ -1645,7 +1646,7 @@ fn string_pad(
         strings.push_front(s);
     }
 
-    Ok(String::concat(agent, strings.into_iter().collect::<Vec<String>>()).into_value())
+    Ok(String::concat(agent, gc, strings.into_iter().collect::<Vec<String>>()).into_value())
 }
 
 /// ### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)

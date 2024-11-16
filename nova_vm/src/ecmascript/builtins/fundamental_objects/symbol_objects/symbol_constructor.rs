@@ -61,7 +61,7 @@ impl Builtin for SymbolKeyFor {
 impl SymbolConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -76,7 +76,7 @@ impl SymbolConstructor {
         let desc_string = if description.is_undefined() {
             None
         } else {
-            Some(to_string(agent, gc.reborrow(), description)?)
+            Some(to_string(agent, gc, description)?.unbind())
         };
 
         Ok(agent

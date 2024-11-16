@@ -335,7 +335,7 @@ pub fn perform_eval(
 
     // 29. If result is a normal completion, then
     let result = if result.is_ok() {
-        let exe = Executable::compile_eval_body(agent, &script.body);
+        let exe = Executable::compile_eval_body(agent, gc.nogc(), &script.body);
         // a. Set result to Completion(Evaluation of body).
         // 30. If result is a normal completion and result.[[Value]] is empty, then
         // a. Set result to NormalCompletion(undefined).

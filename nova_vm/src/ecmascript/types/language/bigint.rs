@@ -223,7 +223,7 @@ impl BigInt {
     //
     // This function is best called with the form
     // ```rs
-    // let bigint = bigint.bind(&gc);
+    // let bigint = bigint.bind(gc.nogc());
     // ```
     // to make sure that the unbound BigInt cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {

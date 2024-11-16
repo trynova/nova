@@ -275,7 +275,7 @@ pub(crate) fn evaluate_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data);
+        let exe = Executable::compile_function_body(agent, gc.nogc(), data);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
@@ -303,7 +303,7 @@ pub(crate) fn evaluate_async_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data);
+        let exe = Executable::compile_function_body(agent, gc.nogc(), data);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
@@ -358,7 +358,7 @@ pub(crate) fn evaluate_async_function_body(
 /// completion.
 pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
+    mut gc: GcScope<'_, '_>,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -371,7 +371,7 @@ pub(crate) fn evaluate_generator_body(
     // 3. Set G.[[GeneratorBrand]] to empty.
     let generator = ordinary_create_from_constructor(
         agent,
-        gc,
+        gc.reborrow(),
         function_object.into_function(),
         ProtoIntrinsics::Generator,
     )?;
@@ -382,7 +382,7 @@ pub(crate) fn evaluate_generator_body(
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, function_object);
-    let executable = Executable::compile_function_body(agent, data);
+    let executable = Executable::compile_function_body(agent, *gc, data);
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,

@@ -21,6 +21,7 @@ use crate::{
         },
         types::{BigInt, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::context::NoGcScope,
     heap::CreateHeapData,
 };
 use num_traits::Num;
@@ -45,8 +46,9 @@ pub(crate) enum NamedEvaluationParameter {
     ReferenceStack,
 }
 
-pub(crate) struct CompileContext<'agent> {
+pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
+    pub(crate) gc: NoGcScope<'gc, 'scope>,
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
@@ -73,10 +75,14 @@ pub(crate) struct CompileContext<'agent> {
     is_call_optional_chain_this: bool,
 }
 
-impl CompileContext<'_> {
-    pub(super) fn new(agent: &'_ mut Agent) -> CompileContext<'_> {
+impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
+    pub(super) fn new(
+        agent: &'a mut Agent,
+        gc: NoGcScope<'gc, 'scope>,
+    ) -> CompileContext<'a, 'gc, 'scope> {
         CompileContext {
             agent,
+            gc,
             instructions: Vec::new(),
             constants: Vec::new(),
             function_expressions: Vec::new(),
@@ -2060,7 +2066,7 @@ fn simple_object_pattern(
                     if let Number::Integer(_) = numeric_value {
                         numeric_value.into_value()
                     } else {
-                        Number::to_string_radix_10(ctx.agent, numeric_value).into_value()
+                        Number::to_string_radix_10(ctx.agent, ctx.gc, numeric_value).into_value()
                     }
                 }
                 ast::PropertyKey::StringLiteral(literal) => {

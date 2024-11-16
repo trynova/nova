@@ -166,7 +166,7 @@ impl Primitive {
     //
     // This function is best called with the form
     // ```rs
-    // let primitive = primitive.bind(&gc);
+    // let primitive = primitive.bind(gc.nogc());
     // ```
     // to make sure that the unbound Primitive cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {

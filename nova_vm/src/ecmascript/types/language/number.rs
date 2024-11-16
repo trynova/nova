@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::context::GcScope,
+    engine::context::{GcScope, NoGcScope},
 };
 use crate::{
     ecmascript::execution::Agent,
@@ -248,7 +248,7 @@ impl Number {
     //
     // This function is best called with the form
     // ```rs
-    // let number = number.bind(&gc);
+    // let number = number.bind(gc.nogc());
     // ```
     // to make sure that the unbound Number cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
@@ -1253,19 +1253,23 @@ impl Number {
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> String<'static> {
+    pub(crate) fn to_string_radix_10<'gc>(
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+        x: Self,
+    ) -> String<'gc> {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string())
+                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string()).bind(gc)
             }
             Number::Integer(x) => {
                 let x = x.into_i64();
-                String::from_string(agent, format!("{x}"))
+                String::from_string(agent, format!("{x}")).bind(gc)
             }
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64()).to_string())
+                String::from_string(agent, buffer.format(x.into_f64()).to_string()).bind(gc)
             }
         }
     }

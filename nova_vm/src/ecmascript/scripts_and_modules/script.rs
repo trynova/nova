@@ -302,7 +302,7 @@ pub fn script_evaluation(
 
     // 13. If result.[[Type]] is normal, then
     let result: JsResult<Value> = if result.is_ok() {
-        let bytecode = Executable::compile_script(agent, script);
+        let bytecode = Executable::compile_script(agent, gc.nogc(), script);
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).

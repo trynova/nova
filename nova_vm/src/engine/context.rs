@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
 /// # ZST type representing access to the garbage collector.
 ///
@@ -33,6 +33,15 @@ pub struct GcScope<'a, 'b> {
     scope: ScopeToken,
     _gc_marker: PhantomData<&'a mut GcToken>,
     _scope_marker: PhantomData<&'b ScopeToken>,
+}
+
+impl<'a, 'b> Deref for GcScope<'a, 'b> {
+    type Target = NoGcScope<'a, 'b>;
+
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: ZST pointer cast.
+        unsafe { std::mem::transmute::<&GcScope<'_, '_>, &NoGcScope<'_, '_>>(self) }
+    }
 }
 
 /// # Access to the JavaScript call stack

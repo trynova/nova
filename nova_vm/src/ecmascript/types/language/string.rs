@@ -14,8 +14,9 @@ use super::{
 use crate::{
     ecmascript::{execution::Agent, types::PropertyDescriptor},
     engine::{
-        context::GcScope,
+        context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped,
     },
     heap::{
         indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
@@ -44,10 +45,10 @@ impl HeapString<'_> {
     //
     // This function is best called with the form
     // ```rs
-    // let heap_string = heap_string.bind(&gc);
+    // let heap_string = heap_string.bind(gc.nogc());
     // ```
     // to make sure that the unbound HeapString cannot be used after binding.
-    pub const fn bind<'gc>(self, _: &GcScope<'gc, '_>) -> HeapString<'gc> {
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapString<'gc> {
         unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'gc>>(self) }
     }
 
@@ -257,11 +258,19 @@ impl String<'_> {
     //
     // This function is best called with the form
     // ```rs
-    // let string = string.bind(&gc);
+    // let string = string.bind(gc.nogc());
     // ```
     // to make sure that the unbound String cannot be used after binding.
-    pub fn bind<'gc>(self, _: &GcScope<'gc, '_>) -> String<'gc> {
+    pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> String<'gc> {
         unsafe { std::mem::transmute::<String<'_>, String<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, String<'static>> {
+        Scoped::new(agent, gc, self.unbind())
     }
 
     pub fn is_empty_string(self) -> bool {
@@ -300,7 +309,11 @@ impl String<'_> {
         String::SmallString(SmallString::from_str_unchecked(message))
     }
 
-    pub fn concat(agent: &mut Agent, strings: impl AsRef<[Self]>) -> Self {
+    pub fn concat<'gc>(
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+        strings: impl AsRef<[Self]>,
+    ) -> String<'gc> {
         // TODO: This function will need heavy changes once we support creating
         // WTF-8 strings, since WTF-8 concatenation isn't byte concatenation.
 
@@ -361,7 +374,7 @@ impl String<'_> {
 
         match status {
             Status::Empty => String::EMPTY_STRING,
-            Status::ExistingString(idx) => String::String(idx),
+            Status::ExistingString(idx) => String::String(idx.bind(gc)),
             Status::SmallString { data, len } => {
                 // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
                 // concatenating UTF-8 strings, which is always valid UTF-8.

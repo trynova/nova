@@ -774,11 +774,11 @@ pub(crate) fn to_big_uint64(
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
-pub(crate) fn to_string(
+pub(crate) fn to_string<'gc>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'gc, '_>,
     argument: impl Into<Value> + Copy,
-) -> JsResult<String<'static>> {
+) -> JsResult<String<'gc>> {
     let argument: Value = argument.into();
     // 1. If argument is a String, return argument.
     match argument {
@@ -804,7 +804,7 @@ pub(crate) fn to_string(
         )),
         // 7. If argument is a Number, return Number::toString(argument, 10).
         Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => Ok(
-            Number::to_string_radix_10(agent, Number::try_from(argument).unwrap()),
+            Number::to_string_radix_10(agent, *gc, Number::try_from(argument).unwrap()),
         ),
         // 8. If argument is a BigInt, return BigInt::toString(argument, 10).
         Value::BigInt(_) | Value::SmallBigInt(_) => {

@@ -2214,7 +2214,7 @@ fn apply_string_or_numeric_binary_operator(
             let rstr = to_string(agent, gc.reborrow(), rprim)?;
 
             // iii. Return the string-concatenation of lstr and rstr.
-            return Ok(String::concat(agent, [lstr, rstr]).into_value());
+            return Ok(String::concat(agent, gc.nogc(), [lstr, rstr]).into_value());
         }
 
         // d. Set lval to lprim.

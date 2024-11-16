@@ -6,7 +6,10 @@ use std::marker::PhantomData;
 
 use crate::{
     ecmascript::execution::Agent,
-    engine::rootable::{HeapRootRef, Rootable},
+    engine::{
+        context::NoGcScope,
+        rootable::{HeapRootRef, Rootable},
+    },
 };
 
 /// # Scoped heap root
@@ -20,19 +23,21 @@ use crate::{
 /// garbage collection.
 #[derive(Debug, Clone, Copy)]
 #[repr(transparent)]
-pub struct Scoped<T: Rootable> {
+pub struct Scoped<'a, T: 'static + Rootable> {
     inner: T::RootRepr,
     _marker: PhantomData<T>,
+    _scope: PhantomData<&'a ()>,
 }
 
-impl<T: Rootable> Scoped<T> {
-    pub fn new(agent: &Agent, value: T) -> Self {
+impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
+    pub fn new(agent: &Agent, _gc: NoGcScope<'_, 'scope>, value: T) -> Self {
         let value = match T::to_root_repr(value) {
             Ok(stack_repr) => {
                 // The value doesn't need rooting.
                 return Self {
                     inner: stack_repr,
                     _marker: PhantomData,
+                    _scope: PhantomData,
                 };
             }
             Err(heap_data) => heap_data,
@@ -43,10 +48,11 @@ impl<T: Rootable> Scoped<T> {
         Self {
             inner: T::from_heap_ref(HeapRootRef::from_index(next_index)),
             _marker: PhantomData,
+            _scope: PhantomData,
         }
     }
 
-    pub fn get(self, agent: &Agent) -> T {
+    pub fn get_unbound(self, agent: &Agent) -> T {
         match T::from_root_repr(&self.inner) {
             Ok(value) => value,
             Err(heap_root_ref) => {

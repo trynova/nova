@@ -81,7 +81,7 @@ impl Generator {
         // execution context.
         agent.execution_context_stack.push(execution_context);
 
-        let saved = Scoped::new(agent, self);
+        let saved = Scoped::new(agent, *gc, self);
 
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
@@ -93,7 +93,7 @@ impl Generator {
             VmOrArguments::Vm(vm) => vm.resume(agent, gc.reborrow(), executable, value),
         };
 
-        self = saved.get(agent);
+        self = saved.get_unbound(agent);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running

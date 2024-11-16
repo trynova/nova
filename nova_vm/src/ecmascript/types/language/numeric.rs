@@ -58,7 +58,7 @@ impl Numeric {
     //
     // This function is best called with the form
     // ```rs
-    // let numeric = numeric.bind(&gc);
+    // let numeric = numeric.bind(gc.nogc());
     // ```
     // to make sure that the unbound Numeric cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {

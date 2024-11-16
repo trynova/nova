@@ -17,29 +17,32 @@ use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
     weak_set::data::WeakSetHeapData,
 };
-use crate::ecmascript::{
-    builtins::{
-        control_abstraction_objects::generator_objects::GeneratorHeapData,
-        embedder_object::data::EmbedderObjectHeapData,
-        error::ErrorHeapData,
-        finalization_registry::data::FinalizationRegistryHeapData,
-        indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-            set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+use crate::{
+    ecmascript::{
+        builtins::{
+            control_abstraction_objects::generator_objects::GeneratorHeapData,
+            embedder_object::data::EmbedderObjectHeapData,
+            error::ErrorHeapData,
+            finalization_registry::data::FinalizationRegistryHeapData,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+            keyed_collections::{
+                map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+                set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+            },
+            map::data::MapHeapData,
+            primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData,
+            proxy::data::ProxyHeapData,
+            set::data::SetHeapData,
+            ArrayHeapData,
         },
-        map::data::MapHeapData,
-        primitive_objects::PrimitiveObjectHeapData,
-        promise::data::PromiseHeapData,
-        proxy::data::ProxyHeapData,
-        set::data::SetHeapData,
-        ArrayHeapData,
+        types::{
+            BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
+            BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, NumberHeapData, ObjectHeapData,
+            StringHeapData, SymbolHeapData, Value,
+        },
     },
-    types::{
-        BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
-        ECMAScriptFunctionHeapData, NumberHeapData, ObjectHeapData, StringHeapData, SymbolHeapData,
-        Value,
-    },
+    engine::context::GcToken,
 };
 use core::fmt::Debug;
 use std::{
@@ -54,7 +57,7 @@ use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 ///
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
-pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a ()>);
+pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a GcToken>);
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =

@@ -53,7 +53,7 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     engine::{
-        context::GcScope,
+        context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
@@ -363,10 +363,10 @@ impl Value {
     //
     // This function is best called with the form
     // ```rs
-    // let value = value.bind(&gc);
+    // let value = value.bind(gc.nogc());
     // ```
     // to make sure that the unbound Value cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+    pub fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
     }
 
@@ -532,7 +532,7 @@ impl Value {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return symbol_idx.descriptive_string(agent);
+            return symbol_idx.descriptive_string(agent, *gc);
         };
         match self.to_string(agent, gc) {
             Ok(result) => result,

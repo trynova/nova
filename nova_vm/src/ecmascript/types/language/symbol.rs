@@ -11,7 +11,7 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
-        context::GcScope,
+        context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -52,7 +52,7 @@ impl Symbol {
     //
     // This function is best called with the form
     // ```rs
-    // let symbol = symbol.bind(&gc);
+    // let symbol = symbol.bind(gc.nogc());
     // ```
     // to make sure that the unbound Symbol cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
@@ -68,10 +68,11 @@ impl Symbol {
     }
 
     /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
-    pub fn descriptive_string(self, agent: &mut Agent) -> String<'static> {
+    pub fn descriptive_string<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> String<'gc> {
         if let Some(descriptor) = agent[self].descriptor {
             String::concat(
                 agent,
+                gc,
                 [
                     String::from_small_string("Symbol("),
                     descriptor,
