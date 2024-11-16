@@ -37,7 +37,8 @@ pub struct PromiseResolvingFunctionHeapData {
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
-pub(crate) type BuiltinPromiseResolvingFunctionIndex = BaseIndex<PromiseResolvingFunctionHeapData>;
+pub(crate) type BuiltinPromiseResolvingFunctionIndex =
+    BaseIndex<'static, PromiseResolvingFunctionHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinPromiseResolvingFunction(pub(crate) BuiltinPromiseResolvingFunctionIndex);

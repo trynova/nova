@@ -1075,13 +1075,13 @@ pub(crate) fn sweep_heap_elements_vector_descriptors<T>(
     }
 }
 
-pub(crate) fn sweep_side_table_values<T, K, V>(
+pub(crate) fn sweep_side_table_values<'a, T, K, V>(
     side_table: &mut AHashMap<K, V>,
     compactions: &CompactionList,
     marks: &[bool],
 ) where
-    T: ?Sized,
-    K: IntoBaseIndex<T> + From<BaseIndex<T>> + Copy + Ord + Hash,
+    T: 'a + ?Sized,
+    K: IntoBaseIndex<'a, T> + From<BaseIndex<'a, T>> + Copy + Ord + Hash,
 {
     let mut keys_to_remove = Vec::with_capacity(marks.len() / 4);
     let mut keys_to_reassign = Vec::with_capacity(marks.len() / 4);

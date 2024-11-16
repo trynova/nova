@@ -54,58 +54,58 @@ use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 ///
 /// This index implies a tracing reference count from this
 /// struct to T at the given index.
-pub struct BaseIndex<T: ?Sized>(NonZeroU32, PhantomData<T>);
+pub struct BaseIndex<'a, T: ?Sized>(NonZeroU32, PhantomData<T>, PhantomData<&'a ()>);
 
 const _INDEX_SIZE_IS_U32: () = assert!(size_of::<BaseIndex<()>>() == size_of::<u32>());
 const _OPTION_INDEX_SIZE_IS_U32: () =
     assert!(size_of::<Option<BaseIndex<()>>>() == size_of::<u32>());
 
-pub(crate) trait IntoBaseIndex<T: ?Sized> {
-    fn into_base_index(self) -> BaseIndex<T>;
+pub(crate) trait IntoBaseIndex<'a, T: ?Sized> {
+    fn into_base_index(self) -> BaseIndex<'a, T>;
 }
 
-impl<T: ?Sized> Debug for BaseIndex<T> {
+impl<'a, T: ?Sized> Debug for BaseIndex<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         assert!(self.0.get() != 0);
         (&self.0.get() - 1).fmt(f)
     }
 }
 
-impl<T: ?Sized> Clone for BaseIndex<T> {
+impl<'a, T: ?Sized> Clone for BaseIndex<'a, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T: ?Sized> Copy for BaseIndex<T> {}
+impl<'a, T: ?Sized> Copy for BaseIndex<'a, T> {}
 
-impl<T: ?Sized> PartialEq for BaseIndex<T> {
+impl<'a, T: ?Sized> PartialEq for BaseIndex<'a, T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<T: ?Sized> Eq for BaseIndex<T> {}
+impl<'a, T: ?Sized> Eq for BaseIndex<'a, T> {}
 
-impl<T: ?Sized> PartialOrd for BaseIndex<T> {
+impl<'a, T: ?Sized> PartialOrd for BaseIndex<'a, T> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: ?Sized> Ord for BaseIndex<T> {
+impl<'a, T: ?Sized> Ord for BaseIndex<'a, T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<T: ?Sized> Hash for BaseIndex<T> {
+impl<'a, T: ?Sized> Hash for BaseIndex<'a, T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<T: ?Sized> BaseIndex<T> {
+impl<'a, T: ?Sized> BaseIndex<'a, T> {
     pub const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
@@ -127,14 +127,22 @@ impl<T: ?Sized> BaseIndex<T> {
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value + 1) },
+            PhantomData,
+            PhantomData,
+        )
     }
 
     pub const fn from_u32_index(value: u32) -> Self {
         assert!(value != u32::MAX);
         // SAFETY: Number is not max value and will not overflow to zero.
         // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value + 1) }, PhantomData)
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value + 1) },
+            PhantomData,
+            PhantomData,
+        )
     }
 
     pub const fn from_usize(value: usize) -> Self {
@@ -142,14 +150,22 @@ impl<T: ?Sized> BaseIndex<T> {
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value) },
+            PhantomData,
+            PhantomData,
+        )
     }
 
     pub const fn from_u32(value: u32) -> Self {
         assert!(value != 0);
         // SAFETY: Number is not zero.
         // This check is done manually to allow const context.
-        Self(unsafe { NonZeroU32::new_unchecked(value) }, PhantomData)
+        Self(
+            unsafe { NonZeroU32::new_unchecked(value) },
+            PhantomData,
+            PhantomData,
+        )
     }
 
     pub fn last(vec: &[Option<T>]) -> Self
@@ -161,59 +177,63 @@ impl<T: ?Sized> BaseIndex<T> {
     }
 }
 
-impl<T> Default for BaseIndex<T> {
+impl<'a, T> Default for BaseIndex<'a, T> {
     fn default() -> Self {
         Self::from_u32_index(0)
     }
 }
 
 #[cfg(feature = "array-buffer")]
-pub type ArrayBufferIndex = BaseIndex<ArrayBufferHeapData>;
-pub type ArrayIndex = BaseIndex<ArrayHeapData>;
-pub type ArrayIteratorIndex = BaseIndex<ArrayIteratorHeapData>;
-pub type BigIntIndex = BaseIndex<BigIntHeapData>;
-pub type BoundFunctionIndex = BaseIndex<BoundFunctionHeapData>;
-pub type BuiltinFunctionIndex = BaseIndex<BuiltinFunctionHeapData>;
-pub type BuiltinConstructorIndex = BaseIndex<BuiltinConstructorHeapData>;
+pub type ArrayBufferIndex = BaseIndex<'static, ArrayBufferHeapData>;
+pub type ArrayIndex = BaseIndex<'static, ArrayHeapData>;
+pub type ArrayIteratorIndex = BaseIndex<'static, ArrayIteratorHeapData>;
+pub type BigIntIndex = BaseIndex<'static, BigIntHeapData>;
+pub type BoundFunctionIndex = BaseIndex<'static, BoundFunctionHeapData>;
+pub type BuiltinFunctionIndex = BaseIndex<'static, BuiltinFunctionHeapData>;
+pub type BuiltinConstructorIndex = BaseIndex<'static, BuiltinConstructorHeapData>;
 #[cfg(feature = "array-buffer")]
-pub type DataViewIndex = BaseIndex<DataViewHeapData>;
+pub type DataViewIndex = BaseIndex<'static, DataViewHeapData>;
 #[cfg(feature = "date")]
-pub type DateIndex = BaseIndex<DateHeapData>;
-pub type ECMAScriptFunctionIndex = BaseIndex<ECMAScriptFunctionHeapData>;
-pub type ElementIndex = BaseIndex<[Option<Value>]>;
-pub type EmbedderObjectIndex = BaseIndex<EmbedderObjectHeapData>;
-pub type ErrorIndex = BaseIndex<ErrorHeapData>;
-pub type FinalizationRegistryIndex = BaseIndex<FinalizationRegistryHeapData>;
-pub type GeneratorIndex = BaseIndex<GeneratorHeapData>;
-pub type MapIndex = BaseIndex<MapHeapData>;
-pub type MapIteratorIndex = BaseIndex<MapIteratorHeapData>;
-pub type NumberIndex = BaseIndex<NumberHeapData>;
-pub type ObjectIndex = BaseIndex<ObjectHeapData>;
-pub type PrimitiveObjectIndex = BaseIndex<PrimitiveObjectHeapData>;
-pub type PromiseIndex = BaseIndex<PromiseHeapData>;
-pub type ProxyIndex = BaseIndex<ProxyHeapData>;
+pub type DateIndex = BaseIndex<'static, DateHeapData>;
+pub type ECMAScriptFunctionIndex = BaseIndex<'static, ECMAScriptFunctionHeapData>;
+pub type ElementIndex = BaseIndex<'static, [Option<Value>]>;
+pub type EmbedderObjectIndex = BaseIndex<'static, EmbedderObjectHeapData>;
+pub type ErrorIndex = BaseIndex<'static, ErrorHeapData>;
+pub type FinalizationRegistryIndex = BaseIndex<'static, FinalizationRegistryHeapData>;
+pub type GeneratorIndex = BaseIndex<'static, GeneratorHeapData>;
+pub type MapIndex = BaseIndex<'static, MapHeapData>;
+pub type MapIteratorIndex = BaseIndex<'static, MapIteratorHeapData>;
+pub type NumberIndex = BaseIndex<'static, NumberHeapData>;
+pub type ObjectIndex = BaseIndex<'static, ObjectHeapData>;
+pub type PrimitiveObjectIndex = BaseIndex<'static, PrimitiveObjectHeapData>;
+pub type PromiseIndex = BaseIndex<'static, PromiseHeapData>;
+pub type ProxyIndex = BaseIndex<'static, ProxyHeapData>;
 #[cfg(feature = "regexp")]
-pub type RegExpIndex = BaseIndex<RegExpHeapData>;
-pub type SetIndex = BaseIndex<SetHeapData>;
-pub type SetIteratorIndex = BaseIndex<SetIteratorHeapData>;
+pub type RegExpIndex = BaseIndex<'static, RegExpHeapData>;
+pub type SetIndex = BaseIndex<'static, SetHeapData>;
+pub type SetIteratorIndex = BaseIndex<'static, SetIteratorHeapData>;
 #[cfg(feature = "shared-array-buffer")]
-pub type SharedArrayBufferIndex = BaseIndex<SharedArrayBufferHeapData>;
-pub type StringIndex = BaseIndex<StringHeapData>;
-pub type SymbolIndex = BaseIndex<SymbolHeapData>;
+pub type SharedArrayBufferIndex = BaseIndex<'static, SharedArrayBufferHeapData>;
+pub type StringIndex = BaseIndex<'static, StringHeapData>;
+pub type SymbolIndex = BaseIndex<'static, SymbolHeapData>;
 #[cfg(feature = "array-buffer")]
-pub type TypedArrayIndex = BaseIndex<TypedArrayHeapData>;
+pub type TypedArrayIndex = BaseIndex<'static, TypedArrayHeapData>;
 #[cfg(feature = "weak-refs")]
-pub type WeakMapIndex = BaseIndex<WeakMapHeapData>;
+pub type WeakMapIndex = BaseIndex<'static, WeakMapHeapData>;
 #[cfg(feature = "weak-refs")]
-pub type WeakRefIndex = BaseIndex<WeakRefHeapData>;
+pub type WeakRefIndex = BaseIndex<'static, WeakRefHeapData>;
 #[cfg(feature = "weak-refs")]
-pub type WeakSetIndex = BaseIndex<WeakSetHeapData>;
+pub type WeakSetIndex = BaseIndex<'static, WeakSetHeapData>;
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.
 impl Default for ElementIndex {
     fn default() -> Self {
-        Self(unsafe { NonZeroU32::new_unchecked(1) }, Default::default())
+        Self(
+            unsafe { NonZeroU32::new_unchecked(1) },
+            PhantomData,
+            PhantomData,
+        )
     }
 }
 

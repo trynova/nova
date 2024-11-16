@@ -65,7 +65,7 @@ pub struct PromiseReactionRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PromiseReaction(BaseIndex<PromiseReactionRecord>);
+pub struct PromiseReaction(BaseIndex<'static, PromiseReactionRecord>);
 
 impl PromiseReaction {
     pub(crate) const fn get_index(self) -> usize {

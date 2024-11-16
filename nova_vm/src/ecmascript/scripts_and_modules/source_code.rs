@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-type SourceCodeIndex = BaseIndex<SourceCodeHeapData>;
+type SourceCodeIndex = BaseIndex<'static, SourceCodeHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SourceCode(SourceCodeIndex);
