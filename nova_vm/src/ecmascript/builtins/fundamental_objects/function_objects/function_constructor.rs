@@ -139,45 +139,14 @@ pub(crate) fn create_dynamic_function(
         .host_ensure_can_compile_strings(agent.current_realm_mut())?;
 
     let source_string = {
-        // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
-        fn write_source_string(
-            target: &mut std::string::String,
-            agent: &Agent,
-            kind: DynamicFunctionKind,
-            parameter_strings: &[String<'_>],
-            body_string: String<'_>,
-        ) {
-            target.push_str(kind.prefix());
-            target.push_str(" anonymous(");
-            for (i, parameter) in parameter_strings.iter().enumerate() {
-                if i != 0 {
-                    target.push(',');
-                }
-                target.push_str(parameter.as_str(agent));
-            }
-            target.push_str("\n) {\n");
-            target.push_str(body_string.as_str(agent));
-            target.push_str("\n}");
-        }
-
-        let mut str_len = kind.prefix().len() + 18;
-        let mut string;
+        let parameter_strings_vec;
+        let parameter_strings_slice;
+        let body_string;
         if body_arg.is_string() && parameter_args.iter().all(|arg| arg.is_string()) {
-            if !parameter_args.is_empty() {
-                // Separated by a single comma character
-                str_len += parameter_args
-                    .iter()
-                    .map(|str| String::try_from(*str).unwrap().len(agent) + 1)
-                    .sum::<usize>()
-                    - 1;
-            }
-            let body_string = String::try_from(body_arg).unwrap();
-            str_len += body_string.len(agent);
-            let parameter_strings =
+            body_string = String::try_from(body_arg).unwrap().bind(gc.nogc());
+            parameter_strings_slice =
                 // Safety: All the strings were checked to be strings.
                 unsafe { std::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
-            string = std::string::String::with_capacity(str_len);
-            write_source_string(&mut string, agent, kind, parameter_strings, body_string);
         } else if body_arg.is_primitive() && parameter_args.iter().all(|arg| arg.is_primitive()) {
             // We don't need to call JavaScript here. Nice.
             let gc = gc.nogc();
@@ -189,50 +158,62 @@ pub(crate) fn create_dynamic_function(
                     Primitive::try_from(*param).unwrap(),
                 )?);
             }
-            if !parameter_strings.is_empty() {
-                // Separated by a single comma character
-                str_len += parameter_strings
-                    .iter()
-                    .map(|str| str.len(agent) + 1)
-                    .sum::<usize>()
-                    - 1;
-            }
-            let body_string =
-                to_string_primitive(agent, gc, Primitive::try_from(body_arg).unwrap())?;
-            str_len += body_string.len(agent);
-            string = std::string::String::with_capacity(str_len);
-            write_source_string(&mut string, agent, kind, &parameter_strings, body_string);
+            parameter_strings_vec = parameter_strings;
+            parameter_strings_slice = &parameter_strings_vec;
+            body_string =
+                to_string_primitive(agent, gc, Primitive::try_from(body_arg).unwrap())?.bind(gc);
         } else {
             // Some of the parameters are non-primitives. This means we'll be
             // calling into JavaScript during this work.
             let mut parameter_string_roots = Vec::with_capacity(parameter_args.len());
             for param in parameter_args {
+                // Each parameter has to be rooted in case the next parameter
+                // or the body argument is the one that calls to JavaScript.
                 parameter_string_roots.push(
                     to_string(agent, gc.reborrow(), *param)?
                         .unbind()
                         .scope(agent, gc.nogc()),
                 );
             }
-            let body_string = body_arg.to_string(agent, gc.reborrow())?.unbind();
+            let body_string_unbound = body_arg.to_string(agent, gc.reborrow())?.unbind();
+            // We've done all our potential JavaScript calling: Now we rest.
             let gc = gc.nogc();
-            let body_string = body_string.bind(gc);
+            body_string = body_string_unbound.bind(gc);
             let parameter_strings = parameter_string_roots
                 .into_iter()
                 .map(|param_root| param_root.get(agent).bind(gc))
                 .collect::<Vec<_>>();
 
-            let mut str_len = kind.prefix().len() + body_string.len(agent) + 18;
-            if !parameter_strings.is_empty() {
+            parameter_strings_vec = parameter_strings;
+            parameter_strings_slice = &parameter_strings_vec;
+        }
+
+        // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
+        let str_len = kind.prefix().len()
+            + 18
+            + body_string.len(agent)
+            + if !parameter_strings_slice.is_empty() {
                 // Separated by a single comma character
-                str_len += parameter_strings
+                parameter_strings_slice
                     .iter()
                     .map(|str| str.len(agent) + 1)
                     .sum::<usize>()
-                    - 1;
+                    - 1
+            } else {
+                0
+            };
+        let mut string = std::string::String::with_capacity(str_len);
+        string.push_str(kind.prefix());
+        string.push_str(" anonymous(");
+        for (i, parameter) in parameter_strings_slice.iter().enumerate() {
+            if i != 0 {
+                string.push(',');
             }
-            string = std::string::String::with_capacity(str_len);
-            write_source_string(&mut string, agent, kind, &parameter_strings, body_string);
+            string.push_str(parameter.as_str(agent));
         }
+        string.push_str("\n) {\n");
+        string.push_str(body_string.as_str(agent));
+        string.push_str("\n}");
 
         debug_assert_eq!(string.len(), str_len);
 
