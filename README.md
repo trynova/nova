@@ -12,7 +12,7 @@ execution model is currently greatly inspired by
 [SerenityOS's LibJS](https://github.com/SerenityOS/serenity). See the code for
 more details.
 
-The core of our team is on our [Discord server](https://discord.gg/RTrgJzXKUM).
+The core of our team is on our [Discord server](https://discord.gg/bwY4TRB8J7).
 
 ## Talks
 
