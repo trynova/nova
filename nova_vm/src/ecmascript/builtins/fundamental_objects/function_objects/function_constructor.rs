@@ -149,7 +149,7 @@ pub(crate) fn create_dynamic_function(
         ) {
             target.push_str(kind.prefix());
             target.push_str(" anonymous(");
-            for (i, parameter) in parameter_strings.into_iter().enumerate() {
+            for (i, parameter) in parameter_strings.iter().enumerate() {
                 if i != 0 {
                     target.push(',');
                 }
