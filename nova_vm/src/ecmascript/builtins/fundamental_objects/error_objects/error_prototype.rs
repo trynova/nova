@@ -38,7 +38,7 @@ impl ErrorPrototype {
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "'this' is not an object",
             ));
@@ -52,19 +52,37 @@ impl ErrorPrototype {
         )?;
         // 4. If name is undefined, set name to "Error"; otherwise set name to ? ToString(name).
         let name = if name.is_undefined() {
-            BUILTIN_STRING_MEMORY.Error
+            None
         } else {
-            to_string(agent, gc.reborrow(), name)?
+            Some(
+                to_string(agent, gc.reborrow(), name)?
+                    .unbind()
+                    .scope(agent, gc.nogc()),
+            )
         };
         // 5. Let msg be ? Get(O, "message").
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.message);
         let msg = get(agent, gc.reborrow(), o, key)?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
-            String::EMPTY_STRING
+            None
         } else {
-            to_string(agent, gc.reborrow(), msg)?
+            Some(
+                to_string(agent, gc.reborrow(), msg)?
+                    .unbind()
+                    .scope(agent, gc.nogc()),
+            )
         };
+        // No more GC can be triggered.
+        let gc = gc.nogc();
+        // 6. If msg is undefined, set msg to the empty String
+        let msg = msg
+            .map_or(String::EMPTY_STRING, |msg| msg.get(agent))
+            .bind(gc);
+        // 4. If name is undefined, set name to "Error"
+        let name = name
+            .map_or(BUILTIN_STRING_MEMORY.Error, |name| name.get(agent))
+            .bind(gc);
         if name.is_empty_string() {
             // 7. If name is the empty String, return msg.
             Ok(msg.into_value())
@@ -74,7 +92,7 @@ impl ErrorPrototype {
         } else {
             // 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
             let result = format!("{}: {}", name.as_str(agent), msg.as_str(agent));
-            Ok(String::from_string(agent, *gc, result).into_value())
+            Ok(String::from_string(agent, gc, result).into_value())
         }
     }
 

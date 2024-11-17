@@ -125,14 +125,18 @@ impl NativeErrorConstructors {
             intrinsic,
         )?;
         let msg = if !message.is_undefined() {
-            Some(to_string(agent, gc.reborrow(), message)?.scope(agent, *gc))
+            Some(
+                to_string(agent, gc.reborrow(), message)?
+                    .unbind()
+                    .scope(agent, gc.nogc()),
+            )
         } else {
             None
         };
         let cause = get_error_cause(agent, gc.reborrow(), options)?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let msg = msg.map(|msg| msg.get_unbound(agent));
+        let msg = msg.map(|msg| msg.get(agent));
         let heap_data = &mut agent[o];
         heap_data.kind = error_kind;
         heap_data.message = msg;

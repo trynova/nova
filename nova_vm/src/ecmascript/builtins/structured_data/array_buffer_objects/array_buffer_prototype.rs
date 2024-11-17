@@ -95,7 +95,7 @@ impl ArrayBufferPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, *gc, this_value)?;
+        let o = require_internal_slot_array_buffer(agent, gc.nogc(), this_value)?;
         // 4. If IsDetachedBuffer(O) is true, return +0𝔽.
         // 5. Let length be O.[[ArrayBufferByteLength]].
         // 6. Return 𝔽(length).
@@ -117,7 +117,7 @@ impl ArrayBufferPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, *gc, this_value)?;
+        let o = require_internal_slot_array_buffer(agent, gc.nogc(), this_value)?;
         // 4. Return IsDetachedBuffer(O).
         Ok(is_detached_buffer(agent, o).into())
     }
@@ -134,7 +134,7 @@ impl ArrayBufferPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        let o = require_internal_slot_array_buffer(agent, *gc, this_value)?;
+        let o = require_internal_slot_array_buffer(agent, gc.nogc(), this_value)?;
         // 4. If IsDetachedBuffer(O) is true, return +0𝔽.
         // 5. If IsFixedLengthArrayBuffer(O) is true, then
         // a. Let length be O.[[ArrayBufferByteLength]].
@@ -156,7 +156,7 @@ impl ArrayBufferPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let o = require_internal_slot_array_buffer(agent, *gc, this_value)?;
+        let o = require_internal_slot_array_buffer(agent, gc.nogc(), this_value)?;
         // 4. If IsFixedLengthArrayBuffer(O) is false, return true; otherwise return false.
         Ok((!is_fixed_length_array_buffer(agent, o)).into())
     }
@@ -173,10 +173,10 @@ impl ArrayBufferPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let o = require_internal_slot_array_buffer(agent, *gc, this_value)?;
+        let o = require_internal_slot_array_buffer(agent, gc.nogc(), this_value)?;
         if !o.is_resizable(agent) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Attempted to resize fixed length ArrayBuffer",
             ));
@@ -186,7 +186,7 @@ impl ArrayBufferPrototype {
         // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot resize a detached ArrayBuffer",
             ));
@@ -194,7 +194,7 @@ impl ArrayBufferPrototype {
         // 6. If newByteLength > O.[[ArrayBufferMaxByteLength]], throw a RangeError exception.
         if new_byte_length > o.max_byte_length(agent) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Attempted to resize beyond ArrayBuffer maxByteLength",
             ));
@@ -230,11 +230,11 @@ impl ArrayBufferPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let o = require_internal_slot_array_buffer(agent, *gc, this_value)?;
+        let o = require_internal_slot_array_buffer(agent, gc.nogc(), this_value)?;
         // 4. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot slice a detached ArrayBuffer",
             ));
@@ -294,7 +294,7 @@ impl ArrayBufferPrototype {
         // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
         if is_detached_buffer(agent, new) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Construction produced a detached ArrayBuffer",
             ));
@@ -302,7 +302,7 @@ impl ArrayBufferPrototype {
         // 20. If SameValue(new, O) is true, throw a TypeError exception.
         if new == o {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Construction returned the original ArrayBuffer",
             ));
@@ -310,7 +310,7 @@ impl ArrayBufferPrototype {
         // 21. If new.[[ArrayBufferByteLength]] < newLen, throw a TypeError exception.
         if new.byte_length(agent) < new_len {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Construction returned a smaller ArrayBuffer than requested",
             ));
@@ -319,7 +319,7 @@ impl ArrayBufferPrototype {
         // 23. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Construction detached ArrayBuffer being sliced",
             ));

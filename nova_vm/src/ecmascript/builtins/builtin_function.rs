@@ -385,7 +385,7 @@ pub(crate) fn builtin_call_or_construct(
         Behaviour::Regular(func) => {
             if new_target.is_some() {
                 Err(agent.throw_exception_with_static_message(
-                    *gc,
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Not a constructor",
                 ))

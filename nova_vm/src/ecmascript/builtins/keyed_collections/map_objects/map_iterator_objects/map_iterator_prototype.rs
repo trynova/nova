@@ -43,7 +43,7 @@ impl MapIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "MapIterator expected",
             ));
@@ -92,7 +92,7 @@ impl MapIteratorPrototype {
                         continue;
                     };
                     let value = agent[map].values()[index].unwrap();
-                    create_array_from_list(agent, *gc, &[key, value]).into_value()
+                    create_array_from_list(agent, gc.nogc(), &[key, value]).into_value()
                 }
             };
 

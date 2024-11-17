@@ -251,7 +251,7 @@ impl ObjectEnvironmentIndex {
                 n.as_display(agent),
                 binding_object_repr.as_str(agent)
             );
-            Err(agent.throw_exception(*gc, ExceptionType::ReferenceError, error_message))
+            Err(agent.throw_exception(gc.nogc(), ExceptionType::ReferenceError, error_message))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             set(agent, gc, binding_object, n, v, s)?;
@@ -294,7 +294,7 @@ impl ObjectEnvironmentIndex {
                     name.as_display(agent),
                     binding_object_repr.as_str(agent)
                 );
-                Err(agent.throw_exception(*gc, ExceptionType::ReferenceError, error_message))
+                Err(agent.throw_exception(gc.nogc(), ExceptionType::ReferenceError, error_message))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).

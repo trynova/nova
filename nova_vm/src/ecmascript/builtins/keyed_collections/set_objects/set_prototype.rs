@@ -96,7 +96,7 @@ impl SetPrototype {
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -157,7 +157,7 @@ impl SetPrototype {
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
         // element whose value is EMPTY.
@@ -181,7 +181,7 @@ impl SetPrototype {
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -234,7 +234,7 @@ impl SetPrototype {
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
@@ -281,11 +281,11 @@ impl SetPrototype {
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -331,7 +331,7 @@ impl SetPrototype {
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -378,7 +378,7 @@ impl SetPrototype {
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
         let size = agent[s].size();
         // 4. Return 𝔽(size).
@@ -396,7 +396,7 @@ impl SetPrototype {
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, *gc, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
 

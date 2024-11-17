@@ -65,7 +65,7 @@ impl SetConstructor {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot call Set as a function",
             ));
@@ -89,7 +89,7 @@ impl SetConstructor {
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Invalid adder function",
             ));

@@ -309,7 +309,7 @@ impl RegExpPrototype {
                 "{} is not an object",
                 this_value.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         if let Object::RegExp(r) = r {
             // Fast path for RegExp objects: This is not actually proper as it
@@ -325,17 +325,25 @@ impl RegExpPrototype {
             data.original_flags.iter_names().for_each(|(flag, _)| {
                 regexp_string.push_str(flag);
             });
-            return Ok(String::from_string(agent, *gc, regexp_string).into_value());
+            return Ok(String::from_string(agent, gc.nogc(), regexp_string).into_value());
         }
         // 3. Let pattern be ? ToString(? Get(R, "source")).
         let pattern = get(agent, gc.reborrow(), r, BUILTIN_STRING_MEMORY.source.into())?;
-        let pattern = to_string(agent, gc.reborrow(), pattern)?;
+        let pattern = to_string(agent, gc.reborrow(), pattern)?
+            .unbind()
+            .scope(agent, gc.nogc());
         // 4. Let flags be ? ToString(? Get(R, "flags")).
         let flags = get(agent, gc.reborrow(), r, BUILTIN_STRING_MEMORY.flags.into())?;
-        let flags = to_string(agent, gc.reborrow(), flags)?;
+        let flags = to_string(agent, gc.reborrow(), flags)?
+            .unbind()
+            .bind(gc.nogc());
         // 5. Let result be the string-concatenation of "/", pattern, "/", and flags.
-        let result = format!("/{}/{}", pattern.as_str(agent), flags.as_str(agent));
-        let result = String::from_string(agent, *gc, result);
+        let result = format!(
+            "/{}/{}",
+            pattern.get(agent).bind(gc.nogc()).as_str(agent),
+            flags.as_str(agent)
+        );
+        let result = String::from_string(agent, gc.nogc(), result);
         // 6. Return result.
         Ok(result.into_value())
     }

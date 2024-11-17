@@ -72,7 +72,7 @@ impl MapConstructor {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Constructor Map requires 'new'",
             ));
@@ -110,7 +110,7 @@ impl MapConstructor {
             // 6. If IsCallable(adder) is false, throw a TypeError exception.
             let Some(adder) = is_callable(adder) else {
                 return Err(agent.throw_exception_with_static_message(
-                    *gc,
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Map.prototype.set is not callable",
                 ));
@@ -304,7 +304,7 @@ pub(crate) fn add_entries_from_iterable(
         let Ok(next) = Object::try_from(next) else {
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Invalid iterator next return value",
             );

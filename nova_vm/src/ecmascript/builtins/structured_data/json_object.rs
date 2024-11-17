@@ -100,7 +100,7 @@ impl JSONObject {
             Ok(value) => value,
             Err(error) => {
                 return Err(agent.throw_exception(
-                    *gc,
+                    gc.nogc(),
                     ExceptionType::SyntaxError,
                     error.to_string(),
                 ));
@@ -282,12 +282,12 @@ pub(crate) fn value_from_json(
         sonic_rs::JsonType::Boolean => Ok(Value::Boolean(json.is_true())),
         sonic_rs::JsonType::Number => Ok(Number::from_f64(agent, json.as_f64().unwrap()).into()),
         sonic_rs::JsonType::String => {
-            Ok(String::from_str(agent, *gc, json.as_str().unwrap()).into())
+            Ok(String::from_str(agent, gc.nogc(), json.as_str().unwrap()).into())
         }
         sonic_rs::JsonType::Array => {
             let json_array = json.as_array().unwrap();
             let len = json_array.len();
-            let array_obj = array_create(agent, *gc, len, len, None)?;
+            let array_obj = array_create(agent, gc.nogc(), len, len, None)?;
             for (i, value) in json_array.iter().enumerate() {
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
                 let js_value = value_from_json(agent, gc.reborrow(), value)?;
@@ -300,7 +300,7 @@ pub(crate) fn value_from_json(
             let object =
                 ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
             for (key, value) in json_object.iter() {
-                let prop = PropertyKey::from_str(agent, *gc, key);
+                let prop = PropertyKey::from_str(agent, gc.nogc(), key);
                 let js_value = value_from_json(agent, gc.reborrow(), value)?;
                 create_data_property(agent, gc.reborrow(), object, prop, js_value)?;
             }

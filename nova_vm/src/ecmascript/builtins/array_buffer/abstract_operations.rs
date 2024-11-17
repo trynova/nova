@@ -220,7 +220,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
         Ok(Some(integer))
     } else {
         Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::RangeError,
             "Not a SafeInteger",
         ))

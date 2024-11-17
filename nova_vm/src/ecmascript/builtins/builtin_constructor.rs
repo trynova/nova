@@ -279,7 +279,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "class constructors must be invoked with 'new'",
         ))

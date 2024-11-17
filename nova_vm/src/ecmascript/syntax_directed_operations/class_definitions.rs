@@ -69,7 +69,7 @@ pub(crate) fn derived_class_default_constructor(
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
         return Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Expected callable function",
         ));

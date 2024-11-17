@@ -8,8 +8,9 @@ use oxc_ecmascript::BoundNames;
 use oxc_span::SourceType;
 
 use crate::ecmascript::abstract_operations::type_conversion::{
-    is_trimmable_whitespace, to_int32, to_string,
+    is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
+use crate::ecmascript::types::Primitive;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -218,13 +219,13 @@ pub fn perform_eval(
     // call happens.
     // The Program thus refers to a valid, live Allocator for the duration of
     // this call.
-    let parse_result = unsafe { SourceCode::parse_source(agent, *gc, x, source_type) };
+    let parse_result = unsafe { SourceCode::parse_source(agent, gc.nogc(), x, source_type) };
 
     // b. If script is a List of errors, throw a SyntaxError exception.
     let Ok((script, source_code)) = parse_result else {
         // TODO: Include error messages in the exception.
         return Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::SyntaxError,
             "Invalid eval source text.",
         ));
@@ -386,12 +387,12 @@ pub fn eval_declaration_instantiation(
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. For each element name of varNames, do
             for name in &var_names {
-                let name = String::from_str(agent, *gc, name.as_str());
+                let name = String::from_str(agent, gc.nogc(), name.as_str());
                 // 1. If varEnv.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
                 // 2. NOTE: eval will not create a global var declaration that would be shadowed by a global lexical declaration.
                 if var_env.has_lexical_declaration(agent, name) {
                     return Err(agent.throw_exception(
-                        *gc,
+                        gc.nogc(),
                         ExceptionType::SyntaxError,
                         format!(
                             "Redeclaration of lexical declaration '{}'",
@@ -413,14 +414,19 @@ pub fn eval_declaration_instantiation(
                 // 1. NOTE: The environment of with statements cannot contain any lexical declaration so it doesn't need to be checked for var/let hoisting conflicts.
                 // 2. For each element name of varNames, do
                 for name in &var_names {
-                    let name = String::from_str(agent, *gc, name.as_str());
+                    let name = String::from_str(agent, gc.nogc(), name.as_str())
+                        .unbind()
+                        .scope(agent, gc.nogc());
                     // a. If ! thisEnv.HasBinding(name) is true, then
                     // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
-                    if this_env.has_binding(agent, gc.reborrow(), name).unwrap() {
+                    if this_env
+                        .has_binding(agent, gc.reborrow(), name.get(agent))
+                        .unwrap()
+                    {
                         // i. Throw a SyntaxError exception.
                         // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
                         return Err(agent.throw_exception(
-                            *gc,
+                            gc.nogc(),
                             ExceptionType::SyntaxError,
                             format!("Redeclaration of variable '{}'", name.as_str(agent)),
                         ));
@@ -480,14 +486,18 @@ pub fn eval_declaration_instantiation(
                 // 1. If varEnv is a Global Environment Record, then
                 if let EnvironmentIndex::Global(var_env) = var_env {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
-                    let function_name = String::from_str(agent, *gc, function_name.as_str());
-                    let fn_definable =
-                        var_env.can_declare_global_function(agent, gc.reborrow(), function_name)?;
+                    let function_name = String::from_str(agent, gc.nogc(), function_name.as_str())
+                        .scope(agent, gc.nogc());
+                    let fn_definable = var_env.can_declare_global_function(
+                        agent,
+                        gc.reborrow(),
+                        function_name.get(agent),
+                    )?;
 
                     // b. If fnDefinable is false, throw a TypeError exception.
                     if !fn_definable {
                         return Err(agent.throw_exception(
-                            *gc,
+                            gc.nogc(),
                             ExceptionType::TypeError,
                             format!(
                                 "Cannot declare global function '{}'.",
@@ -505,7 +515,8 @@ pub fn eval_declaration_instantiation(
     }
 
     // 11. Let declaredVarNames be a new empty List.
-    let mut declared_var_names = AHashSet::default();
+    let mut declared_var_names_strings = AHashSet::with_capacity(var_declarations.len());
+    let mut declared_var_names = Vec::with_capacity(var_declarations.len());
 
     // 12. For each element d of varDeclarations, do
     for d in var_declarations {
@@ -516,31 +527,36 @@ pub fn eval_declaration_instantiation(
             d.id.bound_names(&mut |identifier| {
                 bound_names.push(identifier.name.clone());
             });
-            for vn in bound_names {
+            for vn_string in bound_names {
                 // 1. If declaredFunctionNames does not contain vn, then
-                if !declared_function_names.contains(&vn) {
-                    let vn = String::from_str(agent, *gc, vn.as_str());
+                if !declared_function_names.contains(&vn_string) {
+                    let vn = String::from_str(agent, gc.nogc(), vn_string.as_str())
+                        .scope(agent, gc.nogc());
                     // a. If varEnv is a Global Environment Record, then
                     if let EnvironmentIndex::Global(var_env) = var_env {
                         // i. Let vnDefinable be ? varEnv.CanDeclareGlobalVar(vn).
                         let vn_definable =
-                            var_env.can_declare_global_var(agent, gc.reborrow(), vn)?;
+                            var_env.can_declare_global_var(agent, gc.reborrow(), vn.get(agent))?;
                         // ii. If vnDefinable is false, throw a TypeError exception.
                         if !vn_definable {
                             return Err(agent.throw_exception(
-                                *gc,
+                                gc.nogc(),
                                 ExceptionType::TypeError,
                                 format!("Cannot declare global variable '{}'.", vn.as_str(agent)),
                             ));
                         }
                     }
                     // b. If declaredVarNames does not contain vn, then
-                    // i. Append vn to declaredVarNames.
-                    declared_var_names.insert(vn);
+                    if declared_var_names_strings.insert(vn_string) {
+                        // i. Append vn to declaredVarNames.
+                        declared_var_names.push(vn);
+                    }
                 }
             }
         }
     }
+
+    drop(declared_var_names_strings);
 
     // 13. NOTE: Annex B.3.2.3 adds additional steps at this point.
     // 14. NOTE: No abnormal terminations occur after this algorithm step unless varEnv is a Global Environment Record and the global object is a Proxy exotic object.
@@ -554,7 +570,10 @@ pub fn eval_declaration_instantiation(
         let mut bound_names = vec![];
         let mut const_bound_names = vec![];
         let mut closure = |identifier: &BindingIdentifier| {
-            bound_names.push(String::from_str(agent, *gc, identifier.name.as_str()));
+            bound_names.push(
+                String::from_str(agent, gc.nogc(), identifier.name.as_str())
+                    .scope(agent, gc.nogc()),
+            );
         };
         match d {
             LexicallyScopedDeclaration::Variable(decl) => {
@@ -562,7 +581,7 @@ pub fn eval_declaration_instantiation(
                     decl.id.bound_names(&mut |identifier| {
                         const_bound_names.push(String::from_str(
                             agent,
-                            *gc,
+                            gc.nogc(),
                             identifier.name.as_str(),
                         ))
                     });
@@ -573,19 +592,19 @@ pub fn eval_declaration_instantiation(
             LexicallyScopedDeclaration::Function(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::Class(decl) => decl.bound_names(&mut closure),
             LexicallyScopedDeclaration::DefaultExport => {
-                bound_names.push(BUILTIN_STRING_MEMORY._default_)
+                bound_names.push(BUILTIN_STRING_MEMORY._default_.scope(agent, gc.nogc()))
             }
         }
         // b. For each element dn of the BoundNames of d, do
         for dn in const_bound_names {
             // i. If IsConstantDeclaration of d is true, then
             // 1. Perform ? lexEnv.CreateImmutableBinding(dn, true).
-            lex_env.create_immutable_binding(agent, *gc, dn, true)?;
+            lex_env.create_immutable_binding(agent, gc.nogc(), dn, true)?;
         }
         for dn in bound_names {
             // ii. Else,
             // 1. Perform ? lexEnv.CreateMutableBinding(dn, false).
-            lex_env.create_mutable_binding(agent, gc.reborrow(), dn, false)?;
+            lex_env.create_mutable_binding(agent, gc.reborrow(), dn.get(agent), false)?;
         }
     }
 
@@ -597,7 +616,6 @@ pub fn eval_declaration_instantiation(
             assert!(function_name.is_none());
             function_name = Some(identifier.name.clone());
         });
-        let function_name = String::from_str(agent, *gc, function_name.unwrap().as_str());
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
         let fo =
@@ -605,6 +623,8 @@ pub fn eval_declaration_instantiation(
 
         // c. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
+            let function_name =
+                String::from_str(agent, gc.nogc(), function_name.unwrap().as_str()).unbind();
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
             var_env.create_global_function_binding(
                 agent,
@@ -616,8 +636,10 @@ pub fn eval_declaration_instantiation(
         } else {
             // d. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(fn).
+            let function_name = String::from_str(agent, gc.nogc(), function_name.unwrap().as_str())
+                .scope(agent, gc.nogc());
             let binding_exists = var_env
-                .has_binding(agent, gc.reborrow(), function_name)
+                .has_binding(agent, gc.reborrow(), function_name.get(agent))
                 .unwrap();
 
             // ii. If bindingExists is false, then
@@ -625,17 +647,17 @@ pub fn eval_declaration_instantiation(
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
                 var_env
-                    .create_mutable_binding(agent, gc.reborrow(), function_name, true)
+                    .create_mutable_binding(agent, gc.reborrow(), function_name.get(agent), true)
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 var_env
-                    .initialize_binding(agent, gc.reborrow(), function_name, fo)
+                    .initialize_binding(agent, gc.reborrow(), function_name.get(agent), fo)
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
                 var_env
-                    .set_mutable_binding(agent, gc.reborrow(), function_name, fo, false)
+                    .set_mutable_binding(agent, gc.reborrow(), function_name.get(agent), fo, false)
                     .unwrap();
             }
         }
@@ -645,22 +667,24 @@ pub fn eval_declaration_instantiation(
         // a. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
             // i. Perform ? varEnv.CreateGlobalVarBinding(vn, true).
-            var_env.create_global_var_binding(agent, gc.reborrow(), vn, true)?;
+            var_env.create_global_var_binding(agent, gc.reborrow(), vn.get(agent), true)?;
         } else {
             // b. Else,
             // i. Let bindingExists be ! varEnv.HasBinding(vn).
-            let binding_exists = var_env.has_binding(agent, gc.reborrow(), vn).unwrap();
+            let binding_exists = var_env
+                .has_binding(agent, gc.reborrow(), vn.get(agent))
+                .unwrap();
 
             // ii. If bindingExists is false, then
             if !binding_exists {
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(vn, true).
                 var_env
-                    .create_mutable_binding(agent, gc.reborrow(), vn, true)
+                    .create_mutable_binding(agent, gc.reborrow(), vn.get(agent), true)
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(vn, undefined).
                 var_env
-                    .initialize_binding(agent, gc.reborrow(), vn, Value::Undefined)
+                    .initialize_binding(agent, gc.reborrow(), vn.get(agent), Value::Undefined)
                     .unwrap();
             }
         }
@@ -824,10 +848,24 @@ impl GlobalObject {
         }
 
         // 1. Let inputString be ? ToString(string).
-        let s = to_string(agent, gc.reborrow(), string)?;
+        let mut s = to_string(agent, gc.reborrow(), string)?
+            .unbind()
+            .bind(gc.nogc());
 
         // 6. Let R be ℝ(? ToInt32(radix)).
-        let r = to_int32(agent, gc.reborrow(), radix)?;
+        let r = if let Value::Integer(radix) = radix {
+            radix.into_i64() as i32
+        } else if radix.is_undefined() {
+            0
+        } else if let Ok(radix) = Primitive::try_from(radix) {
+            let radix = to_number_primitive(agent, gc.nogc(), radix)?;
+            to_int32_number(agent, radix)
+        } else {
+            let s_root = s.scope(agent, gc.nogc());
+            let radix = to_int32(agent, gc.reborrow(), radix)?;
+            s = s_root.get(agent).bind(gc.nogc());
+            radix
+        };
 
         // 2. Let S be ! TrimString(inputString, start).
         let s = s.as_str(agent).trim_start_matches(is_trimmable_whitespace);

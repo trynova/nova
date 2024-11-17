@@ -292,7 +292,7 @@ impl ObjectConstructor {
             )
         } else {
             // 3. Return ! ToObject(value).
-            Ok(to_object(agent, *gc, value).unwrap().into_value())
+            Ok(to_object(agent, gc.nogc(), value).unwrap().into_value())
         }
     }
 
@@ -308,7 +308,7 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         // 1. Let to be ? ToObject(target).
-        let to = to_object(agent, *gc, target)?;
+        let to = to_object(agent, gc.nogc(), target)?;
         // 2. If only one argument was passed, return to.
         if arguments.len() <= 1 {
             return Ok(to.into_value());
@@ -321,7 +321,7 @@ impl ObjectConstructor {
                 continue;
             }
             // i. Let from be ! ToObject(nextSource).
-            let from = to_object(agent, *gc, *next_source)?;
+            let from = to_object(agent, gc.nogc(), *next_source)?;
             // ii. Let keys be ? from.[[OwnPropertyKeys]]().
             let keys = from.internal_own_property_keys(agent, gc.reborrow())?;
             // iii. For each element nextKey of keys, do
@@ -361,7 +361,7 @@ impl ObjectConstructor {
                 "{} is not an object or null",
                 o.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         let properties = arguments.get(1);
         if properties != Value::Undefined {
@@ -388,7 +388,7 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
         let result = object_define_properties(agent, gc.reborrow(), o, properties)?;
@@ -414,7 +414,7 @@ impl ObjectConstructor {
                 "{} is not an object",
                 o.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 2. Let key be ? ToPropertyKey(P).
         let key = to_property_key(agent, gc.reborrow(), p)?;
@@ -434,13 +434,13 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
-        let obj = to_object(agent, *gc, o)?;
+        let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let entryList be ? EnumerableOwnProperties(obj, KEY+VALUE).
         let entry_list = enumerable_own_properties::<
             enumerable_properties_kind::EnumerateKeysAndValues,
         >(agent, gc.reborrow(), obj)?;
         // 3. Return CreateArrayFromList(entryList).
-        Ok(create_array_from_list(agent, *gc, &entry_list).into_value())
+        Ok(create_array_from_list(agent, gc.nogc(), &entry_list).into_value())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
@@ -460,7 +460,7 @@ impl ObjectConstructor {
         if !status {
             // 3. If status is false, throw a TypeError exception.
             Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Could not freeze object",
             ))
@@ -570,7 +570,7 @@ impl ObjectConstructor {
             }
         }
         // 1. Perform ? RequireObjectCoercible(iterable).
-        require_object_coercible(agent, *gc, iterable)?;
+        require_object_coercible(agent, gc.nogc(), iterable)?;
         // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%).
         let obj =
             ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
@@ -599,7 +599,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         let p = arguments.get(1);
         // 1. Let obj be ? ToObject(O).
-        let obj = to_object(agent, *gc, o)?;
+        let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let key be ? ToPropertyKey(P).
         let key = to_property_key(agent, gc.reborrow(), p)?;
         // 3. Let desc be ? obj.[[GetOwnProperty]](key).
@@ -618,7 +618,7 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
-        let obj = to_object(agent, *gc, o)?;
+        let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let ownKeys be ? obj.[[OwnPropertyKeys]]().
         let own_keys = obj.internal_own_property_keys(agent, gc.reborrow())?;
 
@@ -657,7 +657,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
         let keys = get_own_string_property_keys(agent, gc.reborrow(), o)?;
-        Ok(create_array_from_list(agent, *gc, &keys).into_value())
+        Ok(create_array_from_list(agent, gc.nogc(), &keys).into_value())
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
@@ -670,7 +670,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
         let keys = get_own_symbol_property_keys(agent, gc.reborrow(), o)?;
-        Ok(create_array_from_list(agent, *gc, &keys).into_value())
+        Ok(create_array_from_list(agent, gc.nogc(), &keys).into_value())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
@@ -680,7 +680,7 @@ impl ObjectConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let obj = to_object(agent, *gc, arguments.get(0))?;
+        let obj = to_object(agent, gc.nogc(), arguments.get(0))?;
         obj.internal_get_prototype_of(agent, gc)
             .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))
     }
@@ -705,7 +705,7 @@ impl ObjectConstructor {
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         for g in groups {
             // a. Let elements be CreateArrayFromList(g.[[Elements]]).
-            let elements = create_array_from_list(agent, *gc, &g.elements).into_value();
+            let elements = create_array_from_list(agent, gc.nogc(), &g.elements).into_value();
 
             // b. Perform ! CreateDataPropertyOrThrow(obj, g.[[Key]], elements).
             create_data_property_or_throw(agent, gc.reborrow(), object, g.key, elements)?;
@@ -721,7 +721,7 @@ impl ObjectConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let obj = to_object(agent, *gc, arguments.get(0))?;
+        let obj = to_object(agent, gc.nogc(), arguments.get(0))?;
         let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
         has_own_property(agent, gc.reborrow(), obj, key).map(|result| result.into())
     }
@@ -787,7 +787,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         println!("key target: {:?}", o);
         // 1. Let obj be ? ToObject(O).
-        let obj = to_object(agent, *gc, o)?;
+        let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
         let key_list = enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(
             agent,
@@ -795,7 +795,7 @@ impl ObjectConstructor {
             obj,
         )?;
         // 3. Return CreateArrayFromList(keyList).
-        Ok(create_array_from_list(agent, *gc, &key_list).into_value())
+        Ok(create_array_from_list(agent, gc.nogc(), &key_list).into_value())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -815,7 +815,7 @@ impl ObjectConstructor {
         // 3. If status is false, throw a TypeError exception.
         if !status {
             Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Could not prevent extensions",
             ))
@@ -842,7 +842,7 @@ impl ObjectConstructor {
         if !status {
             // 3. If status is false, throw a TypeError exception.
             Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Could not seal object",
             ))
@@ -862,7 +862,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         let proto = arguments.get(1);
         // 1. Set O to ? RequireObjectCoercible(O).
-        let o = require_object_coercible(agent, *gc, o)?;
+        let o = require_object_coercible(agent, gc.nogc(), o)?;
         // 2. If proto is not an Object and proto is not null, throw a TypeError exception.
         let proto = if let Ok(proto) = Object::try_from(proto) {
             Some(proto)
@@ -873,7 +873,7 @@ impl ObjectConstructor {
                 "{} is not an object or null",
                 proto.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 3. If O is not an Object, return O.
         let Ok(o) = Object::try_from(o) else {
@@ -884,7 +884,7 @@ impl ObjectConstructor {
         // 5. If status is false, throw a TypeError exception.
         if !status {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Could not set prototype",
             ));
@@ -901,7 +901,7 @@ impl ObjectConstructor {
     ) -> JsResult<Value> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
-        let obj = to_object(agent, *gc, o)?;
+        let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let valueList be ? EnumerableOwnProperties(obj, VALUE).
         let value_list = enumerable_own_properties::<enumerable_properties_kind::EnumerateValues>(
             agent,
@@ -909,7 +909,7 @@ impl ObjectConstructor {
             obj,
         )?;
         // 3. Return CreateArrayFromList(valueList).
-        Ok(create_array_from_list(agent, *gc, &value_list).into_value())
+        Ok(create_array_from_list(agent, gc.nogc(), &value_list).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -958,7 +958,7 @@ fn object_define_properties<T: InternalMethods>(
     properties: Value,
 ) -> JsResult<T> {
     // 1. Let props be ? ToObject(Properties).
-    let props = to_object(agent, *gc, properties)?;
+    let props = to_object(agent, gc.nogc(), properties)?;
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
     let keys = props.internal_own_property_keys(agent, gc.reborrow())?;
     // 3. Let descriptors be a new empty List.
@@ -1033,7 +1033,7 @@ pub fn add_entries_from_iterable_from_entries(
                 "Invalid iterator next return value: {} is not an object",
                 next.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            let error = agent.throw_exception(*gc, ExceptionType::TypeError, error_message);
+            let error = agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message);
             // ii. Return ? IteratorClose(iteratorRecord, error).
             iterator_close(agent, gc.reborrow(), &iterator_record, Err(error))?;
             return Ok(target);
@@ -1078,7 +1078,7 @@ fn get_own_string_property_keys(
     o: Value,
 ) -> JsResult<Vec<Value>> {
     // 1. Let obj be ? ToObject(O).
-    let obj = to_object(agent, *gc, o)?;
+    let obj = to_object(agent, gc.nogc(), o)?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
     let keys = obj.internal_own_property_keys(agent, gc.reborrow())?;
     // 3. Let nameList be a new empty List.
@@ -1090,7 +1090,7 @@ fn get_own_string_property_keys(
             // i. Append nextKey to nameList.
             PropertyKey::Integer(next_key) => {
                 let next_key = format!("{}", next_key.into_i64());
-                name_list.push(Value::from_string(agent, *gc, next_key));
+                name_list.push(Value::from_string(agent, gc.nogc(), next_key));
             }
             PropertyKey::SmallString(next_key) => name_list.push(Value::SmallString(next_key)),
             PropertyKey::String(next_key) => name_list.push(Value::String(next_key)),
@@ -1107,7 +1107,7 @@ fn get_own_symbol_property_keys(
     o: Value,
 ) -> JsResult<Vec<Value>> {
     // 1. Let obj be ? ToObject(O).
-    let obj = to_object(agent, *gc, o)?;
+    let obj = to_object(agent, gc.nogc(), o)?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
     let keys = obj.internal_own_property_keys(agent, gc.reborrow())?;
     // 3. Let nameList be a new empty List.

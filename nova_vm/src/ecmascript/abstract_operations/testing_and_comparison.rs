@@ -447,15 +447,13 @@ pub(crate) fn is_loosely_equal(
 
     // 9. If x is a Boolean, return ! IsLooselyEqual(! ToNumber(x), y).
     if let Ok(x) = bool::try_from(x) {
-        // TODO: We know GC cannot be triggered here.
-        let x = to_number(agent, gc.reborrow(), x).unwrap();
+        let x = if x { 1 } else { 0 };
         return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 
     // 10. If y is a Boolean, return ! IsLooselyEqual(x, ! ToNumber(y)).
     if let Ok(y) = bool::try_from(y) {
-        // TODO: We know GC cannot be triggered here.
-        let y = to_number(agent, gc.reborrow(), y).unwrap();
+        let y = if y { 1 } else { 0 };
         return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
     }
 

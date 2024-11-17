@@ -42,8 +42,8 @@ impl JsError {
         self.0
     }
 
-    pub fn to_string<'gc>(self, agent: &mut Agent, mut gc: GcScope<'gc, '_>) -> String<'gc> {
-        to_string(agent, gc.reborrow(), self.0).unwrap()
+    pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
+        to_string(agent, gc, self.0).unwrap()
     }
 }
 

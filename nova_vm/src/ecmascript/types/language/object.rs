@@ -545,7 +545,7 @@ impl Object {
     //
     // This function is best called with the form
     // ```rs
-    // let object = object.bind(gc.nogc());
+    // let object = object.bind(&gc);
     // ```
     // to make sure that the unbound Object cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {

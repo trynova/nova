@@ -77,7 +77,7 @@ impl SymbolPrototype {
     ) -> JsResult<Value> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
-        let sym = this_symbol_value(agent, *gc, this_value)?;
+        let sym = this_symbol_value(agent, gc.nogc(), this_value)?;
         // 3. Return sym.[[Description]].
         agent[sym]
             .descriptor
@@ -90,8 +90,8 @@ impl SymbolPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let symb = this_symbol_value(agent, *gc, this_value)?;
-        Ok(symbol_descriptive_string(agent, *gc, symb).into_value())
+        let symb = this_symbol_value(agent, gc.nogc(), this_value)?;
+        Ok(symbol_descriptive_string(agent, gc.nogc(), symb).into_value())
     }
 
     fn value_of(
@@ -100,7 +100,7 @@ impl SymbolPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_symbol_value(agent, *gc, this_value).map(|res| res.into_value())
+        this_symbol_value(agent, gc.nogc(), this_value).map(|res| res.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

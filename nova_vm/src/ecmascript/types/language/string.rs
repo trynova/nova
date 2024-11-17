@@ -45,7 +45,7 @@ impl HeapString<'_> {
     //
     // This function is best called with the form
     // ```rs
-    // let heap_string = heap_string.bind(gc.nogc());
+    // let heap_string = heap_string.bind(&gc);
     // ```
     // to make sure that the unbound HeapString cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapString<'gc> {
@@ -258,7 +258,7 @@ impl String<'_> {
     //
     // This function is best called with the form
     // ```rs
-    // let string = string.bind(gc.nogc());
+    // let string = string.bind(&gc);
     // ```
     // to make sure that the unbound String cannot be used after binding.
     pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> String<'gc> {
@@ -526,6 +526,20 @@ impl<'gc> String<'gc> {
         } else {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { agent.heap.alloc_static_str(str) }
+        }
+    }
+}
+
+impl Scoped<'_, String<'static>> {
+    pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
+        match &self.inner {
+            StringRootRepr::SmallString(small_string) => small_string.as_str(),
+            StringRootRepr::HeapRef(_) => {
+                let String::String(string) = self.get(agent) else {
+                    unreachable!();
+                };
+                string.as_str(agent)
+            }
         }
     }
 }

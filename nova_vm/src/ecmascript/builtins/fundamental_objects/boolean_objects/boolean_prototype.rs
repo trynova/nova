@@ -44,7 +44,7 @@ impl BooleanPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let b = this_boolean_value(agent, *gc, this_value)?;
+        let b = this_boolean_value(agent, gc.nogc(), this_value)?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
         } else {
@@ -58,7 +58,7 @@ impl BooleanPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_boolean_value(agent, *gc, this_value).map(|result| result.into())
+        this_boolean_value(agent, gc.nogc(), this_value).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

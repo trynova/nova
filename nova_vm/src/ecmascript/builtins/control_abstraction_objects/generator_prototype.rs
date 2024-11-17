@@ -57,7 +57,7 @@ impl GeneratorPrototype {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Generator expected",
             ));
@@ -81,7 +81,7 @@ impl GeneratorPrototype {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Generator expected",
             ));
@@ -107,7 +107,7 @@ impl GeneratorPrototype {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
-                    *gc,
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The generator is currently running",
                 ))
@@ -131,7 +131,7 @@ impl GeneratorPrototype {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Generator expected",
             ));

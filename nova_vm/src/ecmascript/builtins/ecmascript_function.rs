@@ -443,7 +443,7 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "class constructors must be invoked with 'new'",
             );
@@ -456,7 +456,7 @@ impl InternalMethods for ECMAScriptFunction {
         let EnvironmentIndex::Function(local_env) = local_env else {
             panic!("localEnv is not a Function Environment Record");
         };
-        ordinary_call_bind_this(agent, *gc, self, local_env, this_argument);
+        ordinary_call_bind_this(agent, gc.nogc(), self, local_env, this_argument);
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
         let result = ordinary_call_evaluate_body(agent, gc, self, arguments_list);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
@@ -512,7 +512,7 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
             ordinary_call_bind_this(
                 agent,
-                *gc,
+                gc.nogc(),
                 self,
                 constructor_env,
                 this_argument.unwrap().into_value(),
@@ -549,12 +549,13 @@ impl InternalMethods for ECMAScriptFunction {
                 "derived class constructor returned invalid value {}",
                 value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            let message = String::from_string(agent, *gc, message);
+            let message = String::from_string(agent, gc.nogc(), message);
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
         } else {
             // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
             // 13. Assert: thisBinding is an Object.
-            let Ok(this_binding) = Object::try_from(constructor_env.get_this_binding(agent, *gc)?)
+            let Ok(this_binding) =
+                Object::try_from(constructor_env.get_this_binding(agent, gc.nogc())?)
             else {
                 unreachable!();
             };

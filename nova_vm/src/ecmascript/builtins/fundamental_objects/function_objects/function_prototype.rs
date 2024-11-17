@@ -113,7 +113,7 @@ impl FunctionPrototype {
         let Some(func) = is_callable(this_value) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -159,7 +159,7 @@ impl FunctionPrototype {
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot bind a non-callable object",
             ));
@@ -236,7 +236,7 @@ impl FunctionPrototype {
         // 10. Perform SetFunctionName(F, targetName, "bound").
         set_function_name(
             agent,
-            *gc,
+            gc.nogc(),
             f,
             target_name.into(),
             Some(BUILTIN_STRING_MEMORY.bound),
@@ -254,7 +254,7 @@ impl FunctionPrototype {
     ) -> JsResult<Value> {
         let Some(func) = is_callable(this_value) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -275,7 +275,7 @@ impl FunctionPrototype {
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -292,7 +292,7 @@ impl FunctionPrototype {
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
                     .to_string();
-                Ok(Value::from_string(agent, *gc, source_text))
+                Ok(Value::from_string(agent, gc.nogc(), source_text))
             }
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.
@@ -318,19 +318,19 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_string(agent, *gc, initial_name))
+                Ok(Value::from_string(agent, gc.nogc(), initial_name))
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(_) => Ok(Value::from_static_str(
                 agent,
-                *gc,
+                gc.nogc(),
                 "class { [ native code ] }",
             )),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
                 Ok(Value::from_static_str(
                     agent,
-                    *gc,
+                    gc.nogc(),
                     "function () { [ native code ] }",
                 ))
             }
@@ -417,7 +417,7 @@ impl ThrowTypeError {
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        Err(agent.throw_exception_with_static_message(*gc,ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
+        Err(agent.throw_exception_with_static_message(gc.nogc(),ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

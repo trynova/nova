@@ -74,18 +74,20 @@ impl StringConstructor {
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
             if new_target.is_none() {
                 if let Value::Symbol(value) = value {
-                    return Ok(value.descriptive_string(agent, *gc).into_value());
+                    return Ok(value.descriptive_string(agent, gc.nogc()).into_value());
                 }
             }
             // b. Let s be ? ToString(value).
             to_string(agent, gc.reborrow(), value)?
+                .unbind()
+                .bind(gc.nogc())
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
             return Ok(s.into_value());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
-        let value = s.scope(agent, *gc);
+        let value = s.scope(agent, gc.nogc());
         let prototype = get_prototype_from_constructor(
             agent,
             gc.reborrow(),
@@ -103,7 +105,7 @@ impl StringConstructor {
 
         // 2. Set S.[[Prototype]] to prototype.
         // 3. Set S.[[StringData]] to value.
-        let value = value.get_unbound(agent).bind(*gc);
+        let value = value.get(agent).bind(gc.nogc());
         agent[s].data = match value {
             String::String(data) => PrimitiveObjectData::String(data.unbind()),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
@@ -153,7 +155,7 @@ impl StringConstructor {
         }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        Ok(String::from_string(agent, *gc, result).into())
+        Ok(String::from_string(agent, gc.nogc(), result).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)

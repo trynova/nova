@@ -223,7 +223,7 @@ impl BigInt {
     //
     // This function is best called with the form
     // ```rs
-    // let bigint = bigint.bind(gc.nogc());
+    // let bigint = bigint.bind(&gc);
     // ```
     // to make sure that the unbound BigInt cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
@@ -583,15 +583,15 @@ impl BigInt {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
         x: Self,
-    ) -> JsResult<String<'gc>> {
-        Ok(String::from_string(
+    ) -> String<'gc> {
+        String::from_string(
             agent,
             gc,
             match x {
                 BigInt::SmallBigInt(x) => x.into_i64().to_string(),
                 BigInt::BigInt(x) => agent[x].data.to_string(),
             },
-        ))
+        )
     }
 }
 

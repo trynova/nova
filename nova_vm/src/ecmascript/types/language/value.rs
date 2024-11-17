@@ -6,8 +6,8 @@ use super::{
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, String, StringHeapData,
-    Symbol,
+    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
+    StringHeapData, Symbol,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -56,6 +56,7 @@ use crate::{
         context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
+        Scoped,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
@@ -363,11 +364,19 @@ impl Value {
     //
     // This function is best called with the form
     // ```rs
-    // let value = value.bind(gc.nogc());
+    // let value = value.bind(&gc);
     // ```
     // to make sure that the unbound Value cannot be used after binding.
-    pub fn bind(self, _: NoGcScope<'_, '_>) -> Self {
+    pub fn bind(self, _gc: NoGcScope<'_, '_>) -> Self {
         self
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Value> {
+        Scoped::new(agent, gc, self.unbind())
     }
 
     pub fn from_str(agent: &mut Agent, gc: NoGcScope<'_, '_>, str: &str) -> Value {
@@ -423,6 +432,10 @@ impl Value {
             self,
             Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
         )
+    }
+
+    pub fn is_primitive(self) -> bool {
+        Primitive::try_from(self).is_ok()
     }
 
     pub fn is_string(self) -> bool {
@@ -486,6 +499,10 @@ impl Value {
         )
     }
 
+    pub fn is_integer(self) -> bool {
+        matches!(self, Value::Integer(_))
+    }
+
     pub fn is_empty_string(self) -> bool {
         if let Value::SmallString(s) = self {
             s.is_empty()
@@ -532,7 +549,7 @@ impl Value {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return symbol_idx.descriptive_string(agent, *gc);
+            return symbol_idx.descriptive_string(agent, gc.into_nogc());
         };
         match self.to_string(agent, gc) {
             Ok(result) => result,

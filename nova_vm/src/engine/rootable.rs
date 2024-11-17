@@ -295,7 +295,7 @@ pub enum HeapRootData {
 /// as-is. It only make sense within some root list referring type,
 /// specifically `Local<T>` and `Global<T>`, and then those types should never
 /// appear within the heap directly.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct HeapRootRef(u32);
 

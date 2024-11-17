@@ -186,7 +186,7 @@ impl Function {
     //
     // This function is best called with the form
     // ```rs
-    // let function = function.bind(gc.nogc());
+    // let function = function.bind(&gc);
     // ```
     // to make sure that the unbound Function cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {

@@ -280,7 +280,7 @@ impl GlobalEnvironmentIndex {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
-            dcl_rec.set_mutable_binding(agent, *gc, name, value, is_strict)
+            dcl_rec.set_mutable_binding(agent, gc.nogc(), name, value, is_strict)
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -312,7 +312,7 @@ impl GlobalEnvironmentIndex {
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, n) {
             // a. Return ? DclRec.GetBindingValue(N, S).
-            dcl_rec.get_binding_value(agent, *gc, n, s)
+            dcl_rec.get_binding_value(agent, gc.nogc(), n, s)
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;

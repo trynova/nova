@@ -188,7 +188,7 @@ impl PropertyDescriptor {
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 2. Let desc be a new Property Descriptor that initially has no
         // fields.
@@ -283,7 +283,7 @@ impl PropertyDescriptor {
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter) else {
                     return Err(agent.throw_exception_with_static_message(
-                        *gc,
+                        gc.nogc(),
                         ExceptionType::TypeError,
                         "getter is not callable",
                     ));
@@ -303,7 +303,7 @@ impl PropertyDescriptor {
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter) else {
                     return Err(agent.throw_exception_with_static_message(
-                        *gc,
+                        gc.nogc(),
                         ExceptionType::TypeError,
                         "setter is not callable",
                     ));
@@ -318,7 +318,7 @@ impl PropertyDescriptor {
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
                 return Err(agent.throw_exception_with_static_message(
-                    *gc,
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
                 ));

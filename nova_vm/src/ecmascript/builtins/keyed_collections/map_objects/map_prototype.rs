@@ -109,7 +109,7 @@ impl MapPrototype {
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
         // b. Set p.[[Value]] to EMPTY.
@@ -132,7 +132,7 @@ impl MapPrototype {
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -190,7 +190,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
@@ -229,11 +229,11 @@ impl MapPrototype {
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
             ));
@@ -280,7 +280,7 @@ impl MapPrototype {
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -330,7 +330,7 @@ impl MapPrototype {
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -375,7 +375,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
     }
 
@@ -389,7 +389,7 @@ impl MapPrototype {
         let value = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -454,7 +454,7 @@ impl MapPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         let count = agent[m].size();
         Ok(count.into())
     }
@@ -470,7 +470,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, *gc, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 

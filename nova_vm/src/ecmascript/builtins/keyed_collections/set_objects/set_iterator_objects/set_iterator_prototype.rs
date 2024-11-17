@@ -43,7 +43,7 @@ impl SetIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::SetIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "SetIterator expected",
             ));
@@ -75,7 +75,7 @@ impl SetIteratorPrototype {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, *gc, &[e, e]).into_value()
+                    create_array_from_list(agent, gc.nogc(), &[e, e]).into_value()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,

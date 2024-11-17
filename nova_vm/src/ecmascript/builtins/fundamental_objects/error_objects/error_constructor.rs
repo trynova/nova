@@ -56,7 +56,11 @@ impl ErrorConstructor {
         // 3. If message is not undefined, then
         let message = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
-            Some(to_string(agent, gc.reborrow(), message)?.scope(agent, *gc))
+            Some(
+                to_string(agent, gc.reborrow(), message)?
+                    .unbind()
+                    .scope(agent, gc.nogc()),
+            )
         } else {
             None
         };
@@ -77,7 +81,7 @@ impl ErrorConstructor {
         )?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let message = message.map(|message| message.get_unbound(agent));
+        let message = message.map(|message| message.get(agent));
         let heap_data = &mut agent[o];
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;

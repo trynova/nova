@@ -45,7 +45,7 @@ impl ArrayIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "ArrayIterator expected",
             ));
@@ -131,7 +131,8 @@ impl ArrayIteratorPrototype {
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).
-                create_array_from_list(agent, *gc, &[Value::Integer(index), value]).into_value()
+                create_array_from_list(agent, gc.nogc(), &[Value::Integer(index), value])
+                    .into_value()
             }
         };
 

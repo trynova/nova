@@ -65,7 +65,7 @@ impl ArrayBufferConstructor {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Constructor ArrayBuffer requires 'new'",
             ));
@@ -81,7 +81,7 @@ impl ArrayBufferConstructor {
         // 4. Return ? AllocateArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_array_buffer(
             agent,
-            *gc,
+            gc.nogc(),
             Function::try_from(new_target).unwrap(),
             byte_length,
             requested_max_byte_length,

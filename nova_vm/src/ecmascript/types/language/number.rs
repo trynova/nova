@@ -248,7 +248,7 @@ impl Number {
     //
     // This function is best called with the form
     // ```rs
-    // let number = number.bind(gc.nogc());
+    // let number = number.bind(&gc);
     // ```
     // to make sure that the unbound Number cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {

@@ -157,7 +157,7 @@ impl PromiseCapability {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent.create_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Tried to resolve a promise with itself.",
             );

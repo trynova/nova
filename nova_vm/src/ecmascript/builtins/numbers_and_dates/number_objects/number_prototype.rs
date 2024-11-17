@@ -88,20 +88,20 @@ impl NumberPrototype {
     ) -> JsResult<Value> {
         let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, *gc, this_value)?;
+        let x = this_number_value(agent, gc.nogc(), this_value)?;
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
         let f = to_integer_or_infinity(agent, gc.reborrow(), fraction_digits)?;
         // 3. Assert: If fractionDigits is undefined, then f is 0.
         debug_assert!(!fraction_digits.is_undefined() || f.is_pos_zero(agent));
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Ok(Number::to_string_radix_10(agent, *gc, x).into_value());
+            return Ok(Number::to_string_radix_10(agent, gc.nogc(), x).into_value());
         }
         let f = f.into_i64(agent);
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -115,9 +115,9 @@ impl NumberPrototype {
             x = 0.0;
         };
         if f == 0 {
-            Ok(f64_to_exponential(agent, *gc, x))
+            Ok(f64_to_exponential(agent, gc.nogc(), x))
         } else {
-            Ok(f64_to_exponential_with_precision(agent, *gc, x, f))
+            Ok(f64_to_exponential_with_precision(agent, gc.nogc(), x, f))
         }
     }
 
@@ -129,7 +129,7 @@ impl NumberPrototype {
     ) -> JsResult<Value> {
         let fraction_digits = arguments.get(0);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, *gc, this_value)?;
+        let x = this_number_value(agent, gc.nogc(), this_value)?;
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
         let f = to_integer_or_infinity(agent, gc.reborrow(), fraction_digits)?;
         // 3. Assert: If fractionDigits is undefined, then f is 0.
@@ -137,7 +137,7 @@ impl NumberPrototype {
         // 4. If f is not finite, throw a RangeError exception.
         if !f.is_finite(agent) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
@@ -146,20 +146,20 @@ impl NumberPrototype {
         // 5. If f < 0 or f > 100, throw a RangeError exception.
         if !(0..=100).contains(&f) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Fraction digits count out of range",
             ));
         }
         // 6. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Ok(Number::to_string_radix_10(agent, *gc, x).into_value());
+            return Ok(Number::to_string_radix_10(agent, gc.nogc(), x).into_value());
         }
         // 7. Set x to ℝ(x).
         let x = x.into_f64(agent);
         let mut buffer = ryu_js::Buffer::new();
         let string = buffer.format_to_fixed(x, f as u8);
-        Ok(Value::from_str(agent, *gc, string))
+        Ok(Value::from_str(agent, gc.nogc(), string))
     }
 
     fn to_locale_string(
@@ -184,14 +184,14 @@ impl NumberPrototype {
         let precision = arguments.get(0);
 
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, *gc, this_value)?;
+        let x = this_number_value(agent, gc.nogc(), this_value)?;
 
         // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, *gc, x).into_value());
+            return Ok(Number::to_string_radix_10(agent, gc.nogc(), x).into_value());
         }
 
         // 3. Let p be ? ToIntegerOrInfinity(precision).
@@ -199,14 +199,14 @@ impl NumberPrototype {
 
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
-            return Ok(Number::to_string_radix_10(agent, *gc, x).into_value());
+            return Ok(Number::to_string_radix_10(agent, gc.nogc(), x).into_value());
         }
 
         // 5. If p < 1 or p > 100, throw a RangeError exception.
         let precision = p.into_i64(agent) as i32;
         if !(1..=100).contains(&precision) {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Precision out of range",
             ));
@@ -291,14 +291,14 @@ impl NumberPrototype {
                 // zeroes).
                 m.push_str(&e.to_string());
 
-                return Ok(Value::from_string(agent, *gc, s + &m));
+                return Ok(Value::from_string(agent, gc.nogc(), s + &m));
             }
         }
 
         // 11. If e = p - 1, return the string-concatenation of s and m.
         let e_inc = e + 1;
         if e_inc == precision as i32 {
-            return Ok(String::from_string(agent, *gc, s + &m).into_value());
+            return Ok(String::from_string(agent, gc.nogc(), s + &m).into_value());
         }
 
         // 12. If e ≥ 0, then
@@ -319,7 +319,7 @@ impl NumberPrototype {
         }
 
         // 14. Return the string-concatenation of s and m.
-        Ok(String::from_string(agent, *gc, s + &m).into_value())
+        Ok(String::from_string(agent, gc.nogc(), s + &m).into_value())
     }
 
     /// round_to_precision - used in to_precision
@@ -418,10 +418,10 @@ impl NumberPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let x = this_number_value(agent, *gc, this_value)?;
+        let x = this_number_value(agent, gc.nogc(), this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Ok(Number::to_string_radix_10(agent, *gc, x).into_value())
+            Ok(Number::to_string_radix_10(agent, gc.nogc(), x).into_value())
         } else {
             todo!();
         }
@@ -433,7 +433,7 @@ impl NumberPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_number_value(agent, *gc, this_value).map(|result| result.into_value())
+        this_number_value(agent, gc.nogc(), this_value).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

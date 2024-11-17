@@ -303,7 +303,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -313,7 +313,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -323,7 +323,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -333,7 +333,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -343,7 +343,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -353,7 +353,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -363,7 +363,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -373,7 +373,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -383,7 +383,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -393,7 +393,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -403,7 +403,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -413,7 +413,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -423,7 +423,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -433,7 +433,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -443,7 +443,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -453,7 +453,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -463,7 +463,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -473,7 +473,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -483,7 +483,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -493,7 +493,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -503,7 +503,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -513,7 +513,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -523,7 +523,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -533,7 +533,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -543,7 +543,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -553,7 +553,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -563,7 +563,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -573,7 +573,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -583,7 +583,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -593,7 +593,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -603,7 +603,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -613,7 +613,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -623,7 +623,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -633,7 +633,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -643,7 +643,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -689,7 +689,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -699,7 +699,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -709,7 +709,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, *gc, this_value)?;
+        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
         todo!()
     }
 
@@ -719,7 +719,7 @@ impl DatePrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let date_object = check_date_object(agent, *gc, this_value)?;
+        let date_object = check_date_object(agent, gc.nogc(), this_value)?;
         let data = &agent[date_object].date;
         match data {
             Some(system_time) => {
@@ -782,7 +782,7 @@ impl DatePrototype {
                 "{} is not an object",
                 this_value.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 3. If hint is either "string" or "default", then
         let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
@@ -801,7 +801,7 @@ impl DatePrototype {
                 "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
                 hint.string_repr(agent, gc.reborrow(),).as_str(agent)
             );
-            return Err(agent.throw_exception(*gc, ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
         ordinary_to_primitive(agent, gc.reborrow(), o, try_first).map(|result| result.into_value())

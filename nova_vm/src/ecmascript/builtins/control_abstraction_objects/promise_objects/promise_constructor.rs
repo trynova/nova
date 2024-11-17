@@ -111,7 +111,7 @@ impl PromiseConstructor {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Promise Constructor requires 'new'",
             ));
@@ -127,7 +127,7 @@ impl PromiseConstructor {
         // TODO: Callable proxies
         let Ok(executor) = Function::try_from(args.get(0)) else {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -273,7 +273,7 @@ impl PromiseConstructor {
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Expected the this value to be a constructor.",
             ));
@@ -325,7 +325,7 @@ impl PromiseConstructor {
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
             return Err(agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Expected the this value to be a constructor.",
             ));

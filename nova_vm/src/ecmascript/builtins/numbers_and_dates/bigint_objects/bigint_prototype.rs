@@ -61,7 +61,7 @@ impl BigIntPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let _x = this_big_int_value(agent, *gc, this_value)?;
+        let _x = this_big_int_value(agent, gc.nogc(), this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
             // BigInt::to_string_radix_10(agent, x).map(|result| result.into_value())
@@ -77,7 +77,7 @@ impl BigIntPrototype {
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_big_int_value(agent, *gc, this_value).map(|result| result.into_value())
+        this_big_int_value(agent, gc.nogc(), this_value).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

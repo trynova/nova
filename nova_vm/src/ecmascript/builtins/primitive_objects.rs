@@ -246,7 +246,7 @@ impl InternalMethods for PrimitiveObject {
                 // b. Return IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
                 return is_compatible_property_descriptor(
                     agent,
-                    *gc,
+                    gc.nogc(),
                     self.internal_extensible(agent),
                     property_descriptor,
                     Some(string_desc),

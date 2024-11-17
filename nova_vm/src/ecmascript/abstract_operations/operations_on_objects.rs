@@ -93,7 +93,7 @@ pub(crate) fn get_v(
     p: PropertyKey,
 ) -> JsResult<Value> {
     // 1. Let O be ? ToObject(V).
-    let o = to_object(agent, *gc, v)?;
+    let o = to_object(agent, gc.nogc(), v)?;
     // 2. Return ? O.[[Get]](P, V).
     o.internal_get(agent, gc, p, o.into())
 }
@@ -118,7 +118,7 @@ pub(crate) fn set(
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
         return Err(agent.throw_exception(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             format!("Could not set property '{}'.", p.as_display(agent)),
         ));
@@ -176,7 +176,7 @@ pub(crate) fn create_data_property_or_throw(
     let success = create_data_property(agent, gc.reborrow(), object, property_key, value)?;
     if !success {
         Err(agent.throw_exception(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             format!(
                 "Could not create property '{}'.",
@@ -208,7 +208,7 @@ pub(crate) fn define_property_or_throw(
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Failed to defined property on object",
         ))
@@ -235,7 +235,7 @@ pub(crate) fn delete_property_or_throw(
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Failed to delete property",
         ))
@@ -269,7 +269,7 @@ pub(crate) fn get_method(
     let func = is_callable(func);
     if func.is_none() {
         return Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Not a callable object",
         ));
@@ -337,12 +337,17 @@ pub(crate) fn call(
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     match is_callable(f) {
         None => Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Not a callable object",
         )),
         // 3. Return ? F.[[Call]](V, argumentsList).
-        Some(f) => f.internal_call(agent, gc, v, arguments_list),
+        Some(f) => {
+            let current_stack_size = agent.stack_refs.borrow().len();
+            let result = f.internal_call(agent, gc, v, arguments_list);
+            agent.stack_refs.borrow_mut().truncate(current_stack_size);
+            result
+        }
     }
 }
 
@@ -582,7 +587,7 @@ pub(crate) fn create_list_from_array_like(
         }
         // 2. If obj is not an Object, throw a TypeError exception.
         _ => Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Not an object",
         )),
@@ -598,7 +603,10 @@ pub(crate) fn call_function(
     arguments_list: Option<ArgumentsList>,
 ) -> JsResult<Value> {
     let arguments_list = arguments_list.unwrap_or_default();
-    f.internal_call(agent, gc, v, arguments_list)
+    let current_stack_size = agent.stack_refs.borrow().len();
+    let result = f.internal_call(agent, gc, v, arguments_list);
+    agent.stack_refs.borrow_mut().truncate(current_stack_size);
+    result
 }
 
 pub(crate) fn construct(
@@ -674,7 +682,7 @@ pub(crate) fn ordinary_has_instance(
     // 5. If P is not an Object, throw a TypeError exception.
     let Ok(p) = Object::try_from(p) else {
         return Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Non-object prototype found",
         ));
@@ -765,7 +773,7 @@ pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
                 }
                 PropertyKey::Integer(int) => {
                     let int = int.into_i64();
-                    String::from_string(agent, *gc, format!("{}", int))
+                    String::from_string(agent, gc.nogc(), format!("{}", int))
                 }
                 PropertyKey::SmallString(str) => str.into(),
                 PropertyKey::String(str) => str.into(),
@@ -789,13 +797,14 @@ pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
                     }
                     PropertyKey::Integer(int) => {
                         let int = int.into_i64();
-                        String::from_string(agent, *gc, format!("{}", int))
+                        String::from_string(agent, gc.nogc(), format!("{}", int))
                     }
                     PropertyKey::SmallString(str) => str.into(),
                     PropertyKey::String(str) => str.into(),
                 };
                 // ii. Let entry be CreateArrayFromList(« key, value »).
-                let entry = create_array_from_list(agent, *gc, &[key_value.into_value(), value]);
+                let entry =
+                    create_array_from_list(agent, gc.nogc(), &[key_value.into_value(), value]);
                 // iii. Append entry to results.
                 results.push(entry.into_value());
             }
@@ -857,7 +866,7 @@ pub(crate) fn copy_data_properties(
         return Ok(());
     }
     // 2. Let from be ! ToObject(source).
-    let from = to_object(agent, *gc, source).unwrap();
+    let from = to_object(agent, gc.nogc(), source).unwrap();
 
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
     let keys = from.internal_own_property_keys(agent, gc.reborrow())?;
@@ -1058,12 +1067,12 @@ pub(crate) fn group_by_property(
     callback_fn: Value,
 ) -> JsResult<Vec<GroupByRecord<PropertyKey>>> {
     // 1. Perform ? RequireObjectCoercible(iterable).
-    require_object_coercible(agent, *gc, items)?;
+    require_object_coercible(agent, gc.nogc(), items)?;
 
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
     let Some(callback_fn) = is_callable(callback_fn) else {
         return Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Callback is not callable",
         ));
@@ -1085,7 +1094,7 @@ pub(crate) fn group_by_property(
         if k >= u32::MAX as usize {
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Maximum array size of 2**53-1 exceeded",
             );
@@ -1152,12 +1161,12 @@ pub(crate) fn group_by_collection(
     callback_fn: Value,
 ) -> JsResult<Vec<GroupByRecord<Value>>> {
     // 1. Perform ? RequireObjectCoercible(iterable).
-    require_object_coercible(agent, *gc, items)?;
+    require_object_coercible(agent, gc.nogc(), items)?;
 
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
     let Some(callback_fn) = is_callable(callback_fn) else {
         return Err(agent.throw_exception_with_static_message(
-            *gc,
+            gc.nogc(),
             ExceptionType::TypeError,
             "Callback is not callable",
         ));
@@ -1179,7 +1188,7 @@ pub(crate) fn group_by_collection(
         if k >= u32::MAX as usize {
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error = agent.throw_exception_with_static_message(
-                *gc,
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Maximum array size of 2**53-1 exceeded",
             );

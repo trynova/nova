@@ -254,7 +254,7 @@ impl EnvironmentIndex {
                 Ok(())
             }
             EnvironmentIndex::Global(idx) => {
-                idx.create_mutable_binding(agent, *gc, name, is_deletable)
+                idx.create_mutable_binding(agent, gc.nogc(), name, is_deletable)
             }
             EnvironmentIndex::Object(idx) => {
                 idx.create_mutable_binding(agent, gc, name, is_deletable)
@@ -339,10 +339,10 @@ impl EnvironmentIndex {
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                idx.set_mutable_binding(agent, *gc, name, value, is_strict)
+                idx.set_mutable_binding(agent, gc.nogc(), name, value, is_strict)
             }
             EnvironmentIndex::Function(idx) => {
-                idx.set_mutable_binding(agent, *gc, name, value, is_strict)
+                idx.set_mutable_binding(agent, gc.nogc(), name, value, is_strict)
             }
             EnvironmentIndex::Global(idx) => {
                 idx.set_mutable_binding(agent, gc, name, value, is_strict)
@@ -371,9 +371,11 @@ impl EnvironmentIndex {
     ) -> JsResult<Value> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                idx.get_binding_value(agent, *gc, name, is_strict)
+                idx.get_binding_value(agent, gc.nogc(), name, is_strict)
             }
-            EnvironmentIndex::Function(idx) => idx.get_binding_value(agent, *gc, name, is_strict),
+            EnvironmentIndex::Function(idx) => {
+                idx.get_binding_value(agent, gc.nogc(), name, is_strict)
+            }
             EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, gc, name, is_strict),
             EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, gc, name, is_strict),
         }

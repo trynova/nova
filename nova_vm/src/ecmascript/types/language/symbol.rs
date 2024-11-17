@@ -52,7 +52,7 @@ impl Symbol {
     //
     // This function is best called with the form
     // ```rs
-    // let symbol = symbol.bind(gc.nogc());
+    // let symbol = symbol.bind(&gc);
     // ```
     // to make sure that the unbound Symbol cannot be used after binding.
     pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
