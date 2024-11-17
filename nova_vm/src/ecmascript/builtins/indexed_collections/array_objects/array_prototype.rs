@@ -3108,7 +3108,7 @@ impl ArrayPrototype {
         // 3. Let argCount be the number of elements in items.
         let arg_count = items.len();
         // 4. If argCount > 0, then
-        if len > 0 {
+        if arg_count > 0 {
             // a. If len + argCount > 2**53 - 1, throw a TypeError exception.
             if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
                 return Err(agent.throw_exception_with_static_message(
@@ -3142,13 +3142,11 @@ impl ArrayPrototype {
                 k -= 1;
             }
             // d. Let j be +0𝔽.
-            let mut j = 0;
             // e. For each element E of items, do
-            for e in items.iter() {
+            for (j, e) in items.iter().enumerate() {
                 // i. Perform ? Set(O, ! ToString(j), E, true).
-                set(agent, gc.reborrow(), o, j.try_into().unwrap(), *e, true)?;
                 // ii. Set j to j + 1𝔽.
-                j += 1;
+                set(agent, gc.reborrow(), o, j.try_into().unwrap(), *e, true)?;
             }
         }
         // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
