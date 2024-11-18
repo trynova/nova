@@ -3116,6 +3116,25 @@ impl ArrayPrototype {
                     "Array length overflow",
                 ));
             }
+            if let Value::Array(array) = this_value {
+                // Fast path: Array is dense and contains no descriptors. No JS
+                // functions can thus be called by unshift.
+                if array.is_trivial(agent) && array.is_dense(agent) {
+                    let Heap {
+                        arrays, elements, ..
+                    } = &mut agent.heap;
+                    arrays[array]
+                        .elements
+                        .reserve(elements, len as u32 + arg_count as u32);
+                    agent[array].elements.len += arg_count as u32;
+                    let slice = array.as_mut_slice(agent);
+                    slice.copy_within(..len as usize, arg_count);
+                    slice[..arg_count].copy_from_slice(unsafe {
+                        std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
+                    });
+                    return Ok(agent[array].elements.len.try_into().unwrap());
+                }
+            }
             // b. Let k be len.
             let mut k = len;
             // c. Repeat, while k > 0,
