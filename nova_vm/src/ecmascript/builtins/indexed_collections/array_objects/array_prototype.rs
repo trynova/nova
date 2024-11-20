@@ -3110,6 +3110,12 @@ impl ArrayPrototype {
             {
                 let len = agent[array].elements.len;
                 let arg_count = items.len();
+                if (len as i64 + arg_count as i64) > SmallInteger::MAX_NUMBER {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Array length overflow",
+                    ));
+                }
                 // Fast path: Reserve enough room in the array and set array length.
                 let Heap {
                     arrays, elements, ..
