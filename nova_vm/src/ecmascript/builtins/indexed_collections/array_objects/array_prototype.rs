@@ -3116,9 +3116,7 @@ impl ArrayPrototype {
                 let Heap {
                     arrays, elements, ..
                 } = &mut agent.heap;
-                arrays[array]
-                    .elements
-                    .reserve(elements, len + arg_count as u32);
+                arrays[array].elements.reserve(elements, final_len.unwrap());
                 agent[array].elements.len += arg_count as u32;
                 // Fast path: Copy old items to the end of array,
                 // copy new items to the front of the array.
@@ -3129,7 +3127,7 @@ impl ArrayPrototype {
                     // The transmute effectively turns Value into Some(Value).
                     std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
                 });
-                return Ok(agent[array].elements.len.into());
+                return Ok(final_len.unwrap().into());
             }
         }
         // 1. Let O be ? ToObject(this value).
