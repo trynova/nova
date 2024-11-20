@@ -63,6 +63,10 @@ impl Array {
         agent[*self].elements.len()
     }
 
+    pub fn length_writable(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
+        agent[*self].elements.len_writable
+    }
+
     pub fn is_empty(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
         agent[*self].elements.len() == 0
     }

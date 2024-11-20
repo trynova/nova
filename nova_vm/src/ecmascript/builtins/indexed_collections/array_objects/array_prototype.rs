@@ -3084,14 +3084,112 @@ impl ArrayPrototype {
         call_function(agent, gc, func, array.into_value(), None)
     }
 
+    /// ### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
+    ///
+    /// This method prepends the arguments to the start of the array, such that
+    /// their order within the array is the same as the order in which they appear
+    /// in the argument list.
+    ///
+    /// > ### Note
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
     fn unshift(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
-        _: ArgumentsList,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+        this_value: Value,
+        items: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // Fast path: Array is dense and contains no descriptors. No JS
+        // functions can thus be called by unshift.
+        if let Value::Array(array) = this_value {
+            let len = array.len(agent);
+            let arg_count = items.len();
+            let final_len = u32::try_from(len as u64 + arg_count as u64);
+            if final_len.is_ok()
+                && array.is_trivial(agent)
+                && array.is_dense(agent)
+                && array.length_writable(agent)
+            {
+                // Fast path: Reserve enough room in the array and set array length.
+                let Heap {
+                    arrays, elements, ..
+                } = &mut agent.heap;
+                arrays[array].elements.reserve(elements, final_len.unwrap());
+                agent[array].elements.len += arg_count as u32;
+                // Fast path: Copy old items to the end of array,
+                // copy new items to the front of the array.
+                let slice = array.as_mut_slice(agent);
+                slice.copy_within(..len as usize, arg_count);
+                slice[..arg_count].copy_from_slice(unsafe {
+                    // SAFETY: Option<Value> is an extra variant of the Value enum.
+                    // The transmute effectively turns Value into Some(Value).
+                    std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
+                });
+                return Ok(final_len.unwrap().into());
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
+        // 3. Let argCount be the number of elements in items.
+        let arg_count = items.len();
+        // 4. If argCount > 0, then
+        if arg_count > 0 {
+            // a. If len + argCount > 2**53 - 1, throw a TypeError exception.
+            if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length overflow",
+                ));
+            }
+            // b. Let k be len.
+            let mut k = len;
+            // c. Repeat, while k > 0,
+            while k > 0 {
+                // i. Let from be ! ToString(𝔽(k - 1)).
+                let from = (k - 1).try_into().unwrap();
+                // ii. Let to be ! ToString(𝔽(k + argCount - 1)).
+                let to = (k + arg_count as i64 - 1).try_into().unwrap();
+                // iii. Let fromPresent be ? HasProperty(O, from).
+                let from_present = has_property(agent, gc.reborrow(), o, from)?;
+                // iv. If fromPresent is true, then
+                if from_present {
+                    // 1. Let fromValue be ? Get(O, from).
+                    let from_value = get(agent, gc.reborrow(), o, from)?;
+                    // 2. Perform ? Set(O, to, fromValue, true).
+                    set(agent, gc.reborrow(), o, to, from_value, true)?;
+                } else {
+                    // v. Else,
+                    // 1. Assert: fromPresent is false.
+                    // 2. Perform ? DeletePropertyOrThrow(O, to).
+                    delete_property_or_throw(agent, gc.reborrow(), o, to)?;
+                }
+                // vi. Set k to k - 1.
+                k -= 1;
+            }
+            // d. Let j be +0𝔽.
+            // e. For each element E of items, do
+            for (j, e) in items.iter().enumerate() {
+                // i. Perform ? Set(O, ! ToString(j), E, true).
+                // ii. Set j to j + 1𝔽.
+                set(agent, gc.reborrow(), o, j.try_into().unwrap(), *e, true)?;
+            }
+        }
+        // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
+        let len: Value = (len + arg_count as i64).try_into().unwrap();
+        set(
+            agent,
+            gc.reborrow(),
+            o,
+            BUILTIN_STRING_MEMORY.length.into(),
+            len,
+            true,
+        )?;
+        // 6. Return 𝔽(len + argCount).
+        Ok(len)
     }
 
     fn values(
