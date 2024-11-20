@@ -3101,6 +3101,35 @@ impl ArrayPrototype {
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
+        // Fast path: Array is dense and contains no descriptors. No JS
+        // functions can thus be called by unshift.
+        if let Value::Array(array) = this_value {
+            if array.is_trivial(agent)
+                && array.is_dense(agent)
+                && agent[array].elements.len_writable
+            {
+                let len = agent[array].elements.len;
+                let arg_count = items.len();
+                // Fast path: Reserve enough room in the array and set array length.
+                let Heap {
+                    arrays, elements, ..
+                } = &mut agent.heap;
+                arrays[array]
+                    .elements
+                    .reserve(elements, len + arg_count as u32);
+                agent[array].elements.len += arg_count as u32;
+                // Fast path: Copy old items to the end of array,
+                // copy new items to the front of the array.
+                let slice = array.as_mut_slice(agent);
+                slice.copy_within(..len as usize, arg_count);
+                slice[..arg_count].copy_from_slice(unsafe {
+                    // SAFETY: Option<Value> is an extra variant of the Value enum.
+                    // The transmute effectively turns Value into Some(Value).
+                    std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
+                });
+                return Ok(agent[array].elements.len.into());
+            }
+        }
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -3115,30 +3144,6 @@ impl ArrayPrototype {
                     ExceptionType::TypeError,
                     "Array length overflow",
                 ));
-            }
-            if let Value::Array(array) = this_value {
-                // Fast path: Array is dense and contains no descriptors. No JS
-                // functions can thus be called by unshift.
-                if array.is_trivial(agent) && array.is_dense(agent) {
-                    // Fast path: Reserve enough room in the array and set array length.
-                    let Heap {
-                        arrays, elements, ..
-                    } = &mut agent.heap;
-                    arrays[array]
-                        .elements
-                        .reserve(elements, len as u32 + arg_count as u32);
-                    agent[array].elements.len += arg_count as u32;
-                    // Fast path: Copy old items to the end of array, 
-                    // copy new items to the front of the array.
-                    let slice = array.as_mut_slice(agent);
-                    slice.copy_within(..len as usize, arg_count);
-                    slice[..arg_count].copy_from_slice(unsafe {
-                        // SAFETY: Option<Value> is an extra variant of the Value enum.
-                        // The transmute effectively turns Value into Some(Value).
-                        std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
-                    });
-                    return Ok(agent[array].elements.len.try_into().unwrap());
-                }
             }
             // b. Let k be len.
             let mut k = len;
