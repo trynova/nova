@@ -3104,18 +3104,14 @@ impl ArrayPrototype {
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by unshift.
         if let Value::Array(array) = this_value {
-            if array.is_trivial(agent)
+            let len = array.len(agent);
+            let arg_count = items.len();
+            let final_len = u32::try_from(len as u64 + arg_count as u64);
+            if final_len.is_ok()
+                && array.is_trivial(agent)
                 && array.is_dense(agent)
-                && agent[array].elements.len_writable
+                && array.length_writable(agent)
             {
-                let len = agent[array].elements.len;
-                let arg_count = items.len();
-                if (len as i64 + arg_count as i64) > SmallInteger::MAX_NUMBER {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "Array length overflow",
-                    ));
-                }
                 // Fast path: Reserve enough room in the array and set array length.
                 let Heap {
                     arrays, elements, ..
