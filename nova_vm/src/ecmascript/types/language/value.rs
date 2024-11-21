@@ -101,7 +101,7 @@ pub enum Value {
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber),
+    Number(HeapNumber<'static>),
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
@@ -391,8 +391,8 @@ impl Value {
         String::from_static_str(agent, gc, str).into_value()
     }
 
-    pub fn from_f64(agent: &mut Agent, value: f64) -> Value {
-        Number::from_f64(agent, value).into_value()
+    pub fn from_f64(agent: &mut Agent, gc: NoGcScope<'_, '_>, value: f64) -> Value {
+        Number::from_f64(agent, gc, value).into_value()
     }
 
     pub fn nan() -> Self {
@@ -511,7 +511,7 @@ impl Value {
         }
     }
 
-    pub fn to_number(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Number> {
+    pub fn to_number<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<Number<'gc>> {
         to_number(agent, gc, self)
     }
 
@@ -575,7 +575,7 @@ impl Value {
     where
         H: Hasher,
         A: Index<HeapString<'static>, Output = StringHeapData>
-            + Index<HeapNumber, Output = f64>
+            + Index<HeapNumber<'static>, Output = f64>
             + Index<HeapBigInt, Output = BigIntHeapData>,
     {
         let discriminant = core::mem::discriminant(&self);
@@ -1058,8 +1058,8 @@ impl TryFrom<f64> for Value {
     }
 }
 
-impl From<Number> for Value {
-    fn from(value: Number) -> Self {
+impl From<Number<'_>> for Value {
+    fn from(value: Number<'_>) -> Self {
         value.into_value()
     }
 }

@@ -226,7 +226,7 @@ impl BigInt {
     // let bigint = bigint.bind(&gc);
     // ```
     // to make sure that the unbound BigInt cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
     }
 

@@ -7,7 +7,7 @@ mod intrinsics;
 use super::{
     environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
 };
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -210,7 +210,7 @@ impl HeapMarkAndSweep for Realm {
 ///
 /// The abstract operation CreateRealm takes no arguments and returns a Realm
 /// Record.
-pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
+pub(crate) fn create_realm(agent: &mut Agent, gc: NoGcScope) -> RealmIdentifier {
     // 1. Let realmRec be a new Realm Record.
     let realm_rec = Realm {
         // 2. Perform CreateIntrinsics(realmRec).
@@ -235,7 +235,7 @@ pub fn create_realm(agent: &mut Agent) -> RealmIdentifier {
 
     // 7. Return realmRec.
     let realm = agent.heap.add_realm(realm_rec);
-    Intrinsics::create_intrinsics(agent, realm);
+    Intrinsics::create_intrinsics(agent, gc, realm);
     realm
 }
 
@@ -347,7 +347,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Infinity);
-        let value = Number::from_f64(agent, f64::INFINITY);
+        let value = Number::from_f64(agent, gc.nogc(), f64::INFINITY);
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
             writable: Some(false),
@@ -358,7 +358,7 @@ pub(crate) fn set_default_global_bindings(
         define_property_or_throw(agent, gc.reborrow(), global, name, desc)?;
 
         let name = PropertyKey::from(BUILTIN_STRING_MEMORY.NaN);
-        let value = Number::from_f64(agent, f64::NAN);
+        let value = Number::from_f64(agent, gc.nogc(), f64::NAN);
         let desc = PropertyDescriptor {
             value: Some(value.into_value()),
             writable: Some(false),
@@ -1073,7 +1073,7 @@ pub(crate) fn initialize_host_defined_realm(
     initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>, Object)>,
 ) {
     // 1. Let realm be CreateRealm().
-    let realm = create_realm(agent);
+    let realm = create_realm(agent, gc.nogc());
 
     // 2. Let newContext be a new execution context.
     let new_context = ExecutionContext {

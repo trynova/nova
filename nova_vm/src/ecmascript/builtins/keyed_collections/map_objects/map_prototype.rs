@@ -532,7 +532,7 @@ fn require_map_data_internal_slot(agent: &mut Agent, gc: NoGcScope, value: Value
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
 pub(crate) fn canonicalize_keyed_collection_key(
-    agent: &impl Index<HeapNumber, Output = f64>,
+    agent: &impl Index<HeapNumber<'static>, Output = f64>,
     key: Value,
 ) -> Value {
     // 1. If key is -0𝔽, return +0𝔽.

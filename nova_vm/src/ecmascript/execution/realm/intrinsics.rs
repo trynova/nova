@@ -142,6 +142,7 @@ use crate::{
         },
         types::{Object, OrdinaryObject},
     },
+    engine::context::NoGcScope,
     heap::{
         indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
         intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
@@ -262,7 +263,7 @@ impl Intrinsics {
         }
     }
 
-    pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsics(agent: &mut Agent, gc: NoGcScope, realm: RealmIdentifier) {
         GlobalObject::create_intrinsic(agent, realm);
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);
@@ -279,11 +280,11 @@ impl Intrinsics {
         AggregateErrorPrototype::create_intrinsic(agent, realm);
         AggregateErrorConstructor::create_intrinsic(agent, realm);
         NumberPrototype::create_intrinsic(agent, realm);
-        NumberConstructor::create_intrinsic(agent, realm);
+        NumberConstructor::create_intrinsic(agent, gc, realm);
         BigIntPrototype::create_intrinsic(agent, realm);
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
-        MathObject::create_intrinsic(agent, realm);
+        MathObject::create_intrinsic(agent, gc, realm);
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]

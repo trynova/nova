@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 use std::f64::consts;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_uint32},
@@ -357,7 +357,7 @@ impl MathObject {
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
         // 3. If n is 1𝔽, return +0𝔽.
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
-        Ok(Value::from_f64(agent, n.acos()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.acos()))
     }
 
     fn acosh(
@@ -383,7 +383,7 @@ impl MathObject {
 
         // 4. If n < 1𝔽, return NaN.
         // 5. Return an implementation-approximated Number value representing the result of the inverse hyperbolic cosine of ℝ(n).
-        Ok(Value::from_f64(agent, n.acosh()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.acosh()))
     }
 
     fn asin(
@@ -408,7 +408,7 @@ impl MathObject {
         }
 
         // 4. Return an implementation-approximated Number value representing the result of the inverse sine of ℝ(n).
-        Ok(Value::from_f64(agent, n.asin()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.asin()))
     }
 
     fn asinh(
@@ -426,7 +426,8 @@ impl MathObject {
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the inverse hyperbolic sine of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).asinh()))
+        let result = n.into_f64(agent).asinh();
+        Ok(Value::from_f64(agent, gc.into_nogc(), result))
     }
 
     fn atan(
@@ -445,16 +446,17 @@ impl MathObject {
 
         // 3. If n is +∞𝔽, return an implementation-approximated Number value representing π / 2.
         if n.is_pos_infinity(agent) {
-            return Ok(Value::from_f64(agent, consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_2));
         }
 
         // 4. If n is -∞𝔽, return an implementation-approximated Number value representing -π / 2.
         if n.is_neg_infinity(agent) {
-            return Ok(Value::from_f64(agent, -consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_2));
         }
 
         // 5. Return an implementation-approximated Number value representing the result of the inverse tangent of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).atan()))
+        let result = n.into_f64(agent).atan();
+        Ok(Value::from_f64(agent, gc.into_nogc(), result))
     }
 
     fn atanh(
@@ -489,7 +491,7 @@ impl MathObject {
         }
 
         // 6. Return an implementation-approximated Number value representing the result of the inverse hyperbolic tangent of ℝ(n).
-        Ok(Value::from_f64(agent, n.atanh()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.atanh()))
     }
 
     fn atan2(
@@ -499,108 +501,124 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let ny be ? ToNumber(y).
-        let ny = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let ny = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
         // 2. Let nx be ? ToNumber(x).
-        let nx = to_number(agent, gc.reborrow(), arguments.get(1))?;
+        let nx = to_number(agent, gc.reborrow(), arguments.get(1))?.into_f64(agent);
 
         // 3. If ny is NaN or nx is NaN, return NaN.
-        if ny.is_nan(agent) || nx.is_nan(agent) {
+        if ny.is_nan() || nx.is_nan() {
             return Ok(Value::nan());
         }
 
         // 4. If ny is +∞𝔽, then
-        if ny.is_pos_infinity(agent) {
-            // a. If nx is +∞𝔽, return an implementation-approximated Number value representing π / 4.
-            if nx.is_pos_infinity(agent) {
-                return Ok(Value::from_f64(agent, consts::FRAC_PI_4));
-            }
-            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing 3π / 4.
-            if nx.is_neg_infinity(agent) {
-                return Ok(Value::from_f64(agent, 3.0 * consts::FRAC_PI_4));
+        if ny.is_infinite() && ny.is_sign_positive() {
+            if nx.is_infinite() {
+                // a. If nx is +∞𝔽, return an implementation-approximated Number value representing π / 4.
+                if nx.is_sign_positive() {
+                    return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_4));
+                }
+                // b. If nx is -∞𝔽, return an implementation-approximated Number value representing 3π / 4.
+                if nx.is_sign_negative() {
+                    return Ok(Value::from_f64(
+                        agent,
+                        gc.into_nogc(),
+                        3.0 * consts::FRAC_PI_4,
+                    ));
+                }
             }
             // c. Return an implementation-approximated Number value representing π / 2.
-            return Ok(Value::from_f64(agent, consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_2));
         }
 
         // 5. If ny is -∞𝔽, then
-        if ny.is_neg_infinity(agent) {
-            // a. If nx is +∞𝔽, return an implementation-approximated Number value representing -π / 4.
-            if nx.is_pos_infinity(agent) {
-                return Ok(Value::from_f64(agent, -consts::FRAC_PI_4));
-            }
-            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -3π / 4.
-            if nx.is_neg_infinity(agent) {
-                return Ok(Value::from_f64(agent, -3.0 * consts::FRAC_PI_4));
+        if ny.is_infinite() && ny.is_sign_negative() {
+            if nx.is_infinite() {
+                // a. If nx is +∞𝔽, return an implementation-approximated Number value representing -π / 4.
+                if nx.is_sign_positive() {
+                    return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_4));
+                }
+                // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -3π / 4.
+                if nx.is_sign_negative() {
+                    return Ok(Value::from_f64(
+                        agent,
+                        gc.into_nogc(),
+                        -3.0 * consts::FRAC_PI_4,
+                    ));
+                }
             }
             // c. Return an implementation-approximated Number value representing -π / 2.
-            return Ok(Value::from_f64(agent, -consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_2));
         }
 
         // 6. If ny is +0𝔽, then
-        if ny.is_pos_zero(agent) {
-            // a. If nx > +0𝔽 or nx is +0𝔽, return +0𝔽.
-            if nx.is_sign_positive(agent) || nx.is_pos_zero(agent) {
-                return Ok(Value::pos_zero());
+        if ny == 0.0 {
+            if ny.is_sign_positive() {
+                // a. If nx > +0𝔽 or nx is +0𝔽, return +0𝔽.
+                if nx >= 0.0 && nx.is_sign_positive() {
+                    return Ok(Value::pos_zero());
+                }
+                // b. Return an implementation-approximated Number value representing π.
+                return Ok(Value::from_f64(agent, gc.into_nogc(), consts::PI));
             }
-            // b. Return an implementation-approximated Number value representing π.
-            return Ok(Value::from_f64(agent, consts::PI));
-        }
 
-        // 7. If ny is -0𝔽, then
-        if ny.is_neg_zero(agent) {
-            // a. If nx > +0𝔽 or nx is +0𝔽, return -0𝔽.
-            if nx.is_sign_positive(agent) || nx.is_pos_zero(agent) {
-                return Ok(Value::neg_zero());
+            // 7. If ny is -0𝔽, then
+            if ny.is_sign_negative() {
+                // a. If nx > +0𝔽 or nx is +0𝔽, return -0𝔽.
+                if nx >= 0.0 && nx.is_sign_positive() {
+                    return Ok(Value::neg_zero());
+                }
+                // b. Return an implementation-approximated Number value representing -π.
+                return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::PI));
             }
-            // b. Return an implementation-approximated Number value representing -π.
-            return Ok(Value::from_f64(agent, -consts::PI));
         }
 
         // 8. Assert: ny is finite and is neither +0𝔽 nor -0𝔽.
-        assert!(ny.is_finite(agent) && !ny.is_pos_zero(agent) && !ny.is_neg_zero(agent));
+        assert!(ny.is_finite() && ny != 0.0);
 
         // 9. If ny > +0𝔽, then
-        if ny.into_f64(agent) > 0.0 {
-            // a. If nx is +∞𝔽, return +0𝔽.
-            if nx.is_pos_infinity(agent) {
-                return Ok(Value::pos_zero());
-            }
-            // b. If nx is -∞𝔽, return an implementation-approximated Number value representing π.
-            if nx.is_neg_infinity(agent) {
-                return Ok(Value::from_f64(agent, consts::PI));
+        if ny > 0.0 {
+            if nx.is_infinite() {
+                // a. If nx is +∞𝔽, return +0𝔽.
+                if nx.is_sign_positive() {
+                    return Ok(Value::pos_zero());
+                }
+                // b. If nx is -∞𝔽, return an implementation-approximated Number value representing π.
+                if nx.is_sign_negative() {
+                    return Ok(Value::from_f64(agent, gc.into_nogc(), consts::PI));
+                }
             }
             // c. If nx is either +0𝔽 or -0𝔽, return an implementation-approximated Number value representing π / 2.
-            if nx.is_pos_zero(agent) || nx.is_neg_zero(agent) {
-                return Ok(Value::from_f64(agent, consts::FRAC_PI_2));
+            if nx == 0.0 {
+                return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_2));
             }
         }
 
         // 10. If ny < -0𝔽, then
-        if ny.into_f64(agent) < 0.0 {
+        if ny < 0.0 {
             // a. If nx is +∞𝔽, return -0𝔽.
-            if nx.is_pos_infinity(agent) {
+            if nx.is_sign_positive() {
                 return Ok(Value::neg_zero());
             }
             // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -π.
-            if nx.is_neg_infinity(agent) {
-                return Ok(Value::from_f64(agent, -consts::PI));
+            if nx.is_sign_negative() {
+                return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::PI));
             }
             // c. If nx is either +0𝔽 or -0𝔽, return an implementation-approximated Number value representing -π / 2.
-            if nx.is_pos_zero(agent) || nx.is_neg_zero(agent) {
-                return Ok(Value::from_f64(agent, -consts::FRAC_PI_2));
+            if nx == 0.0 {
+                return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_2));
             }
         }
 
         // 11. Assert: nx is finite and is neither +0𝔽 nor -0𝔽.
-        assert!(nx.is_finite(agent) && !nx.is_pos_zero(agent) && !nx.is_neg_zero(agent));
+        assert!(nx.is_finite() && nx != 0.0);
 
         // 12. Let r be the inverse tangent of abs(ℝ(ny) / ℝ(nx)).
-        let mut r = (ny.into_f64(agent) / nx.into_f64(agent)).atan();
+        let mut r = (ny / nx).atan();
 
         // 13. If nx < -0𝔽, then
-        if nx.into_f64(agent) < 0.0 {
+        if nx < 0.0 {
             // a. If ny > +0𝔽, set r to π - r.
-            if ny.into_f64(agent) > 0.0 {
+            if ny > 0.0 {
                 r = consts::PI - r;
             } else {
                 // b. Else, set r to -π + r.
@@ -610,13 +628,13 @@ impl MathObject {
         // 14. Else,
         else {
             // a. If ny < -0𝔽, set r to -r.
-            if ny.into_f64(agent) < 0.0 {
+            if ny < 0.0 {
                 r = -r;
             }
         }
 
         // 15. Return an implementation-approximated Number value representing r.
-        Ok(Value::from_f64(agent, r))
+        Ok(Value::from_f64(agent, gc.into_nogc(), r))
     }
 
     fn cbrt(
@@ -626,7 +644,9 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.unbind();
+        let gc = gc.into_nogc();
+        let n = n.bind(gc);
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -634,7 +654,7 @@ impl MathObject {
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the cube root of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).cbrt()))
+        Ok(Value::from_f64(agent, gc, n.into_f64(agent).cbrt()))
     }
 
     fn ceil(
@@ -643,11 +663,17 @@ impl MathObject {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
+        let n = arguments.get(0);
+        // 4. If n is an integral Number, return n.
+        if n.is_integer() {
+            return Ok(n);
+        }
+
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), n)?;
 
         // 4. If n is an integral Number, return n.
-        if let Number::Integer(_) = n {
+        if n.is_integer(agent) {
             return Ok(n.into_value());
         }
 
@@ -664,7 +690,7 @@ impl MathObject {
         }
 
         // 5. Return the smallest (closest to -∞) integral Number value that is not less than n.
-        Ok(Value::from_f64(agent, n.ceil()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.ceil()))
     }
 
     fn clz32(
@@ -690,20 +716,20 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
 
         // 2. If n is not finite, return NaN.
-        if !n.is_finite(agent) {
+        if !n.is_finite() {
             return Ok(Value::nan());
         }
 
         // 3. If n is either +0𝔽 or -0𝔽, return 1𝔽.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n == 0.0 {
             return Ok(Value::from(1));
         }
 
         // 4. Return an implementation-approximated Number value representing the result of the cosine of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).cos()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.cos()))
     }
 
     fn cosh(
@@ -713,25 +739,25 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
 
         // 2. If n is NaN, return NaN.
-        if n.is_nan(agent) {
+        if n.is_nan() {
             return Ok(Value::nan());
         }
 
         // 3. If n is either +∞𝔽 or -∞𝔽, return +∞𝔽.
-        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+        if n.is_infinite() {
             return Ok(Number::pos_inf().into_value());
         }
 
         // 4. If n is either +0𝔽 or -0𝔽, return 1𝔽.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n == 0.0 {
             return Ok(Value::from(1));
         }
 
         // 5. Return an implementation-approximated Number value representing the result of the hyperbolic cosine of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).cosh()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.cosh()))
     }
 
     fn exp(
@@ -748,18 +774,20 @@ impl MathObject {
             return Ok(n.into_value());
         }
 
+        let n = n.into_f64(agent);
+
         //3. If n is either +0𝔽 or -0𝔽, return 1𝔽.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n == 0.0 {
             return Ok(Value::from(1));
         }
 
         //4. If n is -∞𝔽, return +0𝔽.
-        if n.is_neg_infinity(agent) {
+        if n.is_infinite() {
             return Ok(Value::pos_zero());
         }
 
         //5. Return an implementation-approximated Number value representing the result of the exponential function of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).exp()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.exp()))
     }
 
     fn expm1(
@@ -780,13 +808,15 @@ impl MathObject {
             return Ok(n.into_value());
         }
 
+        let n = n.into_f64(agent);
+
         // 3. If n is -∞𝔽, return -1𝔽.
-        if n.is_neg_infinity(agent) {
+        if n.is_infinite() {
             return Ok(Value::from(-1));
         }
 
         // 4. Return an implementation-approximated Number value representing the result of subtracting 1 from the exponential function of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).exp_m1()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.exp_m1()))
     }
 
     fn floor(
@@ -795,11 +825,18 @@ impl MathObject {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = arguments.get(0);
 
         // 4. If n is an integral Number, return n.
-        if let Number::Integer(_) = n {
+        if n.is_integer() {
+            return Ok(n.into_value());
+        }
+
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, gc.reborrow(), n)?;
+
+        // 4. If n is an integral Number, return n.
+        if n.is_integer(agent) {
             return Ok(n.into_value());
         }
 
@@ -816,7 +853,7 @@ impl MathObject {
         }
 
         // 5. Return the greatest (closest to +∞) integral Number value that is not greater than n.
-        Ok(Value::from_f64(agent, n.floor()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.floor()))
     }
 
     fn fround(
@@ -849,7 +886,7 @@ impl MathObject {
         let n64 = n32 as f64;
 
         // 6. Return the ECMAScript Number value corresponding to n64.
-        Ok(Value::from_f64(agent, n64))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n64))
     }
 
     fn hypot(
@@ -859,39 +896,39 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
-        let mut coerced = Vec::with_capacity(arguments.len());
 
         // 2. For each element arg of args, do
+        // 4. Let onlyZero be true.
+        let mut sum_of_squares = 0.0;
+        let mut only_zero = true;
+        let mut contains_nan = false;
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), arg)?;
+            let n = to_number(agent, gc.reborrow(), arg)?.into_f64(agent);
 
-            // b. Append n to coerced.
-            coerced.push(n);
-        }
-
-        // 3. For each element number of coerced, do
-        for number in coerced.iter() {
-            // a. If number is either +∞𝔽 or -∞𝔽, return +∞𝔽.
-            if number.is_pos_infinity(agent) || number.is_neg_infinity(agent) {
+            // 3. For each element number of coerced, do
+            if n.is_infinite() {
+                // a. If number is either +∞𝔽 or -∞𝔽, return +∞𝔽.
                 return Ok(Value::pos_inf());
             }
+            // 5. For each element number of coerced, do
+            if n.is_nan() {
+                // Note: We cannot return NaN immediately as a later-found
+                // infinite value should override an earlier NaN.
+                // a. If number is NaN, return NaN.
+                contains_nan = true;
+            } else if n != 0.0 {
+                // b. If number is neither +0𝔽 nor -0𝔽, set onlyZero to false.
+                only_zero = false;
+                // b. Append n to coerced.
+                sum_of_squares += n * n;
+            }
         }
 
-        // 4. Let onlyZero be true.
-        let mut only_zero = true;
-
         // 5. For each element number of coerced, do
-        for number in coerced.iter() {
+        if contains_nan {
             // a. If number is NaN, return NaN.
-            if number.is_nan(agent) {
-                return Ok(Value::nan());
-            }
-
-            // b. If number is neither +0𝔽 nor -0𝔽, set onlyZero to false.
-            if !number.is_pos_zero(agent) && !number.is_neg_zero(agent) {
-                only_zero = false;
-            }
+            return Ok(Value::nan());
         }
 
         // 6. If onlyZero is true, return +0𝔽.
@@ -902,11 +939,8 @@ impl MathObject {
         // 7. Return an implementation-approximated Number value representing the square root of the sum of squares of the mathematical values of the elements of coerced.
         return Ok(Value::from_f64(
             agent,
-            coerced
-                .iter()
-                .map(|n| n.into_f64(agent))
-                .fold(0.0, |acc, n| acc + n * n)
-                .sqrt(),
+            gc.into_nogc(),
+            sum_of_squares.sqrt(),
         ));
     }
 
@@ -936,30 +970,31 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
 
         // 2. If n is either NaN or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value());
+        if n.is_nan() || n == f64::INFINITY {
+            return Ok(n_number.into_value());
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n == 1.0 {
             return Ok(Value::pos_zero());
         }
 
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n == 0.0 {
             return Ok(Value::neg_inf());
         }
 
         // 5. If n < -0𝔽, return NaN.
-        if n.is_sign_negative(agent) {
+        if n.is_sign_negative() {
             return Ok(Value::nan());
         }
 
         // 6. Return an implementation-approximated Number value representing the result of the natural logarithm of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).ln()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.ln()))
     }
 
     fn log1p(
@@ -969,25 +1004,22 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
-        if n.is_nan(agent)
-            || n.is_pos_zero(agent)
-            || n.is_neg_zero(agent)
-            || n.is_pos_infinity(agent)
-        {
-            return Ok(n.into_value());
+        if n.is_nan() || n == 0.0 || n == f64::INFINITY {
+            return Ok(n_number.into_value());
         }
         // 3. If n is -1𝔽, return -∞𝔽.
-        if n.is_neg_one(agent) {
+        if n == -1.0 {
             return Ok(Value::neg_inf());
         }
         // 4. If n < -1𝔽, return NaN.
-        if n.is_sign_negative(agent) {
+        if n < -1.0 {
             return Ok(Value::nan());
         }
         // 5. Return an implementation-approximated Number value representing the natural logarithm of 1 + ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).ln_1p()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.ln_1p()))
     }
 
     fn log10(
@@ -997,26 +1029,27 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value());
+        if n.is_nan() || n == f64::INFINITY {
+            return Ok(n_number.into_value());
         }
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n == 1.0 {
             return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n == 0.0 {
             return Ok(Value::neg_inf());
         }
         // 5. If n < -0𝔽, return NaN.
-        if n.is_sign_negative(agent) {
+        if n < -0.0 {
             return Ok(Value::nan());
         }
 
         // 6. Return an implementation-approximated Number value representing the base 10 logarithm of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).log10()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.log10()))
     }
 
     fn log2(
@@ -1026,25 +1059,26 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value());
+        if n.is_nan() || n == f64::INFINITY {
+            return Ok(n_number.into_value());
         }
         // 3. If n is 1𝔽, return +0𝔽.
-        if n.is_pos_one(agent) {
+        if n == 1.0 {
             return Ok(Value::pos_zero());
         }
         // 4. If n is either +0𝔽 or -0𝔽, return -∞𝔽.
-        if n.is_pos_zero(agent) || n.is_neg_zero(agent) {
+        if n == 0.0 {
             return Ok(Value::neg_inf());
         }
         // 5. If n < -0𝔽, return NaN.
-        if n.is_sign_negative(agent) {
+        if n < -0.0 {
             return Ok(Value::nan());
         }
         // 6. Return an implementation-approximated Number value
-        Ok(Value::from_f64(agent, n.into_f64(agent).log2()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.log2()))
     }
 
     fn max(
@@ -1225,14 +1259,14 @@ impl MathObject {
                 if let Ok(result) = SmallInteger::try_from(result) {
                     return Ok(Value::Integer(result));
                 } else {
-                    return Ok(Value::from_f64(agent, result as f64));
+                    return Ok(Value::from_f64(agent, gc.into_nogc(), result as f64));
                 }
             } else if let Ok(exponent) = i32::try_from(exponent) {
                 let result = (base as f64).powi(exponent);
-                return Ok(Value::from_f64(agent, result));
+                return Ok(Value::from_f64(agent, gc.into_nogc(), result));
             } else {
                 let result = (base as f64).powf(exponent as f64);
-                return Ok(Value::from_f64(agent, result));
+                return Ok(Value::from_f64(agent, gc.into_nogc(), result));
             }
         }
         let base = to_number(agent, gc.reborrow(), base)?;
@@ -1242,11 +1276,15 @@ impl MathObject {
 
     fn random(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        Ok(Value::from_f64(agent, rand::random::<f64>()))
+        Ok(Value::from_f64(
+            agent,
+            gc.into_nogc(),
+            rand::random::<f64>(),
+        ))
     }
 
     fn round(
@@ -1255,11 +1293,15 @@ impl MathObject {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
+        let n = arguments.get(0);
+        if n.is_integer() {
+            return Ok(n);
+        }
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, gc.reborrow(), n)?;
 
         // 2. If n is not finite or n is an integral Number, return n.
-        if !n.is_finite(agent) || matches!(n, Number::Integer(_)) {
+        if !n.is_finite(agent) || n.is_integer(agent) {
             return Ok(n.into_value());
         }
 
@@ -1276,7 +1318,7 @@ impl MathObject {
         }
 
         // 5. Return the integral Number closest to n, preferring the Number closer to +∞ in the case of a tie.
-        Ok(Value::from_f64(agent, n.round()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.round()))
     }
 
     fn sign(
@@ -1306,17 +1348,18 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+        if n.is_nan() || n == 0.0 {
+            return Ok(n_number.into_value());
         }
         // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
-        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+        if n.is_infinite() {
             return Ok(Value::nan());
         }
         // 4. Return an implementation-approximated Number value representing the sine of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).sin()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.sin()))
     }
 
     fn sinh(
@@ -1326,13 +1369,14 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
-        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+        if !n.is_finite() || n == 0.0 {
+            return Ok(n_number.into_value());
         }
         // 3. Return an implementation-approximated Number value representing the hyperbolic sine of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).sinh()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.sinh()))
     }
 
     fn sqrt(
@@ -1342,21 +1386,18 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
-        if n.is_nan(agent)
-            || n.is_pos_zero(agent)
-            || n.is_neg_zero(agent)
-            || n.is_pos_infinity(agent)
-        {
-            return Ok(n.into_value());
+        if n.is_nan() || n == 0.0 || n == f64::INFINITY {
+            return Ok(n_number.into_value());
         }
         // 3. If n < -0𝔽, return NaN.
-        if n.is_sign_negative(agent) {
+        if n < -0.0 {
             return Ok(Value::nan());
         }
         // 4. Return an implementation-approximated Number value representing the square root of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).sqrt()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.sqrt()))
     }
 
     fn tan(
@@ -1366,17 +1407,18 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+        if n.is_nan() || n == 0.0 {
+            return Ok(n_number.into_value());
         }
         // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
-        if n.is_pos_infinity(agent) || n.is_neg_infinity(agent) {
+        if n.is_infinite() {
             return Ok(Value::nan());
         }
         // 4. Return an implementation-approximated Number value representing the tangent of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).tan()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.tan()))
     }
 
     fn tanh(
@@ -1386,21 +1428,22 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
-        if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+        if n.is_nan() || n == 0.0 {
+            return Ok(n_number.into_value());
         }
         // 3. If n is +∞𝔽, return 1𝔽.
-        if n.is_pos_infinity(agent) {
+        if n == f64::INFINITY {
             return Ok(Value::from(1));
         }
         // 4. If n is -∞𝔽, return -1𝔽.
-        if n.is_neg_infinity(agent) {
+        if n == f64::NEG_INFINITY {
             return Ok(Value::from(-1));
         }
         // 5. Return an implementation-approximated Number value representing the hyperbolic tangent of ℝ(n).
-        Ok(Value::from_f64(agent, n.into_f64(agent).tanh()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.tanh()))
     }
 
     fn trunc(
@@ -1410,14 +1453,13 @@ impl MathObject {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = n_number.into_f64(agent);
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
-        if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+        if !n.is_finite() || n == 0.0 {
+            return Ok(n_number.into_value());
         }
-
-        let n = n.into_f64(agent);
 
         // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
         if n < 1.0 && n > 0.0 {
@@ -1430,10 +1472,10 @@ impl MathObject {
         }
 
         // 5. Return the integral Number nearest n in the direction of +0𝔽.
-        Ok(Value::from_f64(agent, n.trunc()))
+        Ok(Value::from_f64(agent, gc.into_nogc(), n.trunc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, gc: NoGcScope, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
@@ -1445,7 +1487,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::E).into_value()
+                        Number::from_f64(agent, gc, consts::E).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1455,7 +1497,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN10.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_10).into_value()
+                        Number::from_f64(agent, gc, consts::LN_10).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1465,7 +1507,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_2).into_value()
+                        Number::from_f64(agent, gc, consts::LN_2).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1475,7 +1517,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG10E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG10_E).into_value()
+                        Number::from_f64(agent, gc, consts::LOG10_E).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1485,7 +1527,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG2E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG2_E).into_value()
+                        Number::from_f64(agent, gc, consts::LOG2_E).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1495,7 +1537,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.PI.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::PI).into_value()
+                        Number::from_f64(agent, gc, consts::PI).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1505,7 +1547,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT1_2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::FRAC_1_SQRT_2).into_value()
+                        Number::from_f64(agent, gc, consts::FRAC_1_SQRT_2).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1515,7 +1557,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::SQRT_2).into_value()
+                        Number::from_f64(agent, gc, consts::SQRT_2).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)

@@ -754,7 +754,7 @@ impl GlobalObject {
     /// contents of the string argument as a decimal literal.
     fn parse_float(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -765,7 +765,7 @@ impl GlobalObject {
         let string = arguments.get(0);
 
         // 1. Let inputString be ? ToString(string).
-        let input_string = to_string(agent, gc, string)?;
+        let input_string = to_string(agent, gc.reborrow(), string)?;
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
         let trimmed_string = input_string
@@ -806,7 +806,7 @@ impl GlobalObject {
                 }
             }
 
-            Ok(Value::from_f64(agent, f))
+            Ok(Value::from_f64(agent, gc.nogc(), f))
         } else {
             Ok(Value::nan())
         }
@@ -859,7 +859,7 @@ impl GlobalObject {
             0
         } else if let Ok(radix) = Primitive::try_from(radix) {
             let radix = to_number_primitive(agent, gc.nogc(), radix)?;
-            to_int32_number(agent, radix)
+            to_int32_number(agent, gc.nogc(), radix)
         } else {
             let s_root = s.scope(agent, gc.nogc());
             let radix = to_int32(agent, gc.reborrow(), radix)?;
@@ -991,7 +991,7 @@ impl GlobalObject {
                         // a. If sign = -1, return -0𝔽.
                         // b. Return +0𝔽.
                         // 16. Return 𝔽(sign × mathInt).
-                        Ok(Value::from_f64(agent, sign as f64 * math_int))
+                        Ok(Value::from_f64(agent, gc.nogc(), sign as f64 * math_int))
                     }
                 }
             }

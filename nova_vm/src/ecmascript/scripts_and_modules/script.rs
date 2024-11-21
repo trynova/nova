@@ -598,7 +598,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "");
@@ -614,7 +614,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "true");
@@ -630,7 +630,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "-2");
@@ -646,7 +646,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "void (2 + 2 + 6)");
@@ -662,7 +662,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "+(54)");
@@ -678,7 +678,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "!true");
@@ -694,7 +694,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "~0b1111");
@@ -791,7 +791,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "2 + 2 + 6");
@@ -807,7 +807,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "var foo = 3;");
@@ -821,7 +821,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "var foo = {};");
@@ -850,7 +850,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "var foo = { a: 3 };");
@@ -887,7 +887,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         agent.execution_context_stack.push(ExecutionContext {
@@ -921,7 +921,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "var foo = [ 'a', 3 ];");
@@ -968,7 +968,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "function foo() {}");
@@ -982,7 +982,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "(function() {})()");
@@ -996,7 +996,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text =
@@ -1011,7 +1011,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "function f() {}; f();");
@@ -1025,7 +1025,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text =
@@ -1040,7 +1040,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
         let global = agent[realm].global_object;
 
@@ -1098,7 +1098,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(&mut agent, gc.nogc(), "if (true) 3");
@@ -1117,7 +1117,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(
@@ -1144,7 +1144,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text =
@@ -1159,7 +1159,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(
@@ -1177,7 +1177,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
 
         let source_text = String::from_static_str(
@@ -1194,7 +1194,7 @@ mod test {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let mut gc = GcScope::new(&mut gc, &mut scope);
         let mut agent = Agent::new(Options::default(), &DefaultHostHooks);
-        let realm = create_realm(&mut agent);
+        let realm = create_realm(&mut agent, gc.nogc());
         set_realm_global_object(&mut agent, realm, None, None);
         let source_text =
             String::from_static_str(&mut agent, gc.nogc(), "var i = 0; for (; i < 3; i++) {}");

@@ -136,7 +136,7 @@ mod private {
     impl RootableSealed for Map {}
     impl RootableSealed for MapIterator {}
     impl RootableSealed for Module {}
-    impl RootableSealed for Number {}
+    impl RootableSealed for Number<'_> {}
     impl RootableSealed for Numeric {}
     impl RootableSealed for Object {}
     impl RootableSealed for OrdinaryObject {}
@@ -206,7 +206,7 @@ pub enum HeapRootData {
     // value.rs, but with the
     String(HeapString<'static>) = STRING_DISCRIMINANT,
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
     Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,

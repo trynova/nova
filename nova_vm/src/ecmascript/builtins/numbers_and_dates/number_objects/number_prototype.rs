@@ -195,7 +195,9 @@ impl NumberPrototype {
         }
 
         // 3. Let p be ? ToIntegerOrInfinity(precision).
-        let p = to_integer_or_infinity(agent, gc.reborrow(), precision)?;
+        let p = to_integer_or_infinity(agent, gc.reborrow(), precision)?
+            .unbind()
+            .bind(gc.nogc());
 
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
@@ -490,7 +492,11 @@ fn f64_to_exponential_with_precision(agent: &mut Agent, gc: NoGcScope, x: f64, f
 ///
 /// The abstract operation ThisNumberValue takes argument value (an ECMAScript language value) and returns either a normal completion containing a Number or a throw completion. It performs the following steps when called:
 #[inline(always)]
-fn this_number_value(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Number> {
+fn this_number_value<'gc>(
+    agent: &mut Agent,
+    gc: NoGcScope<'gc, '_>,
+    value: Value,
+) -> JsResult<Number<'gc>> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
         return Ok(value);
