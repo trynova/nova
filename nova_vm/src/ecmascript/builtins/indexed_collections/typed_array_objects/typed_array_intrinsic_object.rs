@@ -28,6 +28,7 @@ use crate::ecmascript::types::U8Clamped;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::context::NoGcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::IntrinsicFunctionIndexes;
 use crate::heap::WellKnownSymbolIndexes;
@@ -378,7 +379,7 @@ impl TypedArrayPrototype {
     /// function is undefined.
     fn get_buffer(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
@@ -387,7 +388,7 @@ impl TypedArrayPrototype {
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
         // 4. Let buffer be O.[[ViewedArrayBuffer]].
-        let o = require_internal_slot_typed_array(agent, this_value)?;
+        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
 
         // 5. Return buffer.
         Ok(o.get_viewed_array_buffer(agent).into_value())
@@ -399,7 +400,7 @@ impl TypedArrayPrototype {
     /// accessor function is undefined.
     fn get_byte_length(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
@@ -407,26 +408,25 @@ impl TypedArrayPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
-        let o = require_internal_slot_typed_array(agent, this_value)?;
+        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
 
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
 
         // 5. Let size be TypedArrayByteLength(taRecord).
         let size = match o {
-            TypedArray::Int8Array(_) => typed_array_byte_length::<i8>(agent, &ta_record),
-            TypedArray::Uint8Array(_) => typed_array_byte_length::<u8>(agent, &ta_record),
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_byte_length::<U8Clamped>(agent, &ta_record)
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => typed_array_byte_length::<u8>(agent, &ta_record),
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_byte_length::<u16>(agent, &ta_record)
             }
-            TypedArray::Int16Array(_) => typed_array_byte_length::<i16>(agent, &ta_record),
-            TypedArray::Uint16Array(_) => typed_array_byte_length::<u16>(agent, &ta_record),
-            TypedArray::Int32Array(_) => typed_array_byte_length::<i32>(agent, &ta_record),
-            TypedArray::Uint32Array(_) => typed_array_byte_length::<u32>(agent, &ta_record),
-            TypedArray::BigInt64Array(_) => typed_array_byte_length::<i64>(agent, &ta_record),
-            TypedArray::BigUint64Array(_) => typed_array_byte_length::<u64>(agent, &ta_record),
-            TypedArray::Float32Array(_) => typed_array_byte_length::<f32>(agent, &ta_record),
-            TypedArray::Float64Array(_) => typed_array_byte_length::<f64>(agent, &ta_record),
+            TypedArray::Float32Array(_)
+            | TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_) => typed_array_byte_length::<u32>(agent, &ta_record),
+            TypedArray::Float64Array(_)
+            | TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_) => typed_array_byte_length::<u64>(agent, &ta_record),
         };
 
         // 6. Return 𝔽(size).
@@ -439,7 +439,7 @@ impl TypedArrayPrototype {
     /// accessor function is undefined.
     fn get_byte_offset(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
@@ -447,7 +447,7 @@ impl TypedArrayPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
-        let o = require_internal_slot_typed_array(agent, this_value)?;
+        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
 
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
@@ -488,14 +488,14 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
     fn entries(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst)?;
+        let o = validate_typed_array(agent, gc.nogc(), this_value, Ordering::SeqCst)?;
         // 3. Return CreateArrayIterator(O, key+value).
         Ok(ArrayIterator::from_object(
             agent,
@@ -607,14 +607,14 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
     fn keys(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst)?;
+        let o = validate_typed_array(agent, gc.nogc(), this_value, Ordering::SeqCst)?;
         // 3. Return CreateArrayIterator(O, key).
         Ok(
             ArrayIterator::from_object(agent, o.object.into_object(), CollectionIteratorKind::Key)
@@ -634,7 +634,7 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
     fn get_length(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
@@ -642,7 +642,7 @@ impl TypedArrayPrototype {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has [[ViewedArrayBuffer]] and [[ArrayLength]] internal slots.
-        let o = require_internal_slot_typed_array(agent, this_value)?;
+        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
         // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
@@ -801,14 +801,14 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn values(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
 
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst)?;
+        let o = validate_typed_array(agent, gc.nogc(), this_value, Ordering::SeqCst)?;
         // 3. Return CreateArrayIterator(O, value).
         Ok(
             ArrayIterator::from_object(
@@ -934,11 +934,13 @@ impl TypedArrayPrototype {
 #[inline]
 pub(crate) fn require_internal_slot_typed_array(
     agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
     o: Value,
 ) -> JsResult<TypedArray> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     TypedArray::try_from(o).map_err(|_| {
         agent.throw_exception_with_static_message(
+            gc,
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Expected this to be TypedArray",
         )

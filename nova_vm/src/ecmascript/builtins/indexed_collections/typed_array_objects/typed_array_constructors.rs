@@ -649,6 +649,7 @@ fn typed_array_constructor<T: Viewable>(
     // 1. If NewTarget is undefined, throw a TypeError exception.
     let Some(new_target) = new_target else {
         return Err(agent.throw_exception_with_static_message(
+            gc.nogc(),
             ExceptionType::TypeError,
             "calling a builtin TypedArray constructor without new is forbidden",
         ));

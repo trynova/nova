@@ -113,7 +113,7 @@ impl From<TypedArrayIndex> for TypedArray {
     }
 }
 
-impl IntoBaseIndex<TypedArrayHeapData> for TypedArray {
+impl IntoBaseIndex<'_, TypedArrayHeapData> for TypedArray {
     fn into_base_index(self) -> TypedArrayIndex {
         self.into()
     }
