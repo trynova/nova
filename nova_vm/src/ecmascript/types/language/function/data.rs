@@ -35,7 +35,7 @@ pub struct BoundFunctionHeapData {
     /// A list of values whose elements are used as the first arguments to any
     /// call to the wrapped function.
     pub(crate) bound_arguments: ElementsVector,
-    pub(crate) name: Option<String>,
+    pub(crate) name: Option<String<'static>>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,7 +49,7 @@ pub struct BuiltinFunctionHeapData {
     /// #### \[\[InitialName]]
     /// A String that is the initial name of the function. It is used by
     /// 20.2.3.5 (`Function.prototype.toString()`).
-    pub(crate) initial_name: Option<String>,
+    pub(crate) initial_name: Option<String<'static>>,
     pub(crate) behaviour: Behaviour,
 }
 
@@ -92,7 +92,7 @@ pub struct ECMAScriptFunctionHeapData {
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     /// Stores the compiled bytecode of an ECMAScript function.
     pub(crate) compiled_bytecode: Option<Executable>,
-    pub(crate) name: Option<String>,
+    pub(crate) name: Option<String<'static>>,
 }
 
 unsafe impl Send for ECMAScriptFunctionHeapData {}

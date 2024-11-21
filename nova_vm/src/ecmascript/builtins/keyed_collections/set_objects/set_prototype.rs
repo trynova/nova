@@ -6,7 +6,7 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -34,43 +34,43 @@ pub(crate) struct SetPrototype;
 
 struct SetPrototypeAdd;
 impl Builtin for SetPrototypeAdd {
-    const NAME: String = BUILTIN_STRING_MEMORY.add;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.add;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::add);
 }
 struct SetPrototypeClear;
 impl Builtin for SetPrototypeClear {
-    const NAME: String = BUILTIN_STRING_MEMORY.clear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::clear);
 }
 struct SetPrototypeDelete;
 impl Builtin for SetPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::delete);
 }
 struct SetPrototypeEntries;
 impl Builtin for SetPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::entries);
 }
 struct SetPrototypeForEach;
 impl Builtin for SetPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::for_each);
 }
 struct SetPrototypeHas;
 impl Builtin for SetPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::has);
 }
 struct SetPrototypeGetSize;
 impl Builtin for SetPrototypeGetSize {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_size;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_size;
     const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::get_size);
@@ -78,7 +78,7 @@ impl Builtin for SetPrototypeGetSize {
 impl BuiltinGetter for SetPrototypeGetSize {}
 struct SetPrototypeValues;
 impl Builtin for SetPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetPrototype::values);
 }
@@ -90,14 +90,13 @@ impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
     fn add(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -152,14 +151,13 @@ impl SetPrototype {
     /// > iterating over that List.
     fn clear(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
         // element whose value is EMPTY.
@@ -177,14 +175,13 @@ impl SetPrototype {
     /// > such as physically removing the entry from internal data structures.
     fn delete(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -228,8 +225,7 @@ impl SetPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -238,7 +234,7 @@ impl SetPrototype {
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
@@ -278,7 +274,6 @@ impl SetPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -286,10 +281,11 @@ impl SetPrototype {
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -329,14 +325,13 @@ impl SetPrototype {
     /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
     fn has(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -377,14 +372,13 @@ impl SetPrototype {
     /// is undefined.
     fn get_size(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
         let size = agent[s].size();
         // 4. Return 𝔽(size).
@@ -393,8 +387,7 @@ impl SetPrototype {
 
     fn values(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -403,7 +396,7 @@ impl SetPrototype {
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value)?;
+        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
 
@@ -455,11 +448,14 @@ impl SetPrototype {
 }
 
 #[inline(always)]
-fn require_set_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Set> {
+fn require_set_data_internal_slot(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Set> {
     match value {
         Value::Set(map) => Ok(map),
-        _ => Err(agent
-            .throw_exception_with_static_message(ExceptionType::TypeError, "Object is not a Set")),
+        _ => Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Object is not a Set",
+        )),
     }
 }
 

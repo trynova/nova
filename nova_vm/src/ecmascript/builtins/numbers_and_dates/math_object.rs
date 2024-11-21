@@ -20,7 +20,7 @@ pub(crate) struct MathObject;
 
 struct MathObjectAbs;
 impl Builtin for MathObjectAbs {
-    const NAME: String = BUILTIN_STRING_MEMORY.abs;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.abs;
 
     const LENGTH: u8 = 1;
 
@@ -30,7 +30,7 @@ impl Builtin for MathObjectAbs {
 
 struct MathObjectAcos;
 impl Builtin for MathObjectAcos {
-    const NAME: String = BUILTIN_STRING_MEMORY.acos;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.acos;
 
     const LENGTH: u8 = 1;
 
@@ -39,7 +39,7 @@ impl Builtin for MathObjectAcos {
 }
 struct MathObjectAcosh;
 impl Builtin for MathObjectAcosh {
-    const NAME: String = BUILTIN_STRING_MEMORY.acosh;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.acosh;
 
     const LENGTH: u8 = 1;
 
@@ -48,7 +48,7 @@ impl Builtin for MathObjectAcosh {
 }
 struct MathObjectAsin;
 impl Builtin for MathObjectAsin {
-    const NAME: String = BUILTIN_STRING_MEMORY.asin;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asin;
 
     const LENGTH: u8 = 1;
 
@@ -57,7 +57,7 @@ impl Builtin for MathObjectAsin {
 }
 struct MathObjectAsinh;
 impl Builtin for MathObjectAsinh {
-    const NAME: String = BUILTIN_STRING_MEMORY.asinh;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asinh;
 
     const LENGTH: u8 = 1;
 
@@ -66,7 +66,7 @@ impl Builtin for MathObjectAsinh {
 }
 struct MathObjectAtan;
 impl Builtin for MathObjectAtan {
-    const NAME: String = BUILTIN_STRING_MEMORY.atan;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.atan;
 
     const LENGTH: u8 = 1;
 
@@ -75,7 +75,7 @@ impl Builtin for MathObjectAtan {
 }
 struct MathObjectAtanh;
 impl Builtin for MathObjectAtanh {
-    const NAME: String = BUILTIN_STRING_MEMORY.atanh;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.atanh;
 
     const LENGTH: u8 = 1;
 
@@ -84,7 +84,7 @@ impl Builtin for MathObjectAtanh {
 }
 struct MathObjectAtan2;
 impl Builtin for MathObjectAtan2 {
-    const NAME: String = BUILTIN_STRING_MEMORY.atan2;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.atan2;
 
     const LENGTH: u8 = 2;
 
@@ -93,7 +93,7 @@ impl Builtin for MathObjectAtan2 {
 }
 struct MathObjectCbrt;
 impl Builtin for MathObjectCbrt {
-    const NAME: String = BUILTIN_STRING_MEMORY.cbrt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.cbrt;
 
     const LENGTH: u8 = 1;
 
@@ -102,7 +102,7 @@ impl Builtin for MathObjectCbrt {
 }
 struct MathObjectCeil;
 impl Builtin for MathObjectCeil {
-    const NAME: String = BUILTIN_STRING_MEMORY.ceil;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.ceil;
 
     const LENGTH: u8 = 1;
 
@@ -111,7 +111,7 @@ impl Builtin for MathObjectCeil {
 }
 struct MathObjectClz32;
 impl Builtin for MathObjectClz32 {
-    const NAME: String = BUILTIN_STRING_MEMORY.clz32;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clz32;
 
     const LENGTH: u8 = 1;
 
@@ -120,7 +120,7 @@ impl Builtin for MathObjectClz32 {
 }
 struct MathObjectCos;
 impl Builtin for MathObjectCos {
-    const NAME: String = BUILTIN_STRING_MEMORY.cos;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.cos;
 
     const LENGTH: u8 = 1;
 
@@ -129,7 +129,7 @@ impl Builtin for MathObjectCos {
 }
 struct MathObjectCosh;
 impl Builtin for MathObjectCosh {
-    const NAME: String = BUILTIN_STRING_MEMORY.cosh;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.cosh;
 
     const LENGTH: u8 = 1;
 
@@ -138,7 +138,7 @@ impl Builtin for MathObjectCosh {
 }
 struct MathObjectExp;
 impl Builtin for MathObjectExp {
-    const NAME: String = BUILTIN_STRING_MEMORY.exp;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.exp;
 
     const LENGTH: u8 = 1;
 
@@ -147,7 +147,7 @@ impl Builtin for MathObjectExp {
 }
 struct MathObjectExpm1;
 impl Builtin for MathObjectExpm1 {
-    const NAME: String = BUILTIN_STRING_MEMORY.expm1;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.expm1;
 
     const LENGTH: u8 = 1;
 
@@ -156,7 +156,7 @@ impl Builtin for MathObjectExpm1 {
 }
 struct MathObjectFloor;
 impl Builtin for MathObjectFloor {
-    const NAME: String = BUILTIN_STRING_MEMORY.floor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.floor;
 
     const LENGTH: u8 = 1;
 
@@ -165,7 +165,7 @@ impl Builtin for MathObjectFloor {
 }
 struct MathObjectFround;
 impl Builtin for MathObjectFround {
-    const NAME: String = BUILTIN_STRING_MEMORY.fround;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fround;
 
     const LENGTH: u8 = 1;
 
@@ -174,7 +174,7 @@ impl Builtin for MathObjectFround {
 }
 struct MathObjectHypot;
 impl Builtin for MathObjectHypot {
-    const NAME: String = BUILTIN_STRING_MEMORY.hypot;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.hypot;
 
     const LENGTH: u8 = 2;
 
@@ -183,7 +183,7 @@ impl Builtin for MathObjectHypot {
 }
 struct MathObjectImul;
 impl Builtin for MathObjectImul {
-    const NAME: String = BUILTIN_STRING_MEMORY.imul;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.imul;
 
     const LENGTH: u8 = 2;
 
@@ -192,7 +192,7 @@ impl Builtin for MathObjectImul {
 }
 struct MathObjectLog;
 impl Builtin for MathObjectLog {
-    const NAME: String = BUILTIN_STRING_MEMORY.log;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.log;
 
     const LENGTH: u8 = 1;
 
@@ -201,7 +201,7 @@ impl Builtin for MathObjectLog {
 }
 struct MathObjectLog1p;
 impl Builtin for MathObjectLog1p {
-    const NAME: String = BUILTIN_STRING_MEMORY.log1p;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.log1p;
 
     const LENGTH: u8 = 1;
 
@@ -210,7 +210,7 @@ impl Builtin for MathObjectLog1p {
 }
 struct MathObjectLog10;
 impl Builtin for MathObjectLog10 {
-    const NAME: String = BUILTIN_STRING_MEMORY.log10;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.log10;
 
     const LENGTH: u8 = 1;
 
@@ -219,7 +219,7 @@ impl Builtin for MathObjectLog10 {
 }
 struct MathObjectLog2;
 impl Builtin for MathObjectLog2 {
-    const NAME: String = BUILTIN_STRING_MEMORY.log2;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.log2;
 
     const LENGTH: u8 = 1;
 
@@ -228,7 +228,7 @@ impl Builtin for MathObjectLog2 {
 }
 struct MathObjectMax;
 impl Builtin for MathObjectMax {
-    const NAME: String = BUILTIN_STRING_MEMORY.max;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.max;
 
     const LENGTH: u8 = 2;
 
@@ -237,7 +237,7 @@ impl Builtin for MathObjectMax {
 }
 struct MathObjectMin;
 impl Builtin for MathObjectMin {
-    const NAME: String = BUILTIN_STRING_MEMORY.min;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.min;
 
     const LENGTH: u8 = 2;
 
@@ -246,7 +246,7 @@ impl Builtin for MathObjectMin {
 }
 struct MathObjectPow;
 impl Builtin for MathObjectPow {
-    const NAME: String = BUILTIN_STRING_MEMORY.pow;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.pow;
 
     const LENGTH: u8 = 2;
 
@@ -255,7 +255,7 @@ impl Builtin for MathObjectPow {
 }
 struct MathObjectRandom;
 impl Builtin for MathObjectRandom {
-    const NAME: String = BUILTIN_STRING_MEMORY.random;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.random;
 
     const LENGTH: u8 = 0;
 
@@ -264,7 +264,7 @@ impl Builtin for MathObjectRandom {
 }
 struct MathObjectRound;
 impl Builtin for MathObjectRound {
-    const NAME: String = BUILTIN_STRING_MEMORY.round;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.round;
 
     const LENGTH: u8 = 1;
 
@@ -273,7 +273,7 @@ impl Builtin for MathObjectRound {
 }
 struct MathObjectSign;
 impl Builtin for MathObjectSign {
-    const NAME: String = BUILTIN_STRING_MEMORY.sign;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sign;
 
     const LENGTH: u8 = 1;
 
@@ -282,7 +282,7 @@ impl Builtin for MathObjectSign {
 }
 struct MathObjectSin;
 impl Builtin for MathObjectSin {
-    const NAME: String = BUILTIN_STRING_MEMORY.sin;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sin;
 
     const LENGTH: u8 = 1;
 
@@ -291,7 +291,7 @@ impl Builtin for MathObjectSin {
 }
 struct MathObjectSinh;
 impl Builtin for MathObjectSinh {
-    const NAME: String = BUILTIN_STRING_MEMORY.sinh;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sinh;
 
     const LENGTH: u8 = 1;
 
@@ -300,7 +300,7 @@ impl Builtin for MathObjectSinh {
 }
 struct MathObjectSqrt;
 impl Builtin for MathObjectSqrt {
-    const NAME: String = BUILTIN_STRING_MEMORY.sqrt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sqrt;
 
     const LENGTH: u8 = 1;
 
@@ -309,7 +309,7 @@ impl Builtin for MathObjectSqrt {
 }
 struct MathObjectTan;
 impl Builtin for MathObjectTan {
-    const NAME: String = BUILTIN_STRING_MEMORY.tan;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.tan;
 
     const LENGTH: u8 = 1;
 
@@ -318,7 +318,7 @@ impl Builtin for MathObjectTan {
 }
 struct MathObjectTanh;
 impl Builtin for MathObjectTanh {
-    const NAME: String = BUILTIN_STRING_MEMORY.tanh;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.tanh;
 
     const LENGTH: u8 = 1;
 
@@ -327,7 +327,7 @@ impl Builtin for MathObjectTanh {
 }
 struct MathObjectTrunc;
 impl Builtin for MathObjectTrunc {
-    const NAME: String = BUILTIN_STRING_MEMORY.trunc;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trunc;
 
     const LENGTH: u8 = 1;
 
@@ -339,7 +339,6 @@ impl MathObject {
     fn abs(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -350,7 +349,6 @@ impl MathObject {
     fn acos(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -365,7 +363,6 @@ impl MathObject {
     fn acosh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -392,7 +389,6 @@ impl MathObject {
     fn asin(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -418,7 +414,6 @@ impl MathObject {
     fn asinh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -437,7 +432,6 @@ impl MathObject {
     fn atan(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -466,7 +460,6 @@ impl MathObject {
     fn atanh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -502,7 +495,6 @@ impl MathObject {
     fn atan2(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -630,7 +622,6 @@ impl MathObject {
     fn cbrt(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -649,7 +640,6 @@ impl MathObject {
     fn ceil(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -680,7 +670,6 @@ impl MathObject {
     fn clz32(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -697,7 +686,6 @@ impl MathObject {
     fn cos(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -721,7 +709,6 @@ impl MathObject {
     fn cosh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -750,7 +737,6 @@ impl MathObject {
     fn exp(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -779,7 +765,6 @@ impl MathObject {
     fn expm1(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -807,7 +792,6 @@ impl MathObject {
     fn floor(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -838,7 +822,6 @@ impl MathObject {
     fn fround(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -872,7 +855,6 @@ impl MathObject {
     fn hypot(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -931,7 +913,6 @@ impl MathObject {
     fn imul(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -951,7 +932,6 @@ impl MathObject {
     fn log(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -985,7 +965,6 @@ impl MathObject {
     fn log1p(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1014,7 +993,6 @@ impl MathObject {
     fn log10(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1044,7 +1022,6 @@ impl MathObject {
     fn log2(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1073,7 +1050,6 @@ impl MathObject {
     fn max(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1155,7 +1131,6 @@ impl MathObject {
     fn min(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1237,7 +1212,6 @@ impl MathObject {
     fn pow(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1269,7 +1243,6 @@ impl MathObject {
     fn random(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1279,7 +1252,6 @@ impl MathObject {
     fn round(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1310,7 +1282,6 @@ impl MathObject {
     fn sign(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1331,7 +1302,6 @@ impl MathObject {
     fn sin(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1352,7 +1322,6 @@ impl MathObject {
     fn sinh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1369,7 +1338,6 @@ impl MathObject {
     fn sqrt(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1394,7 +1362,6 @@ impl MathObject {
     fn tan(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1415,7 +1382,6 @@ impl MathObject {
     fn tanh(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1440,7 +1406,6 @@ impl MathObject {
     fn trunc(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

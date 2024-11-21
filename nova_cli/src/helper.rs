@@ -12,7 +12,6 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
     fn print(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -26,32 +25,36 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
     // 'readTextFile' function
     fn read_text_file(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         _: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         if args.len() != 1 {
-            return Err(agent
-                .throw_exception_with_static_message(ExceptionType::Error, "Expected 1 argument"));
+            return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
+                ExceptionType::Error,
+                "Expected 1 argument",
+            ));
         }
         let Ok(path) = String::try_from(args.get(0)) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::Error,
                 "Expected a string argument",
             ));
         };
 
         let file = std::fs::read_to_string(path.as_str(agent))
-            .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string()))?;
-        Ok(String::from_string(agent, file).into_value())
+            .map_err(|e| agent.throw_exception(gc.nogc(), ExceptionType::Error, e.to_string()))?;
+        Ok(String::from_string(agent, gc.nogc(), file).into_value())
     }
     let function = create_builtin_function(
         agent,
+        gc.nogc(),
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
     );
-    let property_key = PropertyKey::from_static_str(agent, "print");
+    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print");
     global
         .internal_define_own_property(
             agent,
@@ -69,10 +72,11 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
 
     let function = create_builtin_function(
         agent,
+        gc.nogc(),
         Behaviour::Regular(read_text_file),
         BuiltinFunctionArgs::new(1, "readTextFile", agent.current_realm_id()),
     );
-    let property_key = PropertyKey::from_static_str(agent, "readTextFile");
+    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "readTextFile");
     global
         .internal_define_own_property(
             agent,

@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct ProxyConstructor;
 impl Builtin for ProxyConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Proxy;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Proxy;
 
     const LENGTH: u8 = 2;
 
@@ -27,7 +27,7 @@ impl BuiltinIntrinsicConstructor for ProxyConstructor {
 
 struct ProxyRevocable;
 impl Builtin for ProxyRevocable {
-    const NAME: String = BUILTIN_STRING_MEMORY.revocable;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.revocable;
 
     const LENGTH: u8 = 2;
 
@@ -38,7 +38,6 @@ impl ProxyConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -49,7 +48,6 @@ impl ProxyConstructor {
     fn revocable(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

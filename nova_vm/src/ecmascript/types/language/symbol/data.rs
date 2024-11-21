@@ -9,7 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct SymbolHeapData {
-    pub(crate) descriptor: Option<String>,
+    pub(crate) descriptor: Option<String<'static>>,
 }
 
 impl HeapMarkAndSweep for SymbolHeapData {

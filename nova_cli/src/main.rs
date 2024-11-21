@@ -146,9 +146,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
                         let realm = agent.current_realm_id();
                         let file = std::fs::read_to_string(&path)?;
-                        let source_text = JsString::from_string(agent, file);
-                        let script = match parse_script(agent, source_text, realm, !no_strict, None)
-                        {
+                        let source_text = JsString::from_string(agent, gc.nogc(), file);
+                        let script = match parse_script(
+                            agent,
+                            gc.nogc(),
+                            source_text,
+                            realm,
+                            !no_strict,
+                            None,
+                        ) {
                             Ok(script) => script,
                             Err(errors) => {
                                 // Borrow the string data from the Agent
@@ -228,13 +234,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 placeholder = input.to_string();
                 agent.run_in_realm(&realm, |agent, mut gc| {
                     let realm = agent.current_realm_id();
-                    let source_text = JsString::from_string(agent, input);
-                    let script = match parse_script(agent, source_text, realm, true, None) {
-                        Ok(script) => script,
-                        Err(errors) => {
-                            exit_with_parse_errors(errors, "<stdin>", &placeholder);
-                        }
-                    };
+                    let source_text = JsString::from_string(agent, gc.nogc(), input);
+                    let script =
+                        match parse_script(agent, gc.nogc(), source_text, realm, true, None) {
+                            Ok(script) => script,
+                            Err(errors) => {
+                                exit_with_parse_errors(errors, "<stdin>", &placeholder);
+                            }
+                        };
                     let result = script_evaluation(agent, gc.reborrow(), script);
                     match result {
                         Ok(result) => {

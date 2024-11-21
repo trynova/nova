@@ -47,7 +47,7 @@ impl VmIterator {
                 if let Some(result) = result {
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
-                            Value::from_string(agent, format!("{}", int.into_i64()))
+                            Value::from_string(agent, gc.nogc(), format!("{}", int.into_i64()))
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
                         PropertyKey::String(data) => Value::String(data),
@@ -68,6 +68,7 @@ impl VmIterator {
                 )?;
                 let Ok(result) = Object::try_from(result) else {
                     return Err(agent.throw_exception_with_static_message(
+                        gc.nogc(),
                         ExceptionType::TypeError,
                         "Iterator returned a non-object result",
                     ));
@@ -120,7 +121,6 @@ impl VmIterator {
     pub(super) fn from_value(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         value: Value,
     ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
@@ -133,6 +133,7 @@ impl VmIterator {
         let Some(method) = method else {
             // 3. If method is undefined, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Iterator method cannot be undefined",
             ));

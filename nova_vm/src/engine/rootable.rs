@@ -149,7 +149,7 @@ mod private {
     impl RootableSealed for SetIterator {}
     #[cfg(feature = "shared-array-buffer")]
     impl RootableSealed for SharedArrayBuffer {}
-    impl RootableSealed for String {}
+    impl RootableSealed for String<'_> {}
     impl RootableSealed for Symbol {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray {}
@@ -204,7 +204,7 @@ pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
 pub enum HeapRootData {
     // First the Value variants: This list should match 1-to-1 the list in
     // value.rs, but with the
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
@@ -295,7 +295,7 @@ pub enum HeapRootData {
 /// as-is. It only make sense within some root list referring type,
 /// specifically `Local<T>` and `Global<T>`, and then those types should never
 /// appear within the heap directly.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(transparent)]
 pub struct HeapRootRef(u32);
 

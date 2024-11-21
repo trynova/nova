@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -17,7 +17,7 @@ pub(crate) struct BigIntPrototype;
 
 struct BigIntPrototypeToLocaleString;
 impl Builtin for BigIntPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
 
     const LENGTH: u8 = 0;
 
@@ -27,7 +27,7 @@ impl Builtin for BigIntPrototypeToLocaleString {
 
 struct BigIntPrototypeToString;
 impl Builtin for BigIntPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -37,7 +37,7 @@ impl Builtin for BigIntPrototypeToString {
 
 struct BigIntPrototypeValueOf;
 impl Builtin for BigIntPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -48,22 +48,20 @@ impl Builtin for BigIntPrototypeValueOf {
 impl BigIntPrototype {
     fn to_locale_string(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        Self::to_string(agent, gc.reborrow(), this_value, arguments)
+        Self::to_string(agent, gc, this_value, arguments)
     }
 
     fn to_string(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let _x = this_big_int_value(agent, this_value)?;
+        let _x = this_big_int_value(agent, gc.nogc(), this_value)?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
             // BigInt::to_string_radix_10(agent, x).map(|result| result.into_value())
@@ -75,12 +73,11 @@ impl BigIntPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_big_int_value(agent, this_value).map(|result| result.into_value())
+        this_big_int_value(agent, gc.nogc(), this_value).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -113,7 +110,7 @@ impl BigIntPrototype {
 /// The abstract operation ThisBigIntValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion.
-fn this_big_int_value(agent: &mut Agent, value: Value) -> JsResult<BigInt> {
+fn this_big_int_value(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<BigInt> {
     match value {
         // 1. If value is a BigInt, return value.
         Value::BigInt(value) => Ok(value.into()),
@@ -129,8 +126,10 @@ fn this_big_int_value(agent: &mut Agent, value: Value) -> JsResult<BigInt> {
             }
         }
         // 3. Throw a TypeError exception.
-        _ => {
-            Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a BigInt"))
-        }
+        _ => Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Not a BigInt",
+        )),
     }
 }

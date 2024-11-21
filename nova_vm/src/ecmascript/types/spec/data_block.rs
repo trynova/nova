@@ -18,7 +18,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{BigInt, IntoValue, Value},
     },
-    engine::context::GcScope,
+    engine::context::{GcScope, NoGcScope},
 };
 
 /// Sentinel pointer for a detached data block.
@@ -488,11 +488,12 @@ impl DataBlock {
     /// The abstract operation CreateByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Data Block or a throw completion.
-    pub fn create_byte_data_block(agent: &mut Agent, size: u64) -> JsResult<Self> {
+    pub fn create_byte_data_block(agent: &mut Agent, gc: NoGcScope, size: u64) -> JsResult<Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
             Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::RangeError,
                 "Not a safe integer",
             ))
@@ -505,6 +506,7 @@ impl DataBlock {
             // 2. cont: If it is impossible to create such a Data Block, throw a RangeError exception.
             // TODO: throw a RangeError exception
             Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::RangeError,
                 "Invalid Data Block length",
             ))
@@ -516,7 +518,11 @@ impl DataBlock {
     /// The abstract operation CreateSharedByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Shared Data Block or a throw completion.
-    pub fn create_shared_byte_data_block(agent: &mut Agent, size: u64) -> JsResult<Self> {
+    pub fn create_shared_byte_data_block(
+        agent: &mut Agent,
+        gc: NoGcScope,
+        size: u64,
+    ) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = usize::try_from(size) {
             // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
@@ -527,6 +533,7 @@ impl DataBlock {
             Ok(Self::new(size))
         } else {
             Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::TypeError,
                 "Invalid Shared Data Block length",
             ))

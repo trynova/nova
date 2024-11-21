@@ -10,7 +10,10 @@ pub use data::SymbolHeapData;
 
 use crate::{
     ecmascript::{execution::Agent, types::String},
-    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{
+        context::{GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+    },
     heap::{
         indexes::SymbolIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WellKnownSymbolIndexes, WorkQueues, LAST_WELL_KNOWN_SYMBOL_INDEX,
@@ -36,6 +39,26 @@ enum SymbolRootReprInner {
 pub struct SymbolRootRepr(SymbolRootReprInner);
 
 impl Symbol {
+    /// Unbind this Symbol from its current lifetime. This is necessary to use
+    /// the Symbol as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Symbol to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Symbols cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let symbol = symbol.bind(&gc);
+    // ```
+    // to make sure that the unbound Symbol cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(SymbolIndex::from_u32_index(0))
     }
@@ -45,10 +68,11 @@ impl Symbol {
     }
 
     /// ### [20.4.3.3.1 SymbolDescriptiveString ( sym )](https://tc39.es/ecma262/#sec-symboldescriptivestring)
-    pub fn descriptive_string(self, agent: &mut Agent) -> String {
+    pub fn descriptive_string<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> String<'gc> {
         if let Some(descriptor) = agent[self].descriptor {
             String::concat(
                 agent,
+                gc,
                 [
                     String::from_small_string("Symbol("),
                     descriptor,

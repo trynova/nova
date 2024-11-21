@@ -25,7 +25,7 @@ use crate::{
 
 pub(crate) struct GeneratorFunctionConstructor;
 impl Builtin for GeneratorFunctionConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.GeneratorFunction;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.GeneratorFunction;
 
     const LENGTH: u8 = 1;
 
@@ -39,7 +39,6 @@ impl GeneratorFunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,

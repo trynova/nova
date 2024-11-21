@@ -27,7 +27,7 @@ pub struct RegExpConstructor;
 impl Builtin for RegExpConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.RegExp;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.RegExp;
 }
 impl BuiltinIntrinsicConstructor for RegExpConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::RegExp;
@@ -37,7 +37,7 @@ struct RegExpGetSpecies;
 impl Builtin for RegExpGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpConstructor::get_species);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for RegExpGetSpecies {}
@@ -46,7 +46,6 @@ impl RegExpConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -57,7 +56,6 @@ impl RegExpConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

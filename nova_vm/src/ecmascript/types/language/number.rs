@@ -10,7 +10,10 @@ use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
 };
-use crate::ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number};
+use crate::{
+    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
+    engine::context::{GcScope, NoGcScope},
+};
 use crate::{
     ecmascript::execution::Agent,
     engine::{
@@ -232,6 +235,26 @@ impl TryFrom<Numeric> for Number {
 }
 
 impl Number {
+    /// Unbind this Number from its current lifetime. This is necessary to use
+    /// the Number as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Number to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Numbers cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound Number cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub fn from_f64(agent: &mut Agent, value: f64) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
@@ -1230,19 +1253,24 @@ impl Number {
     }
 
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
-    pub(crate) fn to_string_radix_10(agent: &mut Agent, x: Self) -> String {
+    pub(crate) fn to_string_radix_10<'gc>(
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+        x: Self,
+    ) -> String<'gc> {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string())
+                String::from_string(agent, gc, buffer.format(x.into_f64(agent)).to_string())
+                    .bind(gc)
             }
             Number::Integer(x) => {
                 let x = x.into_i64();
-                String::from_string(agent, format!("{x}"))
+                String::from_string(agent, gc, format!("{x}")).bind(gc)
             }
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, buffer.format(x.into_f64()).to_string())
+                String::from_string(agent, gc, buffer.format(x.into_f64()).to_string()).bind(gc)
             }
         }
     }

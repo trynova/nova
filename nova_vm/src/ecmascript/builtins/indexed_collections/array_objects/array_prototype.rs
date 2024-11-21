@@ -6,6 +6,7 @@ use std::cmp::Ordering;
 
 use small_string::SmallString;
 
+use crate::ecmascript::abstract_operations::type_conversion::try_to_string;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -45,175 +46,175 @@ pub(crate) struct ArrayPrototype;
 
 struct ArrayPrototypeAt;
 impl Builtin for ArrayPrototypeAt {
-    const NAME: String = BUILTIN_STRING_MEMORY.at;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.at;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::at);
 }
 struct ArrayPrototypeConcat;
 impl Builtin for ArrayPrototypeConcat {
-    const NAME: String = BUILTIN_STRING_MEMORY.concat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.concat;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::concat);
 }
 struct ArrayPrototypeCopyWithin;
 impl Builtin for ArrayPrototypeCopyWithin {
-    const NAME: String = BUILTIN_STRING_MEMORY.copyWithin;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.copyWithin;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::copy_within);
 }
 struct ArrayPrototypeEntries;
 impl Builtin for ArrayPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::entries);
 }
 struct ArrayPrototypeEvery;
 impl Builtin for ArrayPrototypeEvery {
-    const NAME: String = BUILTIN_STRING_MEMORY.every;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.every;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::every);
 }
 struct ArrayPrototypeFill;
 impl Builtin for ArrayPrototypeFill {
-    const NAME: String = BUILTIN_STRING_MEMORY.fill;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fill;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::fill);
 }
 struct ArrayPrototypeFilter;
 impl Builtin for ArrayPrototypeFilter {
-    const NAME: String = BUILTIN_STRING_MEMORY.filter;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.filter;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::filter);
 }
 struct ArrayPrototypeFind;
 impl Builtin for ArrayPrototypeFind {
-    const NAME: String = BUILTIN_STRING_MEMORY.find;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.find;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find);
 }
 struct ArrayPrototypeFindIndex;
 impl Builtin for ArrayPrototypeFindIndex {
-    const NAME: String = BUILTIN_STRING_MEMORY.findIndex;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_index);
 }
 struct ArrayPrototypeFindLast;
 impl Builtin for ArrayPrototypeFindLast {
-    const NAME: String = BUILTIN_STRING_MEMORY.findLast;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findLast;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last);
 }
 struct ArrayPrototypeFindLastIndex;
 impl Builtin for ArrayPrototypeFindLastIndex {
-    const NAME: String = BUILTIN_STRING_MEMORY.findLastIndex;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.findLastIndex;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::find_last_index);
 }
 struct ArrayPrototypeFlat;
 impl Builtin for ArrayPrototypeFlat {
-    const NAME: String = BUILTIN_STRING_MEMORY.flat;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flat;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::flat);
 }
 struct ArrayPrototypeFlatMap;
 impl Builtin for ArrayPrototypeFlatMap {
-    const NAME: String = BUILTIN_STRING_MEMORY.flatMap;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.flatMap;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::flat_map);
 }
 struct ArrayPrototypeForEach;
 impl Builtin for ArrayPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::for_each);
 }
 struct ArrayPrototypeIncludes;
 impl Builtin for ArrayPrototypeIncludes {
-    const NAME: String = BUILTIN_STRING_MEMORY.includes;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.includes;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::includes);
 }
 struct ArrayPrototypeIndexOf;
 impl Builtin for ArrayPrototypeIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.indexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.indexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::index_of);
 }
 struct ArrayPrototypeJoin;
 impl Builtin for ArrayPrototypeJoin {
-    const NAME: String = BUILTIN_STRING_MEMORY.join;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.join;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::join);
 }
 struct ArrayPrototypeKeys;
 impl Builtin for ArrayPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::keys);
 }
 struct ArrayPrototypeLastIndexOf;
 impl Builtin for ArrayPrototypeLastIndexOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.lastIndexOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.lastIndexOf;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::last_index_of);
 }
 struct ArrayPrototypeMap;
 impl Builtin for ArrayPrototypeMap {
-    const NAME: String = BUILTIN_STRING_MEMORY.map;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.map;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::map);
 }
 struct ArrayPrototypePop;
 impl Builtin for ArrayPrototypePop {
-    const NAME: String = BUILTIN_STRING_MEMORY.pop;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.pop;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::pop);
 }
 struct ArrayPrototypePush;
 impl Builtin for ArrayPrototypePush {
-    const NAME: String = BUILTIN_STRING_MEMORY.push;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.push;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::push);
 }
 struct ArrayPrototypeReduce;
 impl Builtin for ArrayPrototypeReduce {
-    const NAME: String = BUILTIN_STRING_MEMORY.reduce;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reduce;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reduce);
 }
 struct ArrayPrototypeReduceRight;
 impl Builtin for ArrayPrototypeReduceRight {
-    const NAME: String = BUILTIN_STRING_MEMORY.reduceRight;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reduceRight;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reduce_right);
 }
 struct ArrayPrototypeReverse;
 impl Builtin for ArrayPrototypeReverse {
-    const NAME: String = BUILTIN_STRING_MEMORY.reverse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.reverse;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::reverse);
 }
 struct ArrayPrototypeShift;
 impl Builtin for ArrayPrototypeShift {
-    const NAME: String = BUILTIN_STRING_MEMORY.shift;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.shift;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::shift);
 }
 struct ArrayPrototypeSlice;
 impl Builtin for ArrayPrototypeSlice {
-    const NAME: String = BUILTIN_STRING_MEMORY.slice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.slice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::slice);
 }
 struct ArrayPrototypeSome;
 impl Builtin for ArrayPrototypeSome {
-    const NAME: String = BUILTIN_STRING_MEMORY.some;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.some;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::some);
 }
 struct ArrayPrototypeSort;
 impl Builtin for ArrayPrototypeSort {
-    const NAME: String = BUILTIN_STRING_MEMORY.sort;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sort;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::sort);
 }
@@ -222,37 +223,37 @@ impl BuiltinIntrinsic for ArrayPrototypeSort {
 }
 struct ArrayPrototypeSplice;
 impl Builtin for ArrayPrototypeSplice {
-    const NAME: String = BUILTIN_STRING_MEMORY.splice;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.splice;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::splice);
 }
 struct ArrayPrototypeToLocaleString;
 impl Builtin for ArrayPrototypeToLocaleString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toLocaleString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toLocaleString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_locale_string);
 }
 struct ArrayPrototypeToReversed;
 impl Builtin for ArrayPrototypeToReversed {
-    const NAME: String = BUILTIN_STRING_MEMORY.toReversed;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toReversed;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_reversed);
 }
 struct ArrayPrototypeToSorted;
 impl Builtin for ArrayPrototypeToSorted {
-    const NAME: String = BUILTIN_STRING_MEMORY.toSorted;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toSorted;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_sorted);
 }
 struct ArrayPrototypeToSpliced;
 impl Builtin for ArrayPrototypeToSpliced {
-    const NAME: String = BUILTIN_STRING_MEMORY.toSpliced;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toSpliced;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_spliced);
 }
 struct ArrayPrototypeToString;
 impl Builtin for ArrayPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::to_string);
 }
@@ -261,13 +262,13 @@ impl BuiltinIntrinsic for ArrayPrototypeToString {
 }
 struct ArrayPrototypeUnshift;
 impl Builtin for ArrayPrototypeUnshift {
-    const NAME: String = BUILTIN_STRING_MEMORY.unshift;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.unshift;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::unshift);
 }
 struct ArrayPrototypeValues;
 impl Builtin for ArrayPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::values);
 }
@@ -276,7 +277,7 @@ impl BuiltinIntrinsic for ArrayPrototypeValues {
 }
 struct ArrayPrototypeWith;
 impl Builtin for ArrayPrototypeWith {
-    const NAME: String = BUILTIN_STRING_MEMORY.with;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.with;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::with);
 }
@@ -286,12 +287,11 @@ impl ArrayPrototype {
     fn at(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let index = arguments.get(0);
@@ -344,12 +344,11 @@ impl ArrayPrototype {
     fn concat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, gc.reborrow(), o, 0)?;
         // 3. Let n be 0.
@@ -368,6 +367,7 @@ impl ArrayPrototype {
                 // ii. If n + len > 2**53 - 1, throw a TypeError exception.
                 if (n + len) > SmallInteger::MAX_NUMBER {
                     return Err(agent.throw_exception_with_static_message(
+                        gc.nogc(),
                         ExceptionType::TypeError,
                         "Array overflow",
                     ));
@@ -404,6 +404,7 @@ impl ArrayPrototype {
                 // ii. If n ≥ 2**53 - 1, throw a TypeError exception.
                 if n >= SmallInteger::MAX_NUMBER {
                     return Err(agent.throw_exception_with_static_message(
+                        gc.nogc(),
                         ExceptionType::TypeError,
                         "Array overflow",
                     ));
@@ -454,7 +455,6 @@ impl ArrayPrototype {
     fn copy_within(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -511,7 +511,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len: i64 = length_of_array_like(agent, gc.reborrow(), o)?;
         let len_f64 = len as f64;
@@ -609,14 +609,14 @@ impl ArrayPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Expected this to be an object",
             ));
@@ -664,18 +664,18 @@ impl ArrayPrototype {
     fn every(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let callback_fn = arguments.get(0);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback is not a function",
             ));
@@ -738,7 +738,6 @@ impl ArrayPrototype {
     fn fill(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -786,7 +785,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
@@ -870,7 +869,6 @@ impl ArrayPrototype {
     fn filter(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -878,12 +876,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
@@ -952,12 +951,11 @@ impl ArrayPrototype {
     fn find(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -988,12 +986,11 @@ impl ArrayPrototype {
     fn find_index(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -1008,12 +1005,11 @@ impl ArrayPrototype {
     fn find_last(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -1029,12 +1025,11 @@ impl ArrayPrototype {
     fn find_last_index(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let predicate = arguments.get(0);
@@ -1050,13 +1045,12 @@ impl ArrayPrototype {
     fn flat(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let depth = arguments.get(0);
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. Let depthNum be 1.
@@ -1092,7 +1086,6 @@ impl ArrayPrototype {
     fn flat_map(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1100,12 +1093,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
         let Some(mapper_function) = is_callable(mapper_function) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Mapper function is not callable",
             ));
@@ -1165,12 +1159,11 @@ impl ArrayPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
@@ -1179,6 +1172,7 @@ impl ArrayPrototype {
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1249,7 +1243,6 @@ impl ArrayPrototype {
     fn includes(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1297,7 +1290,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return false.
@@ -1373,7 +1366,6 @@ impl ArrayPrototype {
     fn index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1421,7 +1413,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return -1𝔽.
@@ -1487,14 +1479,13 @@ impl ArrayPrototype {
     fn join(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let separator = arguments.get(0);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         if len == 0 {
@@ -1507,7 +1498,11 @@ impl ArrayPrototype {
         } else {
             // 4. Else, let sep be ? ToString(separator).
             to_string(agent, gc.reborrow(), separator)?
+                .unbind()
+                .bind(gc.nogc())
         };
+        // Note: Separator is likely a small string so this is a very cheap.
+        let separator = separator.scope(agent, gc.nogc());
         // 5. Let R be the empty String.
         let mut r = std::string::String::with_capacity(len * 10);
         // 6. Let k be 0.
@@ -1525,7 +1520,7 @@ impl ArrayPrototype {
         }
         for k in 1..len {
             // a. If k > 0, set R to the string-concatenation of R and sep.
-            r.push_str(separator.as_str(agent));
+            r.push_str(separator.get(agent).as_str(agent));
             // b. Let element be ? Get(O, ! ToString(𝔽(k))).
             let element = get(
                 agent,
@@ -1543,19 +1538,19 @@ impl ArrayPrototype {
             // d. Set k to k + 1.
         }
         // 8. Return R.
-        Ok(Value::from_string(agent, r).into_value())
+        Ok(Value::from_string(agent, gc.nogc(), r).into_value())
     }
 
     fn keys(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Expected this to be an object",
             ));
@@ -1588,7 +1583,6 @@ impl ArrayPrototype {
     fn last_index_of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1643,7 +1637,7 @@ impl ArrayPrototype {
             }
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, return -1𝔽.
@@ -1728,7 +1722,6 @@ impl ArrayPrototype {
     fn map(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1736,12 +1729,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -1796,7 +1790,6 @@ impl ArrayPrototype {
     fn pop(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1809,6 +1802,7 @@ impl ArrayPrototype {
                 if len == 0 {
                     return if !length_writable {
                         Err(agent.throw_exception_with_static_message(
+                            gc.nogc(),
                             ExceptionType::TypeError,
                             "Could not set property.",
                         ))
@@ -1824,6 +1818,7 @@ impl ArrayPrototype {
                         agent[array].elements.len -= 1;
                     } else {
                         return Err(agent.throw_exception_with_static_message(
+                            gc.nogc(),
                             ExceptionType::TypeError,
                             "Could not set property.",
                         ));
@@ -1835,7 +1830,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, then
@@ -1893,12 +1888,11 @@ impl ArrayPrototype {
     fn push(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         items: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let mut len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let argCount be the number of elements in items.
@@ -1906,6 +1900,7 @@ impl ArrayPrototype {
         // 4. If len + argCount > 2**53 - 1, throw a TypeError exception.
         if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Array length overflow",
             ));
@@ -1987,7 +1982,6 @@ impl ArrayPrototype {
     fn reduce(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -1999,13 +1993,14 @@ impl ArrayPrototype {
         };
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -2014,6 +2009,7 @@ impl ArrayPrototype {
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Array length is 0 and no initial value provided",
             ));
@@ -2052,6 +2048,7 @@ impl ArrayPrototype {
             // c. If kPresent is false, throw a TypeError exception.
             if !k_present {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Array length is 0 and no initial value provided",
                 ));
@@ -2134,7 +2131,6 @@ impl ArrayPrototype {
     fn reduce_right(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2146,7 +2142,7 @@ impl ArrayPrototype {
         };
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
 
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
@@ -2154,6 +2150,7 @@ impl ArrayPrototype {
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
             ));
@@ -2162,6 +2159,7 @@ impl ArrayPrototype {
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Array length is 0 and no initial value provided",
             ));
@@ -2200,6 +2198,7 @@ impl ArrayPrototype {
             // c. If kPresent is false, throw a TypeError exception.
             if !k_present {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Array length is 0 and no initial value provided",
                 ));
@@ -2245,7 +2244,6 @@ impl ArrayPrototype {
     fn reverse(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2259,7 +2257,7 @@ impl ArrayPrototype {
         }
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let middle be floor(len / 2).
@@ -2333,7 +2331,6 @@ impl ArrayPrototype {
     fn shift(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2380,7 +2377,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If len = 0, then
@@ -2459,7 +2456,6 @@ impl ArrayPrototype {
     fn slice(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2563,7 +2559,7 @@ impl ArrayPrototype {
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)? as usize;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
@@ -2673,7 +2669,6 @@ impl ArrayPrototype {
     fn some(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2681,12 +2676,13 @@ impl ArrayPrototype {
         let this_arg = arguments.get(1);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not callable",
             ));
@@ -2754,7 +2750,6 @@ impl ArrayPrototype {
     fn sort(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -2765,10 +2760,14 @@ impl ArrayPrototype {
         } else if let Some(comparator) = is_callable(comparator) {
             Some(comparator)
         } else {
-            return Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, ""));
+            return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
+                ExceptionType::TypeError,
+                "",
+            ));
         };
         // 2. Let obj be ? ToObject(this value).
-        let obj = to_object(agent, this_value)?;
+        let obj = to_object(agent, gc.nogc(), this_value)?;
         // 3. Let len be ? LengthOfArrayLike(obj).
         let len = usize::try_from(length_of_array_like(agent, gc.reborrow(), obj)?).unwrap();
         // 4. Let SortCompare be a new Abstract Closure with parameters (x, y)
@@ -2826,7 +2825,7 @@ impl ArrayPrototype {
             &[]
         };
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
@@ -2861,6 +2860,7 @@ impl ArrayPrototype {
         // 11. If len + itemCount - actualDeleteCount > 2**53 - 1, throw a TypeError exception.
         if len as usize + item_count - actual_delete_count > SmallInteger::MAX_NUMBER as usize {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Target index overflowed",
             ));
@@ -2987,7 +2987,6 @@ impl ArrayPrototype {
     fn to_locale_string(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3011,11 +3010,11 @@ impl ArrayPrototype {
         }
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value)?;
+        let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let A be ? ArrayCreate(len).
-        let a = array_create(agent, len as usize, len as usize, None)?;
+        let a = array_create(agent, gc.nogc(), len as usize, len as usize, None)?;
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
@@ -3038,7 +3037,6 @@ impl ArrayPrototype {
     fn to_sorted(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3048,7 +3046,6 @@ impl ArrayPrototype {
     fn to_spliced(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3059,12 +3056,11 @@ impl ArrayPrototype {
     fn to_string(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let array be ? ToObject(this value).
-        let array = to_object(agent, this_value)?;
+        let array = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let func be ? Get(array, "join").
         let func = get(
             agent,
@@ -3084,26 +3080,125 @@ impl ArrayPrototype {
         call_function(agent, gc, func, array.into_value(), None)
     }
 
+    /// ### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
+    ///
+    /// This method prepends the arguments to the start of the array, such that
+    /// their order within the array is the same as the order in which they appear
+    /// in the argument list.
+    ///
+    /// > ### Note
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be an Array. Therefore it can be transferred to other
+    /// > kinds of objects for use as a method.
     fn unshift(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
-        _this_value: Value,
-        _: ArgumentsList,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+        this_value: Value,
+        items: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        // Fast path: Array is dense and contains no descriptors. No JS
+        // functions can thus be called by unshift.
+        if let Value::Array(array) = this_value {
+            let len = array.len(agent);
+            let arg_count = items.len();
+            let final_len = u32::try_from(len as u64 + arg_count as u64);
+            if final_len.is_ok()
+                && array.is_trivial(agent)
+                && array.is_dense(agent)
+                && array.length_writable(agent)
+            {
+                // Fast path: Reserve enough room in the array and set array length.
+                let Heap {
+                    arrays, elements, ..
+                } = &mut agent.heap;
+                arrays[array].elements.reserve(elements, final_len.unwrap());
+                agent[array].elements.len += arg_count as u32;
+                // Fast path: Copy old items to the end of array,
+                // copy new items to the front of the array.
+                let slice = array.as_mut_slice(agent);
+                slice.copy_within(..len as usize, arg_count);
+                slice[..arg_count].copy_from_slice(unsafe {
+                    // SAFETY: Option<Value> is an extra variant of the Value enum.
+                    // The transmute effectively turns Value into Some(Value).
+                    std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
+                });
+                return Ok(final_len.unwrap().into());
+            }
+        }
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, gc.nogc(), this_value)?;
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len = length_of_array_like(agent, gc.reborrow(), o)?;
+        // 3. Let argCount be the number of elements in items.
+        let arg_count = items.len();
+        // 4. If argCount > 0, then
+        if arg_count > 0 {
+            // a. If len + argCount > 2**53 - 1, throw a TypeError exception.
+            if (len + arg_count as i64) > SmallInteger::MAX_NUMBER {
+                return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
+                    ExceptionType::TypeError,
+                    "Array length overflow",
+                ));
+            }
+            // b. Let k be len.
+            let mut k = len;
+            // c. Repeat, while k > 0,
+            while k > 0 {
+                // i. Let from be ! ToString(𝔽(k - 1)).
+                let from = (k - 1).try_into().unwrap();
+                // ii. Let to be ! ToString(𝔽(k + argCount - 1)).
+                let to = (k + arg_count as i64 - 1).try_into().unwrap();
+                // iii. Let fromPresent be ? HasProperty(O, from).
+                let from_present = has_property(agent, gc.reborrow(), o, from)?;
+                // iv. If fromPresent is true, then
+                if from_present {
+                    // 1. Let fromValue be ? Get(O, from).
+                    let from_value = get(agent, gc.reborrow(), o, from)?;
+                    // 2. Perform ? Set(O, to, fromValue, true).
+                    set(agent, gc.reborrow(), o, to, from_value, true)?;
+                } else {
+                    // v. Else,
+                    // 1. Assert: fromPresent is false.
+                    // 2. Perform ? DeletePropertyOrThrow(O, to).
+                    delete_property_or_throw(agent, gc.reborrow(), o, to)?;
+                }
+                // vi. Set k to k - 1.
+                k -= 1;
+            }
+            // d. Let j be +0𝔽.
+            // e. For each element E of items, do
+            for (j, e) in items.iter().enumerate() {
+                // i. Perform ? Set(O, ! ToString(j), E, true).
+                // ii. Set j to j + 1𝔽.
+                set(agent, gc.reborrow(), o, j.try_into().unwrap(), *e, true)?;
+            }
+        }
+        // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
+        let len: Value = (len + arg_count as i64).try_into().unwrap();
+        set(
+            agent,
+            gc.reborrow(),
+            o,
+            BUILTIN_STRING_MEMORY.length.into(),
+            len,
+            true,
+        )?;
+        // 6. Return 𝔽(len + argCount).
+        Ok(len)
     }
 
     fn values(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Expected this to be an object",
             ));
@@ -3115,7 +3210,6 @@ impl ArrayPrototype {
     fn with(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -3243,7 +3337,6 @@ impl ArrayPrototype {
 fn is_concat_spreadable(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Value,
 ) -> JsResult<Option<Object>> {
     // 1. If O is not an Object, return false.
@@ -3314,7 +3407,6 @@ fn is_concat_spreadable(
 fn find_via_predicate(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     o: Object,
     len: i64,
     ascending: bool,
@@ -3324,6 +3416,7 @@ fn find_via_predicate(
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(predicate) = is_callable(predicate) else {
         return Err(agent.throw_exception_with_static_message(
+            gc.nogc(),
             ExceptionType::TypeError,
             "Predicate is not a function",
         ));
@@ -3331,7 +3424,6 @@ fn find_via_predicate(
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
                  mut gc: GcScope<'_, '_>,
-
                  o: Object,
                  predicate: Function,
                  this_arg: Value,
@@ -3393,7 +3485,6 @@ fn find_via_predicate(
 fn flatten_into_array(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     target: Object,
     source: Object,
     source_len: usize,
@@ -3471,6 +3562,7 @@ fn flatten_into_array(
             // 1. If targetIndex ≥ 2**53 - 1, throw a TypeError exception.
             if target_index >= SmallInteger::MAX_NUMBER as usize {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Target index overflowed",
                 ));
@@ -3548,7 +3640,6 @@ fn flatten_into_array(
 fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     obj: Object,
     len: usize,
     comparator: Option<Function>,
@@ -3617,7 +3708,6 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
 fn compare_array_elements(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     x: Value,
     y: Value,
     comparator: Option<Function>,
@@ -3663,11 +3753,24 @@ fn compare_array_elements(
         Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
-        let x = to_string(agent, gc.reborrow(), x)?;
+        let x = if let Some(x) = try_to_string(agent, gc.nogc(), x) {
+            x?
+        } else {
+            // TODO: Should root y before calling.
+            let x = to_string(agent, gc.reborrow(), x)?.unbind().bind(gc.nogc());
+            x
+        };
         // 6. Let yString be ? ToString(y).
-        let y = to_string(agent, gc.reborrow(), y)?;
+        let (x, y) = if let Some(y) = try_to_string(agent, gc.nogc(), y) {
+            (x, y?)
+        } else {
+            let x = x.scope(agent, gc.nogc());
+            let y = to_string(agent, gc.reborrow(), y)?.unbind().bind(gc.nogc());
+            (x.get(agent).bind(gc.nogc()), y)
+        };
         // 7. Let xSmaller be ! IsLessThan(xString, yString, true).
         // 8. If xSmaller is true, return -1𝔽.
+        let (x, y) = (x.unbind(), y.unbind());
         if is_less_than::<true>(agent, gc.reborrow(), x, y).unwrap() == Some(true) {
             Ok(Ordering::Less)
         } else

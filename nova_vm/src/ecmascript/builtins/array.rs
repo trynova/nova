@@ -12,7 +12,7 @@ mod data;
 use std::ops::{Index, IndexMut, RangeInclusive};
 
 use super::{array_set_length, ordinary::ordinary_define_own_property};
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -51,8 +51,8 @@ impl Array {
     /// This is equal to the [CreateArrayFromList](https://tc39.es/ecma262/#sec-createarrayfromlist)
     /// abstract operation.
     #[inline]
-    pub fn from_slice(agent: &mut Agent, elements: &[Value]) -> Self {
-        create_array_from_list(agent, elements)
+    pub fn from_slice(agent: &mut Agent, gc: NoGcScope, elements: &[Value]) -> Self {
+        create_array_from_list(agent, gc, elements)
     }
 
     pub(crate) fn get_index(self) -> usize {
@@ -61,6 +61,10 @@ impl Array {
 
     pub fn len(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> u32 {
         agent[*self].elements.len()
+    }
+
+    pub fn length_writable(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
+        agent[*self].elements.len_writable
     }
 
     pub fn is_empty(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
@@ -99,7 +103,6 @@ impl Array {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -223,7 +226,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
@@ -277,7 +279,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -363,7 +364,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         let has_own = self.internal_get_own_property(agent, gc.reborrow(), property_key)?;
@@ -388,7 +388,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -444,7 +443,6 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {

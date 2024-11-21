@@ -54,7 +54,7 @@ pub struct ArrayConstructor;
 impl Builtin for ArrayConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.Array;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Array;
 }
 impl BuiltinIntrinsicConstructor for ArrayConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Array;
@@ -64,25 +64,25 @@ struct ArrayFrom;
 impl Builtin for ArrayFrom {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::from);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.from;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.from;
 }
 struct ArrayIsArray;
 impl Builtin for ArrayIsArray {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::is_array);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.isArray;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.isArray;
 }
 struct ArrayOf;
 impl Builtin for ArrayOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::of);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.of;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.of;
 }
 struct ArrayGetSpecies;
 impl Builtin for ArrayGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayConstructor::get_species);
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for ArrayGetSpecies {}
@@ -93,7 +93,6 @@ impl ArrayConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -118,7 +117,9 @@ impl ArrayConstructor {
         // 4. If numberOfArgs = 0, then
         if number_of_args == 0 {
             // a. Return ! ArrayCreate(0, proto).
-            return Ok(array_create(agent, 0, 0, proto).unwrap().into_value());
+            return Ok(array_create(agent, gc.nogc(), 0, 0, proto)
+                .unwrap()
+                .into_value());
         }
 
         // 5. Else if numberOfArgs = 1, then
@@ -129,7 +130,7 @@ impl ArrayConstructor {
             // c. If len is not a Number, then
             let array = if !len.is_number() {
                 // b. Let array be ! ArrayCreate(0, proto).
-                let array = array_create(agent, 1, 1, proto).unwrap();
+                let array = array_create(agent, gc.nogc(), 1, 1, proto).unwrap();
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
                 create_data_property_or_throw(
                     agent,
@@ -150,11 +151,14 @@ impl ArrayConstructor {
                 // ii. If SameValueZero(intLen, len) is false, throw a RangeError exception.
                 if !same_value_zero(agent, int_len, len) {
                     return Err(agent.throw_exception_with_static_message(
+                        gc.nogc(),
                         ExceptionType::RangeError,
                         "Invalid array length",
                     ));
                 }
-                let array = array_create(agent, int_len as usize, int_len as usize, proto).unwrap();
+                let array =
+                    array_create(agent, gc.nogc(), int_len as usize, int_len as usize, proto)
+                        .unwrap();
                 // e. Perform ! Set(array, "length", intLen, true).
                 debug_assert_eq!(agent[array].elements.len(), int_len);
                 array
@@ -169,7 +173,7 @@ impl ArrayConstructor {
         debug_assert!(number_of_args >= 2);
 
         // b. Let array be ? ArrayCreate(numberOfArgs, proto).
-        let array = array_create(agent, number_of_args, number_of_args, proto)?;
+        let array = array_create(agent, gc.nogc(), number_of_args, number_of_args, proto)?;
         // NOTE: `array_create` guarantees that it is less than `u32::MAX`
         let number_of_args = number_of_args as u32;
 
@@ -203,7 +207,6 @@ impl ArrayConstructor {
     fn from(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -221,6 +224,7 @@ impl ArrayConstructor {
             // a. If IsCallable(mapfn) is false, throw a TypeError exception.
             let Some(mapfn) = is_callable(mapfn) else {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The map function of Array.from is not callable",
                 ));
@@ -247,7 +251,9 @@ impl ArrayConstructor {
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
-                array_create(agent, 0, 0, None).unwrap().into_object()
+                array_create(agent, gc.nogc(), 0, 0, None)
+                    .unwrap()
+                    .into_object()
             };
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
@@ -264,6 +270,7 @@ impl ArrayConstructor {
                 if k >= u32::MAX as usize {
                     // 1. Let error be ThrowCompletion(a newly created TypeError object).
                     let error = agent.throw_exception_with_static_message(
+                        gc.nogc(),
                         ExceptionType::TypeError,
                         "Maximum array size of 2**53-1 exceeded",
                     );
@@ -341,7 +348,7 @@ impl ArrayConstructor {
 
         // 6. NOTE: items is not an Iterable so assume it is an array-like object.
         // 7. Let arrayLike be ! ToObject(items).
-        let array_like = to_object(agent, items).unwrap();
+        let array_like = to_object(agent, gc.nogc(), items).unwrap();
 
         // 8. Let len be ? LengthOfArrayLike(arrayLike).
         let len = length_of_array_like(agent, gc.reborrow(), array_like)?;
@@ -360,7 +367,7 @@ impl ArrayConstructor {
         } else {
             // 10. Else,
             // a. Let A be ? ArrayCreate(len).
-            array_create(agent, len as usize, len as usize, None)?.into_object()
+            array_create(agent, gc.nogc(), len as usize, len as usize, None)?.into_object()
         };
 
         // 11. Let k be 0.
@@ -419,7 +426,6 @@ impl ArrayConstructor {
     fn is_array(
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -430,7 +436,6 @@ impl ArrayConstructor {
     fn of(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -454,7 +459,7 @@ impl ArrayConstructor {
         } else {
             // 5. Else,
             // a. Let A be ? ArrayCreate(len).
-            array_create(agent, len, len, None)?.into_object()
+            array_create(agent, gc.nogc(), len, len, None)?.into_object()
         };
 
         // 6. Let k be 0.
@@ -493,7 +498,6 @@ impl ArrayConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

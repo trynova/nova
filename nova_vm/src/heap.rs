@@ -170,8 +170,8 @@ pub trait CreateHeapData<T, F> {
     fn create(&mut self, data: T) -> F;
 }
 
-impl CreateHeapData<&str, String> for Heap {
-    fn create(&mut self, data: &str) -> String {
+impl CreateHeapData<&str, String<'static>> for Heap {
+    fn create(&mut self, data: &str) -> String<'static> {
         if let Ok(value) = String::try_from(data) {
             value
         } else {
@@ -181,8 +181,8 @@ impl CreateHeapData<&str, String> for Heap {
     }
 }
 
-impl CreateHeapData<std::string::String, String> for Heap {
-    fn create(&mut self, data: std::string::String) -> String {
+impl CreateHeapData<std::string::String, String<'static>> for Heap {
+    fn create(&mut self, data: std::string::String) -> String<'static> {
         if let Ok(value) = String::try_from(data.as_str()) {
             value
         } else {
@@ -302,7 +302,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String {
+    pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String<'static> {
         let found = self.find_equal_string(message);
         if let Some(idx) = found {
             return idx;
@@ -323,7 +323,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    unsafe fn alloc_string(&mut self, message: std::string::String) -> String {
+    unsafe fn alloc_string(&mut self, message: std::string::String) -> String<'static> {
         let found = self.find_equal_string(message.as_str());
         if let Some(idx) = found {
             return idx;
@@ -344,7 +344,7 @@ impl Heap {
     /// SmallString. All SmallStrings must be kept on the stack to ensure that
     /// comparison between heap allocated strings and SmallStrings can be
     /// guaranteed to never equal true.
-    pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String {
+    pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String<'static> {
         let found = self.find_equal_string(message);
         if let Some(idx) = found {
             return idx;
@@ -353,7 +353,7 @@ impl Heap {
         self.create(data)
     }
 
-    fn find_equal_string(&self, message: &str) -> Option<String> {
+    fn find_equal_string(&self, message: &str) -> Option<String<'static>> {
         debug_assert!(message.len() > 7);
         self.strings
             .iter()
@@ -434,7 +434,7 @@ impl PrimitiveHeap<'_> {
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PrimitiveHeapIndexable:
     Index<HeapNumber, Output = f64>
-    + Index<HeapString, Output = StringHeapData>
+    + Index<HeapString<'static>, Output = StringHeapData>
     + Index<HeapBigInt, Output = BigIntHeapData>
 {
 }

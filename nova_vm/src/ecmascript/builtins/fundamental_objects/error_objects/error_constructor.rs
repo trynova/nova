@@ -31,7 +31,7 @@ use crate::heap::IntrinsicConstructorIndexes;
 pub(crate) struct ErrorConstructor;
 
 impl Builtin for ErrorConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Error;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Error;
 
     const LENGTH: u8 = 1;
 
@@ -46,7 +46,6 @@ impl ErrorConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -57,7 +56,11 @@ impl ErrorConstructor {
         // 3. If message is not undefined, then
         let message = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
-            Some(to_string(agent, gc.reborrow(), message)?)
+            Some(
+                to_string(agent, gc.reborrow(), message)?
+                    .unbind()
+                    .scope(agent, gc.nogc()),
+            )
         } else {
             None
         };
@@ -78,6 +81,7 @@ impl ErrorConstructor {
         )?;
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
+        let message = message.map(|message| message.get(agent));
         let heap_data = &mut agent[o];
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;
@@ -100,7 +104,6 @@ impl ErrorConstructor {
 pub(super) fn get_error_cause(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<Value>> {
     let Ok(options) = Object::try_from(options) else {

@@ -9,9 +9,9 @@ clap = { workspace = true}
 cliclack = { workspace = true }
 ctrlc = { workspace = true }
 console = { workspace = true }
-miette = { workspace = true }
 nova_vm = { path = "../nova_vm" }
 oxc_ast = { workspace = true }
+oxc-miette = { workspace = true }
 oxc_parser = { workspace = true }
 oxc_semantic = { workspace = true }
 oxc_span = { workspace = true }

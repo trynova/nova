@@ -117,7 +117,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _prototype: Option<Object>,
     ) -> JsResult<bool> {
         todo!();
@@ -140,7 +139,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
@@ -150,7 +148,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -161,7 +158,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();
@@ -171,7 +167,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _receiver: Value,
     ) -> JsResult<Value> {
@@ -182,7 +177,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -194,7 +188,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
     ) -> JsResult<bool> {
         todo!();
@@ -212,7 +205,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments_list: super::ArgumentsList,
     ) -> JsResult<Value> {
@@ -223,7 +215,6 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _arguments_list: super::ArgumentsList,
         _new_target: crate::ecmascript::types::Function,
     ) -> JsResult<Object> {

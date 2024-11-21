@@ -21,12 +21,13 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
+    engine::context::NoGcScope,
     heap::{
         indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
-type SourceCodeIndex = BaseIndex<SourceCodeHeapData>;
+type SourceCodeIndex = BaseIndex<'static, SourceCodeHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SourceCode(SourceCodeIndex);
@@ -41,6 +42,7 @@ impl SourceCode {
     /// they drop the parsed code.
     pub(crate) unsafe fn parse_source(
         agent: &mut Agent,
+        gc: NoGcScope,
         source: String,
         source_type: SourceType,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
@@ -55,14 +57,14 @@ impl SourceCode {
                 // Thus the source text is kept from garbage collection.
                 let source_text =
                     unsafe { std::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
-                (source, source_text)
+                (source.unbind(), source_text)
             }
             String::SmallString(source) => {
                 // Add 10 whitespace bytes to the end of the eval string. This
                 // should guarantee that the string gets heap-allocated.
                 let original_length = source.len();
                 let data = format!("{}          ", source.as_str());
-                let source = String::from_string(agent, data);
+                let source = String::from_string(agent, gc, data);
                 let String::String(source) = source else {
                     unreachable!()
                 };
@@ -115,7 +117,10 @@ impl SourceCode {
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
         let program = unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) };
-        let source_code = agent.heap.create(SourceCodeHeapData { source, allocator });
+        let source_code = agent.heap.create(SourceCodeHeapData {
+            source: source.unbind(),
+            allocator,
+        });
 
         Ok((program, source_code))
     }
@@ -135,7 +140,7 @@ pub(crate) struct SourceCodeHeapData {
     /// in the eval call may keep references to the string data. If the eval
     /// string was small-string optimised and on the stack, then those
     /// references would necessarily and definitely be invalid.
-    source: HeapString,
+    source: HeapString<'static>,
     /// The arena that contains the parsed data of the eval source.
     allocator: NonNull<Allocator>,
 }

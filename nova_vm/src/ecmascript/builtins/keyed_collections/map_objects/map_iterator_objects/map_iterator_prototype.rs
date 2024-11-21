@@ -24,7 +24,7 @@ pub(crate) struct MapIteratorPrototype;
 
 struct MapIteratorPrototypeNext;
 impl Builtin for MapIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
@@ -35,8 +35,7 @@ impl Builtin for MapIteratorPrototypeNext {
 impl MapIteratorPrototype {
     fn next(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -44,6 +43,7 @@ impl MapIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::MapIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "MapIterator expected",
             ));
@@ -92,7 +92,7 @@ impl MapIteratorPrototype {
                         continue;
                     };
                     let value = agent[map].values()[index].unwrap();
-                    create_array_from_list(agent, &[key, value]).into_value()
+                    create_array_from_list(agent, gc.nogc(), &[key, value]).into_value()
                 }
             };
 

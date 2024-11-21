@@ -4,7 +4,7 @@
 
 use std::ops::{Deref, Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{
@@ -62,7 +62,7 @@ impl Behaviour {
 }
 
 pub trait Builtin {
-    const NAME: String;
+    const NAME: String<'static>;
     const LENGTH: u8;
     const BEHAVIOUR: Behaviour;
 
@@ -236,7 +236,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         function_internal_get_own_property(self, agent, property_key)
@@ -246,7 +245,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -257,7 +255,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, gc, property_key)
@@ -267,7 +264,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -278,7 +274,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -290,7 +285,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         function_internal_delete(self, agent, gc, property_key)
@@ -315,7 +309,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_argument: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
@@ -333,7 +326,6 @@ impl InternalMethods for BuiltinFunction {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
@@ -353,7 +345,6 @@ impl InternalMethods for BuiltinFunction {
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
@@ -394,6 +385,7 @@ pub(crate) fn builtin_call_or_construct(
         Behaviour::Regular(func) => {
             if new_target.is_some() {
                 Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Not a constructor",
                 ))
@@ -440,6 +432,7 @@ pub(crate) fn builtin_call_or_construct(
 /// built-in function object.
 pub fn create_builtin_function(
     agent: &mut Agent,
+    gc: NoGcScope,
     behaviour: Behaviour,
     args: BuiltinFunctionArgs,
 ) -> BuiltinFunction {
@@ -451,11 +444,11 @@ pub fn create_builtin_function(
     let initial_name = if let Some(prefix) = args.prefix {
         // 12. Else,
         // a. Perform SetFunctionName(func, name, prefix).
-        String::from_string(agent, format!("{} {}", args.name, prefix))
+        String::from_string(agent, gc, format!("{} {}", args.name, prefix))
     } else {
         // 11. If prefix is not present, then
         // a. Perform SetFunctionName(func, name).
-        String::from_str(agent, args.name)
+        String::from_str(agent, gc, args.name)
     };
 
     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].
@@ -520,7 +513,7 @@ pub fn create_builtin_function(
     // 13. Return func.
     agent.heap.create(BuiltinFunctionHeapData {
         behaviour,
-        initial_name: Some(initial_name),
+        initial_name: Some(initial_name.unbind()),
         // 10. Perform SetFunctionLength(func, length).
         length: args.length as u8,
         // 8. Set func.[[Realm]] to realm.

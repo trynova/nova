@@ -40,7 +40,7 @@ pub struct BigIntConstructor;
 impl Builtin for BigIntConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.BigInt;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.BigInt;
 }
 impl BuiltinIntrinsicConstructor for BigIntConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::BigInt;
@@ -50,26 +50,26 @@ struct BigIntAsIntN;
 impl Builtin for BigIntAsIntN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_int_n);
     const LENGTH: u8 = 2;
-    const NAME: String = BUILTIN_STRING_MEMORY.asIntN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asIntN;
 }
 struct BigIntAsUintN;
 impl Builtin for BigIntAsUintN {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntConstructor::as_uint_n);
     const LENGTH: u8 = 2;
-    const NAME: String = BUILTIN_STRING_MEMORY.asUintN;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.asUintN;
 }
 
 impl BigIntConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "BigInt is not a constructor",
             ));
@@ -79,6 +79,7 @@ impl BigIntConstructor {
         if let Ok(prim) = Number::try_from(prim) {
             if !prim.is_integer(agent) {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::RangeError,
                     "Can't convert number to BigInt because it isn't an integer",
                 ));
@@ -93,13 +94,13 @@ impl BigIntConstructor {
     fn as_int_n(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asIntN",
             ));
@@ -171,13 +172,13 @@ impl BigIntConstructor {
     fn as_uint_n(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asUintN",
             ));
@@ -209,11 +210,14 @@ impl BigIntConstructor {
 fn number_to_big_int(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     value: Number,
 ) -> JsResult<BigInt> {
     if !is_integral_number(agent, gc.reborrow(), value) {
-        Err(agent.throw_exception_with_static_message(ExceptionType::RangeError, "Not an integer"))
+        Err(agent.throw_exception_with_static_message(
+            gc.nogc(),
+            ExceptionType::RangeError,
+            "Not an integer",
+        ))
     } else {
         match value {
             Number::Number(idx) => {

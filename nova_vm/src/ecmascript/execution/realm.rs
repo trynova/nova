@@ -321,7 +321,6 @@ pub(crate) fn set_realm_global_object(
 pub(crate) fn set_default_global_bindings(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     realm_id: RealmIdentifier,
 ) -> JsResult<Object> {
     // 1. Let global be realmRec.[[GlobalObject]].
@@ -1069,7 +1068,6 @@ pub(crate) fn set_default_global_bindings(
 pub(crate) fn initialize_host_defined_realm(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     create_global_object: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>) -> Object>,
     create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>) -> Object>,
     initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>, Object)>,

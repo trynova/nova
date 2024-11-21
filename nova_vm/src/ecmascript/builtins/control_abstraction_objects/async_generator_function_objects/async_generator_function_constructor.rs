@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct AsyncGeneratorFunctionConstructor;
 impl Builtin for AsyncGeneratorFunctionConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.AsyncGeneratorFunction;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.AsyncGeneratorFunction;
 
     const LENGTH: u8 = 1;
 
@@ -30,7 +30,6 @@ impl AsyncGeneratorFunctionConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,

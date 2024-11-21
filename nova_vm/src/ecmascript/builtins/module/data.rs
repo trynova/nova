@@ -19,7 +19,7 @@ use super::Module;
 pub struct ModuleHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) module: ModuleRecord,
-    pub(crate) exports: Box<[String]>,
+    pub(crate) exports: Box<[String<'static>]>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -47,7 +47,7 @@ pub(crate) struct ModuleRecord {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ResolvedBindingName {
-    String(HeapString),
+    String(HeapString<'static>),
     SmallString(SmallString),
     Namespace,
 }

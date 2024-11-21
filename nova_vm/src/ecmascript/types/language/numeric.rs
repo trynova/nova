@@ -45,6 +45,26 @@ pub enum NumericRootRepr {
 }
 
 impl Numeric {
+    /// Unbind this Numeric from its current lifetime. This is necessary to use
+    /// the Numeric as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Numeric to the garbage collection lifetime. This enables
+    // Rust's borrow checker to verify that your Numerics cannot not be
+    // invalidated by garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let numeric = numeric.bind(&gc);
+    // ```
+    // to make sure that the unbound Numeric cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }

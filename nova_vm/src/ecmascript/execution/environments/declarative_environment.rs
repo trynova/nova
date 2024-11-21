@@ -10,6 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{Object, String, Value},
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -27,7 +28,7 @@ pub(crate) struct DeclarativeEnvironment {
     pub(crate) outer_env: OuterEnv,
 
     /// The environment's bindings.
-    pub(crate) bindings: AHashMap<String, Binding>,
+    pub(crate) bindings: AHashMap<String<'static>, Binding>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -70,7 +71,7 @@ impl DeclarativeEnvironment {
         // uninitialized. If D is true, record that the newly created binding
         // may be deleted by a subsequent DeleteBinding call.
         self.bindings.insert(
-            name,
+            name.unbind(),
             Binding {
                 value: None,
                 // Strictness only seems to matter for immutable bindings.
@@ -91,7 +92,7 @@ impl DeclarativeEnvironment {
         // uninitialized. If S is true, record that the newly created binding is
         // a strict binding.
         self.bindings.insert(
-            name,
+            name.unbind(),
             Binding {
                 value: None,
                 strict: is_strict,
@@ -105,7 +106,7 @@ impl DeclarativeEnvironment {
     /// ### [9.1.1.1.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-declarative-environment-records-initializebinding-n-v)
     pub(super) fn initialize_binding(&mut self, name: String, value: Value) {
         // 1. Assert: envRec must have an uninitialized binding for N.
-        let binding = self.bindings.get_mut(&name).unwrap();
+        let binding = self.bindings.get_mut(&name.unbind()).unwrap();
 
         // 2. Set the bound value for N in envRec to V.
         // 3. Record that the binding for N in envRec has been initialized.
@@ -143,7 +144,7 @@ impl DeclarativeEnvironment {
         }
 
         // 3. Remove the binding for N from envRec.
-        self.bindings.remove(&name);
+        self.bindings.remove(&name.unbind());
 
         // 4. Return true.
         true
@@ -252,17 +253,22 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         value: Value,
         mut is_strict: bool,
     ) -> JsResult<()> {
         let env_rec = &mut agent[self];
         // 1. If envRec does not have a binding for N, then
-        let Some(binding) = env_rec.bindings.get_mut(&name) else {
+        let Some(binding) = env_rec.bindings.get_mut(&name.unbind()) else {
             // a. If S is true, throw a ReferenceError exception.
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+                return Err(agent.throw_exception(
+                    gc,
+                    ExceptionType::ReferenceError,
+                    error_message,
+                ));
             }
 
             // b. Perform ! envRec.CreateMutableBinding(N, true).
@@ -287,7 +293,7 @@ impl DeclarativeEnvironmentIndex {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message));
+            return Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -306,7 +312,7 @@ impl DeclarativeEnvironmentIndex {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(ExceptionType::TypeError, error_message));
+                return Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message));
             }
         }
 
@@ -325,6 +331,7 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
+        gc: NoGcScope,
         name: String,
         is_strict: bool,
     ) -> JsResult<Value> {
@@ -335,7 +342,7 @@ impl DeclarativeEnvironmentIndex {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
+                Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message))
             },
             Ok,
         )

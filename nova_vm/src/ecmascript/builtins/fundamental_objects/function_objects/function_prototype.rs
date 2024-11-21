@@ -32,7 +32,7 @@ use crate::{
 
 pub(crate) struct FunctionPrototype;
 impl Builtin for FunctionPrototype {
-    const NAME: String = String::EMPTY_STRING;
+    const NAME: String<'static> = String::EMPTY_STRING;
 
     const LENGTH: u8 = 0;
 
@@ -44,7 +44,7 @@ impl BuiltinIntrinsicConstructor for FunctionPrototype {
 
 struct FunctionPrototypeApply;
 impl Builtin for FunctionPrototypeApply {
-    const NAME: String = BUILTIN_STRING_MEMORY.apply;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.apply;
 
     const LENGTH: u8 = 2;
 
@@ -54,7 +54,7 @@ impl Builtin for FunctionPrototypeApply {
 
 struct FunctionPrototypeBind;
 impl Builtin for FunctionPrototypeBind {
-    const NAME: String = BUILTIN_STRING_MEMORY.bind;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.bind;
 
     const LENGTH: u8 = 1;
 
@@ -64,7 +64,7 @@ impl Builtin for FunctionPrototypeBind {
 
 struct FunctionPrototypeCall;
 impl Builtin for FunctionPrototypeCall {
-    const NAME: String = BUILTIN_STRING_MEMORY.call;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.call;
 
     const LENGTH: u8 = 1;
 
@@ -74,7 +74,7 @@ impl Builtin for FunctionPrototypeCall {
 
 struct FunctionPrototypeToString;
 impl Builtin for FunctionPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -84,7 +84,7 @@ impl Builtin for FunctionPrototypeToString {
 
 struct FunctionPrototypeHasInstance;
 impl Builtin for FunctionPrototypeHasInstance {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::HasInstance.to_property_key());
 
@@ -106,7 +106,6 @@ impl FunctionPrototype {
     fn apply(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -114,6 +113,7 @@ impl FunctionPrototype {
         let Some(func) = is_callable(this_value) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -149,7 +149,6 @@ impl FunctionPrototype {
     fn bind(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -160,6 +159,7 @@ impl FunctionPrototype {
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot bind a non-callable object",
             ));
@@ -236,6 +236,7 @@ impl FunctionPrototype {
         // 10. Perform SetFunctionName(F, targetName, "bound").
         set_function_name(
             agent,
+            gc.nogc(),
             f,
             target_name.into(),
             Some(BUILTIN_STRING_MEMORY.bound),
@@ -248,12 +249,12 @@ impl FunctionPrototype {
     fn call(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let Some(func) = is_callable(this_value) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -266,8 +267,7 @@ impl FunctionPrototype {
 
     fn to_string(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -275,6 +275,7 @@ impl FunctionPrototype {
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
             ));
@@ -291,7 +292,7 @@ impl FunctionPrototype {
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
                     .to_string();
-                Ok(Value::from_string(agent, source_text))
+                Ok(Value::from_string(agent, gc.nogc(), source_text))
             }
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.
@@ -317,16 +318,19 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_string(agent, initial_name))
+                Ok(Value::from_string(agent, gc.nogc(), initial_name))
             }
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(_) => {
-                Ok(Value::from_static_str(agent, "class { [ native code ] }"))
-            }
+            Function::BuiltinConstructorFunction(_) => Ok(Value::from_static_str(
+                agent,
+                gc.nogc(),
+                "class { [ native code ] }",
+            )),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
                 Ok(Value::from_static_str(
                     agent,
+                    gc.nogc(),
                     "function () { [ native code ] }",
                 ))
             }
@@ -342,7 +346,6 @@ impl FunctionPrototype {
     fn has_instance(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         this_value: Value,
         args: ArgumentsList,
     ) -> JsResult<Value> {
@@ -397,7 +400,7 @@ impl FunctionPrototype {
 
 struct ThrowTypeError;
 impl Builtin for ThrowTypeError {
-    const NAME: String = String::EMPTY_STRING;
+    const NAME: String<'static> = String::EMPTY_STRING;
 
     const LENGTH: u8 = 0;
 
@@ -410,12 +413,11 @@ impl BuiltinIntrinsic for ThrowTypeError {
 impl ThrowTypeError {
     fn behaviour(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         _: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
+        Err(agent.throw_exception_with_static_message(gc.nogc(),ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

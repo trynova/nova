@@ -17,6 +17,7 @@ use crate::{
             String, Symbol, Value,
         },
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
 };
@@ -26,26 +27,26 @@ use crate::{
 pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
 
 impl PropertyKey {
     // FIXME: This API is not necessarily in the right place.
-    pub fn from_str(agent: &mut Agent, str: &str) -> Self {
+    pub fn from_str(agent: &mut Agent, gc: NoGcScope, str: &str) -> Self {
         parse_string_to_integer_property_key(str)
-            .unwrap_or_else(|| String::from_str(agent, str).into())
+            .unwrap_or_else(|| String::from_str(agent, gc, str).into())
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Self {
+    pub fn from_static_str(agent: &mut Agent, gc: NoGcScope, str: &'static str) -> Self {
         parse_string_to_integer_property_key(str)
-            .unwrap_or_else(|| String::from_static_str(agent, str).into())
+            .unwrap_or_else(|| String::from_static_str(agent, gc, str).into())
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Self {
+    pub fn from_string(agent: &mut Agent, gc: NoGcScope, string: std::string::String) -> Self {
         parse_string_to_integer_property_key(&string)
-            .unwrap_or_else(|| String::from_string(agent, string).into())
+            .unwrap_or_else(|| String::from_string(agent, gc, string).into())
     }
 
     pub fn into_value(self) -> Value {
@@ -81,7 +82,7 @@ impl PropertyKey {
                 s1.as_str() == s2.as_str()
             }
             (PropertyKey::String(s), PropertyKey::Integer(n)) => {
-                let s = agent[s].as_str();
+                let s = agent[s.unbind()].as_str();
 
                 Self::is_str_eq_num(s, n.into_i64())
             }
@@ -177,10 +178,10 @@ impl From<Symbol> for PropertyKey {
     }
 }
 
-impl From<String> for PropertyKey {
+impl From<String<'_>> for PropertyKey {
     fn from(value: String) -> Self {
         match value {
-            String::String(x) => PropertyKey::String(x),
+            String::String(x) => PropertyKey::String(x.unbind()),
             String::SmallString(x) => PropertyKey::SmallString(x),
         }
     }

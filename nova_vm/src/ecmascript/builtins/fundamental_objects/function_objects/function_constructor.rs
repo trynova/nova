@@ -4,9 +4,9 @@
 
 use oxc_span::SourceType;
 
-use crate::heap::IntrinsicConstructorIndexes;
 use crate::{
     ecmascript::{
+        abstract_operations::type_conversion::{to_string, to_string_primitive},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             make_constructor, ordinary::get_prototype_from_constructor, ordinary_function_create,
@@ -18,15 +18,19 @@ use crate::{
             RealmIdentifier,
         },
         scripts_and_modules::source_code::SourceCode,
-        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{
+            Function, IntoObject, IntoValue, Object, Primitive, String, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     engine::context::GcScope,
+    heap::IntrinsicConstructorIndexes,
 };
 
 pub(crate) struct FunctionConstructor;
 
 impl Builtin for FunctionConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Function;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Function;
 
     const LENGTH: u8 = 1;
 
@@ -40,7 +44,6 @@ impl FunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -87,6 +90,7 @@ impl FunctionConstructor {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum DynamicFunctionKind {
     Normal,
     Generator,
@@ -124,7 +128,6 @@ impl DynamicFunctionKind {
 pub(crate) fn create_dynamic_function(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     constructor: Function,
     kind: DynamicFunctionKind,
     parameter_args: &[Value],
@@ -136,27 +139,73 @@ pub(crate) fn create_dynamic_function(
         .host_ensure_can_compile_strings(agent.current_realm_mut())?;
 
     let source_string = {
-        // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
-        let parameter_strings = parameter_args
-            .iter()
-            .map(|param| param.to_string(agent, gc.reborrow()))
-            .collect::<JsResult<Vec<_>>>()?;
-        let body_string = body_arg.to_string(agent, gc.reborrow())?;
+        let parameter_strings_vec;
+        let parameter_strings_slice;
+        let body_string;
+        if body_arg.is_string() && parameter_args.iter().all(|arg| arg.is_string()) {
+            body_string = String::try_from(body_arg).unwrap().bind(gc.nogc());
+            parameter_strings_slice =
+                // Safety: All the strings were checked to be strings.
+                unsafe { std::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
+        } else if body_arg.is_primitive() && parameter_args.iter().all(|arg| arg.is_primitive()) {
+            // We don't need to call JavaScript here. Nice.
+            let gc = gc.nogc();
+            let mut parameter_strings = Vec::with_capacity(parameter_args.len());
+            for param in parameter_args {
+                parameter_strings.push(to_string_primitive(
+                    agent,
+                    gc,
+                    Primitive::try_from(*param).unwrap(),
+                )?);
+            }
+            parameter_strings_vec = parameter_strings;
+            parameter_strings_slice = &parameter_strings_vec;
+            body_string =
+                to_string_primitive(agent, gc, Primitive::try_from(body_arg).unwrap())?.bind(gc);
+        } else {
+            // Some of the parameters are non-primitives. This means we'll be
+            // calling into JavaScript during this work.
+            let mut parameter_string_roots = Vec::with_capacity(parameter_args.len());
+            for param in parameter_args {
+                // Each parameter has to be rooted in case the next parameter
+                // or the body argument is the one that calls to JavaScript.
+                parameter_string_roots.push(
+                    to_string(agent, gc.reborrow(), *param)?
+                        .unbind()
+                        .scope(agent, gc.nogc()),
+                );
+            }
+            let body_string_unbound = body_arg.to_string(agent, gc.reborrow())?.unbind();
+            // We've done all our potential JavaScript calling: Now we rest.
+            let gc = gc.nogc();
+            body_string = body_string_unbound.bind(gc);
+            let parameter_strings = parameter_string_roots
+                .into_iter()
+                .map(|param_root| param_root.get(agent).bind(gc))
+                .collect::<Vec<_>>();
 
-        let mut str_len = kind.prefix().len() + body_string.len(agent) + 18;
-        if !parameter_strings.is_empty() {
-            // Separated by a single comma character
-            str_len += parameter_strings
-                .iter()
-                .map(|str| str.len(agent) + 1)
-                .sum::<usize>()
-                - 1;
+            parameter_strings_vec = parameter_strings;
+            parameter_strings_slice = &parameter_strings_vec;
         }
 
+        // format!("{} anonymous({}\n) {{\n{}\n}}", kind.prefix(), parameters, body_arg)
+        let str_len = kind.prefix().len()
+            + 18
+            + body_string.len(agent)
+            + if !parameter_strings_slice.is_empty() {
+                // Separated by a single comma character
+                parameter_strings_slice
+                    .iter()
+                    .map(|str| str.len(agent) + 1)
+                    .sum::<usize>()
+                    - 1
+            } else {
+                0
+            };
         let mut string = std::string::String::with_capacity(str_len);
         string.push_str(kind.prefix());
         string.push_str(" anonymous(");
-        for (i, parameter) in parameter_strings.iter().enumerate() {
+        for (i, parameter) in parameter_strings_slice.iter().enumerate() {
             if i != 0 {
                 string.push(',');
             }
@@ -165,9 +214,10 @@ pub(crate) fn create_dynamic_function(
         string.push_str("\n) {\n");
         string.push_str(body_string.as_str(agent));
         string.push_str("\n}");
+
         debug_assert_eq!(string.len(), str_len);
 
-        String::from_string(agent, string)
+        String::from_string(agent, gc.nogc(), string)
     };
 
     // The spec says to parse the parameters and the function body separately to
@@ -183,7 +233,8 @@ pub(crate) fn create_dynamic_function(
         // GC'd before the program is dropped. If this function returns
         // successfully, then the program's AST and the SourceCode will both be
         // kept alive in the returned function object.
-        let parsed_result = unsafe { SourceCode::parse_source(agent, source_string, source_type) };
+        let parsed_result =
+            unsafe { SourceCode::parse_source(agent, gc.nogc(), source_string, source_type) };
 
         if let Ok((program, sc)) = parsed_result {
             source_code = Some(sc);
@@ -221,6 +272,7 @@ pub(crate) fn create_dynamic_function(
                 );
             }
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::SyntaxError,
                 "Invalid function source text.",
             ));
@@ -230,7 +282,7 @@ pub(crate) fn create_dynamic_function(
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
-            gc,
+            gc.reborrow(),
             constructor,
             kind.intrinsic_prototype(),
         )?,
@@ -245,10 +297,11 @@ pub(crate) fn create_dynamic_function(
         env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
         private_env: None,
     };
-    let f = ordinary_function_create(agent, params);
+    let f = ordinary_function_create(agent, gc.nogc(), params);
 
     set_function_name(
         agent,
+        gc.nogc(),
         f,
         BUILTIN_STRING_MEMORY.anonymous.to_property_key(),
         None,

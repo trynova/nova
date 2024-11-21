@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct WeakRefConstructor;
 impl Builtin for WeakRefConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.WeakRef;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.WeakRef;
 
     const LENGTH: u8 = 1;
 
@@ -29,7 +29,6 @@ impl WeakRefConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,

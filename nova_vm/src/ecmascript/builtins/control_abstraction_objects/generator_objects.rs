@@ -43,7 +43,6 @@ impl Generator {
         mut self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         value: Value,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -53,6 +52,7 @@ impl Generator {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The generator is currently running",
                 ))
@@ -82,7 +82,7 @@ impl Generator {
         // execution context.
         agent.execution_context_stack.push(execution_context);
 
-        let saved = Scoped::new(agent, self);
+        let saved = Scoped::new(agent, gc.nogc(), self);
 
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
@@ -157,7 +157,6 @@ impl Generator {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         value: Value,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
@@ -183,6 +182,7 @@ impl Generator {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
+                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The generator is currently running",
                 ));

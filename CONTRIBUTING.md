@@ -8,7 +8,7 @@ said, before you being, you'll want to know a few things.
    evil or anything, he's just an idiot.
 2. Nova's code follows the ECMAScript specification. When in doubt, read, copy,
    implement the specification.
-3. Testing is mainly based upon the test262 conformance suit. Updating
+3. Testing is mainly based upon the test262 conformance suite. Updating
    conformance results needs to be done.
 
 More information is found below.
@@ -456,3 +456,14 @@ Some more long-term prospects and/or wild ideas:
     Nightly features). But it would mean that returning a (sort of)
     `Result<Value>` would fit in a register.
 - Consider a register based VM instead of going stack based
+
+# Running the test262 suite
+1. Clone this repository with submodules:
+
+    `git clone --recurse-submodules git@github.com:trynova/nova.git`
+
+2. Execute the test262 runner:
+
+    `cargo build -p nova_cli && cargo run --bin test262`
+
+   **Important:** The test runner executes the compiled `nova_cli` directly. If you have made changes to CLI or VM, ensure that the `nova_cli` target is rebuilt before executing the test runner.

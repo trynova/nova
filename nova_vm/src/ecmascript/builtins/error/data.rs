@@ -14,13 +14,17 @@ use crate::{
 pub struct ErrorHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     pub(crate) kind: ExceptionType,
-    pub(crate) message: Option<String>,
+    pub(crate) message: Option<String<'static>>,
     pub(crate) cause: Option<Value>,
     // TODO: stack? name?
 }
 
 impl ErrorHeapData {
-    pub(crate) fn new(kind: ExceptionType, message: Option<String>, cause: Option<Value>) -> Self {
+    pub(crate) fn new(
+        kind: ExceptionType,
+        message: Option<String<'static>>,
+        cause: Option<Value>,
+    ) -> Self {
         Self {
             object_index: None,
             kind,

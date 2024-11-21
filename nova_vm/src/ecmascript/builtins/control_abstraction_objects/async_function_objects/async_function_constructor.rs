@@ -18,7 +18,7 @@ use crate::{
 
 pub(crate) struct AsyncFunctionConstructor;
 impl Builtin for AsyncFunctionConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.AsyncFunction;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.AsyncFunction;
 
     const LENGTH: u8 = 1;
 
@@ -32,7 +32,6 @@ impl AsyncFunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
