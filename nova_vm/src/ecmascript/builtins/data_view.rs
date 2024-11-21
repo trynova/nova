@@ -73,7 +73,7 @@ impl From<DataViewIndex> for DataView {
     }
 }
 
-impl IntoBaseIndex<DataViewHeapData> for DataView {
+impl IntoBaseIndex<'_, DataViewHeapData> for DataView {
     fn into_base_index(self) -> DataViewIndex {
         self.0
     }

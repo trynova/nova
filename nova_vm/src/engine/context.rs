@@ -24,24 +24,57 @@ pub(crate) struct GcToken;
 #[derive(Debug)]
 pub(crate) struct ScopeToken;
 
-/// # Access to garbage collector
+/// # JavaScript call scope that may trigger garbage collection
 ///
-/// Holding this token is required for garbage collection.
+/// This marker represents access to the JavaScript call stack and specifically
+/// gives the call stack the possibility of performing garbage collection.
+/// In the engine, most values are by-default not rooted during operations
+/// which means that garbage collection invalidates them. This GcScope marker
+/// is a way for the borrow checker to ensure that all values are rooted /
+/// returned to the heap / registered with the heap before the garbage
+/// collector potentially runs.
+///
+/// In essence, this is a compile-time method of ensuring safepoint garbage
+/// collection safety.
 #[derive(Debug)]
 pub struct GcScope<'a, 'b> {
+    /// A GcScope "owns" the GC access: There is only ever one "active" GcToken
+    /// in the world at a time. Reborrowing a GcScope binds the previous one,
+    /// so its contained GcToken is "inactive" during the lifetime of the
+    /// reborrowed one.
     gc: GcToken,
+    /// A GcScope also "owns" the scope access: This is the access to the
+    /// Scoped roots stack. This is not yet well-defined but probably only
+    /// GC scopes are allowed to shrink the Scoped roots stack.
     scope: ScopeToken,
+    /// We must also keep an exclusive borrow on a GcToken. This enables
+    /// various engine values to reborrow this lifetime as shared and that way
+    /// have the borrow checker check that those values are not used while
+    /// garbage collection may run.
     _gc_marker: PhantomData<&'a mut GcToken>,
+    /// We keep a shared borrow on the ScopeToken. This is not yet well-defined
+    /// but probably we'll create new ScopeToken borrow lifetimes using the
+    /// for<'a> closure trick.
     _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
-/// # Access to the JavaScript call stack
+/// # JavaScript call scope that may not trigger garbage collection
 ///
-/// Holding this token is required for JavaScript calls.
-#[derive(Debug)]
-pub struct Scope<'a> {
-    inner: ScopeToken,
-    _marker: PhantomData<&'a ScopeToken>,
+/// This marker represents access to the JavaScript call stack in a way that
+/// cannot trigger garbage collection. Actions like working with primitive
+/// JavaScript Values and accessing non-Proxy object prototypes are examples of
+/// actions that can never trigger garbage collection.
+///
+/// This marker allows performing these sort of actions without rooting other
+/// values held on the stack.
+#[derive(Debug, Clone, Copy)]
+pub struct NoGcScope<'a, 'b> {
+    /// A NoGcScope does not own the GC access, and naturally cannot trigger
+    /// garbage collection. We keep a shared borrow on this lifetime to ensure
+    /// that the GcScope we derive from cannot be used concurrently.
+    _gc_marker: PhantomData<&'a GcToken>,
+    /// We also don't own scope access. This is not yet well-defined.
+    _scope_marker: PhantomData<&'b ScopeToken>,
 }
 
 impl GcToken {
@@ -76,8 +109,12 @@ impl<'a, 'b> GcScope<'a, 'b> {
         }
     }
 
+    /// Create a GcScope marker that inherits the current GcScope's lifetimes.
+    /// This reborrowing is necessary to ensure that only one GcScope is active
+    /// at any point in time, and the existence of the active GcScope binds any
+    /// "parent" GcScopes from being used concurrently.
     #[inline]
-    pub fn reborrow(&mut self) -> Self {
+    pub fn reborrow(&mut self) -> GcScope<'_, 'b> {
         Self {
             gc: GcToken,
             scope: ScopeToken,
@@ -86,29 +123,41 @@ impl<'a, 'b> GcScope<'a, 'b> {
         }
     }
 
-    pub(crate) fn print(&mut self) {
-        println!("GC!");
+    /// Create a NoGcScope marker that is used to bind the garbage collector
+    /// lifetime to various engine values. Existence of the NoGcScope is a
+    /// build-time proof that garbage collection cannot happen.
+    ///
+    /// When a garbage collection can happen, the borrow checker will ensure
+    /// that all engine values that were boudn to the NoGcScope are dropped or
+    /// are registered with the heap using Scoped or Global roots.
+    #[inline]
+    pub fn nogc(&self) -> NoGcScope<'_, 'b> {
+        NoGcScope::from_gc(self)
+    }
+
+    /// Turn a GcScope marker into a NoGcScope. This is otherwise equivalent to
+    /// [the `nogc()` method](Self::nogc) with the exception that this consumes
+    /// the parent GcScope.
+    ///
+    /// This is useful when a method ends in a NoGC scope based return within
+    /// an if/else branch while another branch still uses the GcScope. The
+    /// borrow checker does not like this with the `nogc()` method but allows
+    /// it with this method.
+    #[inline]
+    pub fn into_nogc(self) -> NoGcScope<'a, 'b> {
+        NoGcScope {
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
+        }
     }
 }
 
-impl Scope<'_> {
+impl<'a, 'b> NoGcScope<'a, 'b> {
     #[inline]
-    pub(crate) fn new(_: &mut ScopeToken) -> Self {
+    pub(crate) fn from_gc(_: &GcScope<'a, 'b>) -> Self {
         Self {
-            inner: ScopeToken,
-            _marker: PhantomData,
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
         }
-    }
-
-    #[inline]
-    pub fn reborrow(&self) -> Self {
-        Self {
-            inner: ScopeToken,
-            _marker: PhantomData,
-        }
-    }
-
-    pub(crate) fn print(&self) {
-        println!("GC!");
     }
 }

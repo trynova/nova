@@ -24,7 +24,7 @@ pub(crate) struct SetIteratorPrototype;
 
 struct SetIteratorPrototypeNext;
 impl Builtin for SetIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
@@ -35,8 +35,7 @@ impl Builtin for SetIteratorPrototypeNext {
 impl SetIteratorPrototype {
     fn next(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -44,6 +43,7 @@ impl SetIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::SetIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "SetIterator expected",
             ));
@@ -75,7 +75,7 @@ impl SetIteratorPrototype {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, &[e, e]).into_value()
+                    create_array_from_list(agent, gc.nogc(), &[e, e]).into_value()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,

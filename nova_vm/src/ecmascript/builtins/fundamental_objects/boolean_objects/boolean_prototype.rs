@@ -12,14 +12,14 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::GcScope,
+    engine::context::{GcScope, NoGcScope},
 };
 
 pub(crate) struct BooleanPrototype;
 
 struct BooleanPrototypeToString;
 impl Builtin for BooleanPrototypeToString {
-    const NAME: String = BUILTIN_STRING_MEMORY.toString;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.toString;
 
     const LENGTH: u8 = 0;
 
@@ -29,7 +29,7 @@ impl Builtin for BooleanPrototypeToString {
 
 struct BooleanPrototypeValueOf;
 impl Builtin for BooleanPrototypeValueOf {
-    const NAME: String = BUILTIN_STRING_MEMORY.valueOf;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.valueOf;
 
     const LENGTH: u8 = 0;
 
@@ -40,12 +40,11 @@ impl Builtin for BooleanPrototypeValueOf {
 impl BooleanPrototype {
     fn to_string(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let b = this_boolean_value(agent, this_value)?;
+        let b = this_boolean_value(agent, gc.nogc(), this_value)?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
         } else {
@@ -55,12 +54,11 @@ impl BooleanPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        this_boolean_value(agent, this_value).map(|result| result.into())
+        this_boolean_value(agent, gc.nogc(), this_value).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -96,7 +94,7 @@ impl BooleanPrototype {
 /// The abstract operation ThisBooleanValue takes argument value (an
 /// ECMAScript language value) and returns either a normal completion
 /// containing a Boolean or a throw completion.
-fn this_boolean_value(agent: &mut Agent, value: Value) -> JsResult<bool> {
+fn this_boolean_value(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<bool> {
     // 1. If value is a Boolean, return value.
     if let Value::Boolean(value) = value {
         return Ok(value);
@@ -111,6 +109,7 @@ fn this_boolean_value(agent: &mut Agent, value: Value) -> JsResult<bool> {
     }
     // 3. Throw a TypeError exception.
     Err(agent.throw_exception_with_static_message(
+        gc,
         ExceptionType::TypeError,
         "Not a Boolean or Boolean object",
     ))

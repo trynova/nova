@@ -6,7 +6,7 @@ use std::{hash::Hasher, ops::Index};
 
 use ahash::AHasher;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -30,19 +30,19 @@ pub(crate) struct MapPrototype;
 
 struct MapPrototypeClear;
 impl Builtin for MapPrototypeClear {
-    const NAME: String = BUILTIN_STRING_MEMORY.clear;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.clear;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::clear);
 }
 struct MapPrototypeDelete;
 impl Builtin for MapPrototypeDelete {
-    const NAME: String = BUILTIN_STRING_MEMORY.delete;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.delete;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::delete);
 }
 struct MapPrototypeEntries;
 impl Builtin for MapPrototypeEntries {
-    const NAME: String = BUILTIN_STRING_MEMORY.entries;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.entries;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::entries);
 }
@@ -51,37 +51,37 @@ impl BuiltinIntrinsic for MapPrototypeEntries {
 }
 struct MapPrototypeForEach;
 impl Builtin for MapPrototypeForEach {
-    const NAME: String = BUILTIN_STRING_MEMORY.forEach;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::for_each);
 }
 struct MapPrototypeGet;
 impl Builtin for MapPrototypeGet {
-    const NAME: String = BUILTIN_STRING_MEMORY.get;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get);
 }
 struct MapPrototypeHas;
 impl Builtin for MapPrototypeHas {
-    const NAME: String = BUILTIN_STRING_MEMORY.has;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.has;
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::has);
 }
 struct MapPrototypeKeys;
 impl Builtin for MapPrototypeKeys {
-    const NAME: String = BUILTIN_STRING_MEMORY.keys;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keys;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::keys);
 }
 pub(super) struct MapPrototypeSet;
 impl Builtin for MapPrototypeSet {
-    const NAME: String = BUILTIN_STRING_MEMORY.set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::set);
 }
 struct MapPrototypeGetSize;
 impl Builtin for MapPrototypeGetSize {
-    const NAME: String = BUILTIN_STRING_MEMORY.get_size;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_size;
     const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get_size);
@@ -89,7 +89,7 @@ impl Builtin for MapPrototypeGetSize {
 impl BuiltinGetter for MapPrototypeGetSize {}
 struct MapPrototypeValues;
 impl Builtin for MapPrototypeValues {
-    const NAME: String = BUILTIN_STRING_MEMORY.values;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.values;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::values);
 }
@@ -103,14 +103,13 @@ impl MapPrototype {
     /// > iterating over that List.
     fn clear(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
         // b. Set p.[[Value]] to EMPTY.
@@ -127,14 +126,13 @@ impl MapPrototype {
     /// > such as physically removing the entry from internal data structures.
     fn delete(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -183,8 +181,7 @@ impl MapPrototype {
 
     fn entries(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -193,7 +190,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
@@ -225,7 +222,6 @@ impl MapPrototype {
     fn for_each(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -233,10 +229,11 @@ impl MapPrototype {
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
             ));
@@ -277,14 +274,13 @@ impl MapPrototype {
     /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
     fn get(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -328,14 +324,13 @@ impl MapPrototype {
     /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
     fn has(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -371,8 +366,7 @@ impl MapPrototype {
 
     fn keys(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -381,22 +375,21 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
     fn set(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let value = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
 
         let Heap {
             bigints,
@@ -457,20 +450,18 @@ impl MapPrototype {
 
     fn get_size(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         let count = agent[m].size();
         Ok(count.into())
     }
 
     fn values(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -479,7 +470,7 @@ impl MapPrototype {
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value)?;
+        let m = require_map_data_internal_slot(agent, gc.nogc(), this_value)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
 
@@ -525,11 +516,14 @@ impl MapPrototype {
 }
 
 #[inline(always)]
-fn require_map_data_internal_slot(agent: &mut Agent, value: Value) -> JsResult<Map> {
+fn require_map_data_internal_slot(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Map> {
     match value {
         Value::Map(map) => Ok(map),
-        _ => Err(agent
-            .throw_exception_with_static_message(ExceptionType::TypeError, "Object is not a Map")),
+        _ => Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Object is not a Map",
+        )),
     }
 }
 

@@ -15,6 +15,7 @@ use crate::{
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_ast::ast::{self, Statement};
@@ -105,7 +106,11 @@ pub(crate) struct ExecutableHeapData {
 }
 
 impl Executable {
-    pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Self {
+    pub(crate) fn compile_script(
+        agent: &mut Agent,
+        gc: NoGcScope,
+        script: ScriptIdentifier,
+    ) -> Self {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Script ===");
@@ -115,7 +120,7 @@ impl Executable {
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
             unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
-        let mut ctx = CompileContext::new(agent);
+        let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);
         ctx.do_implicit_return();
@@ -124,9 +129,10 @@ impl Executable {
 
     pub(crate) fn compile_function_body(
         agent: &mut Agent,
+        gc: NoGcScope,
         data: CompileFunctionBodyData<'_>,
     ) -> Self {
-        let mut ctx = CompileContext::new(agent);
+        let mut ctx = CompileContext::new(agent, gc);
 
         let is_concise = data.is_concise_body;
 
@@ -139,13 +145,13 @@ impl Executable {
         ctx.finish()
     }
 
-    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Self {
+    pub(crate) fn compile_eval_body(agent: &mut Agent, gc: NoGcScope, body: &[Statement]) -> Self {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Eval Body ===");
             eprintln!();
         }
-        let mut ctx = CompileContext::new(agent);
+        let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);
         ctx.do_implicit_return();
@@ -196,7 +202,7 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn fetch_identifier(self, agent: &Agent, index: usize) -> String {
+    pub(super) fn fetch_identifier(self, agent: &Agent, index: usize) -> String<'static> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable
@@ -267,60 +273,6 @@ pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Ins
     }
 
     Some(Instr { kind, args })
-}
-
-impl ExecutableHeapData {
-    #[inline]
-    pub(super) fn get_instruction(&self, ip: &mut usize) -> Option<Instr> {
-        get_instruction(&self.instructions, ip)
-    }
-
-    pub(crate) fn compile_script(agent: &mut Agent, script: ScriptIdentifier) -> Executable {
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Compiling Script ===");
-            eprintln!();
-        }
-        // SAFETY: Script uniquely owns the Program and the body buffer does
-        // not move under any circumstances during heap operations.
-        let body: &[Statement] =
-            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
-        let mut ctx = CompileContext::new(agent);
-
-        ctx.compile_statements(body);
-        ctx.do_implicit_return();
-        ctx.finish()
-    }
-
-    pub(crate) fn compile_function_body(
-        agent: &mut Agent,
-        data: CompileFunctionBodyData<'_>,
-    ) -> Executable {
-        let mut ctx = CompileContext::new(agent);
-
-        let is_concise = data.is_concise_body;
-
-        ctx.compile_function_body(data);
-
-        if is_concise {
-            ctx.do_implicit_return();
-        }
-
-        ctx.finish()
-    }
-
-    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement]) -> Executable {
-        if agent.options.print_internals {
-            eprintln!();
-            eprintln!("=== Compiling Eval Body ===");
-            eprintln!();
-        }
-        let mut ctx = CompileContext::new(agent);
-
-        ctx.compile_statements(body);
-        ctx.do_implicit_return();
-        ctx.finish()
-    }
 }
 
 impl Index<Executable> for Agent {

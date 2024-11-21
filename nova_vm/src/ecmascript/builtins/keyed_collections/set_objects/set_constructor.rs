@@ -34,7 +34,7 @@ use crate::{
 
 pub(crate) struct SetConstructor;
 impl Builtin for SetConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Set;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Set;
 
     const LENGTH: u8 = 0;
 
@@ -48,7 +48,7 @@ impl Builtin for SetGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetConstructor::get_species);
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
     const LENGTH: u8 = 0;
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }
 impl BuiltinGetter for SetGetSpecies {}
 
@@ -57,7 +57,6 @@ impl SetConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -66,6 +65,7 @@ impl SetConstructor {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot call Set as a function",
             ));
@@ -89,6 +89,7 @@ impl SetConstructor {
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder) else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Invalid adder function",
             ));
@@ -192,7 +193,6 @@ impl SetConstructor {
     fn get_species(
         _: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

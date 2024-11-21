@@ -13,7 +13,7 @@ use crate::{
 pub struct RegExpHeapData {
     pub(crate) object_index: Option<OrdinaryObject>,
     // _regex: RegExp,
-    pub(crate) original_source: String,
+    pub(crate) original_source: String<'static>,
     pub(crate) original_flags: RegExpFlags,
 }
 

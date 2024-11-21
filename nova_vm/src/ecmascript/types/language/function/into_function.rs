@@ -110,7 +110,6 @@ pub(crate) fn function_internal_define_own_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
 ) -> JsResult<bool> {
@@ -124,7 +123,6 @@ pub(crate) fn function_internal_has_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
@@ -145,7 +143,6 @@ pub(crate) fn function_internal_get(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     property_key: PropertyKey,
     receiver: Value,
 ) -> JsResult<Value> {
@@ -167,7 +164,6 @@ pub(crate) fn function_internal_set(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
@@ -189,7 +185,6 @@ pub(crate) fn function_internal_delete(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {

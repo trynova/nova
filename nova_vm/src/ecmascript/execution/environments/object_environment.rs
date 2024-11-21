@@ -107,7 +107,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         n: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
@@ -157,7 +156,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         n: String,
         d: bool,
     ) -> JsResult<()> {
@@ -204,7 +202,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         n: String,
         v: Value,
     ) -> JsResult<()> {
@@ -234,7 +231,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         n: String,
         v: Value,
         s: bool,
@@ -247,13 +243,15 @@ impl ObjectEnvironmentIndex {
         let still_exists = has_property(agent, gc.reborrow(), binding_object, n)?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
-            let binding_object_repr = binding_object.into_value().string_repr(agent, gc);
+            let binding_object_repr = binding_object
+                .into_value()
+                .string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Property '{}' does not exist in {}.",
                 n.as_display(agent),
                 binding_object_repr.as_str(agent)
             );
-            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
+            Err(agent.throw_exception(gc.nogc(), ExceptionType::ReferenceError, error_message))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             set(agent, gc, binding_object, n, v, s)?;
@@ -273,7 +271,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         n: String,
         s: bool,
     ) -> JsResult<Value> {
@@ -289,13 +286,15 @@ impl ObjectEnvironmentIndex {
             if !s {
                 Ok(Value::Undefined)
             } else {
-                let binding_object_repr = binding_object.into_value().string_repr(agent, gc);
+                let binding_object_repr = binding_object
+                    .into_value()
+                    .string_repr(agent, gc.reborrow());
                 let error_message = format!(
                     "Property '{}' does not exist in {}.",
                     name.as_display(agent),
                     binding_object_repr.as_str(agent)
                 );
-                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message))
+                Err(agent.throw_exception(gc.nogc(), ExceptionType::ReferenceError, error_message))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
@@ -314,7 +313,6 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         name: String,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];

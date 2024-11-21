@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -96,7 +96,6 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 pub(crate) fn instantiate_ordinary_function_object(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
@@ -106,7 +105,7 @@ pub(crate) fn instantiate_ordinary_function_object(
         // 1. Let name be StringValue of BindingIdentifier.
         let name = &id.name;
         // 4. Perform SetFunctionName(F, name).
-        PropertyKey::from_str(agent, name)
+        PropertyKey::from_str(agent, gc.nogc(), name)
     } else {
         // 3. Perform SetFunctionName(F, "default").
         PropertyKey::from(BUILTIN_STRING_MEMORY.default)
@@ -128,10 +127,10 @@ pub(crate) fn instantiate_ordinary_function_object(
         env,
         private_env,
     };
-    let f = ordinary_function_create(agent, params);
+    let f = ordinary_function_create(agent, gc.nogc(), params);
 
     // 4. Perform SetFunctionName(F, name).
-    set_function_name(agent, f, pk_name, None);
+    set_function_name(agent, gc.nogc(), f, pk_name, None);
     // 5. Perform MakeConstructor(F).
     if !function.r#async && !function.generator {
         make_constructor(agent, f, None, None);
@@ -182,6 +181,7 @@ pub(crate) fn instantiate_ordinary_function_object(
 
 pub(crate) fn instantiate_ordinary_function_expression(
     agent: &mut Agent,
+    gc: NoGcScope,
     function: &FunctionExpression,
     name: Option<String>,
 ) -> ECMAScriptFunction {
@@ -217,10 +217,10 @@ pub(crate) fn instantiate_ordinary_function_expression(
             env: lexical_environment,
             private_env: private_environment,
         };
-        let closure = ordinary_function_create(agent, params);
+        let closure = ordinary_function_create(agent, gc, params);
         // 6. Perform SetFunctionName(closure, name).
         let name = PropertyKey::from(name);
-        set_function_name(agent, closure, name, None);
+        set_function_name(agent, gc, closure, name, None);
         // 7. Perform MakeConstructor(closure).
         if !function.expression.get().r#async && !function.expression.get().generator {
             make_constructor(agent, closure, None, None);
@@ -266,7 +266,6 @@ impl CompileFunctionBodyData<'static> {
 pub(crate) fn evaluate_function_body(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -277,7 +276,7 @@ pub(crate) fn evaluate_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data);
+        let exe = Executable::compile_function_body(agent, gc.nogc(), data);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
@@ -288,7 +287,6 @@ pub(crate) fn evaluate_function_body(
 pub(crate) fn evaluate_async_function_body(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> Promise {
@@ -306,7 +304,7 @@ pub(crate) fn evaluate_async_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data);
+        let exe = Executable::compile_function_body(agent, gc.nogc(), data);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
@@ -361,8 +359,7 @@ pub(crate) fn evaluate_async_function_body(
 /// completion.
 pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
-
+    mut gc: GcScope<'_, '_>,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
 ) -> JsResult<Value> {
@@ -375,7 +372,7 @@ pub(crate) fn evaluate_generator_body(
     // 3. Set G.[[GeneratorBrand]] to empty.
     let generator = ordinary_create_from_constructor(
         agent,
-        gc,
+        gc.reborrow(),
         function_object.into_function(),
         ProtoIntrinsics::Generator,
     )?;
@@ -386,7 +383,7 @@ pub(crate) fn evaluate_generator_body(
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, function_object);
-    let executable = Executable::compile_function_body(agent, data);
+    let executable = Executable::compile_function_body(agent, gc.nogc(), data);
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,

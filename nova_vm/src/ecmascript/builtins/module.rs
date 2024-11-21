@@ -153,7 +153,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         prototype: Option<Object>,
     ) -> JsResult<bool> {
         set_immutable_prototype(agent, gc.reborrow(), self.into_object(), prototype)
@@ -178,7 +177,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         match property_key {
@@ -225,7 +223,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -285,7 +282,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         match property_key {
@@ -321,7 +317,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -387,6 +382,7 @@ impl InternalMethods for Module {
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     match target_env {
                         None => Err(agent.throw_exception(
+                            gc.nogc(),
                             ExceptionType::ReferenceError,
                             format!("Could not resolve module '{}'.", key.as_str(agent)),
                         )),
@@ -405,7 +401,6 @@ impl InternalMethods for Module {
         self,
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
@@ -418,7 +413,6 @@ impl InternalMethods for Module {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         match property_key {

@@ -32,7 +32,7 @@ pub struct StringConstructor;
 impl Builtin for StringConstructor {
     const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.String;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.String;
 }
 impl BuiltinIntrinsicConstructor for StringConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::String;
@@ -42,25 +42,24 @@ struct StringFromCharCode;
 impl Builtin for StringFromCharCode {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_char_code);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCharCode;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCharCode;
 }
 struct StringFromCodePoint;
 impl Builtin for StringFromCodePoint {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::from_code_point);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.fromCodePoint;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCodePoint;
 }
 struct StringRaw;
 impl Builtin for StringRaw {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringConstructor::raw);
     const LENGTH: u8 = 1;
-    const NAME: String = BUILTIN_STRING_MEMORY.raw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
     fn behaviour(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -75,18 +74,20 @@ impl StringConstructor {
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
             if new_target.is_none() {
                 if let Value::Symbol(value) = value {
-                    return Ok(value.descriptive_string(agent).into_value());
+                    return Ok(value.descriptive_string(agent, gc.nogc()).into_value());
                 }
             }
             // b. Let s be ? ToString(value).
             to_string(agent, gc.reborrow(), value)?
+                .unbind()
+                .bind(gc.nogc())
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
             return Ok(s.into_value());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
-        let value = s;
+        let value = s.scope(agent, gc.nogc());
         let prototype = get_prototype_from_constructor(
             agent,
             gc.reborrow(),
@@ -104,8 +105,9 @@ impl StringConstructor {
 
         // 2. Set S.[[Prototype]] to prototype.
         // 3. Set S.[[StringData]] to value.
+        let value = value.get(agent).bind(gc.nogc());
         agent[s].data = match value {
-            String::String(data) => PrimitiveObjectData::String(data),
+            String::String(data) => PrimitiveObjectData::String(data.unbind()),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),
         };
         // 4. Set S.[[GetOwnProperty]] as specified in 10.4.3.1.
@@ -124,7 +126,6 @@ impl StringConstructor {
     fn from_char_code(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         code_units: ArgumentsList,
     ) -> JsResult<Value> {
@@ -154,7 +155,7 @@ impl StringConstructor {
         }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        Ok(String::from_string(agent, result).into())
+        Ok(String::from_string(agent, gc.nogc(), result).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
@@ -164,7 +165,6 @@ impl StringConstructor {
     fn from_code_point(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -183,7 +183,6 @@ impl StringConstructor {
     fn raw(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

@@ -17,7 +17,7 @@ pub(crate) struct AsyncIteratorPrototype;
 
 struct AsyncIteratorPrototypeIterator;
 impl Builtin for AsyncIteratorPrototypeIterator {
-    const NAME: String = BUILTIN_STRING_MEMORY._Symbol_asyncIterator_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_asyncIterator_;
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::AsyncIterator.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
@@ -27,7 +27,6 @@ impl AsyncIteratorPrototype {
     fn iterator(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

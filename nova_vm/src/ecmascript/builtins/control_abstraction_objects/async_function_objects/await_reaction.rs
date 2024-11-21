@@ -58,7 +58,6 @@ impl AwaitReactionIdentifier {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         reaction_type: PromiseReactionType,
         value: Value,
     ) {

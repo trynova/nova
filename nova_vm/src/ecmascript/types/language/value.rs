@@ -6,8 +6,8 @@ use super::{
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, String, StringHeapData,
-    Symbol,
+    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
+    StringHeapData, Symbol,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -53,9 +53,10 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     engine::{
-        context::GcScope,
+        context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
+        Scoped,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
@@ -86,7 +87,7 @@ pub enum Value {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString),
+    String(HeapString<'static>),
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -351,16 +352,43 @@ pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
 impl Value {
-    pub fn from_str(agent: &mut Agent, str: &str) -> Value {
-        String::from_str(agent, str).into_value()
+    /// Unbind this Value from its current lifetime. This is necessary to use
+    /// the Value as a parameter in a call that can perform garbage collection.
+    pub fn unbind(self) -> Self {
+        self
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String) -> Value {
-        String::from_string(agent, string).into_value()
+    // Bind this Value to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Values cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let value = value.bind(&gc);
+    // ```
+    // to make sure that the unbound Value cannot be used after binding.
+    pub fn bind(self, _gc: NoGcScope<'_, '_>) -> Self {
+        self
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str) -> Value {
-        String::from_static_str(agent, str).into_value()
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Value> {
+        Scoped::new(agent, gc, self.unbind())
+    }
+
+    pub fn from_str(agent: &mut Agent, gc: NoGcScope<'_, '_>, str: &str) -> Value {
+        String::from_str(agent, gc, str).into_value()
+    }
+
+    pub fn from_string(agent: &mut Agent, gc: NoGcScope, string: std::string::String) -> Value {
+        String::from_string(agent, gc, string).into_value()
+    }
+
+    pub fn from_static_str(agent: &mut Agent, gc: NoGcScope, str: &'static str) -> Value {
+        String::from_static_str(agent, gc, str).into_value()
     }
 
     pub fn from_f64(agent: &mut Agent, value: f64) -> Value {
@@ -404,6 +432,10 @@ impl Value {
             self,
             Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
         )
+    }
+
+    pub fn is_primitive(self) -> bool {
+        Primitive::try_from(self).is_ok()
     }
 
     pub fn is_string(self) -> bool {
@@ -467,6 +499,10 @@ impl Value {
         )
     }
 
+    pub fn is_integer(self) -> bool {
+        matches!(self, Value::Integer(_))
+    }
+
     pub fn is_empty_string(self) -> bool {
         if let Value::SmallString(s) = self {
             s.is_empty()
@@ -503,17 +539,17 @@ impl Value {
         to_uint16(agent, gc, self)
     }
 
-    pub fn to_string(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<String> {
+    pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<String<'gc>> {
         to_string(agent, gc, self)
     }
 
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
-    pub fn string_repr(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> String {
+    pub fn string_repr<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return symbol_idx.descriptive_string(agent);
+            return symbol_idx.descriptive_string(agent, gc.into_nogc());
         };
         match self.to_string(agent, gc) {
             Ok(result) => result,
@@ -538,7 +574,7 @@ impl Value {
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString, Output = StringHeapData>
+        A: Index<HeapString<'static>, Output = StringHeapData>
             + Index<HeapNumber, Output = f64>
             + Index<HeapBigInt, Output = BigIntHeapData>,
     {

@@ -26,7 +26,7 @@ pub(crate) struct ArrayIteratorPrototype;
 
 struct ArrayIteratorPrototypeNext;
 impl Builtin for ArrayIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
 
     const LENGTH: u8 = 0;
 
@@ -38,7 +38,6 @@ impl ArrayIteratorPrototype {
     fn next(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -46,6 +45,7 @@ impl ArrayIteratorPrototype {
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "ArrayIterator expected",
             ));
@@ -131,7 +131,8 @@ impl ArrayIteratorPrototype {
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).
-                create_array_from_list(agent, &[Value::Integer(index), value]).into_value()
+                create_array_from_list(agent, gc.nogc(), &[Value::Integer(index), value])
+                    .into_value()
             }
         };
 

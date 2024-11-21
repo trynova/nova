@@ -207,7 +207,6 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
@@ -235,7 +234,6 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
     ) -> JsResult<bool> {
@@ -248,6 +246,7 @@ impl InternalMethods for PrimitiveObject {
                 // b. Return IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
                 return is_compatible_property_descriptor(
                     agent,
+                    gc.nogc(),
                     self.internal_extensible(agent),
                     property_descriptor,
                     Some(string_desc),
@@ -267,7 +266,6 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -304,7 +302,6 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -340,7 +337,6 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
@@ -366,7 +362,6 @@ impl InternalMethods for PrimitiveObject {
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -441,7 +436,7 @@ impl InternalMethods for PrimitiveObject {
 #[repr(u8)]
 pub(crate) enum PrimitiveObjectData {
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber) = NUMBER_DISCRIMINANT,
@@ -476,7 +471,7 @@ impl TryFrom<PrimitiveObjectData> for Number {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for String {
+impl TryFrom<PrimitiveObjectData> for String<'static> {
     type Error = ();
 
     fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
@@ -536,7 +531,7 @@ impl PrimitiveObjectHeapData {
         }
     }
 
-    pub(crate) fn new_string_object(string: String) -> Self {
+    pub(crate) fn new_string_object(string: String<'static>) -> Self {
         let data = match string {
             String::String(data) => PrimitiveObjectData::String(data),
             String::SmallString(data) => PrimitiveObjectData::SmallString(data),

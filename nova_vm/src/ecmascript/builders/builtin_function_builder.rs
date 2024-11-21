@@ -38,7 +38,7 @@ pub struct CreatorLength(u8);
 pub struct NoName;
 
 #[derive(Clone, Copy)]
-pub struct CreatorName(String);
+pub struct CreatorName(String<'static>);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoBehaviour;
@@ -258,7 +258,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
     #[must_use]
     pub fn with_name(
         self,
-        name: String,
+        name: String<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
         BuiltinFunctionBuilder {
             agent: self.agent,

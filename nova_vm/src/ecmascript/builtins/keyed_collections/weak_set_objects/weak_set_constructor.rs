@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct WeakSetConstructor;
 impl Builtin for WeakSetConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.WeakSet;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.WeakSet;
 
     const LENGTH: u8 = 0;
 
@@ -29,7 +29,6 @@ impl WeakSetConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,

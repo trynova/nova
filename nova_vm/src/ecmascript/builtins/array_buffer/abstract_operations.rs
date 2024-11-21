@@ -4,7 +4,7 @@
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
 use crate::ecmascript::types::Viewable;
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -37,6 +37,7 @@ pub(crate) enum Ordering {
 /// completion. It is used to create an ArrayBuffer.
 pub(crate) fn allocate_array_buffer(
     agent: &mut Agent,
+    gc: NoGcScope,
     // TODO: Verify that constructor is %ArrayBuffer% and if not,
     // create the `ObjectHeapData` for obj.
     _constructor: Function,
@@ -51,6 +52,7 @@ pub(crate) fn allocate_array_buffer(
         // a. If byteLength > maxByteLength, throw a RangeError exception.
         if byte_length > max_byte_length.unwrap() {
             return Err(agent.throw_exception_with_static_message(
+                gc,
                 ExceptionType::RangeError,
                 "Byte length is over maximumm byte length",
             ));
@@ -63,7 +65,7 @@ pub(crate) fn allocate_array_buffer(
     //      a. If it is not possible to create a Data Block block consisting of maxByteLength bytes, throw a RangeError exception.
     //      b. NOTE: Resizable ArrayBuffers are designed to be implementable with in-place growth. Implementations may throw if, for example, virtual memory cannot be reserved up front.
     //      c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
-    let block = DataBlock::create_byte_data_block(agent, byte_length)?;
+    let block = DataBlock::create_byte_data_block(agent, gc, byte_length)?;
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
     let obj = if allocating_resizable_buffer {
@@ -143,6 +145,7 @@ pub(crate) fn detach_array_buffer(
 /// range starting at srcByteOffset and continuing for srcLength bytes.
 pub(crate) fn clone_array_buffer(
     agent: &mut Agent,
+    gc: NoGcScope,
     src_buffer: ArrayBuffer,
     src_byte_offset: usize,
     src_length: usize,
@@ -153,6 +156,7 @@ pub(crate) fn clone_array_buffer(
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
     let target_buffer = allocate_array_buffer(
         agent,
+        gc,
         array_buffer_constructor.into_function(),
         src_length as u64,
         None,
@@ -184,7 +188,6 @@ pub(crate) fn clone_array_buffer(
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     options: Value,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
@@ -202,7 +205,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     }
     // 4. Return ? ToIndex(maxByteLength).
     // TODO: Consider de-inlining this once ToIndex is implemented.
-    let number = max_byte_length.to_number(agent, gc)?;
+    let number = max_byte_length.to_number(agent, gc.reborrow())?;
     let integer = if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent)
     {
         0
@@ -216,8 +219,11 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     if (0..=(2i64.pow(53) - 1)).contains(&integer) {
         Ok(Some(integer))
     } else {
-        Err(agent
-            .throw_exception_with_static_message(ExceptionType::RangeError, "Not a SafeInteger"))
+        Err(agent.throw_exception_with_static_message(
+            gc.nogc(),
+            ExceptionType::RangeError,
+            "Not a SafeInteger",
+        ))
     }
 }
 

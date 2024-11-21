@@ -7,7 +7,7 @@ use std::{
     vec,
 };
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -240,7 +240,6 @@ pub(crate) fn ordinary_get_own_property(
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
@@ -265,11 +264,12 @@ pub(crate) fn ordinary_define_own_property(
 /// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
 pub(crate) fn is_compatible_property_descriptor(
     agent: &mut Agent,
+    gc: NoGcScope,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
 ) -> JsResult<bool> {
-    let property_key = PropertyKey::from_str(agent, "");
+    let property_key = PropertyKey::from_str(agent, gc, "");
     validate_and_apply_property_descriptor(
         agent,
         None,
@@ -517,7 +517,6 @@ fn validate_and_apply_property_descriptor(
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
 ) -> JsResult<bool> {
@@ -546,7 +545,6 @@ pub(crate) fn ordinary_has_property(
 pub(crate) fn ordinary_get(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     receiver: Value,
@@ -588,7 +586,6 @@ pub(crate) fn ordinary_get(
 pub(crate) fn ordinary_set(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     value: Value,
@@ -613,7 +610,6 @@ pub(crate) fn ordinary_set(
 pub(crate) fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
     value: Value,
@@ -722,7 +718,6 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     object: Object,
     property_key: PropertyKey,
 ) -> JsResult<bool> {
@@ -1037,7 +1032,6 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 pub(crate) fn ordinary_create_from_constructor(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Object> {
@@ -1074,7 +1068,6 @@ pub(crate) fn ordinary_create_from_constructor(
 pub(crate) fn get_prototype_from_constructor(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
 ) -> JsResult<Option<Object>> {
@@ -1204,7 +1197,6 @@ pub(crate) fn get_prototype_from_constructor(
 pub(crate) fn set_immutable_prototype(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
-
     o: Object,
     v: Option<Object>,
 ) -> JsResult<bool> {

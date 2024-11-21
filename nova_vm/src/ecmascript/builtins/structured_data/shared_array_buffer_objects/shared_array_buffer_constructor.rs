@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct SharedArrayBufferConstructor;
 impl Builtin for SharedArrayBufferConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.SharedArrayBuffer;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.SharedArrayBuffer;
 
     const LENGTH: u8 = 1;
 
@@ -27,7 +27,7 @@ impl BuiltinIntrinsicConstructor for SharedArrayBufferConstructor {
 
 struct SharedArrayBufferGetSpecies;
 impl Builtin for SharedArrayBufferGetSpecies {
-    const NAME: String = BUILTIN_STRING_MEMORY.get__Symbol_species_;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
     const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
 
@@ -41,7 +41,6 @@ impl SharedArrayBufferConstructor {
     fn behaviour(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
@@ -52,7 +51,6 @@ impl SharedArrayBufferConstructor {
     fn species(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {

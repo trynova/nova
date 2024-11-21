@@ -16,19 +16,19 @@ pub(crate) struct AsyncFromSyncIteratorPrototype;
 
 struct AsyncFromSyncIteratorPrototypeNext;
 impl Builtin for AsyncFromSyncIteratorPrototypeNext {
-    const NAME: String = BUILTIN_STRING_MEMORY.next;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.next;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::next);
 }
 struct AsyncFromSyncIteratorPrototypeReturn;
 impl Builtin for AsyncFromSyncIteratorPrototypeReturn {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#return;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#return;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::r#return);
 }
 struct AsyncFromSyncIteratorPrototypeThrow;
 impl Builtin for AsyncFromSyncIteratorPrototypeThrow {
-    const NAME: String = BUILTIN_STRING_MEMORY.throw;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.throw;
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::throw);
 }
@@ -37,7 +37,6 @@ impl AsyncFromSyncIteratorPrototype {
     fn next(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -47,7 +46,6 @@ impl AsyncFromSyncIteratorPrototype {
     fn r#return(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {
@@ -57,7 +55,6 @@ impl AsyncFromSyncIteratorPrototype {
     fn throw(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _: ArgumentsList,
     ) -> JsResult<Value> {

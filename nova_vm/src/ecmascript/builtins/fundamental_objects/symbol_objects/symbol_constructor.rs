@@ -28,7 +28,7 @@ use crate::heap::WellKnownSymbolIndexes;
 pub(crate) struct SymbolConstructor;
 
 impl Builtin for SymbolConstructor {
-    const NAME: String = BUILTIN_STRING_MEMORY.Symbol;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Symbol;
 
     const LENGTH: u8 = 0;
 
@@ -41,7 +41,7 @@ impl BuiltinIntrinsicConstructor for SymbolConstructor {
 struct SymbolFor;
 
 impl Builtin for SymbolFor {
-    const NAME: String = BUILTIN_STRING_MEMORY.r#for;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.r#for;
 
     const LENGTH: u8 = 1;
 
@@ -51,7 +51,7 @@ impl Builtin for SymbolFor {
 struct SymbolKeyFor;
 
 impl Builtin for SymbolKeyFor {
-    const NAME: String = BUILTIN_STRING_MEMORY.keyFor;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.keyFor;
 
     const LENGTH: u8 = 1;
 
@@ -61,14 +61,14 @@ impl Builtin for SymbolKeyFor {
 impl SymbolConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
-
+        gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
                 ExceptionType::TypeError,
                 "Symbol is not a constructor",
             ));
@@ -77,7 +77,7 @@ impl SymbolConstructor {
         let desc_string = if description.is_undefined() {
             None
         } else {
-            Some(to_string(agent, gc.reborrow(), description)?)
+            Some(to_string(agent, gc, description)?.unbind())
         };
 
         Ok(agent
@@ -91,7 +91,6 @@ impl SymbolConstructor {
     fn r#for(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -101,7 +100,6 @@ impl SymbolConstructor {
     fn key_for(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {

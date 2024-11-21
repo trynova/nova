@@ -6,6 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     engine::{
+        context::GcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
@@ -39,7 +40,7 @@ pub enum Primitive {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -98,7 +99,7 @@ pub(crate) enum HeapPrimitive {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString) = STRING_DISCRIMINANT,
+    String(HeapString<'static>) = STRING_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
@@ -152,6 +153,26 @@ impl IntoValue for Primitive {
 }
 
 impl Primitive {
+    /// Unbind this Primitive from its current lifetime. This is necessary to
+    /// use the Primitive as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Self {
+        self
+    }
+
+    // Bind this Primitive to the garbage collection lifetime. This enables
+    // Rust's borrow checker to verify that your Primitives cannot not be
+    // invalidated by garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let primitive = primitive.bind(&gc);
+    // ```
+    // to make sure that the unbound Primitive cannot be used after binding.
+    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+        self
+    }
+
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
     }

@@ -33,7 +33,7 @@ pub(crate) struct JSONObject;
 
 struct JSONObjectParse;
 impl Builtin for JSONObjectParse {
-    const NAME: String = BUILTIN_STRING_MEMORY.parse;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.parse;
 
     const LENGTH: u8 = 2;
 
@@ -43,7 +43,7 @@ impl Builtin for JSONObjectParse {
 
 struct JSONObjectStringify;
 impl Builtin for JSONObjectStringify {
-    const NAME: String = BUILTIN_STRING_MEMORY.stringify;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.stringify;
 
     const LENGTH: u8 = 3;
 
@@ -86,7 +86,6 @@ impl JSONObject {
     fn parse(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
-
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -100,7 +99,11 @@ impl JSONObject {
         let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
             Ok(value) => value,
             Err(error) => {
-                return Err(agent.throw_exception(ExceptionType::SyntaxError, error.to_string()));
+                return Err(agent.throw_exception(
+                    gc.nogc(),
+                    ExceptionType::SyntaxError,
+                    error.to_string(),
+                ));
             }
         };
 
@@ -149,7 +152,6 @@ impl JSONObject {
     fn stringify(
         _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
-
         _this_value: Value,
         _arguments: ArgumentsList,
     ) -> JsResult<Value> {
@@ -195,7 +197,6 @@ impl JSONObject {
 pub(crate) fn internalize_json_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     holder: Object,
     name: PropertyKey,
     reviver: Function,
@@ -274,18 +275,19 @@ pub(crate) fn internalize_json_property(
 pub(crate) fn value_from_json(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-
     json: &sonic_rs::Value,
 ) -> JsResult<Value> {
     match json.get_type() {
         sonic_rs::JsonType::Null => Ok(Value::Null),
         sonic_rs::JsonType::Boolean => Ok(Value::Boolean(json.is_true())),
         sonic_rs::JsonType::Number => Ok(Number::from_f64(agent, json.as_f64().unwrap()).into()),
-        sonic_rs::JsonType::String => Ok(String::from_str(agent, json.as_str().unwrap()).into()),
+        sonic_rs::JsonType::String => {
+            Ok(String::from_str(agent, gc.nogc(), json.as_str().unwrap()).into())
+        }
         sonic_rs::JsonType::Array => {
             let json_array = json.as_array().unwrap();
             let len = json_array.len();
-            let array_obj = array_create(agent, len, len, None)?;
+            let array_obj = array_create(agent, gc.nogc(), len, len, None)?;
             for (i, value) in json_array.iter().enumerate() {
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
                 let js_value = value_from_json(agent, gc.reborrow(), value)?;
@@ -298,7 +300,7 @@ pub(crate) fn value_from_json(
             let object =
                 ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
             for (key, value) in json_object.iter() {
-                let prop = PropertyKey::from_str(agent, key);
+                let prop = PropertyKey::from_str(agent, gc.nogc(), key);
                 let js_value = value_from_json(agent, gc.reborrow(), value)?;
                 create_data_property(agent, gc.reborrow(), object, prop, js_value)?;
             }
