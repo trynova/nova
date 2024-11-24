@@ -89,7 +89,7 @@ pub(crate) fn array_buffer_byte_length(
     agent: &Agent,
     array_buffer: ArrayBuffer,
     _order: Ordering,
-) -> i64 {
+) -> usize {
     let array_buffer = &agent[array_buffer];
     // 1. If IsSharedArrayBuffer(arrayBuffer) is true and arrayBuffer has an [[ArrayBufferByteLengthData]] internal slot, then
     // a. Let bufferByteLengthBlock be arrayBuffer.[[ArrayBufferByteLengthData]].
@@ -99,7 +99,7 @@ pub(crate) fn array_buffer_byte_length(
     // 2. Assert: IsDetachedBuffer(arrayBuffer) is false.
     debug_assert!(!array_buffer.is_detached());
     // 3. Return arrayBuffer.[[ArrayBufferByteLength]].
-    array_buffer.byte_length() as i64
+    array_buffer.byte_length()
 }
 
 /// ### [25.1.3.3 IsDetachedBuffer ( arrayBuffer )](https://tc39.es/ecma262/#sec-isdetachedbuffer)

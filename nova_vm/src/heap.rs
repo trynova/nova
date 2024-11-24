@@ -69,6 +69,7 @@ use crate::{
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
             set::data::SetHeapData,
+            typed_array::TypedArray,
             ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
@@ -141,6 +142,12 @@ pub struct Heap {
     pub symbols: Vec<Option<SymbolHeapData>>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
+    #[cfg(feature = "array-buffer")]
+    pub typed_array_byte_lengths: AHashMap<TypedArray, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub typed_array_byte_offsets: AHashMap<TypedArray, usize>,
+    #[cfg(feature = "array-buffer")]
+    pub typed_array_array_lengths: AHashMap<TypedArray, usize>,
     #[cfg(feature = "weak-refs")]
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     #[cfg(feature = "weak-refs")]
@@ -246,6 +253,12 @@ impl Heap {
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            typed_array_byte_lengths: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            typed_array_byte_offsets: AHashMap::with_capacity(0),
+            #[cfg(feature = "array-buffer")]
+            typed_array_array_lengths: AHashMap::with_capacity(0),
             #[cfg(feature = "weak-refs")]
             weak_maps: Vec::with_capacity(0),
             #[cfg(feature = "weak-refs")]

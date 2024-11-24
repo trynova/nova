@@ -4,6 +4,8 @@
 
 use std::ops::{Index, IndexMut};
 
+use data::TypedArrayArrayLength;
+
 use crate::{
     ecmascript::{
         execution::Agent,
@@ -16,15 +18,23 @@ use crate::{
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    heap::{indexes::TypedArrayIndex, CreateHeapData, Heap, HeapMarkAndSweep},
+    heap::{
+        indexes::{IntoBaseIndex, TypedArrayIndex},
+        CreateHeapData, Heap, HeapMarkAndSweep,
+    },
 };
 
 use self::data::TypedArrayHeapData;
 
+use super::{
+    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
+    ArrayBuffer,
+};
+
 pub mod data;
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
 pub enum TypedArray {
     Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
@@ -55,6 +65,57 @@ impl TypedArray {
             | TypedArray::Float32Array(index)
             | TypedArray::Float64Array(index) => index.into_index(),
         }
+    }
+
+    #[inline]
+    pub fn byte_length(self, agent: &Agent) -> Option<usize> {
+        let byte_length = agent[self].byte_length;
+        if byte_length == ViewedArrayBufferByteLength::heap() {
+            Some(*agent.heap.typed_array_byte_lengths.get(&self).unwrap())
+        } else if byte_length == ViewedArrayBufferByteLength::auto() {
+            None
+        } else {
+            Some(byte_length.0 as usize)
+        }
+    }
+
+    #[inline]
+    pub fn array_length(self, agent: &Agent) -> Option<usize> {
+        let array_length = agent[self].array_length;
+        if array_length == TypedArrayArrayLength::heap() {
+            Some(*agent.heap.typed_array_array_lengths.get(&self).unwrap())
+        } else if array_length == TypedArrayArrayLength::auto() {
+            None
+        } else {
+            Some(array_length.0 as usize)
+        }
+    }
+
+    #[inline]
+    pub fn byte_offset(self, agent: &Agent) -> usize {
+        let byte_offset = agent[self].byte_offset;
+        if byte_offset == ViewedArrayBufferByteOffset::heap() {
+            *agent.heap.typed_array_byte_offsets.get(&self).unwrap()
+        } else {
+            byte_offset.0 as usize
+        }
+    }
+
+    #[inline]
+    pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer {
+        agent[self].viewed_array_buffer
+    }
+}
+
+impl From<TypedArrayIndex> for TypedArray {
+    fn from(value: TypedArrayIndex) -> Self {
+        TypedArray::Uint8Array(value)
+    }
+}
+
+impl IntoBaseIndex<'_, TypedArrayHeapData> for TypedArray {
+    fn into_base_index(self) -> TypedArrayIndex {
+        self.into()
     }
 }
 

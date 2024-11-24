@@ -1218,7 +1218,7 @@ impl MathObject {
         let base = arguments.get(0);
         let exponent = arguments.get(1);
         if let (Value::Integer(base), Value::Integer(exponent)) = (base, exponent) {
-            let base = base.into_i64();
+            let base = base.into_i64() as i128;
             let exponent = exponent.into_i64();
             if let Ok(exponent) = u32::try_from(exponent) {
                 let result = base.pow(exponent);
