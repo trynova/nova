@@ -3068,21 +3068,17 @@ impl ArrayPrototype {
         let sorted_list: Vec<Value> =
             sort_indexed_properties::<false, false>(agent, gc.reborrow(), o, len, comparator)?;
         // 7. Let j be 0.
-        let mut j = 0;
         // 8. Repeat, while j < len,
-        while j < len {
-            // a. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(j)), sortedList[j]).
-            create_data_property_or_throw(
-                agent,
-                gc.reborrow(),
-                a,
-                j.try_into().unwrap(),
-                sorted_list[j],
-            )
-            .unwrap();
-            // b. Set j to j + 1.
-            j += 1;
-        }
+        //      a. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(j)), sortedList[j]).
+        //      b. Set j to j + 1.
+        // Fast path: Copy sorted items directly into array.
+        let slice = a.as_mut_slice(agent);
+        slice.copy_from_slice(
+            &sorted_list
+                .into_iter()
+                .map(Some)
+                .collect::<Vec<Option<Value>>>()[..],
+        );
         // 9. Return A.
         Ok(a.into())
     }
