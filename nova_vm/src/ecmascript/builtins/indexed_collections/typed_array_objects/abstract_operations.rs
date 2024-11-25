@@ -144,7 +144,7 @@ pub(crate) fn typed_array_create<T: Viewable>(
         ProtoIntrinsics::Float64Array => TypedArray::Float64Array(index),
         _ => unreachable!(),
     };
-    
+
     if prototype.is_some() {
         a.internal_set_prototype(agent, prototype);
     }
