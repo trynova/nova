@@ -341,11 +341,9 @@ pub(crate) fn allocate_typed_array<T: Viewable>(
 ) -> JsResult<TypedArray> {
     // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
     let proto = get_prototype_from_constructor(agent, gc.reborrow(), new_target, default_proto)?;
-    dbg!(proto);
 
     // 2. Let obj be TypedArrayCreate(proto).
     let obj = typed_array_create::<T>(agent, proto);
-    dbg!(obj.get_backing_object(agent));
 
     // NOTE: Steps 3-7 are skipped, it's the defaults for TypedArrayHeapData.
     // 3. Assert: obj.[[ViewedArrayBuffer]] is undefined.
