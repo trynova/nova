@@ -3034,13 +3034,53 @@ impl ArrayPrototype {
         Ok(a.into_value())
     }
 
+    /// ### [23.1.3.34 Array.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.tosorted)
     fn to_sorted(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-        _this_value: Value,
-        _: ArgumentsList,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+        this_value: Value,
+        args: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!();
+        let comparator = args.get(0);
+        // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
+        let comparator = if comparator.is_undefined() {
+            None
+        } else if let Some(comparator) = is_callable(comparator) {
+            Some(comparator)
+        } else {
+            return Err(agent.throw_exception_with_static_message(
+                gc.nogc(),
+                ExceptionType::TypeError,
+                "The comparison function must be either a function or undefined",
+            ));
+        };
+        // 2. Let o be ? ToObject(this value).
+        let o = to_object(agent, gc.nogc(), this_value)?;
+        // 3. Let len be ? LengthOfArrayLike(obj).
+        let len = usize::try_from(length_of_array_like(agent, gc.reborrow(), o)?).unwrap();
+        // 4. Let A be ? ArrayCreate(len).
+        let a = array_create(agent, gc.nogc(), len as usize, len as usize, None)?;
+        // 5. Let SortCompare be a new Abstract Closure with parameters (x, y)
+        //     that captures comparator and performs the following steps when
+        //     called:
+        //       a. Return ? CompareArrayElements(x, y, comparator).
+        // 6. Let sortedList be ? SortIndexedProperties(O, len, SortCompare, read-through-holes).
+        let sorted_list: Vec<Value> =
+            sort_indexed_properties::<false, false>(agent, gc.reborrow(), o, len, comparator)?;
+        // 7. Let j be 0.
+        // 8. Repeat, while j < len,
+        //      a. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(j)), sortedList[j]).
+        //      b. Set j to j + 1.
+        // Fast path: Copy sorted items directly into array.
+        let slice = a.as_mut_slice(agent);
+        slice.copy_from_slice(
+            &sorted_list
+                .into_iter()
+                .map(Some)
+                .collect::<Vec<Option<Value>>>()[..],
+        );
+        // 9. Return A.
+        Ok(a.into())
     }
 
     fn to_spliced(
