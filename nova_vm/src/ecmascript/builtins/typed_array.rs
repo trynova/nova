@@ -254,13 +254,21 @@ impl InternalSlots for TypedArray {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_prototype(agent)
         } else {
-            Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .typed_array_prototype()
-                    .into_object(),
-            )
+            let intrinsics = agent.current_realm().intrinsics();
+            let default_proto = match self {
+                TypedArray::Int8Array(_) => intrinsics.int8_array_prototype(),
+                TypedArray::Uint8Array(_) => intrinsics.uint8_array_prototype(),
+                TypedArray::Uint8ClampedArray(_) => intrinsics.uint8_clamped_array_prototype(),
+                TypedArray::Int16Array(_) => intrinsics.int16_array_prototype(),
+                TypedArray::Uint16Array(_) => intrinsics.uint16_array_prototype(),
+                TypedArray::Int32Array(_) => intrinsics.int32_array_prototype(),
+                TypedArray::Uint32Array(_) => intrinsics.uint32_array_prototype(),
+                TypedArray::BigInt64Array(_) => intrinsics.big_int64_array_prototype(),
+                TypedArray::BigUint64Array(_) => intrinsics.big_int64_array_prototype(),
+                TypedArray::Float32Array(_) => intrinsics.float32_array_prototype(),
+                TypedArray::Float64Array(_) => intrinsics.float64_array_prototype(),
+            };
+            Some(default_proto.into_object())
         }
     }
 }

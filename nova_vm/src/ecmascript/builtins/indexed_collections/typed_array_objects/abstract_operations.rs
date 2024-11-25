@@ -145,7 +145,9 @@ pub(crate) fn typed_array_create<T: Viewable>(
         _ => unreachable!(),
     };
 
-    a.internal_set_prototype(agent, prototype);
+    if prototype.is_some() {
+        a.internal_set_prototype(agent, prototype);
+    }
 
     a
 }
