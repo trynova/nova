@@ -430,7 +430,7 @@ pub(crate) fn is_loosely_equal(
     if let (Ok(x), Ok(y)) = (BigInt::try_from(x), String::try_from(y)) {
         // a. Let n be StringToBigInt(y).
         // b. If n is undefined, return false.
-        if let Some(n) = string_to_big_int(agent, y) {
+        if let Ok(n) = string_to_big_int(agent, gc.nogc(), y) {
             // c. Return ! IsLooselyEqual(x, n).
             // TODO: We know GC cannot be triggered here.
             return Ok(is_loosely_equal(agent, gc, x, n).unwrap());

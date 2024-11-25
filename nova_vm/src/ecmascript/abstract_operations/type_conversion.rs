@@ -790,28 +790,8 @@ pub(crate) fn to_big_int(
                 Ok(BigInt::from(0))
             }
         }
-        Primitive::String(idx) => {
-            let result = string_to_big_int(agent, idx.into());
-            let Some(result) = result else {
-                return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
-                    ExceptionType::TypeError,
-                    "Invalid BigInt string",
-                ));
-            };
-            Ok(result)
-        }
-        Primitive::SmallString(data) => {
-            let result = string_to_big_int(agent, data.into());
-            let Some(result) = result else {
-                return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
-                    ExceptionType::TypeError,
-                    "Invalid BigInt string",
-                ));
-            };
-            Ok(result)
-        }
+        Primitive::String(idx) => string_to_big_int(agent, gc.nogc(), idx.into()),
+        Primitive::SmallString(data) => string_to_big_int(agent, gc.nogc(), data.into()),
         Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
             gc.nogc(),
             ExceptionType::TypeError,
@@ -829,15 +809,63 @@ pub(crate) fn to_big_int(
 }
 
 /// ### [7.1.14 StringToBigInt ( str )](https://tc39.es/ecma262/#sec-stringtobigint)
-pub(crate) fn string_to_big_int(_agent: &mut Agent, _argument: String) -> Option<BigInt> {
+pub(crate) fn string_to_big_int(
+    agent: &mut Agent,
+    nogc: NoGcScope<'_, '_>,
+    argument: String,
+) -> JsResult<BigInt> {
     // 1. Let text be StringToCodePoints(str).
     // 2. Let literal be ParseText(text, StringIntegerLiteral).
     // 3. If literal is a List of errors, return undefined.
+
+    // Parsing for StringIntegerLiteral (https://tc39.es/ecma262/#prod-StringIntegerLiteral)
+    // StringIntegerLiteral is either whitespace only or a StrIntegerLiteral surrounded by
+    // optional whitespace.
+
+    let literal = argument.as_str(agent); // Extra line literally just for displaying error
+
     // 4. Let mv be the MV of literal.
     // 5. Assert: mv is an integer.
-    // 6. Return ℤ(mv).
 
-    todo!("string_to_big_int: Implement BigInts")
+    // Rules for MV (https://tc39.es/ecma262/#sec-runtime-semantics-mv-for-stringintegerliteral)
+    // Trim whitespace to get rid of optional whitespace.
+    let mv = literal.trim_matches(is_trimmable_whitespace);
+
+    // If mv is empty result is Zero
+    if mv.is_empty() {
+        return Ok(BigInt::from(0));
+    }
+
+    // MV should now be StrIntegerLiteral
+    // I.e. Either a SignedInteger or a (Binary/Octal/Hex)IntegerLiteral
+
+    // Check for non decimal integer
+    let mut s = mv.bytes();
+    let base = match (s.next(), s.next()) {
+        (Some(b'0'), Some(b'b' | b'B')) => Some(2),
+        (Some(b'0'), Some(b'o' | b'O')) => Some(8),
+        (Some(b'0'), Some(b'x' | b'X')) => Some(16),
+        _ => None,
+    };
+
+    // Left with digits only in a particular base
+    let string_to_convert = if base.is_some() { &mv[2..] } else { mv };
+
+    // 6. Return ℤ(mv).
+    // Parse with the required radix calculated from the base
+    let num_big_int =
+        num_bigint::BigInt::parse_bytes(string_to_convert.as_bytes(), base.unwrap_or(10));
+
+    if let Some(num_big_int) = num_big_int {
+        Ok(BigInt::from_num_bigint(agent, num_big_int))
+    } else {
+        let message = String::from_string(
+            agent,
+            nogc,
+            format!("Cannot convert {} to a BigInt", literal),
+        );
+        Err(agent.throw_exception_with_message(ExceptionType::SyntaxError, message))
+    }
 }
 
 /// ### [7.1.15 ToBigInt64 ( argument )](https://tc39.es/ecma262/#sec-tobigint64)
