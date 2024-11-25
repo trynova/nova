@@ -7,6 +7,87 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
+// TODO: Investigate if the common case is that the byte length is less than
+// an u16, that would mean we could squeeze an extra 2 bytes out of the struct.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) struct ViewedArrayBufferByteLength(pub u32);
+
+impl ViewedArrayBufferByteLength {
+    pub const fn value(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// A sentinel value of `u32::MAX - 1` means that the byte length is stored in an
+    /// associated map in the heap. This will most likely be a very rare case,
+    /// only applicable for 4GB+ buffers.
+    pub const fn heap() -> Self {
+        Self(u32::MAX - 1)
+    }
+
+    /// A sentinel value of `u32::MAX` means that the byte length is the
+    /// `AUTO` value used in the spec.
+    pub const fn auto() -> Self {
+        Self(u32::MAX)
+    }
+}
+
+impl Default for ViewedArrayBufferByteLength {
+    fn default() -> Self {
+        Self::auto()
+    }
+}
+
+impl From<Option<usize>> for ViewedArrayBufferByteLength {
+    fn from(value: Option<usize>) -> Self {
+        match value {
+            Some(value) => {
+                if value >= Self::heap().0 as usize {
+                    Self::heap()
+                } else {
+                    Self::value(value as u32)
+                }
+            }
+            None => Self::auto(),
+        }
+    }
+}
+
+// TODO: Investigate if the common case is that the byte offset is less than
+// an u16, that would mean we could squeeze an extra 2 bytes out of the struct.
+#[repr(transparent)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub(crate) struct ViewedArrayBufferByteOffset(pub u32);
+
+impl ViewedArrayBufferByteOffset {
+    pub const fn value(value: u32) -> Self {
+        Self(value)
+    }
+
+    /// A sentinel value of `u32::MAX` means that the byte offset is stored in
+    /// an associated map in the heap. This will most likely be a very rare
+    /// case, only applicable for 4GB+ buffers.
+    pub const fn heap() -> Self {
+        Self(u32::MAX)
+    }
+}
+
+impl Default for ViewedArrayBufferByteOffset {
+    fn default() -> Self {
+        Self::value(0)
+    }
+}
+
+impl From<usize> for ViewedArrayBufferByteOffset {
+    fn from(value: usize) -> Self {
+        if value >= Self::heap().0 as usize {
+            Self::heap()
+        } else {
+            Self::value(value as u32)
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) struct InternalBuffer {
     data_block: DataBlock,

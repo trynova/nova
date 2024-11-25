@@ -4,8 +4,6 @@
 
 use std::ops::{Index, IndexMut};
 
-use data::{DataViewByteLength, DataViewByteOffset};
-
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -21,7 +19,10 @@ use crate::{
 
 use self::data::DataViewHeapData;
 
-use super::ArrayBuffer;
+use super::{
+    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
+    ArrayBuffer,
+};
 
 pub(crate) mod abstract_operations;
 pub mod data;
@@ -34,9 +35,9 @@ impl DataView {
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = agent[self].byte_length;
-        if byte_length == DataViewByteLength::heap() {
+        if byte_length == ViewedArrayBufferByteLength::heap() {
             Some(*agent.heap.data_view_byte_lengths.get(&self).unwrap())
-        } else if byte_length == DataViewByteLength::auto() {
+        } else if byte_length == ViewedArrayBufferByteLength::auto() {
             None
         } else {
             Some(byte_length.0 as usize)
@@ -46,7 +47,7 @@ impl DataView {
     #[inline]
     pub fn byte_offset(self, agent: &Agent) -> usize {
         let byte_offset = agent[self].byte_offset;
-        if byte_offset == DataViewByteOffset::heap() {
+        if byte_offset == ViewedArrayBufferByteOffset::heap() {
             *agent.heap.data_view_byte_offsets.get(&self).unwrap()
         } else {
             byte_offset.0 as usize

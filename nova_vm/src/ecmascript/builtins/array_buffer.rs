@@ -20,10 +20,10 @@ use crate::{
 };
 
 pub(crate) use abstract_operations::{
-    allocate_array_buffer, array_buffer_byte_length, get_value_from_buffer, is_detached_buffer,
-    is_fixed_length_array_buffer, set_value_in_buffer, Ordering,
+    allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
+    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, Ordering,
 };
-pub use data::ArrayBufferHeapData;
+pub use data::*;
 use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -106,6 +106,17 @@ impl IntoObject for ArrayBuffer {
 impl IntoValue for ArrayBuffer {
     fn into_value(self) -> Value {
         self.into()
+    }
+}
+
+impl TryFrom<Value> for ArrayBuffer {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::ArrayBuffer(base_index) => Ok(base_index),
+            _ => Err(()),
+        }
     }
 }
 

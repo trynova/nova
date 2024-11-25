@@ -998,6 +998,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint8ClampedArray => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
         #[cfg(feature = "weak-refs")]
         ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
         #[cfg(feature = "weak-refs")]
@@ -1142,6 +1147,10 @@ pub(crate) fn get_prototype_from_constructor(
             ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into_function()),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint8ClampedArray => {
+                Some(intrinsics.uint8_clamped_array().into_function())
+            }
             ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
             #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),

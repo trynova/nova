@@ -161,7 +161,7 @@ pub(crate) struct Intrinsics {
 
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
 /// an object. Used in GetPrototypeFromConstructor.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProtoIntrinsics {
     AggregateError,
     Array,
@@ -219,6 +219,8 @@ pub enum ProtoIntrinsics {
     Uint32Array,
     #[cfg(feature = "array-buffer")]
     Uint8Array,
+    #[cfg(feature = "array-buffer")]
+    Uint8ClampedArray,
     UriError,
     #[cfg(feature = "weak-refs")]
     WeakMap,
@@ -426,6 +428,8 @@ impl Intrinsics {
             ProtoIntrinsics::Uint32Array => self.uint32_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Uint8Array => self.uint8_array_prototype().into(),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint8ClampedArray => self.uint8_clamped_array().into(),
             #[cfg(feature = "weak-refs")]
             ProtoIntrinsics::WeakMap => self.weak_map_prototype().into(),
             #[cfg(feature = "weak-refs")]

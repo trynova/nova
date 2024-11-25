@@ -190,6 +190,12 @@ pub fn heap_gc(
             symbols,
             #[cfg(feature = "array-buffer")]
             typed_arrays,
+            #[cfg(feature = "array-buffer")]
+                typed_array_byte_lengths: _,
+            #[cfg(feature = "array-buffer")]
+                typed_array_byte_offsets: _,
+            #[cfg(feature = "array-buffer")]
+                typed_array_array_lengths: _,
             #[cfg(feature = "weak-refs")]
             weak_maps,
             #[cfg(feature = "weak-refs")]
@@ -1064,6 +1070,12 @@ fn sweep(
         symbols,
         #[cfg(feature = "array-buffer")]
         typed_arrays,
+        #[cfg(feature = "array-buffer")]
+        typed_array_byte_lengths,
+        #[cfg(feature = "array-buffer")]
+        typed_array_byte_offsets,
+        #[cfg(feature = "array-buffer")]
+        typed_array_array_lengths,
         #[cfg(feature = "weak-refs")]
         weak_maps,
         #[cfg(feature = "weak-refs")]
@@ -1443,6 +1455,21 @@ fn sweep(
         if !typed_arrays.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(typed_arrays, &compactions, &bits.typed_arrays);
+                sweep_side_table_values(
+                    typed_array_byte_lengths,
+                    &compactions.typed_arrays,
+                    &bits.typed_arrays,
+                );
+                sweep_side_table_values(
+                    typed_array_byte_offsets,
+                    &compactions.typed_arrays,
+                    &bits.typed_arrays,
+                );
+                sweep_side_table_values(
+                    typed_array_array_lengths,
+                    &compactions.typed_arrays,
+                    &bits.typed_arrays,
+                );
             });
         }
         #[cfg(feature = "weak-refs")]
