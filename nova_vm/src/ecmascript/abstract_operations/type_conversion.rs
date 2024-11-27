@@ -894,12 +894,11 @@ pub(crate) fn to_big_uint64_big_int(agent: &mut Agent, n: BigInt) -> u64 {
             // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=7d82adfe85f7d0ed44ab37a7b2cdf092
             let big_int = &agent[heap_big_int].data;
             let int64bit = big_int.iter_u64_digits().next().unwrap_or(0);
-            let int64bit = if big_int.sign() == Sign::Minus {
+            if big_int.sign() == Sign::Minus {
                 u64::MAX - int64bit + 1
             } else {
                 int64bit
-            };
-            int64bit
+            }
         }
         BigInt::SmallBigInt(small_big_int) => {
             let int64bit = small_big_int.into_i64();
