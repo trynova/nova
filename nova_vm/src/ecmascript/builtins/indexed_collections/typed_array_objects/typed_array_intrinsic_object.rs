@@ -2,36 +2,34 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builders::ordinary_object_builder::OrdinaryObjectBuilder;
-use crate::ecmascript::builtins::array_buffer::Ordering;
-use crate::ecmascript::builtins::indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator;
-use crate::ecmascript::builtins::indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind;
-use crate::ecmascript::builtins::typed_array::TypedArray;
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::builtins::Builtin;
-use crate::ecmascript::builtins::BuiltinGetter;
-use crate::ecmascript::builtins::BuiltinIntrinsic;
-use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::Agent;
-use crate::ecmascript::execution::JsResult;
-use crate::ecmascript::execution::RealmIdentifier;
-
-use crate::ecmascript::types::IntoObject;
-use crate::ecmascript::types::IntoValue;
-use crate::ecmascript::types::Object;
-use crate::ecmascript::types::PropertyKey;
-use crate::ecmascript::types::String;
-use crate::ecmascript::types::U8Clamped;
-use crate::ecmascript::types::Value;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::engine::context::GcScope;
-use crate::engine::context::NoGcScope;
-use crate::heap::IntrinsicConstructorIndexes;
-use crate::heap::IntrinsicFunctionIndexes;
-use crate::heap::WellKnownSymbolIndexes;
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            testing_and_comparison::is_array,
+            type_conversion::{to_string, try_to_string},
+        },
+        builders::{
+            builtin_function_builder::BuiltinFunctionBuilder,
+            ordinary_object_builder::OrdinaryObjectBuilder,
+        },
+        builtins::{
+            array_buffer::{get_value_from_buffer, is_detached_buffer, Ordering},
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::{
+                ArrayIterator, CollectionIteratorKind,
+            },
+            typed_array::TypedArray,
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor,
+        },
+        execution::{Agent, JsResult, RealmIdentifier},
+        types::{
+            IntoObject, IntoValue, Object, PropertyKey, String, U8Clamped, Value,
+            BUILTIN_STRING_MEMORY,
+        },
+    },
+    engine::context::{GcScope, NoGcScope},
+    heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+};
 
 use super::abstract_operations::is_typed_array_out_of_bounds;
 use super::abstract_operations::make_typed_array_with_buffer_witness_record;
@@ -595,13 +593,276 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
+    ///
+    /// The interpretation and use of the arguments of this method are the
+    /// same as for Array.prototype.join as defined in 23.1.3.18.
+    ///
+    /// This method is not generic. The this value must be an object with a
+    /// `[[TypedArrayName]]` internal slot.
     fn join(
-        _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-        _this_value: Value,
-        _: ArgumentsList,
+        agent: &mut Agent,
+        mut gc: GcScope<'_, '_>,
+        this_value: Value,
+        arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        todo!()
+        let separator = arguments.get(0);
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, gc.nogc(), o, Ordering::SeqCst)?;
+        let o = TypedArray::try_from(o).unwrap();
+        // 3. Let len be TypedArrayLength(taRecord).
+        let (len, element_size) = match o {
+            TypedArray::Int8Array(_) => (
+                typed_array_length::<i8>(agent, &ta_record),
+                std::mem::size_of::<i8>(),
+            ),
+            TypedArray::Uint8Array(_) => (
+                typed_array_length::<u8>(agent, &ta_record),
+                std::mem::size_of::<u8>(),
+            ),
+            TypedArray::Uint8ClampedArray(_) => (
+                typed_array_length::<U8Clamped>(agent, &ta_record),
+                std::mem::size_of::<U8Clamped>(),
+            ),
+            TypedArray::Int16Array(_) => (
+                typed_array_length::<i16>(agent, &ta_record),
+                std::mem::size_of::<i16>(),
+            ),
+            TypedArray::Uint16Array(_) => (
+                typed_array_length::<u16>(agent, &ta_record),
+                std::mem::size_of::<u16>(),
+            ),
+            TypedArray::Int32Array(_) => (
+                typed_array_length::<i32>(agent, &ta_record),
+                std::mem::size_of::<i32>(),
+            ),
+            TypedArray::Uint32Array(_) => (
+                typed_array_length::<u32>(agent, &ta_record),
+                std::mem::size_of::<u32>(),
+            ),
+            TypedArray::BigInt64Array(_) => (
+                typed_array_length::<i64>(agent, &ta_record),
+                std::mem::size_of::<i64>(),
+            ),
+            TypedArray::BigUint64Array(_) => (
+                typed_array_length::<u64>(agent, &ta_record),
+                std::mem::size_of::<u64>(),
+            ),
+            TypedArray::Float32Array(_) => (
+                typed_array_length::<f32>(agent, &ta_record),
+                std::mem::size_of::<f32>(),
+            ),
+            TypedArray::Float64Array(_) => (
+                typed_array_length::<f64>(agent, &ta_record),
+                std::mem::size_of::<f64>(),
+            ),
+        };
+        // 4. If separator is undefined, let sep be ",".
+        let (sep_string, recheck_buffer) = if separator.is_undefined() {
+            (String::from_small_string(","), false)
+        } else if let Ok(sep) = String::try_from(separator) {
+            (sep, false)
+        } else {
+            // 5. Else, let sep be ? ToString(separator).
+            (
+                to_string(agent, gc.reborrow(), separator)?
+                    .unbind()
+                    .bind(gc.nogc()),
+                true,
+            )
+        };
+        if len == 0 {
+            return Ok(String::EMPTY_STRING.into_value());
+        }
+        let owned_sep = match &sep_string {
+            String::String(heap_string) => Some(heap_string.as_str(agent).to_owned()),
+            String::SmallString(_) => None,
+        };
+        let sep = match &owned_sep {
+            Some(str_data) => str_data.as_str(),
+            None => {
+                let String::SmallString(sep) = &sep_string else {
+                    unreachable!();
+                };
+                sep.as_str()
+            }
+        };
+        // 6. Let R be the empty String.
+        let mut r = std::string::String::with_capacity(len * 3);
+        // 7. Let k be 0.
+        // 8. Repeat, while k < len,
+        let offset = o.byte_offset(agent);
+        let viewed_array_buffer = o.get_viewed_array_buffer(agent);
+        // Note: Above ToString might have detached the ArrayBuffer or shrunk its length.
+        let (is_invalid_typed_array, after_len) = if recheck_buffer {
+            let is_detached = is_detached_buffer(agent, viewed_array_buffer);
+            let ta_record =
+                make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered);
+            match o {
+                TypedArray::Int8Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<i8>(agent, &ta_record),
+                    typed_array_length::<i8>(agent, &ta_record),
+                ),
+                TypedArray::Uint8Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<u8>(agent, &ta_record),
+                    typed_array_length::<u8>(agent, &ta_record),
+                ),
+                TypedArray::Uint8ClampedArray(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record),
+                    typed_array_length::<U8Clamped>(agent, &ta_record),
+                ),
+                TypedArray::Int16Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<i16>(agent, &ta_record),
+                    typed_array_length::<i16>(agent, &ta_record),
+                ),
+                TypedArray::Uint16Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<u16>(agent, &ta_record),
+                    typed_array_length::<u16>(agent, &ta_record),
+                ),
+                TypedArray::Int32Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<i32>(agent, &ta_record),
+                    typed_array_length::<i32>(agent, &ta_record),
+                ),
+                TypedArray::Uint32Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<u32>(agent, &ta_record),
+                    typed_array_length::<u32>(agent, &ta_record),
+                ),
+                TypedArray::BigInt64Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<i64>(agent, &ta_record),
+                    typed_array_length::<i64>(agent, &ta_record),
+                ),
+                TypedArray::BigUint64Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<u64>(agent, &ta_record),
+                    typed_array_length::<u64>(agent, &ta_record),
+                ),
+                TypedArray::Float32Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<f32>(agent, &ta_record),
+                    typed_array_length::<f32>(agent, &ta_record),
+                ),
+                TypedArray::Float64Array(_) => (
+                    is_detached || is_typed_array_out_of_bounds::<f64>(agent, &ta_record),
+                    typed_array_length::<f64>(agent, &ta_record),
+                ),
+            }
+        } else {
+            // Note: Growable SharedArrayBuffers are a thing, and can change the
+            // length at any point in time but they can never shrink the buffer.
+            // Hence the TypedArray or any of its indexes rae never invalidated.
+            (false, len)
+        };
+        for k in 0..len {
+            // a. If k > 0, set R to the string-concatenation of R and sep.
+            if k > 0 {
+                r.push_str(sep);
+            }
+            // c. If element is not undefined, then
+            if is_invalid_typed_array || k >= after_len {
+                // Note: element is undefined if the ViewedArrayBuffer was
+                // detached by ToString call, or was shrunk to less than len.
+                continue;
+            }
+            let byte_index_in_buffer = k * element_size + offset;
+            // b. Let element be ! Get(O, ! ToString(𝔽(k))).
+            let element = match o {
+                TypedArray::Int8Array(_) => get_value_from_buffer::<i8>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Uint8Array(_) => get_value_from_buffer::<u8>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Uint8ClampedArray(_) => get_value_from_buffer::<U8Clamped>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Int16Array(_) => get_value_from_buffer::<i16>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Uint16Array(_) => get_value_from_buffer::<u16>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Int32Array(_) => get_value_from_buffer::<i32>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Uint32Array(_) => get_value_from_buffer::<u32>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::BigInt64Array(_) => get_value_from_buffer::<i64>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::BigUint64Array(_) => get_value_from_buffer::<u64>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Float32Array(_) => get_value_from_buffer::<f32>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+                TypedArray::Float64Array(_) => get_value_from_buffer::<f64>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                ),
+            };
+            // i. Let S be ! ToString(element).
+            let s = try_to_string(agent, gc.nogc(), element).unwrap().unwrap();
+            // ii. Set R to the string-concatenation of R and S.
+            r.push_str(s.as_str(agent));
+            // d. Set k to k + 1.
+        }
+        // 9. Return R.
+        Ok(String::from_string(agent, gc.nogc(), r).into_value())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)

@@ -1,8 +1,8 @@
 {
   "results": {
-    "crash": 14824,
-    "fail": 8754,
-    "pass": 21665,
+    "crash": 14784,
+    "fail": 8763,
+    "pass": 21696,
     "skip": 45,
     "timeout": 3,
     "unresolved": 0
