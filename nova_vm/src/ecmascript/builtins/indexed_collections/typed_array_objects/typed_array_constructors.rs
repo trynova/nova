@@ -683,13 +683,13 @@ fn typed_array_constructor<T: Viewable>(
             match first_argument {
                 TypedArray::Int8Array(_) => initialize_typed_array_from_typed_array::<T, i8>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::Uint8Array(_) => initialize_typed_array_from_typed_array::<T, u8>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
@@ -697,53 +697,53 @@ fn typed_array_constructor<T: Viewable>(
                     T,
                     U8Clamped,
                 >(
-                    agent, gc.reborrow(), o, first_argument
+                    agent, gc.nogc(), o, first_argument
                 )?,
                 TypedArray::Int16Array(_) => initialize_typed_array_from_typed_array::<T, i16>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::Uint16Array(_) => initialize_typed_array_from_typed_array::<T, u16>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::Int32Array(_) => initialize_typed_array_from_typed_array::<T, i32>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::Uint32Array(_) => initialize_typed_array_from_typed_array::<T, u32>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::BigInt64Array(_) => initialize_typed_array_from_typed_array::<T, i64>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::BigUint64Array(_) => initialize_typed_array_from_typed_array::<T, u64>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::Float32Array(_) => initialize_typed_array_from_typed_array::<T, f32>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,
                 TypedArray::Float64Array(_) => initialize_typed_array_from_typed_array::<T, f64>(
                     agent,
-                    gc.reborrow(),
+                    gc.nogc(),
                     o,
                     first_argument,
                 )?,

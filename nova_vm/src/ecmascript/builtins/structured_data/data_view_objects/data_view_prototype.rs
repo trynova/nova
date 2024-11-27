@@ -264,6 +264,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, bigint64).
         get_view_value::<i64>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.6 DataView.prototype.getBigUint64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbiguint64)
@@ -278,6 +279,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, littleEndian, biguint64).
         get_view_value::<u64>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.7 DataView.prototype.getFloat32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat32)
@@ -293,6 +295,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float32).
         get_view_value::<f32>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.8 DataView.prototype.getFloat64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat64)
@@ -308,6 +311,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float64).
         get_view_value::<f64>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.9 DataView.prototype.getInt8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getint8)
@@ -320,7 +324,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, int8).
-        get_view_value::<i8>(agent, gc, this_value, byte_offset, true)
+        get_view_value::<i8>(agent, gc, this_value, byte_offset, true).map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.10 DataView.prototype.getInt16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint16)
@@ -336,6 +340,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int16).
         get_view_value::<i16>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.11 DataView.prototype.getInt32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint32)
@@ -351,6 +356,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, int32).
         get_view_value::<i32>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.12 DataView.prototype.getUint8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint8)
@@ -363,7 +369,7 @@ impl DataViewPrototype {
         let byte_offset = arguments.get(0);
         // 1. Let v be the this value.
         // 2. Return ? GetViewValue(v, byteOffset, true, uint8).
-        get_view_value::<u8>(agent, gc, this_value, byte_offset, true)
+        get_view_value::<u8>(agent, gc, this_value, byte_offset, true).map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.13 DataView.prototype.getUint16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint16)
@@ -379,6 +385,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint16).
         get_view_value::<u16>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.14 DataView.prototype.getUint32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint32)
@@ -394,6 +401,7 @@ impl DataViewPrototype {
         // 1. Let v be the this value.
         // 3. Return ? GetViewValue(v, byteOffset, littleEndian, uint32).
         get_view_value::<u32>(agent, gc, this_value, byte_offset, little_endian)
+            .map(IntoValue::into_value)
     }
 
     /// ### [25.3.4.15 DataView.prototype.setBigInt64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setbigint64)

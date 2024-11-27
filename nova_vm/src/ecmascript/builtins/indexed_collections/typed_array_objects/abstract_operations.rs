@@ -372,7 +372,7 @@ pub(crate) fn allocate_typed_array<T: Viewable>(
 /// completion containing unused or a throw completion.
 pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    gc: NoGcScope<'_, '_>,
     o: TypedArray,
     src_array: TypedArray,
 ) -> JsResult<()> {
@@ -399,7 +399,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
     // 8. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
     if is_typed_array_out_of_bounds::<Src>(agent, &src_record) {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc,
             ExceptionType::TypeError,
             "TypedArray out of bounds",
         ));
@@ -414,14 +414,14 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
     // 11. If elementType is srcType, then
     let data = if O::PROTO == Src::PROTO {
         // a. Let data be ? CloneArrayBuffer(srcData, srcByteOffset, byteLength).
-        clone_array_buffer(agent, gc.nogc(), src_data, src_byte_offset, byte_length)?
+        clone_array_buffer(agent, gc, src_data, src_byte_offset, byte_length)?
     } else {
         // 12. Else,
         // a. Let data be ? AllocateArrayBuffer(%ArrayBuffer%, byteLength).
         let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
         let data = allocate_array_buffer(
             agent,
-            gc.nogc(),
+            gc,
             array_buffer_constructor.into_function(),
             byte_length as u64,
             None,
@@ -430,7 +430,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
         // b. If srcArray.[[ContentType]] is not O.[[ContentType]], throw a TypeError exception.
         if O::IS_BIGINT != Src::IS_BIGINT {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
+                gc,
                 ExceptionType::TypeError,
                 "TypedArray content type mismatch",
             ));
@@ -457,7 +457,6 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
             // ii. Perform SetValueInBuffer(data, targetByteIndex, elementType, value, true, unordered).
             set_value_in_buffer::<O>(
                 agent,
-                gc.reborrow(),
                 data,
                 target_byte_index,
                 value,
