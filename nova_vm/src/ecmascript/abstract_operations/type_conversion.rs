@@ -673,7 +673,6 @@ pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
-        println!("Here {}", int as u8);
         return int as u8;
     }
 
@@ -685,7 +684,6 @@ pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
     // 3. Let int be truncate(ℝ(number)).
     // 4. Let int8bit be int modulo 2^8.
     // 5. Return 𝔽(int8bit).
-    println!("There");
     number.into_f64(agent).trunc() as i64 as u8
 }
 
