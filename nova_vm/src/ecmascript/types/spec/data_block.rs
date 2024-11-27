@@ -12,13 +12,14 @@ use std::{
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
-            to_big_int64, to_big_uint64, to_int16, to_int32, to_int8, to_uint16, to_uint32,
-            to_uint8, to_uint8_clamp,
+            to_big_int64_big_int, to_big_uint64_big_int, to_int16_number, to_int32_number,
+            to_int8_number, to_uint16_number, to_uint32_number, to_uint8_clamp_number,
+            to_uint8_number,
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-        types::{BigInt, IntoValue, Value},
+        types::{BigInt, IntoNumeric, Number, Numeric},
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::context::NoGcScope,
 };
 
 /// Sentinel pointer for a detached data block.
@@ -85,225 +86,287 @@ pub trait Viewable: private::Sealed + Copy {
     const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics;
 
-    fn into_be_value(self, agent: &mut Agent) -> Value;
-    fn into_le_value(self, agent: &mut Agent) -> Value;
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
-
-    // TODO: Consider adding the following methods if needed
-    // fn into_ne_value(self, agent: &mut Agent) -> Value;
-    // fn from_ne_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self;
+    fn into_be_value(self, agent: &mut Agent) -> Numeric;
+    fn into_le_value(self, agent: &mut Agent) -> Numeric;
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
 }
 
 impl Viewable for u8 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_uint8(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint8_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_uint8(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint8_number(agent, value).to_le()
     }
 }
 impl Viewable for U8Clamped {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.0.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.0.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.0.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.0.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        Self(to_uint8_clamp(agent, gc, value).unwrap().to_be())
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self(to_uint8_clamp_number(agent, value).to_be())
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        Self(to_uint8_clamp(agent, gc, value).unwrap().to_le())
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self(to_uint8_clamp_number(agent, value).to_le())
     }
 }
 impl Viewable for i8 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_int8(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int8_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_int8(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int8_number(agent, value).to_le()
     }
 }
 impl Viewable for u16 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_uint16(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint16_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_uint16(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint16_number(agent, value).to_le()
     }
 }
 impl Viewable for i16 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_int16(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int16_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_int16(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int16_number(agent, value).to_le()
     }
 }
 impl Viewable for u32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_uint32(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint32_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_uint32(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint32_number(agent, value).to_le()
     }
 }
 impl Viewable for i32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_be())
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(self.to_le())
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_int32(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int32_number(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_int32(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int32_number(agent, value).to_le()
     }
 }
 impl Viewable for u64 {
     const IS_BIGINT: bool = true;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
 
-    fn into_be_value(self, agent: &mut Agent) -> Value {
-        BigInt::from_u64(agent, self.to_be()).into_value()
+    fn into_be_value(self, agent: &mut Agent) -> Numeric {
+        BigInt::from_u64(agent, self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, agent: &mut Agent) -> Value {
-        BigInt::from_u64(agent, self.to_le()).into_value()
+    fn into_le_value(self, agent: &mut Agent) -> Numeric {
+        BigInt::from_u64(agent, self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_big_uint64(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_uint64_big_int(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_big_uint64(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_uint64_big_int(agent, value).to_le()
     }
 }
 impl Viewable for i64 {
     const IS_BIGINT: bool = true;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
 
-    fn into_be_value(self, agent: &mut Agent) -> Value {
-        BigInt::from_i64(agent, self.to_be()).into_value()
+    fn into_be_value(self, agent: &mut Agent) -> Numeric {
+        BigInt::from_i64(agent, self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, agent: &mut Agent) -> Value {
-        BigInt::from_i64(agent, self.to_le()).into_value()
+    fn into_le_value(self, agent: &mut Agent) -> Numeric {
+        BigInt::from_i64(agent, self.to_le()).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_big_int64(agent, gc, value).unwrap().to_be()
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_int64_big_int(agent, value).to_be()
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        to_big_int64(agent, gc, value).unwrap().to_le()
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_int64_big_int(agent, value).to_le()
     }
 }
 impl Viewable for f32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Value {
-        Value::from(Self::from_ne_bytes(self.to_be_bytes()))
+    fn into_be_value(self, _: &mut Agent) -> Numeric {
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Value {
-        Value::from(Self::from_ne_bytes(self.to_le_bytes()))
+    fn into_le_value(self, _: &mut Agent) -> Numeric {
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_be_bytes())
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_le_bytes())
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
     }
 }
 impl Viewable for f64 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
-    fn into_be_value(self, agent: &mut Agent) -> Value {
-        Value::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()))
+    fn into_be_value(self, agent: &mut Agent) -> Numeric {
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
     }
 
-    fn into_le_value(self, agent: &mut Agent) -> Value {
-        Value::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()))
+    fn into_le_value(self, agent: &mut Agent) -> Numeric {
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
-    fn from_be_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_be_bytes())
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
     }
 
-    fn from_le_value(agent: &mut Agent, gc: GcScope<'_, '_>, value: Value) -> Self {
-        Self::from_ne_bytes((value.to_real(agent, gc).unwrap() as Self).to_le_bytes())
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
     }
 }
 

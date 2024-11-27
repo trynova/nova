@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
-use crate::ecmascript::types::Viewable;
+use crate::ecmascript::types::{Numeric, Viewable};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -325,7 +325,7 @@ pub(crate) fn raw_bytes_to_numeric<T: Viewable>(
     agent: &mut Agent,
     raw_bytes: T,
     is_little_endian: bool,
-) -> Value {
+) -> Numeric {
     // 1. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 2. If isLittleEndian is false, reverse the order of the elements of rawBytes.
     // 3. If type is FLOAT32, then
@@ -389,7 +389,7 @@ pub(crate) fn get_value_from_buffer<T: Viewable>(
     _is_typed_array: bool,
     _order: Ordering,
     is_little_endian: Option<bool>,
-) -> Value {
+) -> Numeric {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
     debug_assert!(!array_buffer.is_detached(agent));
     // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.
@@ -429,8 +429,7 @@ pub(crate) fn get_value_from_buffer<T: Viewable>(
 /// isLittleEndian (a Boolean) and returns a List of byte values.
 pub(crate) fn numeric_to_raw_bytes<T: Viewable>(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
-    value: Value,
+    value: Numeric,
     is_little_endian: bool,
 ) -> T {
     // 1. If type is FLOAT32, then
@@ -448,9 +447,9 @@ pub(crate) fn numeric_to_raw_bytes<T: Viewable>(
     // 4. If isLittleEndian is false, reverse the order of the elements of rawBytes.
     // 5. Return rawBytes.
     if is_little_endian {
-        T::from_le_value(agent, gc, value)
+        T::from_le_value(agent, value)
     } else {
-        T::from_be_value(agent, gc, value)
+        T::from_be_value(agent, value)
     }
 }
 
@@ -464,10 +463,9 @@ pub(crate) fn numeric_to_raw_bytes<T: Viewable>(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn set_value_in_buffer<T: Viewable>(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     array_buffer: ArrayBuffer,
     byte_index: usize,
-    value: Value,
+    value: Numeric,
     _is_typed_array: bool,
     _order: Ordering,
     is_little_endian: Option<bool>,
@@ -491,7 +489,7 @@ pub(crate) fn set_value_in_buffer<T: Viewable>(
     });
 
     // 7. Let rawBytes be NumericToRawBytes(type, value, isLittleEndian).
-    let raw_bytes = numeric_to_raw_bytes::<T>(agent, gc, value, is_little_endian);
+    let raw_bytes = numeric_to_raw_bytes::<T>(agent, value, is_little_endian);
     // 8. If IsSharedArrayBuffer(arrayBuffer) is true, then
     // a. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
     // b. Let eventsRecord be the Agent Events Record of execution.[[EventsRecords]] whose [[AgentSignifier]] is AgentSignifier().

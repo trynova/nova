@@ -521,17 +521,9 @@ pub(crate) fn to_int32_number(agent: &mut Agent, number: Number) -> i32 {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_i64(agent);
-
     // 4. Let int32bit be int modulo 2^32.
-    let int32bit = int % 2i64.pow(32);
-
     // 5. If int32bit ≥ 2^31, return 𝔽(int32bit - 2^32); otherwise return 𝔽(int32bit).
-    if int32bit >= 2i64.pow(32) {
-        (int32bit - 2i64.pow(32)) as i32
-    } else {
-        int32bit as i32
-    }
+    number.into_f64(agent).trunc() as i64 as i32
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
@@ -562,13 +554,9 @@ pub(crate) fn to_uint32_number(agent: &mut Agent, number: Number) -> u32 {
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_i64(agent);
-
     // 4. Let int32bit be int modulo 2^32.
-    let int32bit = int % 2i64.pow(32);
-
     // 5. Return 𝔽(int32bit).
-    int32bit as u32
+    number.into_f64(agent).trunc() as i64 as u32
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
@@ -582,29 +570,25 @@ pub(crate) fn to_int16(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) 
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, gc, argument)?;
 
+    Ok(to_int16_number(agent, number))
+}
+
+pub(crate) fn to_int16_number(agent: &mut Agent, number: Number) -> i16 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly int16 already.
         let int = int.into_i64();
-        return Ok(int as i16);
+        return int as i16;
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
-        return Ok(0);
+        return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_i64(agent);
-
     // 4. Let int16bit be int modulo 2^16.
-    let int16bit = int % 2i64.pow(16);
-
     // 5. If int16bit ≥ 2^15, return 𝔽(int16bit - 2^16); otherwise return 𝔽(int16bit).
-    Ok(if int16bit >= 2i64.pow(15) {
-        int16bit - 2i64.pow(16)
-    } else {
-        int16bit
-    } as i16)
+    number.into_f64(agent).trunc() as i64 as i16
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
@@ -618,25 +602,25 @@ pub(crate) fn to_uint16(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value)
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, gc, argument)?;
 
+    Ok(to_uint16_number(agent, number))
+}
+
+pub(crate) fn to_uint16_number(agent: &mut Agent, number: Number) -> u16 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uin16 already.
         let int = int.into_i64();
-        return Ok(int as u16);
+        return int as u16;
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
-        return Ok(0);
+        return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_i64(agent);
-
     // 4. Let int16bit be int modulo 2^16.
-    let int16bit = int % 2i64.pow(16);
-
     // Return 𝔽(int16bit).
-    Ok(int16bit as u16)
+    number.into_f64(agent).trunc() as i64 as u16
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
@@ -650,29 +634,25 @@ pub(crate) fn to_int8(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) -
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, gc, argument)?;
 
+    Ok(to_int8_number(agent, number))
+}
+
+pub(crate) fn to_int8_number(agent: &mut Agent, number: Number) -> i8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
-        return Ok(int as i8);
+        return int as i8;
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
-        return Ok(0);
+        return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_i64(agent);
-
     // 4. Let int8bit be int modulo 2^8.
-    let int8bit = int % 2i64.pow(8);
-
     // 5. If int8bit ≥ 2^7, return 𝔽(int8bit - 2^8); otherwise return 𝔽(int8bit).
-    Ok(if int8bit >= 2i64.pow(7) {
-        int8bit - 2i64.pow(8)
-    } else {
-        int8bit
-    } as i8)
+    number.into_f64(agent).trunc() as i64 as i8
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
@@ -686,25 +666,27 @@ pub(crate) fn to_uint8(agent: &mut Agent, gc: GcScope<'_, '_>, argument: Value) 
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, gc, argument)?;
 
+    Ok(to_uint8_number(agent, number))
+}
+
+pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
-        return Ok(int as u8);
+        println!("Here {}", int as u8);
+        return int as u8;
     }
 
     // 2. If number is not finite or number is either +0𝔽 or -0𝔽, return +0𝔽.
     if !number.is_finite(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
-        return Ok(0);
+        return 0;
     }
 
     // 3. Let int be truncate(ℝ(number)).
-    let int = number.truncate(agent).into_i64(agent);
-
     // 4. Let int8bit be int modulo 2^8.
-    let int8bit = int % 2i64.pow(8);
-
     // 5. Return 𝔽(int8bit).
-    Ok(int8bit as u8)
+    println!("There");
+    number.into_f64(agent).trunc() as i64 as u8
 }
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
@@ -722,43 +704,29 @@ pub(crate) fn to_uint8_clamp(
     // 1. Let number be ? ToNumber(argument).
     let number = to_number(agent, gc, argument)?;
 
+    Ok(to_uint8_clamp_number(agent, number))
+}
+
+pub(crate) fn to_uint8_clamp_number(agent: &mut Agent, number: Number) -> u8 {
     if let Number::Integer(int) = number {
         // Fast path: Integer value is very nearly uint8 already.
-        let int = int.into_i64().clamp(0, 255);
-        return Ok(int as u8);
+        return int.into_i64().clamp(0, 255) as u8;
     }
 
     // 2. If number is NaN, return +0𝔽.
     if number.is_nan(agent) {
-        return Ok(0);
+        return 0;
     }
 
     // 3. Let mv be the extended mathematical value of number.
-    // TODO: Is there a better way?
     let mv = number.into_f64(agent);
 
     // 4. Let clamped be the result of clamping mv between 0 and 255.
-    let clamped = mv.clamp(0.0, 255.0);
-
     // 5. Let f be floor(clamped).
-    let f = clamped.floor();
-
-    Ok(
-        // 6. If clamped < f + 0.5, return 𝔽(f).
-        if clamped < f + 0.5 {
-            f as u8
-        }
-        // 7. If clamped > f + 0.5, return 𝔽(f + 1).
-        else if clamped > f + 0.5 {
-            f as u8 + 1
-        }
-        // 8. If f is even, return 𝔽(f). Otherwise, return 𝔽(f + 1).
-        else if f % 2.0 == 0.0 {
-            f as u8
-        } else {
-            f as u8 + 1
-        },
-    )
+    // 6. If clamped < f + 0.5, return 𝔽(f).
+    // 7. If clamped > f + 0.5, return 𝔽(f + 1).
+    // 8. If f is even, return 𝔽(f). Otherwise, return 𝔽(f + 1).
+    mv.clamp(0.0, 255.0).round_ties_even() as u8
 }
 
 /// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
@@ -874,7 +842,6 @@ pub(crate) fn string_to_big_int(
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion. It converts argument to one of 2**64 BigInt values
 /// in the inclusive interval from ℤ(-2**63) to ℤ(2**63 - 1).
-#[inline(always)]
 pub(crate) fn to_big_int64(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
@@ -883,6 +850,10 @@ pub(crate) fn to_big_int64(
     // 1. Let n be ? ToBigInt(argument).
     let n = to_big_int(agent, gc, argument)?;
 
+    Ok(to_big_int64_big_int(agent, n))
+}
+
+pub(crate) fn to_big_int64_big_int(agent: &mut Agent, n: BigInt) -> i64 {
     // 2. Let int64bit be ℝ(n) modulo 2**64.
     match n {
         BigInt::BigInt(heap_big_int) => {
@@ -894,13 +865,9 @@ pub(crate) fn to_big_int64(
             } else {
                 int64bit
             };
-            let int64bit = i64::from_ne_bytes(int64bit.to_ne_bytes());
-            Ok(int64bit)
+            i64::from_ne_bytes(int64bit.to_ne_bytes())
         }
-        BigInt::SmallBigInt(small_big_int) => {
-            let int64bit = small_big_int.into_i64();
-            Ok(int64bit)
-        }
+        BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64(),
     }
 }
 
@@ -910,7 +877,6 @@ pub(crate) fn to_big_int64(
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion. It converts argument to one of 2**64 BigInt values
 /// in the inclusive interval from 0ℤ to ℤ(2**64 - 1).
-#[inline(always)]
 pub(crate) fn to_big_uint64(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
@@ -918,7 +884,10 @@ pub(crate) fn to_big_uint64(
 ) -> JsResult<u64> {
     // 1. Let n be ? ToBigInt(argument).
     let n = to_big_int(agent, gc, argument)?;
+    Ok(to_big_uint64_big_int(agent, n))
+}
 
+pub(crate) fn to_big_uint64_big_int(agent: &mut Agent, n: BigInt) -> u64 {
     // 2. Let int64bit be ℝ(n) modulo 2**64.
     match n {
         BigInt::BigInt(heap_big_int) => {
@@ -930,11 +899,11 @@ pub(crate) fn to_big_uint64(
             } else {
                 int64bit
             };
-            Ok(int64bit)
+            int64bit
         }
         BigInt::SmallBigInt(small_big_int) => {
             let int64bit = small_big_int.into_i64();
-            Ok(int64bit as u64)
+            int64bit as u64
         }
     }
 }

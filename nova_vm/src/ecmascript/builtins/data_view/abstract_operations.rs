@@ -9,7 +9,7 @@ use crate::{
             structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
         },
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{IntoValue, Value, Viewable},
+        types::{IntoNumeric, Numeric, Value, Viewable},
     },
     engine::context::GcScope,
 };
@@ -170,7 +170,7 @@ pub(crate) fn get_view_value<T: Viewable>(
     request_index: Value,
     // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
-) -> JsResult<Value> {
+) -> JsResult<Numeric> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
     let view = require_internal_slot_data_view(agent, gc.nogc(), view)?;
@@ -248,10 +248,10 @@ pub(crate) fn set_view_value<T: Viewable>(
 
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
     let number_value = if T::IS_BIGINT {
-        to_big_int(agent, gc.reborrow(), value)?.into_value()
+        to_big_int(agent, gc.reborrow(), value)?.into_numeric()
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
-        to_number(agent, gc.reborrow(), value)?.into_value()
+        to_number(agent, gc.reborrow(), value)?.into_numeric()
     };
 
     // 7. Let viewOffset be view.[[ByteOffset]].
@@ -290,7 +290,6 @@ pub(crate) fn set_view_value<T: Viewable>(
     // 15. Perform SetValueInBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, numberValue, false, unordered, isLittleEndian).
     set_value_in_buffer::<T>(
         agent,
-        gc,
         view.get_viewed_array_buffer(agent),
         buffer_index,
         number_value,
