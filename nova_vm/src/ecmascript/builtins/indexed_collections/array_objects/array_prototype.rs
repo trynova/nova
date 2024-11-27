@@ -3276,7 +3276,7 @@ impl ArrayPrototype {
                 }
                 // Fast path: Set new value in cloned array.
                 let cloned_array = array.to_cloned(agent);
-                cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(arguments.get(1));
+                cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value);
                 return Ok(cloned_array.into());
             }
         }
