@@ -3254,22 +3254,26 @@ impl ArrayPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
+        let index = arguments.get(0);
+        let value = arguments.get(1);
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by with.
-        if let Value::Array(array) = this_value {
-            let len = array.len(agent) as i64;
-            let index = arguments.get(0);
-            let relative_index =
-                to_integer_or_infinity(agent, gc.reborrow(), index)?.into_i64(agent);
-            let actual_index = if relative_index >= 0 {
-                relative_index
-            } else {
-                len + relative_index
-            };
-            if array.is_trivial(agent)
-                && array.is_dense(agent)
-                && !(actual_index >= len || actual_index < 0)
-            {
+        if let (Value::Array(array), Value::Integer(index)) = (this_value, index) {
+            if array.is_trivial(agent) && array.is_dense(agent) {
+                let relative_index = index.into_i64();
+                let len = array.len(agent) as i64;
+                let actual_index = if relative_index >= 0 {
+                    relative_index
+                } else {
+                    len + relative_index
+                };
+                if actual_index >= len || actual_index < 0 {
+                    return Err(agent.throw_exception_with_static_message(
+                        gc.nogc(),
+                        ExceptionType::RangeError,
+                        "invalid or out-of-range index",
+                    ));
+                }
                 // Fast path: Set new value in cloned array.
                 let cloned_array = array.to_cloned(agent);
                 cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(arguments.get(1));
@@ -3281,7 +3285,6 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let index = arguments.get(0);
         let relative_index = to_integer_or_infinity(agent, gc.reborrow(), index)?.into_i64(agent);
         // 4. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
         let actual_index = if relative_index >= 0 {
@@ -3303,7 +3306,6 @@ impl ArrayPrototype {
         // 8. Let k be 0.
         let mut k = 0;
         // 9. Repeat, while k < len,
-        let value = arguments.get(1);
         while k < len {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
