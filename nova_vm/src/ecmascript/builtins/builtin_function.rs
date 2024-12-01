@@ -316,7 +316,7 @@ impl InternalMethods for BuiltinFunction {
         #[usdt::provider]
         mod nova {
             fn start_builtin_call(name: &str) {}
-            // fn stop_builtin_call(name: &str) {}
+            fn stop_builtin_call(name: &str) {}
         }
         nova::start_builtin_call!(|| {
             agent[self]
@@ -326,12 +326,12 @@ impl InternalMethods for BuiltinFunction {
         });
         let result =
             builtin_call_or_construct(agent, gc, self, Some(this_argument), arguments_list, None);
-        // nova::stop_builtin_call!(|| {
-        //     agent[self]
-        //         .initial_name
-        //         .as_ref()
-        //         .map_or("anonymous", |name| name.as_str(agent))
-        // });
+        nova::stop_builtin_call!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         result
     }
 

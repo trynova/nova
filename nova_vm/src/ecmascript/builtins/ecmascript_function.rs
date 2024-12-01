@@ -339,12 +339,6 @@ impl FunctionInternalProperties for ECMAScriptFunction {
     }
 }
 
-#[usdt::provider]
-mod nova {
-    fn start_function_call(name: &str) {}
-    fn stop_function_call(name: &str) {}
-}
-
 impl InternalMethods for ECMAScriptFunction {
     fn internal_get_own_property(
         self,
@@ -426,6 +420,11 @@ impl InternalMethods for ECMAScriptFunction {
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
+        #[usdt::provider]
+        mod nova {
+            fn start_function_call(name: &str) {}
+            fn stop_function_call(name: &str) {}
+        }
         nova::start_function_call!(|| {
             agent[self]
                 .name
