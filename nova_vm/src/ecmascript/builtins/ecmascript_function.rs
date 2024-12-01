@@ -491,6 +491,17 @@ impl InternalMethods for ECMAScriptFunction {
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
+        #[usdt::provider]
+        mod nova {
+            fn start_ecmascript_constructor(name: &str) {}
+            fn stop_ecmascript_constructor(name: &str) {}
+        }
+        nova::start_ecmascript_constructor!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self]
             .ecmascript_function
@@ -552,7 +563,7 @@ impl InternalMethods for ECMAScriptFunction {
         let value = result?;
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
-        if let Ok(value) = Object::try_from(value) {
+        let result = if let Ok(value) = Object::try_from(value) {
             Ok(value)
         } else
         //   b. If kind is base, return thisArgument.
@@ -578,7 +589,14 @@ impl InternalMethods for ECMAScriptFunction {
 
             // 14. Return thisBinding.
             Ok(this_binding)
-        }
+        };
+        nova::stop_ecmascript_constructor!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
+        result
     }
 }
 

@@ -312,12 +312,12 @@ impl InternalMethods for BuiltinFunction {
         this_argument: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
-        // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         #[usdt::provider]
         mod nova {
             fn start_builtin_call(name: &str) {}
             fn stop_builtin_call(name: &str) {}
         }
+        // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         nova::start_builtin_call!(|| {
             agent[self]
                 .initial_name
@@ -348,9 +348,28 @@ impl InternalMethods for BuiltinFunction {
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
+        #[usdt::provider]
+        mod nova {
+            fn start_builtin_constructor(name: &str) {}
+            fn stop_builtin_constructor(name: &str) {}
+        }
+        nova::start_builtin_constructor!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, gc, self, None, arguments_list, Some(new_target))
-            .map(|result| result.try_into().unwrap())
+        let result =
+            builtin_call_or_construct(agent, gc, self, None, arguments_list, Some(new_target))
+                .map(|result| result.try_into().unwrap());
+        nova::stop_builtin_constructor!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
+        result
     }
 }
 
