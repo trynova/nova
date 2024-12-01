@@ -48,12 +48,6 @@ use crate::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
         WorkQueues, indexes::ECMAScriptFunctionIndex,
     },
-    tracing,
-};
-
-use super::{
-    ArgumentsList,
-    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -367,12 +361,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
             fn start_function_call(name: &str) {}
             fn stop_function_call(name: &str) {}
         }
-        nova::start_function_call!(|| {
-            agent[self]
-                .name
-                .as_ref()
-                .map_or("anonymous", |name| name.as_str(agent))
-        });
+        nova::start_function_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
 
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
@@ -419,12 +408,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.pop_execution_context();
-        nova::stop_function_call!(|| {
-            agent[self]
-                .name
-                .as_ref()
-                .map_or("anonymous", |name| name.as_str(agent))
-        });
+        nova::stop_function_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.
@@ -438,6 +422,15 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         new_target: Function,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Object<'gc>> {
+        #[usdt::provider]
+        mod nova {
+            fn start_ecmascript_constructor(name: &str) {}
+            fn stop_ecmascript_constructor(name: &str) {}
+        }
+        nova::start_ecmascript_constructor!(|| {
+            self.get_name(agent).to_string_lossy(agent).to_string()
+        });
+
         let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
         let mut arguments_list = arguments.bind(gc.nogc());
@@ -529,7 +522,7 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         let value = result.unbind()?.bind(gc.nogc());
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
-        if let Ok(value) = Object::try_from(value) {
+        let result = if let Ok(value) = Object::try_from(value) {
             Ok(value.unbind())
         } else
         //   b. If kind is base, return thisArgument.
@@ -564,7 +557,11 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
 
             // 14. Return thisBinding.
             Ok(this_binding)
-        }
+        };
+        nova::stop_ecmascript_constructor!(|| {
+            self.get_name(agent).to_string_lossy(agent).to_string()
+        });
+        result
     }
 }
 
