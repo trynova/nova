@@ -73,6 +73,12 @@ pub fn heap_gc(
     gc: GcScope<'_, '_>,
     root_realms: &mut [Option<RealmIdentifier>],
 ) {
+    #[usdt::provider]
+    mod nova {
+        fn start_heap_gc() {}
+        fn stop_heap_gc() {}
+    }
+    nova::start_heap_gc!(|| ());
     let Agent {
         heap,
         execution_context_stack,
@@ -995,6 +1001,7 @@ pub fn heap_gc(
     }
 
     sweep(agent, gc, &bits, root_realms);
+    nova::stop_heap_gc!(|| ());
 }
 
 fn sweep(
