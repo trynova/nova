@@ -98,6 +98,4 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("builtin_strings.rs");
     let builtin_strings_data = gen_builtin_strings().unwrap();
     fs::write(dest_path, builtin_strings_data).unwrap();
-
-    usdt::Builder::new("provider.d").build().unwrap();
 }

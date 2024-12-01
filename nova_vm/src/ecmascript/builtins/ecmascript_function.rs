@@ -14,41 +14,46 @@ use oxc_span::Span;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
-        execution::{
-            agent::{
-                get_active_script_or_module,
-                ExceptionType::{self, SyntaxError},
-            },
-            new_function_environment, Agent, ECMAScriptCodeEvaluationState, Environment,
-            ExecutionContext, FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics,
-            Realm, ThisBindingStatus,
+        builtins::{
+            ArgumentsList,
+            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
         },
-        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+        execution::{
+            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext,
+            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, Realm,
+            ThisBindingStatus,
+            agent::{
+                ExceptionType::{self, SyntaxError},
+                get_active_script_or_module,
+            },
+            new_function_environment,
+        },
+        scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
         syntax_directed_operations::function_definitions::{
             evaluate_async_function_body, evaluate_async_generator_body, evaluate_function_body,
             evaluate_generator_body,
         },
         types::{
-            ECMAScriptFunctionHeapData, Function, FunctionInternalProperties, InternalSlots,
-            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
+            FunctionInternalProperties, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     engine::{
+        Executable,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
-        Executable,
     },
     heap::{
-        indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        HeapSweepWeakReference, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, HeapSweepWeakReference,
+        WorkQueues, indexes::ECMAScriptFunctionIndex,
     },
     tracing,
 };
 
 use super::{
-    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
     ArgumentsList,
+    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -314,10 +319,12 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         agent: &mut Agent,
         backing_object: OrdinaryObject<'static>,
     ) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn function_prototype(self, agent: &Agent) -> Option<Object<'static>> {
@@ -355,13 +362,12 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        let orig_name = agent[self].name;
-        let name = if let Some(name) = &orig_name {
-            name.as_str(agent)
-        } else {
-            &"anonymous"
-        };
-        tracing::nova::start_function_call!(|| ());
+        nova::start_function_call!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
 
         let f = self.bind(gc.nogc());
         let arguments_list = arguments_list.bind(gc.nogc());
@@ -408,13 +414,12 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.pop_execution_context();
-        let orig_name = agent[self].name;
-        let name = if let Some(name) = &orig_name {
-            name.as_str(agent)
-        } else {
-            &"anonymous"
-        };
-        tracing::nova::stop_function_call!(|| ());
+        nova::stop_function_call!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.

@@ -579,8 +579,31 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
-        // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
+        #[usdt::provider]
+        mod nova {
+            fn start_builtin_call(name: &str) {}
+            // fn stop_builtin_call(name: &str) {}
+        }
+        nova::start_builtin_call!(|| {
+            println!("First");
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
+        println!("Second");
+        let result =
+            // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
+            builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc);
+        // nova::stop_builtin_call!(|| {
+        //     println!("Third");
+        //     agent[self]
+        //         .initial_name
+        //         .as_ref()
+        //         .map_or("anonymous", |name| name.as_str(agent))
+        // });
+        // println!("Fourth");
+        result
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
