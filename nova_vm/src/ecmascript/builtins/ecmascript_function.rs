@@ -362,6 +362,11 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<'gc, Value<'gc>> {
+        #[usdt::provider]
+        mod nova {
+            fn start_function_call(name: &str) {}
+            fn stop_function_call(name: &str) {}
+        }
         nova::start_function_call!(|| {
             agent[self]
                 .name

@@ -582,7 +582,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         #[usdt::provider]
         mod nova {
             fn start_builtin_call(name: &str) {}
-            // fn stop_builtin_call(name: &str) {}
+            fn stop_builtin_call(name: &str) {}
         }
         nova::start_builtin_call!(|| {
             agent[self]
@@ -593,12 +593,12 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
         let result =
             // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
             builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc);
-        // nova::stop_builtin_call!(|| {
-        //     agent[self]
-        //         .initial_name
-        //         .as_ref()
-        //         .map_or("anonymous", |name| name.as_str(agent))
-        // });
+        nova::stop_builtin_call!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         result
     }
 
