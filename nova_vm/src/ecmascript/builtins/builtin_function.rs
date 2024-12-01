@@ -584,7 +584,6 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
             fn start_builtin_call(name: &str) {}
             fn stop_builtin_call(name: &str) {}
         }
-        // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         nova::start_builtin_call!(|| { self.get_name(agent).to_string_lossy(agent).to_string() });
         let result =
             // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).

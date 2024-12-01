@@ -87,6 +87,13 @@ use crate::{
 };
 
 pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc: GcScope) {
+    #[usdt::provider]
+    mod nova {
+        fn start_heap_gc() {}
+        fn stop_heap_gc() {}
+    }
+    nova::start_heap_gc!(|| ());
+
     let mut bits = HeapBits::new(&agent.heap);
     let mut queues = WorkQueues::new(&agent.heap);
 
@@ -1269,6 +1276,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<Realm<'static>>], gc
     }
 
     sweep(agent, &bits, root_realms, gc);
+    nova::stop_heap_gc!(|| ());
 }
 
 fn sweep(
