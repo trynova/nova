@@ -859,7 +859,7 @@ impl GlobalObject {
             0
         } else if let Ok(radix) = Primitive::try_from(radix) {
             let radix = to_number_primitive(agent, gc.nogc(), radix)?;
-            to_int32_number(agent, gc.nogc(), radix)
+            to_int32_number(agent, radix)
         } else {
             let s_root = s.scope(agent, gc.nogc());
             let radix = to_int32(agent, gc.reborrow(), radix)?;

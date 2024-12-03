@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::context::{GcScope, NoGcScope},
+    engine::{context::NoGcScope, Scoped},
 };
 use crate::{
     ecmascript::execution::Agent,
@@ -87,20 +87,20 @@ pub enum NumberRootRepr {
 
 impl IntoValue for HeapNumber<'_> {
     fn into_value(self) -> Value {
-        Value::Number(self)
+        Value::Number(self.unbind())
     }
 }
 
 impl IntoPrimitive for HeapNumber<'_> {
     fn into_primitive(self) -> Primitive {
-        Primitive::Number(self)
+        Primitive::Number(self.unbind())
     }
 }
 
 impl IntoValue for Number<'_> {
     fn into_value(self) -> Value {
         match self {
-            Number::Number(idx) => Value::Number(idx),
+            Number::Number(idx) => Value::Number(idx.unbind()),
             Number::Integer(data) => Value::Integer(data),
             Number::SmallF64(data) => Value::SmallF64(data),
         }
@@ -109,7 +109,7 @@ impl IntoValue for Number<'_> {
 
 impl IntoNumeric for HeapNumber<'_> {
     fn into_numeric(self) -> Numeric {
-        Numeric::Number(self)
+        Numeric::Number(self.unbind())
     }
 }
 
@@ -128,7 +128,7 @@ impl TryFrom<Value> for HeapNumber<'_> {
 impl IntoPrimitive for Number<'_> {
     fn into_primitive(self) -> Primitive {
         match self {
-            Number::Number(idx) => Primitive::Number(idx),
+            Number::Number(idx) => Primitive::Number(idx.unbind()),
             Number::Integer(data) => Primitive::Integer(data),
             Number::SmallF64(data) => Primitive::SmallF64(data),
         }
@@ -138,7 +138,7 @@ impl IntoPrimitive for Number<'_> {
 impl IntoNumeric for Number<'_> {
     fn into_numeric(self) -> Numeric {
         match self {
-            Number::Number(idx) => Numeric::Number(idx),
+            Number::Number(idx) => Numeric::Number(idx.unbind()),
             Number::Integer(data) => Numeric::Integer(data),
             Number::SmallF64(data) => Numeric::SmallF64(data),
         }
@@ -173,7 +173,7 @@ impl From<SmallF64> for Number<'static> {
     }
 }
 
-impl From<f32> for Number<'static> {
+impl From<f32> for Number<'_> {
     fn from(value: f32) -> Self {
         Number::SmallF64(SmallF64::from(value))
     }
@@ -206,7 +206,10 @@ impl TryFrom<f64> for Number<'static> {
     type Error = ();
 
     fn try_from(value: f64) -> Result<Self, ()> {
-        if value.is_finite() && value.trunc() == value && (MIN_NUMBER..=MAX_NUMBER).contains(&value)
+        if value.is_finite()
+            && value.trunc() == value
+            && (MIN_NUMBER..=MAX_NUMBER).contains(&value)
+            && !(value.is_zero() && value.is_sign_negative())
         {
             debug_assert_eq!(value as i64 as f64, value);
             Ok(Number::try_from(value as i64).unwrap())
@@ -275,14 +278,22 @@ impl<'a> Number<'a> {
         unsafe { std::mem::transmute::<Number<'a>, Number<'gc>>(self) }
     }
 
-    pub fn from_f64(agent: &mut Agent, _: NoGcScope<'a, '_>, value: f64) -> Self {
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Number<'static>> {
+        Scoped::new(agent, gc, self.unbind())
+    }
+
+    pub fn from_f64(agent: &mut Agent, gc: NoGcScope<'a, '_>, value: f64) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
         } else {
             // SAFETY: Number was not representable as a
             // stack-allocated Number.
             let id = unsafe { agent.heap.alloc_number(value) };
-            Number::Number(id)
+            Number::Number(id.unbind().bind(gc))
         }
     }
 
@@ -404,7 +415,7 @@ impl<'a> Number<'a> {
     pub fn is_sign_positive(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> bool {
         match self {
             Number::Number(n) => agent[n.unbind()].is_sign_positive(),
-            Number::Integer(n) => n.into_i64().is_positive(),
+            Number::Integer(n) => n.into_i64() >= 0,
             Number::SmallF64(n) => n.into_f64().is_sign_positive(),
         }
     }
@@ -1324,7 +1335,7 @@ pub enum BitwiseOp {
 
 macro_rules! impl_value_from_n {
     ($size: ty) => {
-        impl From<$size> for Number<'static> {
+        impl From<$size> for Number<'_> {
             fn from(value: $size) -> Self {
                 Number::Integer(SmallInteger::from(value))
             }

@@ -161,7 +161,7 @@ pub(crate) struct WorkQueues {
     pub maps: Vec<Map>,
     pub map_iterators: Vec<MapIterator>,
     pub modules: Vec<Module>,
-    pub numbers: Vec<HeapNumber>,
+    pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironmentIndex>,
     pub objects: Vec<OrdinaryObject>,
     pub primitive_objects: Vec<PrimitiveObject>,

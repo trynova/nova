@@ -245,14 +245,14 @@ impl ArrayBufferPrototype {
         // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
         let relative_start = to_integer_or_infinity(agent, gc.reborrow(), arguments.get(0))?;
         // 7. If relativeStart = -∞, let first be 0.
-        let first = if relative_start.is_neg_infinity(agent) {
+        let first = if relative_start.is_neg_infinity() {
             0
-        } else if relative_start.is_sign_negative(agent) {
+        } else if relative_start.is_negative() {
             // 8. Else if relativeStart < 0, let first be max(len + relativeStart, 0).
-            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+            (len as i64 + relative_start.into_i64()).max(0) as usize
         } else {
             // 9. Else, let first be min(relativeStart, len).
-            relative_start.into_usize(agent).min(len)
+            (relative_start.into_i64() as usize).min(len)
         };
 
         // 10. If end is undefined, let relativeEnd be len;
@@ -263,14 +263,14 @@ impl ArrayBufferPrototype {
             // else let relativeEnd be ? ToIntegerOrInfinity(end).
             let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end)?;
             // 11. If relativeEnd = -∞, let final be 0.
-            if relative_end.is_neg_infinity(agent) {
+            if relative_end.is_neg_infinity() {
                 0
-            } else if relative_end.is_sign_negative(agent) {
+            } else if relative_end.is_negative() {
                 // 12. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
-                (len as i64 + relative_end.into_i64(agent)).max(0) as usize
+                (len as i64 + relative_end.into_i64()).max(0) as usize
             } else {
                 // 13. Else, let final be min(relativeEnd, len).
-                relative_end.into_usize(agent).min(len)
+                (relative_end.into_i64() as usize).min(len)
             }
         };
 

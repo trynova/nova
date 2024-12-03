@@ -1,17 +1,18 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use std::f64::consts;
 
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::{to_number, to_uint32},
+        abstract_operations::type_conversion::{to_number, to_number_primitive, to_uint32},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Number, Primitive, String, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::context::{GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
     SmallInteger,
 };
@@ -901,6 +902,7 @@ impl MathObject {
         // 4. Let onlyZero be true.
         let mut sum_of_squares = 0.0;
         let mut only_zero = true;
+        let mut contains_infinity = false;
         let mut contains_nan = false;
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
@@ -909,12 +911,8 @@ impl MathObject {
             // 3. For each element number of coerced, do
             if n.is_infinite() {
                 // a. If number is either +∞𝔽 or -∞𝔽, return +∞𝔽.
-                return Ok(Value::pos_inf());
-            }
-            // 5. For each element number of coerced, do
-            if n.is_nan() {
-                // Note: We cannot return NaN immediately as a later-found
-                // infinite value should override an earlier NaN.
+                contains_infinity = true;
+            } else if n.is_nan() {
                 // a. If number is NaN, return NaN.
                 contains_nan = true;
             } else if n != 0.0 {
@@ -923,6 +921,12 @@ impl MathObject {
                 // b. Append n to coerced.
                 sum_of_squares += n * n;
             }
+        }
+
+        // 3. For each element number of coerced, do
+        // a. If number is either +∞𝔽 or -∞𝔽, return +∞𝔽.
+        if contains_infinity {
+            return Ok(Value::pos_inf());
         }
 
         // 5. For each element number of coerced, do
@@ -1087,79 +1091,97 @@ impl MathObject {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        // 1. Let coerced be a new empty List.
-        let mut coerced = Vec::with_capacity(arguments.len());
-
-        let mut only_ints = true;
-
-        // 2. For each element arg of args, do
-        for &arg in arguments.iter() {
-            // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), arg)?;
-            // b. Append n to coerced.
-            coerced.push(n);
-
-            match n {
-                Number::Number(_) | Number::SmallF64(_) => only_ints = false,
-                _ => {}
-            }
-        }
-
-        if coerced.is_empty() {
+        if arguments.is_empty() {
             return Ok(Value::neg_inf());
         }
+        // 1. Let coerced be a new empty List.
+        // Note: We avoid keeping a list by doing a reduce-like strategy.
 
-        if coerced.len() == 1 {
-            return Ok(coerced[0].into_value());
-        }
-
-        // NOTE: Fast path for when all numbers are integers.
-        if only_ints {
-            // SAFETY: Because we know that `coerced` is not empty and only
-            // contains small integers we know that it is always safe to
-            // convert it back into a small integer number.
-            return Ok(unsafe {
-                Number::try_from(
-                    coerced
-                        .iter()
-                        .map(|number| match number {
-                            Number::Integer(n) => n.into_i64(),
-                            _ => unreachable!(),
-                        })
-                        .max()
-                        .unwrap_unchecked(),
-                )
-                .unwrap_unchecked()
-                .into_value()
-            });
-        }
+        let mut only_ints = true;
+        let mut contained_nan = false;
 
         // 3. Let highest be -∞𝔽.
-        let mut highest = Number::neg_inf();
+        let mut highest_i64 = i64::MIN;
+        let mut highest_f64 = f64::NEG_INFINITY;
 
-        // 4. For each element number of coerced, do
-        for number in coerced.iter() {
-            // a. If number is NaN, return NaN.
-            if number.is_nan(agent) {
-                return Ok(Value::nan());
+        // 2. For each element arg of args, do
+        let mut i = None;
+        // We hope that this loop is all we need: It will never perform GC and
+        // we avoid the need to root our arguments to this call scope. Rooting
+        // them would require a heap allocation.
+        for (idx, &arg) in arguments.iter().enumerate() {
+            let n = if let Ok(n) = Number::try_from(arg) {
+                Some(n)
+            } else if let Ok(prim) = Primitive::try_from(arg) {
+                Some(to_number_primitive(agent, gc.nogc(), prim)?)
+            } else {
+                None
+            };
+            // 4. For each element number of coerced, do
+            if let Some(number) = n {
+                if let Number::Integer(int) = number {
+                    // c. If n > highest, set highest to n.
+                    highest_i64 = highest_i64.max(int.into_i64());
+                } else {
+                    only_ints = false;
+
+                    let value = number.into_f64(agent);
+                    if value.is_nan() {
+                        contained_nan = true;
+                    } else {
+                        // b. If n is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
+                        // Note: This is handled automatically as +0 is integer.
+                        // c. If n > highest, set highest to n.
+                        highest_f64 = highest_f64.max(value);
+                    }
+                }
+            } else {
+                // Non-primitive argument encountered.
+                i = Some(idx);
+                break;
             }
+        }
 
-            // b. If number is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
-            if number.is_pos_zero(agent) && highest.is_neg_zero(agent) {
-                highest = Number::pos_zero();
+        if let Some(i) = i {
+            // Note: We encountered non-primitive values. We're possibly
+            // calling into user-provided JavaScript and triggering GC.
+
+            let slow_nan = max_slow_path(
+                agent,
+                gc.reborrow(),
+                &mut only_ints,
+                &mut highest_i64,
+                &mut highest_f64,
+                &arguments[i..],
+            )?;
+            if slow_nan {
+                contained_nan = true;
             }
+        }
 
-            let number_f64 = number.into_f64(agent);
-            let highest_f64 = highest.into_f64(agent);
-
-            // c. If number > highest, set highest to number.
-            if number_f64 > highest_f64 {
-                highest = *number;
-            }
+        // a. If number is NaN, return NaN.
+        if contained_nan {
+            return Ok(Value::nan());
         }
 
         // 5. Return highest.
-        Ok(highest.into_value())
+        if only_ints {
+            // SAFETY: Because we know that we only got safe integers, we
+            // know that the maximum integer is also a safe integer.
+            Ok(Number::try_from(highest_i64).unwrap().into_value())
+        } else {
+            // Note: This is potentially one unnecessary heap f64 allocation.
+            // We may have got the maximum f64 from the heap and now we push it
+            // back there without reusing the original Number. This just makes
+            // the code simpler.
+            if highest_i64 != i64::MIN {
+                // b. If n is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
+                // Note: This happens automatically as +0.max(-0) is +0.
+                highest_f64 = (highest_i64 as f64).max(highest_f64);
+            }
+            let result = Number::from_f64(agent, gc.nogc(), highest_f64);
+            Ok(result.into_value())
+        }
     }
 
     fn min(
@@ -1168,79 +1190,99 @@ impl MathObject {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        // 1. Let coerced be a new empty List.
-        let mut coerced = Vec::with_capacity(arguments.len());
-
-        let mut only_ints = true;
-
-        // 2. For each element arg of args, do
-        for &arg in arguments.iter() {
-            // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), arg)?;
-            // b. Append n to coerced.
-            coerced.push(n);
-
-            match n {
-                Number::Number(_) | Number::SmallF64(_) => only_ints = false,
-                _ => {}
-            }
-        }
-
-        if coerced.is_empty() {
+        if arguments.is_empty() {
             return Ok(Value::pos_inf());
         }
 
-        if coerced.len() == 1 {
-            return Ok(coerced[0].into_value());
-        }
+        // 1. Let coerced be a new empty List.
+        // Note: We avoid keeping a list by doing a reduce-like strategy.
 
-        // NOTE: Fast path for when all numbers are integers.
-        if only_ints {
-            // SAFETY: Because we know that `coerced` is not empty and only
-            // contains small integers we know that it is always safe to
-            // convert it back into a small integer number.
-            return Ok(unsafe {
-                Number::try_from(
-                    coerced
-                        .iter()
-                        .map(|number| match number {
-                            Number::Integer(n) => n.into_i64(),
-                            _ => unreachable!(),
-                        })
-                        .min()
-                        .unwrap_unchecked(),
-                )
-                .unwrap_unchecked()
-                .into_value()
-            });
-        }
+        let mut only_ints = true;
+        let mut contained_nan = false;
 
         // 3. Let lowest be +∞𝔽.
-        let mut lowest = Number::pos_inf();
+        let mut lowest_i64 = i64::MAX;
+        let mut lowest_f64 = f64::INFINITY;
 
-        // 4. For each element number of coerced, do
-        for number in coerced.iter() {
-            // a. If number is NaN, return NaN.
-            if number.is_nan(agent) {
-                return Ok(Value::nan());
+        // 2. For each element arg of args, do
+        let mut i = None;
+        // We hope that this loop is all we need: It will never perform GC and
+        // we avoid the need to root our arguments to this call scope. Rooting
+        // them would require a heap allocation.
+        for (idx, &arg) in arguments.iter().enumerate() {
+            let n = if let Ok(n) = Number::try_from(arg) {
+                Some(n)
+            } else if let Ok(prim) = Primitive::try_from(arg) {
+                Some(to_number_primitive(agent, gc.nogc(), prim)?)
+            } else {
+                None
+            };
+            // 4. For each element number of coerced, do
+            if let Some(number) = n {
+                if let Number::Integer(int) = number {
+                    // c. If number < lowest, set lowest to number.
+                    lowest_i64 = lowest_i64.min(int.into_i64());
+                } else {
+                    only_ints = false;
+
+                    let number = number.into_f64(agent);
+                    // a. If number is NaN, return NaN.
+                    if number.is_nan() {
+                        contained_nan = true;
+                    } else {
+                        // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
+                        // Note: We'll handle this later. +0 is always an integer.
+                        // c. If number < lowest, set lowest to number.
+                        lowest_f64 = lowest_f64.min(number);
+                    }
+                }
+            } else {
+                // Non-primitive argument encountered.
+                i = Some(idx);
+                break;
             }
+        }
 
-            // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
-            if number.is_neg_zero(agent) && lowest.is_pos_zero(agent) {
-                lowest = Number::neg_zero();
+        if let Some(i) = i {
+            // Note: We encountered non-primitive values. We're possibly
+            // calling into user-provided JavaScript and triggering GC.
+
+            let slow_nan = min_slow_path(
+                agent,
+                gc.reborrow(),
+                &mut only_ints,
+                &mut lowest_i64,
+                &mut lowest_f64,
+                &arguments[i..],
+            )?;
+            if slow_nan {
+                contained_nan = true;
             }
+        }
 
-            let number_f64 = number.into_f64(agent);
-            let lowest_f64 = lowest.into_f64(agent);
-
-            // c. If number < lowest, set lowest to number.
-            if number_f64 < lowest_f64 {
-                lowest = *number;
-            }
+        // a. If number is NaN, return NaN.
+        if contained_nan {
+            return Ok(Value::nan());
         }
 
         // 5. Return lowest.
-        Ok(lowest.into_value())
+        if only_ints {
+            // SAFETY: Because we know that we only got safe integers, we
+            // know that the maximum integer is also a safe integer.
+            Ok(Number::try_from(lowest_i64).unwrap().into_value())
+        } else {
+            // Note: This is potentially one unnecessary heap f64 allocation.
+            // We may have got the minimum f64 from the heap and now we push it
+            // back there without reusing the original Number. This just makes
+            // the code simpler.
+            if lowest_i64 != i64::MAX {
+                // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
+                if lowest_f64 != -0.0 || !lowest_f64.is_sign_negative() || lowest_i64 != 0 {
+                    lowest_f64 = lowest_f64.min(lowest_i64 as f64);
+                }
+            }
+            Ok(Number::from_f64(agent, gc.nogc(), lowest_f64).into_value())
+        }
     }
 
     fn pow(
@@ -1251,11 +1293,29 @@ impl MathObject {
     ) -> JsResult<Value> {
         let base = arguments.get(0);
         let exponent = arguments.get(1);
-        if let (Value::Integer(base), Value::Integer(exponent)) = (base, exponent) {
-            let base = base.into_i64() as i128;
+        let (base, exponent) = if let (Ok(base), Ok(exponent)) =
+            (Number::try_from(base), Number::try_from(exponent))
+        {
+            (base.bind(gc.nogc()), exponent.bind(gc.nogc()))
+        } else if let (Ok(base), Ok(exponent)) =
+            (Primitive::try_from(base), Primitive::try_from(exponent))
+        {
+            let base = to_number_primitive(agent, gc.nogc(), base)?;
+            let exponent = to_number_primitive(agent, gc.nogc(), exponent)?;
+            (base.bind(gc.nogc()), exponent.bind(gc.nogc()))
+        } else {
+            let exponent = exponent.scope(agent, gc.nogc());
+            let base = to_number(agent, gc.reborrow(), base)?
+                .unbind()
+                .scope(agent, gc.nogc());
+            let exponent = to_number(agent, gc.reborrow(), exponent.get(agent))?.unbind();
+            (base.get(agent).bind(gc.nogc()), exponent.bind(gc.nogc()))
+        };
+        if let (Number::Integer(base), Number::Integer(exponent)) = (base, exponent) {
+            let base = base.into_i64();
             let exponent = exponent.into_i64();
             if let Ok(exponent) = u32::try_from(exponent) {
-                let result = base.pow(exponent);
+                let result = (base as i128).pow(exponent);
                 if let Ok(result) = SmallInteger::try_from(result) {
                     return Ok(Value::Integer(result));
                 } else {
@@ -1269,8 +1329,6 @@ impl MathObject {
                 return Ok(Value::from_f64(agent, gc.into_nogc(), result));
             }
         }
-        let base = to_number(agent, gc.reborrow(), base)?;
-        let exponent = to_number(agent, gc.reborrow(), exponent)?;
         Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
@@ -1608,4 +1666,94 @@ impl MathObject {
             })
             .build();
     }
+}
+
+/// Separate slow path for Number.prototype.max to take the heap allocation out
+/// of the main body.
+#[inline(never)]
+fn max_slow_path(
+    agent: &mut Agent,
+    mut gc: GcScope,
+    only_ints: &mut bool,
+    highest_i64: &mut i64,
+    highest_f64: &mut f64,
+    arguments: &[Value],
+) -> JsResult<bool> {
+    // First gather remaining arguments into Vec and scope each one to
+    // make them safe from GC.
+    let remaining_arguments = arguments
+        .iter()
+        .map(|arg| arg.scope(agent, gc.nogc()))
+        .collect::<Vec<_>>();
+    let mut contained_nan = false;
+    // Then pull the values down from the heap one by one and convert
+    // them to Numbers, reducing their value into the current limit.
+    for arg in remaining_arguments.into_iter() {
+        // a. Let n be ? ToNumber(arg).
+        let n = to_number(agent, gc.reborrow(), arg.get(agent))?;
+        // b. Append n to coerced.
+
+        if let Number::Integer(int) = n {
+            let int = int.into_i64();
+            *highest_i64 = (*highest_i64).max(int);
+        } else {
+            *only_ints = false;
+
+            // 4. For each element number of coerced, do
+            // a. If n is NaN, return NaN.
+            if n.is_nan(agent) {
+                contained_nan = true;
+            } else {
+                // b. If n is +0𝔽 and highest is -0𝔽, set highest to +0𝔽.
+                // Note: This is handled automatically as +0 is integer.
+                // c. If n > highest, set highest to n.
+                *highest_f64 = (*highest_f64).max(n.into_f64(agent));
+            }
+        }
+    }
+    Ok(contained_nan)
+}
+
+#[inline(never)]
+fn min_slow_path(
+    agent: &mut Agent,
+    mut gc: GcScope,
+    only_ints: &mut bool,
+    lowest_i64: &mut i64,
+    lowest_f64: &mut f64,
+    arguments: &[Value],
+) -> JsResult<bool> {
+    // First gather remaining arguments into Vec and scope each one to
+    // make them safe from GC.
+    let remaining_arguments = arguments
+        .iter()
+        .map(|arg| arg.scope(agent, gc.nogc()))
+        .collect::<Vec<_>>();
+    let mut contained_nan = false;
+    // Then pull the values down from the heap one by one and convert
+    // them to Numbers, reducing their value into the current limit.
+    for arg in remaining_arguments.into_iter() {
+        // a. Let n be ? ToNumber(arg).
+        let number = to_number(agent, gc.reborrow(), arg.get(agent))?;
+        // b. Append n to coerced.
+
+        if let Number::Integer(int) = number {
+            // c. If number < lowest, set lowest to number.
+            *lowest_i64 = (*lowest_i64).min(int.into_i64());
+        } else {
+            *only_ints = false;
+
+            let number = number.into_f64(agent);
+            // a. If number is NaN, return NaN.
+            if number.is_nan() {
+                contained_nan = true;
+            } else {
+                // b. If number is -0𝔽 and lowest is +0𝔽, set lowest to -0𝔽.
+                // Note: We'll handle this later. +0 is always an integer.
+                // c. If number < lowest, set lowest to number.
+                *lowest_f64 = (*lowest_f64).min(number);
+            }
+        }
+    }
+    Ok(contained_nan)
 }

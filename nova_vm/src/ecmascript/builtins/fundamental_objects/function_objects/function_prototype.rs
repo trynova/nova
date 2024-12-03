@@ -211,7 +211,7 @@ impl FunctionPrototype {
                                 target_len.into_value(),
                             )
                             .unwrap()
-                            .into_i64(agent);
+                            .into_i64();
                             // 2. Assert: targetLenAsInt is finite.
                             // 3. Let argCount be the number of elements in args.
                             let arg_count = args.len();

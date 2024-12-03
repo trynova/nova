@@ -6,7 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     engine::{
-        context::GcScope,
+        context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
@@ -52,7 +52,7 @@ pub enum Primitive {
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
@@ -103,7 +103,7 @@ pub(crate) enum HeapPrimitive {
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be

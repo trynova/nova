@@ -280,7 +280,9 @@ pub(crate) fn value_from_json(
     match json.get_type() {
         sonic_rs::JsonType::Null => Ok(Value::Null),
         sonic_rs::JsonType::Boolean => Ok(Value::Boolean(json.is_true())),
-        sonic_rs::JsonType::Number => Ok(Number::from_f64(agent, json.as_f64().unwrap()).into()),
+        sonic_rs::JsonType::Number => {
+            Ok(Number::from_f64(agent, gc.nogc(), json.as_f64().unwrap()).into())
+        }
         sonic_rs::JsonType::String => {
             Ok(String::from_str(agent, gc.nogc(), json.as_str().unwrap()).into())
         }

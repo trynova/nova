@@ -86,8 +86,8 @@ pub trait Viewable: private::Sealed + Copy {
     const IS_BIGINT: bool = false;
     const PROTO: ProtoIntrinsics;
 
-    fn into_be_value(self, agent: &mut Agent) -> Numeric;
-    fn into_le_value(self, agent: &mut Agent) -> Numeric;
+    fn into_be_value(self, agent: &mut Agent, _: NoGcScope) -> Numeric;
+    fn into_le_value(self, agent: &mut Agent, gc: NoGcScope) -> Numeric;
     fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
 }
@@ -95,11 +95,11 @@ pub trait Viewable: private::Sealed + Copy {
 impl Viewable for u8 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_le()).into_numeric()
     }
 
@@ -120,11 +120,11 @@ impl Viewable for u8 {
 impl Viewable for U8Clamped {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.0.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.0.to_le()).into_numeric()
     }
 
@@ -145,11 +145,11 @@ impl Viewable for U8Clamped {
 impl Viewable for i8 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_le()).into_numeric()
     }
 
@@ -170,11 +170,11 @@ impl Viewable for i8 {
 impl Viewable for u16 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_le()).into_numeric()
     }
 
@@ -195,11 +195,11 @@ impl Viewable for u16 {
 impl Viewable for i16 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_le()).into_numeric()
     }
 
@@ -220,11 +220,11 @@ impl Viewable for i16 {
 impl Viewable for u32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_le()).into_numeric()
     }
 
@@ -245,11 +245,11 @@ impl Viewable for u32 {
 impl Viewable for i32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(self.to_le()).into_numeric()
     }
 
@@ -271,11 +271,11 @@ impl Viewable for u64 {
     const IS_BIGINT: bool = true;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
 
-    fn into_be_value(self, agent: &mut Agent) -> Numeric {
+    fn into_be_value(self, agent: &mut Agent, _: NoGcScope) -> Numeric {
         BigInt::from_u64(agent, self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, agent: &mut Agent) -> Numeric {
+    fn into_le_value(self, agent: &mut Agent, _: NoGcScope) -> Numeric {
         BigInt::from_u64(agent, self.to_le()).into_numeric()
     }
 
@@ -297,11 +297,11 @@ impl Viewable for i64 {
     const IS_BIGINT: bool = true;
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
 
-    fn into_be_value(self, agent: &mut Agent) -> Numeric {
+    fn into_be_value(self, agent: &mut Agent, _: NoGcScope) -> Numeric {
         BigInt::from_i64(agent, self.to_be()).into_numeric()
     }
 
-    fn into_le_value(self, agent: &mut Agent) -> Numeric {
+    fn into_le_value(self, agent: &mut Agent, _: NoGcScope) -> Numeric {
         BigInt::from_i64(agent, self.to_le()).into_numeric()
     }
 
@@ -322,11 +322,11 @@ impl Viewable for i64 {
 impl Viewable for f32 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
-    fn into_be_value(self, _: &mut Agent) -> Numeric {
+    fn into_be_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
     }
 
-    fn into_le_value(self, _: &mut Agent) -> Numeric {
+    fn into_le_value(self, _: &mut Agent, _: NoGcScope) -> Numeric {
         Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
@@ -347,12 +347,12 @@ impl Viewable for f32 {
 impl Viewable for f64 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
-    fn into_be_value(self, agent: &mut Agent) -> Numeric {
-        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+    fn into_be_value(self, agent: &mut Agent, gc: NoGcScope) -> Numeric {
+        Number::from_f64(agent, gc, Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
     }
 
-    fn into_le_value(self, agent: &mut Agent) -> Numeric {
-        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+    fn into_le_value(self, agent: &mut Agent, gc: NoGcScope) -> Numeric {
+        Number::from_f64(agent, gc, Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {

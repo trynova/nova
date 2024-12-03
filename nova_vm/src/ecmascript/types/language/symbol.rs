@@ -11,7 +11,7 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
-        context::{GcScope, NoGcScope},
+        context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{

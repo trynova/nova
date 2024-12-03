@@ -296,15 +296,7 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         let index = arguments.get(0);
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index = to_integer_or_infinity(agent, gc.reborrow(), index)?;
-        let relative_index = match relative_index {
-            Number::SmallF64(_) | Number::Number(_) => {
-                // Heap number or f32 here means that the value is over the
-                // safe integer limit, which is necessarily >= len
-                return Ok(Value::Undefined);
-            }
-            Number::Integer(int) => int.into_i64(),
-        };
+        let relative_index = to_integer_or_infinity(agent, gc.reborrow(), index)?.into_i64();
         // 4. If relativeIndex ≥ 0, then
         let k = if relative_index >= 0 {
             // a. Let k be relativeIndex.
@@ -514,51 +506,50 @@ impl ArrayPrototype {
         let o = to_object(agent, gc.nogc(), this_value)?;
         // 2. Let len be ? LengthOfArrayLike(O).
         let len: i64 = length_of_array_like(agent, gc.reborrow(), o)?;
-        let len_f64 = len as f64;
 
         // 3. Let relativeTarget be ? ToIntegerOrInfinity(target).
         let relative_target = to_integer_or_infinity(agent, gc.reborrow(), target)?;
 
-        let to = if relative_target.is_neg_infinity(agent) {
+        let to = if relative_target.is_neg_infinity() {
             // 4. If relativeTarget = -∞, let to be 0.
             0
-        } else if relative_target.is_sign_negative(agent) {
+        } else if relative_target.is_negative() {
             // 5. Else if relativeTarget < 0, let to be max(len + relativeTarget, 0).
-            (len_f64 + relative_target.to_real(agent)).max(0.0) as i64
+            (len + relative_target.into_i64()).max(0)
         } else {
             // 6. Else, let to be min(relativeTarget, len).
-            relative_target.to_real(agent).min(len_f64) as i64
+            relative_target.into_i64().min(len)
         };
 
         // 7. Let relativeStart be ? ToIntegerOrInfinity(start).
         let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?;
 
-        let from = if relative_start.is_neg_infinity(agent) {
+        let from = if relative_start.is_neg_infinity() {
             // 8. If relativeStart = -∞, let from be 0.
             0
-        } else if relative_start.is_sign_negative(agent) {
+        } else if relative_start.is_negative() {
             // 9. Else if relativeStart < 0, let from be max(len + relativeStart, 0).
-            (len_f64 + relative_start.to_real(agent)).max(0.0) as i64
+            (len + relative_start.into_i64()).max(0)
         } else {
             // 10. Else, let from be min(relativeStart, len).
-            relative_start.to_real(agent).min(len_f64) as i64
+            relative_start.into_i64().min(len)
         };
 
         // 11. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
-        let relative_end = if end.is_none() || end.unwrap().is_undefined() {
-            len_f64
+        let final_end = if end.is_none() || end.unwrap().is_undefined() {
+            len
         } else {
-            to_integer_or_infinity(agent, gc.reborrow(), end.unwrap())?.to_real(agent)
-        };
-        // 12. If relativeEnd = -∞, let final be 0.
-        let final_end = if relative_end == f64::NEG_INFINITY {
-            0
-        } else if relative_end < 0.0 {
-            // 13. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
-            (len_f64 + relative_end).max(0.0) as i64
-        } else {
-            // 14. Else, let final be min(relativeEnd, len).
-            relative_end.min(len_f64) as i64
+            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end.unwrap())?;
+            // 12. If relativeEnd = -∞, let final be 0.
+            if relative_end.is_neg_infinity() {
+                0
+            } else if relative_end.is_negative() {
+                // 13. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+                (len + relative_end.into_i64()).max(0)
+            } else {
+                // 14. Else, let final be min(relativeEnd, len).
+                relative_end.into_i64().min(len)
+            }
         };
 
         // 15. Let count be min(final - from, len - to).
@@ -789,33 +780,33 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?.to_real(agent);
+        let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?;
 
         // 4. If relativeStart = -∞, let k be 0.
-        let mut k = if relative_start == f64::NEG_INFINITY {
+        let mut k = if relative_start.is_neg_infinity() {
             0
-        } else if relative_start < 0.0 {
+        } else if relative_start.is_negative() {
             // 5. Else if relativeStart < 0, let k be max(len + relativeStart, 0).
-            (len + relative_start as i64).max(0)
+            (len + relative_start.into_i64()).max(0)
         } else {
             // 6. Else, let k be min(relativeStart, len).
-            len.min(relative_start as i64)
+            len.min(relative_start.into_i64())
         };
 
         // 7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
         let final_end = if end.is_undefined() {
             len
         } else {
-            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end)?.to_real(agent);
+            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end)?;
             // 8. If relativeEnd = -∞, let final be 0.
-            if relative_end == f64::NEG_INFINITY {
+            if relative_end.is_neg_infinity() {
                 0
-            } else if relative_end < 0.0 {
+            } else if relative_end.is_negative() {
                 // 9. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
-                (len + relative_end as i64).max(0)
+                (len + relative_end.into_i64()).max(0)
             } else {
                 // 10. Else, let final be min(relativeEnd, len).
-                len.min(relative_end as i64)
+                len.min(relative_end.into_i64())
             }
         };
 
@@ -1058,7 +1049,7 @@ impl ArrayPrototype {
         // 4. If depth is not undefined, then
         if !depth.is_undefined() {
             // a. Set depthNum to ? ToIntegerOrInfinity(depth).
-            depth_num = to_integer_or_infinity(agent, gc.reborrow(), depth)?.into_i64(agent);
+            depth_num = to_integer_or_infinity(agent, gc.reborrow(), depth)?.into_i64();
         }
         // b. If depthNum < 0, set depthNum to 0.
         if depth_num < 0 {
@@ -1300,15 +1291,15 @@ impl ArrayPrototype {
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
         let n = to_integer_or_infinity(agent, gc.reborrow(), from_index)?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        assert_eq!(from_index.is_undefined(), n.is_pos_zero(agent));
+        assert_eq!(from_index.is_undefined(), n.into_i64() == 0);
         // 6. If n = +∞, return false.
-        let n = if n.is_pos_infinity(agent) {
+        let n = if n.is_pos_infinity() {
             return Ok(false.into());
-        } else if n.is_neg_infinity(agent) {
+        } else if n.is_neg_infinity() {
             // 7. Else if n = -∞, set n to 0.
             0
         } else {
-            n.into_i64(agent)
+            n.into_i64()
         };
 
         // 8. If n ≥ 0, then
@@ -1423,15 +1414,15 @@ impl ArrayPrototype {
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
         let n = to_integer_or_infinity(agent, gc.reborrow(), from_index)?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        assert_eq!(from_index.is_undefined(), n.is_pos_zero(agent));
+        assert_eq!(from_index.is_undefined(), n.into_i64() == 0);
         // 6. If n = +∞, return -1𝔽.
-        let n = if n.is_pos_infinity(agent) {
+        let n = if n.is_pos_infinity() {
             return Ok((-1).into());
-        } else if n.is_neg_infinity(agent) {
+        } else if n.is_neg_infinity() {
             // 7. Else if n = -∞, set n to 0.
             0
         } else {
-            n.into_i64(agent)
+            n.into_i64()
         };
 
         // 8. If n ≥ 0, then
@@ -1645,25 +1636,26 @@ impl ArrayPrototype {
             return Ok((-1).into());
         }
         // 4. If fromIndex is present, let n be ? ToIntegerOrInfinity(fromIndex); else let n be len - 1.
-        let n = if let Some(from_index) = from_index {
-            to_integer_or_infinity(agent, gc.reborrow(), from_index)?.into_f64(agent)
+        let mut k = if let Some(from_index) = from_index {
+            let n = to_integer_or_infinity(agent, gc.reborrow(), from_index)?;
+            // 5. If n = -∞, return -1𝔽.
+            if n.is_neg_infinity() {
+                return Ok((-1).into());
+            }
+            // 6. If n ≥ 0, then
+            if n.into_i64() >= 0 {
+                // a. Let k be min(n, len - 1).
+                n.into_i64().min(len - 1)
+            } else {
+                // Note: n is negative, so n < len + n < len.
+                // 7. Else,
+                // a. Let k be len + n.
+                len + n.into_i64()
+            }
         } else {
-            (len - 1) as f64
+            len - 1
         };
 
-        // 5. If n = -∞, return -1𝔽.
-        if n == f64::NEG_INFINITY {
-            return Ok((-1).into());
-        }
-        // 6. If n ≥ 0, then
-        let mut k = if n >= 0.0 {
-            // a. Let k be min(n, len - 1).
-            n.min(len as f64 - 1.0) as i64
-        } else {
-            // 7. Else,
-            // a. Let k be len + n.
-            (len as f64 + n) as i64
-        };
         // 8. Repeat, while k ≥ 0,
         while k >= 0 {
             // a. Let Pk be ! ToString(𝔽(k)).
@@ -2565,31 +2557,31 @@ impl ArrayPrototype {
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
         let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?;
         // 4. If relativeStart = -∞, let k be 0.
-        let mut k = if relative_start.is_neg_infinity(agent) {
+        let mut k = if relative_start.is_neg_infinity() {
             0
-        } else if relative_start.into_i64(agent) < 0 {
+        } else if relative_start.is_negative() {
             // 5. Else if relativeStart < 0, let k be max(len + relativeStart, 0).
-            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+            (len as i64 + relative_start.into_i64()).max(0) as usize
         } else {
             // 6. Else, let k be min(relativeStart, len).
-            relative_start.into_usize(agent).min(len)
+            (relative_start.into_i64() as usize).min(len)
         };
 
         // 7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
-        let relative_end = if end.is_undefined() {
-            len.try_into().unwrap()
+        let final_end = if end.is_undefined() {
+            len
         } else {
-            to_integer_or_infinity(agent, gc.reborrow(), end)?
-        };
-        // 8. If relativeEnd = -∞, let final be 0.
-        let final_end = if relative_end.is_neg_infinity(agent) {
-            0
-        } else if relative_end.into_i64(agent) < 0 {
-            // 9. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
-            (len as i64 + relative_end.into_i64(agent)).max(0) as usize
-        } else {
-            // 10. Else, let final be min(relativeEnd, len).
-            relative_end.into_usize(agent).min(len)
+            let relative_end = to_integer_or_infinity(agent, gc.reborrow(), end)?;
+            // 8. If relativeEnd = -∞, let final be 0.
+            if relative_end.is_neg_infinity() {
+                0
+            } else if relative_end.is_negative() {
+                // 9. Else if relativeEnd < 0, let final be max(len + relativeEnd, 0).
+                (len as i64 + relative_end.into_i64()).max(0) as usize
+            } else {
+                // 10. Else, let final be min(relativeEnd, len).
+                (relative_end.into_i64() as usize).min(len)
+            }
         };
         // 11. Let count be max(final - k, 0).
         let count = final_end.saturating_sub(k);
@@ -2830,15 +2822,15 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
         let relative_start = to_integer_or_infinity(agent, gc.reborrow(), start)?;
-        let actual_start = if relative_start.is_neg_infinity(agent) {
+        let actual_start = if relative_start.is_neg_infinity() {
             // 4. If relativeStart = -∞, let actualStart be 0.
             0
-        } else if relative_start.into_i64(agent) < 0 {
+        } else if relative_start.is_negative() {
             // 5. Else if relativeStart < 0, let actualStart be max(len + relativeStart, 0).
-            (len as i64 + relative_start.into_i64(agent)).max(0) as usize
+            (len as i64 + relative_start.into_i64()).max(0) as usize
         } else {
             // 6. Else, let actualStart be min(relativeStart, len).
-            (relative_start.into_i64(agent).min(len as i64)) as usize
+            (relative_start.into_i64().min(len as i64)) as usize
         };
         // 7. Let itemCount be the number of elements in items.
         let item_count = items.len();
@@ -2855,7 +2847,7 @@ impl ArrayPrototype {
             //     a. Let dc be ? ToIntegerOrInfinity(deleteCount).
             let dc = to_integer_or_infinity(agent, gc.reborrow(), delete_count)?;
             //     b. Let actualDeleteCount be the result of clamping dc between 0 and len - actualStart.
-            dc.into_usize(agent).min(len as usize - actual_start)
+            (dc.into_i64().max(0) as usize).min(len as usize - actual_start)
         };
         // 11. If len + itemCount - actualDeleteCount > 2**53 - 1, throw a TypeError exception.
         if len as usize + item_count - actual_delete_count > SmallInteger::MAX_NUMBER as usize {
@@ -3285,7 +3277,7 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, gc.reborrow(), o)?;
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index = to_integer_or_infinity(agent, gc.reborrow(), index)?.into_i64(agent);
+        let relative_index = to_integer_or_infinity(agent, gc.reborrow(), index)?.into_i64();
         // 4. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
         let actual_index = if relative_index >= 0 {
             relative_index

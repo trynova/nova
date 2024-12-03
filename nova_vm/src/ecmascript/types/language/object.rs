@@ -55,6 +55,7 @@ use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
+    engine::context::NoGcScope,
     heap::indexes::TypedArrayIndex,
 };
 use crate::{

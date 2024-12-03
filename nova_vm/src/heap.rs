@@ -368,7 +368,7 @@ impl Heap {
     /// The number being allocated must not be representable
     /// as a SmallInteger or f32. All stack-allocated numbers must be
     /// inequal to any heap-allocated number.
-    pub unsafe fn alloc_number(&mut self, number: f64) -> HeapNumber {
+    pub unsafe fn alloc_number<'gc>(&mut self, number: f64) -> HeapNumber<'gc> {
         debug_assert!(number.fract() != 0.0 || number as f32 as f64 != number);
         self.numbers.push(Some(number.into()));
         HeapNumber(NumberIndex::last(&self.numbers))
@@ -433,7 +433,7 @@ impl PrimitiveHeap<'_> {
 
 /// Helper trait for primitive heap data indexing.
 pub(crate) trait PrimitiveHeapIndexable:
-    Index<HeapNumber, Output = f64>
+    Index<HeapNumber<'static>, Output = f64>
     + Index<HeapString<'static>, Output = StringHeapData>
     + Index<HeapBigInt, Output = BigIntHeapData>
 {
