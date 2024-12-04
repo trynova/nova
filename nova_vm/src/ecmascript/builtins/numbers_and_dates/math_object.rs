@@ -1310,6 +1310,7 @@ impl MathObject {
             let exponent = to_number(agent, gc.reborrow(), exponent.get(agent))?.unbind();
             (base.get(agent).bind(gc.nogc()), exponent.bind(gc.nogc()))
         };
+        let gc = gc.nogc();
         if let (Number::Integer(base), Number::Integer(exponent)) = (base, exponent) {
             let base = base.into_i64();
             let exponent = exponent.into_i64();
@@ -1318,23 +1319,23 @@ impl MathObject {
                     if let Ok(result) = Number::try_from(result) {
                         return Ok(result.into_value());
                     } else {
-                        return Ok(Value::from_f64(agent, gc.into_nogc(), result as f64));
+                        return Ok(Value::from_f64(agent, gc, result as f64));
                     }
                 } else if let Some(result) = (base as i128).checked_pow(exponent) {
-                    return Ok(Value::from_f64(agent, gc.into_nogc(), result as f64));
+                    return Ok(Value::from_f64(agent, gc, result as f64));
                 } else {
                     return Ok(Value::from_f64(
                         agent,
-                        gc.into_nogc(),
+                        gc,
                         (base as f64).powf(exponent as f64),
                     ));
                 }
             } else if let Ok(exponent) = i32::try_from(exponent) {
                 let result = (base as f64).powi(exponent);
-                return Ok(Value::from_f64(agent, gc.into_nogc(), result));
+                return Ok(Value::from_f64(agent, gc, result));
             } else {
                 let result = (base as f64).powf(exponent as f64);
-                return Ok(Value::from_f64(agent, gc.into_nogc(), result));
+                return Ok(Value::from_f64(agent, gc, result));
             }
         }
         Ok(Number::exponentiate(agent, base, exponent).into_value())
