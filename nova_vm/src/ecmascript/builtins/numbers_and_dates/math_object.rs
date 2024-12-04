@@ -14,7 +14,6 @@ use crate::{
     },
     engine::context::{GcScope, NoGcScope},
     heap::WellKnownSymbolIndexes,
-    SmallInteger,
 };
 
 pub(crate) struct MathObject;
@@ -1315,11 +1314,20 @@ impl MathObject {
             let base = base.into_i64();
             let exponent = exponent.into_i64();
             if let Ok(exponent) = u32::try_from(exponent) {
-                let result = (base as i128).pow(exponent);
-                if let Ok(result) = SmallInteger::try_from(result) {
-                    return Ok(Value::Integer(result));
-                } else {
+                if let Some(result) = base.checked_pow(exponent) {
+                    if let Ok(result) = Number::try_from(result) {
+                        return Ok(result.into_value());
+                    } else {
+                        return Ok(Value::from_f64(agent, gc.into_nogc(), result as f64));
+                    }
+                } else if let Some(result) = (base as i128).checked_pow(exponent) {
                     return Ok(Value::from_f64(agent, gc.into_nogc(), result as f64));
+                } else {
+                    return Ok(Value::from_f64(
+                        agent,
+                        gc.into_nogc(),
+                        (base as f64).powf(exponent as f64),
+                    ));
                 }
             } else if let Ok(exponent) = i32::try_from(exponent) {
                 let result = (base as f64).powi(exponent);

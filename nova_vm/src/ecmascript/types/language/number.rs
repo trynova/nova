@@ -190,6 +190,14 @@ impl TryFrom<i64> for Number<'static> {
     }
 }
 
+impl TryFrom<u64> for Number<'static> {
+    type Error = ();
+
+    fn try_from(value: u64) -> Result<Self, ()> {
+        Ok(Number::Integer(SmallInteger::try_from(value)?))
+    }
+}
+
 impl TryFrom<usize> for Number<'static> {
     type Error = ();
 

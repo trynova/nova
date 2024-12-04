@@ -470,9 +470,6 @@ pub(crate) fn to_integer_or_infinity(
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         let int = IntegerOrInfinity(int.into_i64());
-        // Note: It should be impossible for the integer to be outside of safe
-        // integer limits.
-        debug_assert!(int.is_safe_integer());
         return Ok(int);
     }
     // 1. Let number be ? ToNumber(argument).
@@ -481,7 +478,6 @@ pub(crate) fn to_integer_or_infinity(
     // Fast path: The value might've been eg. parsed into an integer.
     if let Number::Integer(int) = number {
         let int = IntegerOrInfinity(int.into_i64());
-        debug_assert!(int.is_safe_integer());
         return Ok(int);
     }
 
@@ -532,9 +528,6 @@ pub(crate) fn try_to_integer_or_infinity(
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         let int = IntegerOrInfinity(int.into_i64());
-        // Note: It should be impossible for the integer to be outside of safe
-        // integer limits.
-        debug_assert!(int.is_safe_integer());
         return Some(Ok(int));
     }
     // 1. Let number be ? ToNumber(argument).
@@ -552,7 +545,6 @@ pub(crate) fn try_to_integer_or_infinity(
     // Fast path: The value might've been eg. parsed into an integer.
     if let Number::Integer(int) = number {
         let int = IntegerOrInfinity(int.into_i64());
-        debug_assert!(int.is_safe_integer());
         return Some(Ok(int));
     }
 
