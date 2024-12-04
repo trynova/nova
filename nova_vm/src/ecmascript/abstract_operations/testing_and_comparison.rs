@@ -16,7 +16,7 @@ use crate::{
     heap::PrimitiveHeapIndexable,
 };
 
-use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
+use super::type_conversion::{string_to_big_int, string_to_number, to_primitive, PreferredType};
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)
 ///
@@ -414,26 +414,34 @@ pub(crate) fn is_loosely_equal(
 
     // 5. If x is a Number and y is a String, return ! IsLooselyEqual(x, ! ToNumber(y)).
     if let (Ok(x), Ok(y)) = (Number::try_from(x), String::try_from(y)) {
-        // TODO: We know GC cannot be triggered here.
-        let y = to_number(agent, gc.reborrow(), y).unwrap();
-        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
+        // Note: We know statically that calling ToNumber on a string calls
+        // StringToNumber, and IsLooselyEqual with two Numbers calls
+        // IsStrictlyEqual, which calls Number::equal.
+        let gc = gc.into_nogc();
+        let y = string_to_number(agent, gc, y);
+        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
     if let (Ok(x), Ok(y)) = (String::try_from(x), Number::try_from(y)) {
-        // TODO: We know GC cannot be triggered here.
-        let x = to_number(agent, gc.reborrow(), x).unwrap();
-        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
+        // Note: We know statically that calling ToNumber on a string calls
+        // StringToNumber, and IsLooselyEqual with two Numbers calls
+        // IsStrictlyEqual, which calls Number::equal.
+        let gc = gc.into_nogc();
+        let x = string_to_number(agent, gc, x);
+        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 7. If x is a BigInt and y is a String, then
     if let (Ok(x), Ok(y)) = (BigInt::try_from(x), String::try_from(y)) {
         // a. Let n be StringToBigInt(y).
         // b. If n is undefined, return false.
-        if let Ok(n) = string_to_big_int(agent, gc.nogc(), y) {
+        let gc = gc.into_nogc();
+        if let Ok(n) = string_to_big_int(agent, gc, y) {
             // c. Return ! IsLooselyEqual(x, n).
-            // TODO: We know GC cannot be triggered here.
-            return Ok(is_loosely_equal(agent, gc, x, n).unwrap());
+            // Note: IsLooselyEqual with two BigInts calls IsStrictlyEqual
+            // which eventually calls BigInt::euqla
+            return Ok(BigInt::equal(agent, x.bind(gc), n.bind(gc)));
         } else {
             return Ok(false);
         }
@@ -441,8 +449,20 @@ pub(crate) fn is_loosely_equal(
 
     // 8. If x is a String and y is a BigInt, return ! IsLooselyEqual(y, x).
     if let (Ok(x), Ok(y)) = (String::try_from(x), BigInt::try_from(y)) {
-        // TODO: We know GC cannot be triggered here.
-        return Ok(is_loosely_equal(agent, gc, y, x).unwrap());
+        // Note: This flips the operands and re-enters the call.
+        // We'll skip to the above punch-line with flipped parameters.
+
+        // a. Let n be StringToBigInt(x).
+        // b. If n is undefined, return false.
+        let gc = gc.into_nogc();
+        if let Ok(n) = string_to_big_int(agent, gc, x) {
+            // c. Return ! IsLooselyEqual(x, n).
+            // Note: IsLooselyEqual with two BigInts calls IsStrictlyEqual
+            // which eventually calls BigInt::euqla
+            return Ok(BigInt::equal(agent, y.bind(gc), n.bind(gc)));
+        } else {
+            return Ok(false);
+        }
     }
 
     // 9. If x is a Boolean, return ! IsLooselyEqual(! ToNumber(x), y).
@@ -470,22 +490,23 @@ pub(crate) fn is_loosely_equal(
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then
-    if let Some(xy) = if x.is_bigint() {
-        y.to_number(agent, gc.reborrow()).ok()
-    } else if y.is_bigint() {
-        x.to_number(agent, gc.reborrow()).ok()
+    if let Some((a, b)) = if let (Ok(x), Ok(y)) = (BigInt::try_from(x), Number::try_from(y)) {
+        Some((x, y))
+    } else if let (Ok(x), Ok(y)) = (Number::try_from(x), BigInt::try_from(y)) {
+        Some((y, x))
     } else {
         None
     } {
         // a. If x is not finite or y is not finite, return false.
-        if !xy.is_finite(agent) {
+        // Note: BigInt is always finite.
+        if !b.is_finite(agent) {
             return Ok(false);
         }
 
         // b. If ℝ(x) = ℝ(y), return true; otherwise return false.
-        let rx = x.to_real(agent, gc.reborrow())?;
-        let ry = y.to_real(agent, gc)?;
-        return Ok(rx == ry);
+        let a = a.to_real(agent);
+        let b = b.to_real(agent);
+        return Ok(a == b);
     }
 
     // 14. Return false.

@@ -151,7 +151,7 @@ pub(crate) fn array_species_create(
         ));
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
-    let length = Value::from_f64(agent, length as f64);
+    let length = Value::from_f64(agent, gc.nogc(), length as f64);
     construct(agent, gc, c, Some(ArgumentsList(&[length])), None)
 }
 

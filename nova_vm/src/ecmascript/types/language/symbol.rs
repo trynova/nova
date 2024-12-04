@@ -11,7 +11,7 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
-        context::{GcScope, NoGcScope},
+        context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -55,7 +55,7 @@ impl Symbol {
     // let symbol = symbol.bind(&gc);
     // ```
     // to make sure that the unbound Symbol cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
     }
 

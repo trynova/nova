@@ -27,6 +27,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::engine::context::GcScope;
+use crate::engine::context::NoGcScope;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;
@@ -192,7 +193,7 @@ impl NumberConstructor {
         Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, gc: NoGcScope, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
         let parse_float = intrinsics.parse_float().into_value();
@@ -203,7 +204,7 @@ impl NumberConstructor {
             .with_property(|builder| {
                 // 21.1.2.1 Number.EPSILON
                 // https://tc39.es/ecma262/#sec-number.epsilon
-                let value = Value::from_f64(builder.agent, f64::EPSILON);
+                let value = Value::from_f64(builder.agent, gc, f64::EPSILON);
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.EPSILON.into())
                     .with_value_readonly(value)

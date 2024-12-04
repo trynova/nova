@@ -323,6 +323,7 @@ pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> boo
 /// isLittleEndian (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn raw_bytes_to_numeric<T: Viewable>(
     agent: &mut Agent,
+    gc: NoGcScope,
     raw_bytes: T,
     is_little_endian: bool,
 ) -> Numeric {
@@ -343,9 +344,9 @@ pub(crate) fn raw_bytes_to_numeric<T: Viewable>(
     // 7. If IsBigIntElementType(type) is true, return the BigInt value that corresponds to intValue.
     // 8. Otherwise, return the Number value that corresponds to intValue.
     if is_little_endian {
-        raw_bytes.into_le_value(agent)
+        raw_bytes.into_le_value(agent, gc)
     } else {
-        raw_bytes.into_be_value(agent)
+        raw_bytes.into_be_value(agent, gc)
     }
 }
 
@@ -384,6 +385,7 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn get_value_from_buffer<T: Viewable>(
     agent: &mut Agent,
+    gc: NoGcScope,
     array_buffer: ArrayBuffer,
     byte_index: usize,
     _is_typed_array: bool,
@@ -417,6 +419,7 @@ pub(crate) fn get_value_from_buffer<T: Viewable>(
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
     raw_bytes_to_numeric::<T>(
         agent,
+        gc,
         block.get_offset_by_byte::<T>(byte_index).unwrap(),
         is_little_endian,
     )

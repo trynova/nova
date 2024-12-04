@@ -447,6 +447,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
             // i. Let value be GetValueFromBuffer(srcData, srcByteIndex, srcType, true, unordered).
             let value = get_value_from_buffer::<Src>(
                 agent,
+                gc,
                 src_data,
                 src_byte_index,
                 true,

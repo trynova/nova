@@ -55,6 +55,7 @@ use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
+    engine::context::NoGcScope,
     heap::indexes::TypedArrayIndex,
 };
 use crate::{
@@ -548,7 +549,7 @@ impl Object {
     // let object = object.bind(&gc);
     // ```
     // to make sure that the unbound Object cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
     }
 

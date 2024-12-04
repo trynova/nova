@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::{
@@ -189,7 +189,7 @@ impl Function {
     // let function = function.bind(&gc);
     // ```
     // to make sure that the unbound Function cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
     }
 

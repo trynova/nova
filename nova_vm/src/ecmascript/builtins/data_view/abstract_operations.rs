@@ -177,6 +177,8 @@ pub(crate) fn get_view_value<T: Viewable>(
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
     let get_index = to_index(agent, gc.reborrow(), request_index)? as usize;
+    // No GC is possible beyond this point.
+    let gc = gc.into_nogc();
     // 5. Let viewOffset be view.[[ByteOffset]].
     let view_offset = view.byte_offset(agent);
 
@@ -187,7 +189,7 @@ pub(crate) fn get_view_value<T: Viewable>(
     // 8. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
     if is_view_out_of_bounds(agent, &view_record) {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc,
             ExceptionType::TypeError,
             "DataView is out of bounds",
         ));
@@ -202,7 +204,7 @@ pub(crate) fn get_view_value<T: Viewable>(
     // 11. If getIndex + elementSize > viewSize, throw a RangeError exception.
     if get_index + element_size > view_size {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc,
             ExceptionType::RangeError,
             "Index out of bounds",
         ));
@@ -214,6 +216,7 @@ pub(crate) fn get_view_value<T: Viewable>(
     // 13. Return GetValueFromBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, false, unordered, isLittleEndian).
     Ok(get_value_from_buffer::<T>(
         agent,
+        gc,
         view.get_viewed_array_buffer(agent),
         buffer_index,
         false,

@@ -2331,11 +2331,17 @@ fn apply_string_or_numeric_binary_operator(
             // **	Number	Number::exponentiate
             BinaryOperator::Exponential => Number::exponentiate(agent, lnum, rnum).into_value(),
             // *	Number	Number::multiply
-            BinaryOperator::Multiplication => Number::multiply(agent, lnum, rnum).into_value(),
+            BinaryOperator::Multiplication => {
+                Number::multiply(agent, gc.into_nogc(), lnum, rnum).into_value()
+            }
             // /	Number	Number::divide
-            BinaryOperator::Division => Number::divide(agent, lnum, rnum).into_value(),
+            BinaryOperator::Division => {
+                Number::divide(agent, gc.into_nogc(), lnum, rnum).into_value()
+            }
             // %	Number	Number::remainder
-            BinaryOperator::Remainder => Number::remainder(agent, lnum, rnum).into_value(),
+            BinaryOperator::Remainder => {
+                Number::remainder(agent, gc.into_nogc(), lnum, rnum).into_value()
+            }
             // +	Number	Number::add
             BinaryOperator::Addition => Number::add(agent, lnum, rnum).into_value(),
             // -	Number	Number::subtract

@@ -768,6 +768,7 @@ impl TypedArrayPrototype {
             let element = match o {
                 TypedArray::Int8Array(_) => get_value_from_buffer::<i8>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -776,6 +777,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Uint8Array(_) => get_value_from_buffer::<u8>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -784,6 +786,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Uint8ClampedArray(_) => get_value_from_buffer::<U8Clamped>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -792,6 +795,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Int16Array(_) => get_value_from_buffer::<i16>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -800,6 +804,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Uint16Array(_) => get_value_from_buffer::<u16>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -808,6 +813,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Int32Array(_) => get_value_from_buffer::<i32>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -816,6 +822,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Uint32Array(_) => get_value_from_buffer::<u32>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -824,6 +831,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::BigInt64Array(_) => get_value_from_buffer::<i64>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -832,6 +840,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::BigUint64Array(_) => get_value_from_buffer::<u64>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -840,6 +849,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Float32Array(_) => get_value_from_buffer::<f32>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
@@ -848,6 +858,7 @@ impl TypedArrayPrototype {
                 ),
                 TypedArray::Float64Array(_) => get_value_from_buffer::<f64>(
                     agent,
+                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,

@@ -128,7 +128,7 @@ pub(crate) fn create_unmapped_arguments_object(
 ) -> Object {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
-    let len = Number::from_f64(agent, len as f64).into_value();
+    let len = Number::from_f64(agent, gc.nogc(), len as f64).into_value();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
     let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
     let Object::Object(obj) = obj else {

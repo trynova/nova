@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,
@@ -28,7 +28,7 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Numeric {
-    Number(HeapNumber) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
     BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
@@ -61,7 +61,7 @@ impl Numeric {
     // let numeric = numeric.bind(&gc);
     // ```
     // to make sure that the unbound Numeric cannot be used after binding.
-    pub fn bind(self, _: &GcScope<'_, '_>) -> Self {
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
     }
 

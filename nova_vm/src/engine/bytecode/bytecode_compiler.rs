@@ -2070,7 +2070,7 @@ fn simple_object_pattern(
                     PropertyKey::from_str(ctx.agent, ctx.gc, &identifier.name).into_value()
                 }
                 ast::PropertyKey::NumericLiteral(literal) => {
-                    let numeric_value = Number::from_f64(ctx.agent, literal.value);
+                    let numeric_value = Number::from_f64(ctx.agent, ctx.gc, literal.value);
                     if let Number::Integer(_) = numeric_value {
                         numeric_value.into_value()
                     } else {

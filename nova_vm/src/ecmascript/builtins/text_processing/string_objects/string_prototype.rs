@@ -264,21 +264,20 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let pos = args.get(0);
-        let (s, relative_index) = if let (Ok(s), Value::Integer(relative_index)) =
-            (String::try_from(this_value), pos)
-        {
-            (s.bind(gc.nogc()), relative_index.into_i64())
-        } else {
-            // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, gc.nogc(), this_value)?;
-            // 2. Let S be ? ToString(O).
-            let s = to_string(agent, gc.reborrow(), o)?
-                .unbind()
-                .scope(agent, gc.nogc());
-            // 4. Let relativeIndex be ? ToIntegerOrInfinity(pos).
-            let relative_index = to_integer_or_infinity(agent, gc.reborrow(), pos)?.into_i64(agent);
-            (s.get(agent).bind(gc.nogc()), relative_index)
-        };
+        let (s, relative_index) =
+            if let (Ok(s), Value::Integer(relative_index)) = (String::try_from(this_value), pos) {
+                (s.bind(gc.nogc()), relative_index.into_i64())
+            } else {
+                // 1. Let O be ? RequireObjectCoercible(this value).
+                let o = require_object_coercible(agent, gc.nogc(), this_value)?;
+                // 2. Let S be ? ToString(O).
+                let s = to_string(agent, gc.reborrow(), o)?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                // 4. Let relativeIndex be ? ToIntegerOrInfinity(pos).
+                let relative_index = to_integer_or_infinity(agent, gc.reborrow(), pos)?.into_i64();
+                (s.get(agent).bind(gc.nogc()), relative_index)
+            };
         // 3. Let len be the length of S.
         let len = i64::try_from(s.utf16_len(agent)).unwrap();
         // 5. If relativeIndex ≥ 0, then
@@ -307,21 +306,21 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let pos = args.get(0);
-        let (s, position) =
-            if let (Ok(s), Value::Integer(position)) = (String::try_from(this_value), pos) {
-                (s.bind(gc.nogc()), position.into_i64())
-            } else {
-                // 1. Let O be ? RequireObjectCoercible(this value).
-                let o = require_object_coercible(agent, gc.nogc(), this_value)?;
-                // 2. Let S be ? ToString(O).
-                let s = to_string(agent, gc.reborrow(), o)?
-                    .unbind()
-                    .scope(agent, gc.nogc());
-                // 3. Let position be ? ToIntegerOrInfinity(pos).
-                let position =
-                    to_integer_or_infinity(agent, gc.reborrow(), args.get(0))?.into_i64(agent);
-                (s.get(agent).bind(gc.nogc()), position)
-            };
+        let (s, position) = if let (Ok(s), Value::Integer(position)) =
+            (String::try_from(this_value), pos)
+        {
+            (s.bind(gc.nogc()), position.into_i64())
+        } else {
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, gc.nogc(), this_value)?;
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, gc.reborrow(), o)?
+                .unbind()
+                .scope(agent, gc.nogc());
+            // 3. Let position be ? ToIntegerOrInfinity(pos).
+            let position = to_integer_or_infinity(agent, gc.reborrow(), args.get(0))?.into_i64();
+            (s.get(agent).bind(gc.nogc()), position)
+        };
         // 4. Let size be the length of S.
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return the empty String.
@@ -341,21 +340,21 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let pos = args.get(0);
-        let (s, position) =
-            if let (Ok(s), Value::Integer(position)) = (String::try_from(this_value), pos) {
-                (s.bind(gc.nogc()), position.into_i64())
-            } else {
-                // 1. Let O be ? RequireObjectCoercible(this value).
-                let o = require_object_coercible(agent, gc.nogc(), this_value)?;
-                // 2. Let S be ? ToString(O).
-                let s = to_string(agent, gc.reborrow(), o)?
-                    .unbind()
-                    .scope(agent, gc.nogc());
-                // 3. Let position be ? ToIntegerOrInfinity(pos).
-                let position =
-                    to_integer_or_infinity(agent, gc.reborrow(), args.get(0))?.into_i64(agent);
-                (s.get(agent).bind(gc.nogc()), position)
-            };
+        let (s, position) = if let (Ok(s), Value::Integer(position)) =
+            (String::try_from(this_value), pos)
+        {
+            (s.bind(gc.nogc()), position.into_i64())
+        } else {
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, gc.nogc(), this_value)?;
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, gc.reborrow(), o)?
+                .unbind()
+                .scope(agent, gc.nogc());
+            // 3. Let position be ? ToIntegerOrInfinity(pos).
+            let position = to_integer_or_infinity(agent, gc.reborrow(), args.get(0))?.into_i64();
+            (s.get(agent).bind(gc.nogc()), position)
+        };
         // 4. Let size be the length of S.
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return NaN.
@@ -376,21 +375,21 @@ impl StringPrototype {
         args: ArgumentsList,
     ) -> JsResult<Value> {
         let pos = args.get(0);
-        let (s, position) =
-            if let (Ok(s), Value::Integer(position)) = (String::try_from(this_value), pos) {
-                (s.bind(gc.nogc()), position.into_i64())
-            } else {
-                // 1. Let O be ? RequireObjectCoercible(this value).
-                let o = require_object_coercible(agent, gc.nogc(), this_value)?;
-                // 2. Let S be ? ToString(O).
-                let s = to_string(agent, gc.reborrow(), o)?
-                    .unbind()
-                    .scope(agent, gc.nogc());
-                // 3. Let position be ? ToIntegerOrInfinity(pos).
-                let position =
-                    to_integer_or_infinity(agent, gc.reborrow(), args.get(0))?.into_i64(agent);
-                (s.get(agent).bind(gc.nogc()), position)
-            };
+        let (s, position) = if let (Ok(s), Value::Integer(position)) =
+            (String::try_from(this_value), pos)
+        {
+            (s.bind(gc.nogc()), position.into_i64())
+        } else {
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, gc.nogc(), this_value)?;
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, gc.reborrow(), o)?
+                .unbind()
+                .scope(agent, gc.nogc());
+            // 3. Let position be ? ToIntegerOrInfinity(pos).
+            let position = to_integer_or_infinity(agent, gc.reborrow(), args.get(0))?.into_i64();
+            (s.get(agent).bind(gc.nogc()), position)
+        };
         // 4. Let size be the length of S.
         let size = s.utf16_len(agent);
         // 5. If position < 0 or position ≥ size, return undefined.
@@ -511,7 +510,9 @@ impl StringPrototype {
                 usize::MAX
             } else {
                 // else let pos be ? ToIntegerOrInfinity(endPosition).
-                to_integer_or_infinity(agent, gc.reborrow(), end_position)?.into_usize(agent)
+                to_integer_or_infinity(agent, gc.reborrow(), end_position)?
+                    .into_i64()
+                    .max(0) as usize
             };
 
             (
@@ -527,7 +528,7 @@ impl StringPrototype {
             s.as_str(agent)
         } else {
             let end = if pos != 0 {
-                // NOTE: `pos` was already clamped to 0 by `Number::into_usize`.
+                // NOTE: `pos` was already clamped to 0.
                 pos.min(s.utf16_len(agent))
             } else {
                 0
@@ -586,7 +587,9 @@ impl StringPrototype {
                 .unbind()
                 .scope(agent, gc.nogc());
             // 6. Let pos be ? ToIntegerOrInfinity(position).
-            let pos = to_integer_or_infinity(agent, gc.reborrow(), position)?.into_usize(agent);
+            let pos = to_integer_or_infinity(agent, gc.reborrow(), position)?
+                .into_i64()
+                .max(0) as usize;
             // 7. Assert: If position is undefined, then pos is 0.
             assert!(!position.is_undefined() || pos == 0);
 
@@ -600,7 +603,7 @@ impl StringPrototype {
         // 9. Let start be the result of clamping pos between 0 and len.
         let haystack_str = {
             let start = if pos != 0 {
-                // NOTE: `pos` was already clamped to 0 by `Number::into_usize`.
+                // NOTE: `pos` was already clamped to 0.
                 pos.min(s.utf16_len(agent))
             } else {
                 0
@@ -648,7 +651,9 @@ impl StringPrototype {
                 .scope(agent, gc.nogc());
             // 4. Let pos be ? ToIntegerOrInfinity(position).
             // 5. Assert: If position is undefined, then pos is 0.
-            let pos = to_integer_or_infinity(agent, gc.reborrow(), position)?.into_usize(agent);
+            let pos = to_integer_or_infinity(agent, gc.reborrow(), position)?
+                .into_i64()
+                .max(0) as usize;
 
             (s.get(agent), search_str.get(agent), pos)
         };
@@ -747,15 +752,19 @@ impl StringPrototype {
                 position.into_i64().max(0) as usize
             } else {
                 // 4. Let numPos be ? ToNumber(position).
-                let num_pos = to_number(agent, gc.reborrow(), args.get(1))?;
+                let num_pos = to_number(agent, gc.reborrow(), args.get(1))?
+                    .unbind()
+                    .bind(gc.nogc());
                 if num_pos.is_nan(agent) {
                     // 6. If numPos is NaN, let pos be +∞;
                     usize::MAX
                 } else {
                     // otherwise, let pos be! ToIntegerOrInfinity(numPos).
-                    to_integer_or_infinity(agent, gc.reborrow(), num_pos.into_value())
+                    try_to_integer_or_infinity(agent, gc.nogc(), num_pos.into_value())
                         .unwrap()
-                        .into_usize(agent)
+                        .unwrap()
+                        .into_i64()
+                        .max(0) as usize
                 }
             };
 
@@ -935,7 +944,7 @@ impl StringPrototype {
         };
 
         // 4. If n < 0 or n = +∞, throw a RangeError exception.
-        if n.is_pos_infinity(agent) {
+        if n.is_pos_infinity() {
             return Err(agent.throw_exception_with_static_message(
                 gc.nogc(),
                 ExceptionType::RangeError,
@@ -943,7 +952,7 @@ impl StringPrototype {
             ));
         }
 
-        let n = n.into_i64(agent);
+        let n = n.into_i64();
 
         if n < 0 {
             return Err(agent.throw_exception_with_static_message(
@@ -1239,17 +1248,17 @@ impl StringPrototype {
         s = s_root.get(agent).bind(gc.nogc());
         // 5. If intStart = -∞, let from be 0.
         // NOTE: We use `None` when `from` would be `len` in the spec.
-        let from = if int_start.is_neg_infinity(agent) {
+        let from = if int_start.is_neg_infinity() {
             Some(0)
-        } else if int_start.is_sign_negative(agent) && int_start.is_nonzero(agent) {
+        } else if int_start.is_negative() {
             // 6. Else if intStart < 0, let from be max(len + intStart, 0).
             let len = i64::try_from(s.utf16_len(agent)).unwrap();
-            let int_start = int_start.into_i64(agent);
-            Some(usize::try_from(len + int_start).unwrap_or(0))
+            let int_start = int_start.into_i64();
+            Some((len + int_start).max(0) as usize)
         } else {
             // 7. Else, let from be min(intStart, len).
             let len = s.utf16_len(agent);
-            let int_start = int_start.into_usize(agent);
+            let int_start = int_start.into_i64() as usize;
             if int_start >= len {
                 None
             } else {
@@ -1265,17 +1274,17 @@ impl StringPrototype {
             let int_end = to_integer_or_infinity(agent, gc.reborrow(), args.get(1))?;
             s = s_root.get(agent).bind(gc.nogc());
             // 9. If intEnd = -∞, let to be 0.
-            if int_end.is_neg_infinity(agent) {
+            if int_end.is_neg_infinity() {
                 Some(0)
-            } else if int_end.is_sign_negative(agent) && int_end.is_nonzero(agent) {
+            } else if int_end.is_negative() {
                 // 10. Else if intEnd < 0, let to be max(len + intEnd, 0).
                 let len = i64::try_from(s.utf16_len(agent)).unwrap();
-                let int_end = int_end.into_i64(agent);
-                Some(usize::try_from(len + int_end).unwrap_or(0))
+                let int_end = int_end.into_i64();
+                Some((len + int_end).max(0) as usize)
             } else {
                 // 11. Else, let to be min(intEnd, len).
                 let len = s.utf16_len(agent);
-                let int_end = int_end.into_usize(agent);
+                let int_end = int_end.into_i64() as usize;
                 if int_end >= len {
                     None
                 } else {
@@ -1449,11 +1458,11 @@ impl StringPrototype {
         } else {
             let pos = to_integer_or_infinity(agent, gc.reborrow(), position)?;
             s = s_root.get(agent).bind(gc.nogc());
-            if pos.is_sign_negative(agent) || pos.is_pos_zero(agent) {
+            if pos.is_negative() {
                 s.as_str(agent)
             } else {
                 let len = s.utf16_len(agent);
-                let pos = pos.into_usize(agent);
+                let pos = pos.into_i64() as usize;
                 if pos >= len {
                     ""
                 } else {
@@ -1509,21 +1518,21 @@ impl StringPrototype {
 
         // Fast path: can we return `s` without computing the UTF-16 length?
         // We can if int_start <= 0 and we know int_end must be >= len
-        // (i.e. it's either None or +inf).
-        if (int_start.is_sign_negative(agent) || !int_start.is_nonzero(agent))
-            && (int_end.is_none() || int_end.unwrap().is_pos_infinity(agent))
+        // (i.e. it's either None or is greater than the UTF-8 length).
+        if int_start.into_i64() <= 0
+            && int_end
+                .map(|int_end| int_end.into_i64() >= s.len(agent) as i64)
+                .unwrap_or(true)
         {
             return Ok(s.into_value());
         }
 
         let len = s.utf16_len(agent);
         // 6. Let finalStart be the result of clamping intStart between 0 and len.
-        // NOTE: `into_usize` already clamps to 0.
-        let final_start = int_start.into_usize(agent).min(len);
+        let final_start = (int_start.into_i64().max(0) as usize).min(len);
         // 7. Let finalEnd be the result of clamping intEnd between 0 and len.
         let final_end = if let Some(int_end) = int_end {
-            // NOTE: `into_usize` already clamps to 0.
-            int_end.into_usize(agent).min(len)
+            (int_end.into_i64().max(0) as usize).min(len)
         } else {
             len
         };
