@@ -31,7 +31,7 @@ pub enum Numeric {
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 

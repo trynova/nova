@@ -24,22 +24,22 @@ use crate::{
 pub use data::BigIntHeapData;
 use std::ops::{Index, IndexMut};
 
-impl IntoValue for BigInt {
+impl IntoValue for BigInt<'_> {
     fn into_value(self) -> Value {
         match self {
-            BigInt::BigInt(data) => Value::BigInt(data),
+            BigInt::BigInt(data) => Value::BigInt(data.unbind()),
             BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
         }
     }
 }
 
-impl IntoPrimitive for BigInt {
+impl IntoPrimitive for BigInt<'_> {
     fn into_primitive(self) -> Primitive {
         self.into()
     }
 }
 
-impl IntoNumeric for BigInt {
+impl IntoNumeric for BigInt<'_> {
     fn into_numeric(self) -> Numeric {
         self.into()
     }
@@ -47,9 +47,29 @@ impl IntoNumeric for BigInt {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct HeapBigInt(BigIntIndex);
+pub struct HeapBigInt<'a>(BigIntIndex<'a>);
 
-impl HeapBigInt {
+impl<'a> HeapBigInt<'a> {
+    /// Unbind this HeapBigInt from its current lifetime. This is necessary to use
+    /// the HeapBigInt as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> HeapBigInt<'static> {
+        unsafe { std::mem::transmute::<Self, HeapBigInt<'static>>(self) }
+    }
+
+    // Bind this HeapBigInt to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your HeapBigInts cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let bigint = bigint.bind(&gc);
+    // ```
+    // to make sure that the unbound HeapBigInt cannot be used after binding.
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
+        unsafe { std::mem::transmute::<HeapBigInt<'_>, Self>(self) }
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BigIntIndex::from_u32_index(0))
     }
@@ -59,19 +79,19 @@ impl HeapBigInt {
     }
 }
 
-impl IntoValue for HeapBigInt {
+impl IntoValue for HeapBigInt<'_> {
     fn into_value(self) -> Value {
-        Value::BigInt(self)
+        Value::BigInt(self.unbind())
     }
 }
 
-impl IntoPrimitive for HeapBigInt {
+impl IntoPrimitive for HeapBigInt<'_> {
     fn into_primitive(self) -> Primitive {
-        Primitive::BigInt(self)
+        Primitive::BigInt(self.unbind())
     }
 }
 
-impl TryFrom<Value> for HeapBigInt {
+impl TryFrom<Value> for HeapBigInt<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -83,7 +103,7 @@ impl TryFrom<Value> for HeapBigInt {
     }
 }
 
-impl TryFrom<Primitive> for HeapBigInt {
+impl TryFrom<Primitive> for HeapBigInt<'_> {
     type Error = ();
 
     fn try_from(value: Primitive) -> Result<Self, Self::Error> {
@@ -131,21 +151,21 @@ impl std::ops::Neg for SmallBigInt {
     }
 }
 
-impl From<HeapBigInt> for BigInt {
-    fn from(value: HeapBigInt) -> Self {
+impl<'a> From<HeapBigInt<'a>> for BigInt<'a> {
+    fn from(value: HeapBigInt<'a>) -> Self {
         Self::BigInt(value)
     }
 }
 
-impl From<SmallBigInt> for BigInt {
+impl From<SmallBigInt> for BigInt<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
     }
 }
 
-impl From<HeapBigInt> for Value {
-    fn from(value: HeapBigInt) -> Self {
-        Self::BigInt(value)
+impl From<HeapBigInt<'_>> for Value {
+    fn from(value: HeapBigInt<'_>) -> Self {
+        Self::BigInt(value.unbind())
     }
 }
 
@@ -197,8 +217,8 @@ impl TryFrom<&num_bigint::BigInt> for SmallBigInt {
 /// left.
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
-pub enum BigInt {
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+pub enum BigInt<'a> {
+    BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
@@ -209,12 +229,12 @@ pub enum BigIntRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl BigInt {
+impl<'a> BigInt<'a> {
     /// Unbind this BigInt from its current lifetime. This is necessary to use
     /// the BigInt as a parameter in a call that can perform garbage
     /// collection.
-    pub fn unbind(self) -> Self {
-        self
+    pub fn unbind(self) -> BigInt<'static> {
+        unsafe { std::mem::transmute::<Self, BigInt<'static>>(self) }
     }
 
     // Bind this BigInt to the garbage collection lifetime. This enables Rust's
@@ -226,8 +246,8 @@ impl BigInt {
     // let bigint = bigint.bind(&gc);
     // ```
     // to make sure that the unbound BigInt cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
-        self
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
+        unsafe { std::mem::transmute::<BigInt<'_>, Self>(self) }
     }
 
     pub const fn zero() -> Self {
@@ -265,7 +285,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::unaryMinus takes argument x (a BigInt)
     /// and returns a BigInt.
-    pub(crate) fn unary_minus(agent: &mut Agent, x: BigInt) -> BigInt {
+    pub(crate) fn unary_minus(agent: &mut Agent, x: Self) -> Self {
         // 1. If x is 0ℤ, return 0ℤ.
         // NOTE: This is handled with the negation below.
 
@@ -282,7 +302,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::bitwiseNOT takes argument x (a BigInt)
     /// and returns a BigInt. It returns the one's complement of x.
-    pub(crate) fn bitwise_not(agent: &mut Agent, x: BigInt) -> BigInt {
+    pub(crate) fn bitwise_not(agent: &mut Agent, x: Self) -> Self {
         // 1. Return -x - 1ℤ.
         // NOTE: We can use the builtin bitwise not operations instead.
         match x {
@@ -300,10 +320,10 @@ impl BigInt {
     /// containing a BigInt or a throw completion.
     pub(crate) fn exponentiate(
         agent: &mut Agent,
-        gc: NoGcScope,
-        base: BigInt,
-        exponent: BigInt,
-    ) -> JsResult<BigInt> {
+        gc: NoGcScope<'a, '_>,
+        base: Self,
+        exponent: Self,
+    ) -> JsResult<Self> {
         // 1. If exponent < 0ℤ, throw a RangeError exception.
         if match exponent {
             BigInt::SmallBigInt(x) if x.into_i64() < 0 => true,
@@ -365,7 +385,7 @@ impl BigInt {
     ///
     /// The abstract operation BigInt::multiply takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a BigInt.
-    pub(crate) fn multiply(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
+    pub(crate) fn multiply(agent: &mut Agent, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let (x, y) = (x.into_i64(), y.into_i64());
@@ -400,7 +420,7 @@ impl BigInt {
     }
 
     /// ### [BigInt::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-add)
-    pub(crate) fn add(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
+    pub(crate) fn add(agent: &mut Agent, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 // Note: The result can still overflow stack bigint limits.
@@ -425,7 +445,7 @@ impl BigInt {
     }
 
     /// ### [6.1.6.2.8 BigInt::subtract ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-subtract)
-    pub(crate) fn subtract(agent: &mut Agent, x: BigInt, y: BigInt) -> BigInt {
+    pub(crate) fn subtract(agent: &mut Agent, x: Self, y: Self) -> Self {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 // Note: The result can still overflow stack bigint limits.
@@ -451,12 +471,7 @@ impl BigInt {
     }
 
     /// ### [6.1.6.2.5 BigInt::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-bigint-divide)
-    pub(crate) fn divide(
-        agent: &mut Agent,
-        gc: NoGcScope,
-        x: BigInt,
-        y: BigInt,
-    ) -> JsResult<BigInt> {
+    pub(crate) fn divide(agent: &mut Agent, gc: NoGcScope, x: Self, y: Self) -> JsResult<Self> {
         match (x, y) {
             (BigInt::SmallBigInt(x), BigInt::SmallBigInt(y)) => {
                 let y = y.into_i64();
@@ -501,9 +516,9 @@ impl BigInt {
     /// The abstract operation BigInt::lessThan takes arguments x (a BigInt)
     /// and y (a BigInt) and returns a Boolean.
     pub(crate) fn less_than(
-        agent: &impl Index<HeapBigInt, Output = BigIntHeapData>,
-        x: BigInt,
-        y: BigInt,
+        agent: &impl Index<HeapBigInt<'a>, Output = BigIntHeapData>,
+        x: Self,
+        y: Self,
     ) -> bool {
         // 1. If ℝ(x) < ℝ(y), return true; otherwise return false.
         match (x, y) {
@@ -515,12 +530,7 @@ impl BigInt {
     }
 
     /// ### [6.1.6.2.6 BigInt::remainder ( n, d )](https://tc39.es/ecma262/#sec-numeric-types-bigint-remainder)
-    pub(crate) fn remainder(
-        agent: &mut Agent,
-        gc: NoGcScope,
-        n: BigInt,
-        d: BigInt,
-    ) -> JsResult<BigInt> {
+    pub(crate) fn remainder(agent: &mut Agent, gc: NoGcScope, n: Self, d: Self) -> JsResult<Self> {
         match (n, d) {
             (BigInt::SmallBigInt(n), BigInt::SmallBigInt(d)) => {
                 if d == SmallBigInt::zero() {
@@ -566,9 +576,9 @@ impl BigInt {
     /// The abstract operation BigInt::equal takes arguments x (a BigInt) and y
     /// (a BigInt) and returns a Boolean.
     pub(crate) fn equal(
-        agent: &impl Index<HeapBigInt, Output = BigIntHeapData>,
-        x: BigInt,
-        y: BigInt,
+        agent: &impl Index<HeapBigInt<'a>, Output = BigIntHeapData>,
+        x: Self,
+        y: Self,
     ) -> bool {
         // 1. If ℝ(x) = ℝ(y), return true; otherwise return false.
         match (x, y) {
@@ -614,13 +624,13 @@ impl BigInt {
 
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.
-impl From<SmallInteger> for BigInt {
+impl From<SmallInteger> for BigInt<'static> {
     fn from(value: SmallInteger) -> Self {
         BigInt::SmallBigInt(value.into())
     }
 }
 
-impl TryFrom<Value> for BigInt {
+impl TryFrom<Value> for BigInt<'_> {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
@@ -631,7 +641,7 @@ impl TryFrom<Value> for BigInt {
     }
 }
 
-impl TryFrom<Primitive> for BigInt {
+impl TryFrom<Primitive> for BigInt<'_> {
     type Error = ();
     fn try_from(value: Primitive) -> Result<Self, Self::Error> {
         match value {
@@ -642,7 +652,7 @@ impl TryFrom<Primitive> for BigInt {
     }
 }
 
-impl TryFrom<Numeric> for BigInt {
+impl TryFrom<Numeric> for BigInt<'_> {
     type Error = ();
     fn try_from(value: Numeric) -> Result<Self, Self::Error> {
         match value {
@@ -653,28 +663,28 @@ impl TryFrom<Numeric> for BigInt {
     }
 }
 
-impl From<BigInt> for Value {
-    fn from(value: BigInt) -> Value {
+impl From<BigInt<'_>> for Value {
+    fn from(value: BigInt<'_>) -> Value {
         match value {
-            BigInt::BigInt(x) => Value::BigInt(x),
+            BigInt::BigInt(x) => Value::BigInt(x.unbind()),
             BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
         }
     }
 }
 
-impl From<BigInt> for Primitive {
-    fn from(value: BigInt) -> Primitive {
+impl From<BigInt<'_>> for Primitive {
+    fn from(value: BigInt<'_>) -> Primitive {
         match value {
-            BigInt::BigInt(x) => Primitive::BigInt(x),
+            BigInt::BigInt(x) => Primitive::BigInt(x.unbind()),
             BigInt::SmallBigInt(x) => Primitive::SmallBigInt(x),
         }
     }
 }
 
-impl From<BigInt> for Numeric {
-    fn from(value: BigInt) -> Numeric {
+impl From<BigInt<'_>> for Numeric {
+    fn from(value: BigInt<'_>) -> Numeric {
         match value {
-            BigInt::BigInt(x) => Numeric::BigInt(x),
+            BigInt::BigInt(x) => Numeric::BigInt(x.unbind()),
             BigInt::SmallBigInt(x) => Numeric::SmallBigInt(x),
         }
     }
@@ -682,7 +692,7 @@ impl From<BigInt> for Numeric {
 
 macro_rules! impl_value_from_n {
     ($size: ty) => {
-        impl From<$size> for BigInt {
+        impl From<$size> for BigInt<'static> {
             fn from(value: $size) -> Self {
                 BigInt::SmallBigInt(SmallBigInt(SmallInteger::from(value)))
             }
@@ -697,32 +707,32 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl Index<HeapBigInt> for PrimitiveHeap<'_> {
+impl Index<HeapBigInt<'_>> for PrimitiveHeap<'_> {
     type Output = BigIntHeapData;
 
-    fn index(&self, index: HeapBigInt) -> &Self::Output {
+    fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
         &self.bigints[index]
     }
 }
 
-impl Index<HeapBigInt> for Agent {
+impl Index<HeapBigInt<'_>> for Agent {
     type Output = BigIntHeapData;
 
-    fn index(&self, index: HeapBigInt) -> &Self::Output {
+    fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
         &self.heap.bigints[index]
     }
 }
 
-impl IndexMut<HeapBigInt> for Agent {
-    fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
+impl IndexMut<HeapBigInt<'_>> for Agent {
+    fn index_mut(&mut self, index: HeapBigInt<'_>) -> &mut Self::Output {
         &mut self.heap.bigints[index]
     }
 }
 
-impl Index<HeapBigInt> for Vec<Option<BigIntHeapData>> {
+impl Index<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
     type Output = BigIntHeapData;
 
-    fn index(&self, index: HeapBigInt) -> &Self::Output {
+    fn index(&self, index: HeapBigInt<'_>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BigInt out of bounds")
             .as_ref()
@@ -730,8 +740,8 @@ impl Index<HeapBigInt> for Vec<Option<BigIntHeapData>> {
     }
 }
 
-impl IndexMut<HeapBigInt> for Vec<Option<BigIntHeapData>> {
-    fn index_mut(&mut self, index: HeapBigInt) -> &mut Self::Output {
+impl IndexMut<HeapBigInt<'_>> for Vec<Option<BigIntHeapData>> {
+    fn index_mut(&mut self, index: HeapBigInt<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BigInt out of bounds")
             .as_mut()
@@ -739,14 +749,14 @@ impl IndexMut<HeapBigInt> for Vec<Option<BigIntHeapData>> {
     }
 }
 
-impl CreateHeapData<BigIntHeapData, BigInt> for Heap {
-    fn create(&mut self, data: BigIntHeapData) -> BigInt {
+impl CreateHeapData<BigIntHeapData, BigInt<'static>> for Heap {
+    fn create(&mut self, data: BigIntHeapData) -> BigInt<'static> {
         self.bigints.push(Some(data));
         BigInt::BigInt(HeapBigInt(BigIntIndex::last(&self.bigints)))
     }
 }
 
-impl HeapMarkAndSweep for HeapBigInt {
+impl HeapMarkAndSweep for HeapBigInt<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.bigints.push(*self);
     }
@@ -756,7 +766,7 @@ impl HeapMarkAndSweep for HeapBigInt {
     }
 }
 
-impl Rootable for BigInt {
+impl Rootable for BigInt<'static> {
     type RootRepr = BigIntRootRepr;
 
     #[inline]

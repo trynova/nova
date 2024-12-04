@@ -116,7 +116,7 @@ pub enum Value {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt),
+    BigInt(HeapBigInt<'static>),
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
@@ -515,7 +515,7 @@ impl Value {
         to_number(agent, gc, self)
     }
 
-    pub fn to_bigint(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<BigInt> {
+    pub fn to_bigint<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<BigInt<'gc>> {
         to_big_int(agent, gc, self)
     }
 
@@ -576,7 +576,7 @@ impl Value {
         H: Hasher,
         A: Index<HeapString<'static>, Output = StringHeapData>
             + Index<HeapNumber<'static>, Output = f64>
-            + Index<HeapBigInt, Output = BigIntHeapData>,
+            + Index<HeapBigInt<'static>, Output = BigIntHeapData>,
     {
         let discriminant = core::mem::discriminant(&self);
         match self {

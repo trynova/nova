@@ -66,7 +66,7 @@ pub enum Primitive {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
@@ -108,7 +108,7 @@ pub(crate) enum HeapPrimitive {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
 }
 
 impl IntoValue for HeapPrimitive {
