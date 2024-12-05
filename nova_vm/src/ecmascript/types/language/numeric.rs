@@ -2,12 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::NoGcScope;
+use crate::engine::Scoped;
 use crate::{
-    ecmascript::{
-        abstract_operations::type_conversion::to_number,
-        execution::{Agent, JsResult},
-    },
+    ecmascript::execution::Agent,
     engine::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
@@ -27,11 +25,11 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Numeric {
-    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
+pub enum Numeric<'a> {
+    Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallF64(SmallF64) = FLOAT_DISCRIMINANT,
-    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
@@ -44,12 +42,12 @@ pub enum NumericRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl Numeric {
+impl<'a> Numeric<'a> {
     /// Unbind this Numeric from its current lifetime. This is necessary to use
     /// the Numeric as a parameter in a call that can perform garbage
     /// collection.
-    pub fn unbind(self) -> Self {
-        self
+    pub fn unbind(self) -> Numeric<'static> {
+        unsafe { std::mem::transmute::<Self, Numeric<'static>>(self) }
     }
 
     // Bind this Numeric to the garbage collection lifetime. This enables
@@ -61,8 +59,16 @@ impl Numeric {
     // let numeric = numeric.bind(&gc);
     // ```
     // to make sure that the unbound Numeric cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
-        self
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
+        unsafe { std::mem::transmute::<Numeric<'_>, Self>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Numeric<'static>> {
+        Scoped::new(agent, gc, self.unbind())
     }
 
     pub fn is_bigint(self) -> bool {
@@ -102,56 +108,45 @@ impl Numeric {
             .map(|n| n.is_nan(agent))
             .unwrap_or(false)
     }
-
-    /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<f64> {
-        Ok(match self {
-            Self::Number(n) => agent[n],
-            Self::Integer(i) => i.into_i64() as f64,
-            Self::SmallF64(f) => f.into_f64(),
-            // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, gc, self)?.into_f64(agent),
-        })
-    }
 }
 
-impl IntoValue for Numeric {
+impl IntoValue for Numeric<'_> {
     fn into_value(self) -> Value {
         match self {
-            Numeric::Number(data) => Value::Number(data),
+            Numeric::Number(data) => Value::Number(data.unbind()),
             Numeric::Integer(data) => Value::Integer(data),
             Numeric::SmallF64(data) => Value::SmallF64(data),
-            Numeric::BigInt(data) => Value::BigInt(data),
+            Numeric::BigInt(data) => Value::BigInt(data.unbind()),
             Numeric::SmallBigInt(data) => Value::SmallBigInt(data),
         }
     }
 }
 
-impl IntoPrimitive for Numeric {
+impl IntoPrimitive for Numeric<'_> {
     fn into_primitive(self) -> Primitive {
         match self {
-            Numeric::Number(data) => Primitive::Number(data),
+            Numeric::Number(data) => Primitive::Number(data.unbind()),
             Numeric::Integer(data) => Primitive::Integer(data),
             Numeric::SmallF64(data) => Primitive::SmallF64(data),
-            Numeric::BigInt(data) => Primitive::BigInt(data),
+            Numeric::BigInt(data) => Primitive::BigInt(data.unbind()),
             Numeric::SmallBigInt(data) => Primitive::SmallBigInt(data),
         }
     }
 }
 
-impl From<Numeric> for Value {
-    fn from(value: Numeric) -> Self {
+impl From<Numeric<'_>> for Value {
+    fn from(value: Numeric<'_>) -> Self {
         value.into_value()
     }
 }
 
-impl From<Numeric> for Primitive {
-    fn from(value: Numeric) -> Self {
+impl From<Numeric<'_>> for Primitive {
+    fn from(value: Numeric<'_>) -> Self {
         value.into_primitive()
     }
 }
 
-impl TryFrom<Value> for Numeric {
+impl TryFrom<Value> for Numeric<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -166,7 +161,7 @@ impl TryFrom<Value> for Numeric {
     }
 }
 
-impl TryFrom<Primitive> for Numeric {
+impl TryFrom<Primitive> for Numeric<'_> {
     type Error = ();
 
     fn try_from(value: Primitive) -> Result<Self, Self::Error> {
@@ -181,16 +176,16 @@ impl TryFrom<Primitive> for Numeric {
     }
 }
 
-impl Rootable for Numeric {
+impl Rootable for Numeric<'_> {
     type RootRepr = NumericRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
             Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
             Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
         }
     }

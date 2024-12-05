@@ -23,7 +23,7 @@ use super::{
         SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         UNDEFINED_DISCRIMINANT,
     },
-    IntoValue, Symbol, Value,
+    IntoPrimitive, IntoValue, Symbol, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -204,6 +204,13 @@ impl Primitive {
 impl From<Primitive> for Value {
     fn from(value: Primitive) -> Self {
         value.into_value()
+    }
+}
+
+impl IntoPrimitive for Primitive {
+    #[inline(always)]
+    fn into_primitive(self) -> Self {
+        self
     }
 }
 

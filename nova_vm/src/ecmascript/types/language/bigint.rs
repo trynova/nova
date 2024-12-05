@@ -22,7 +22,8 @@ use crate::{
     SmallInteger,
 };
 pub use data::BigIntHeapData;
-use std::ops::{Index, IndexMut};
+use num_bigint::Sign;
+use std::ops::{Index, IndexMut, Neg};
 
 impl IntoValue for BigInt<'_> {
     fn into_value(self) -> Value {
@@ -39,8 +40,8 @@ impl IntoPrimitive for BigInt<'_> {
     }
 }
 
-impl IntoNumeric for BigInt<'_> {
-    fn into_numeric(self) -> Numeric {
+impl<'a> IntoNumeric<'a> for BigInt<'a> {
+    fn into_numeric(self) -> Numeric<'a> {
         self.into()
     }
 }
@@ -48,6 +49,12 @@ impl IntoNumeric for BigInt<'_> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct HeapBigInt<'a>(BigIntIndex<'a>);
+
+#[derive(Debug, Clone, Copy)]
+pub enum BigIntMathematicalValue {
+    Integer(i64),
+    Number(f64),
+}
 
 impl<'a> HeapBigInt<'a> {
     /// Unbind this HeapBigInt from its current lifetime. This is necessary to use
@@ -76,6 +83,40 @@ impl<'a> HeapBigInt<'a> {
 
     pub(crate) fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub(crate) fn mathematical_value(
+        self,
+        agent: &Agent,
+        _: NoGcScope<'a, '_>,
+    ) -> BigIntMathematicalValue {
+        let sign = agent[self].data.sign();
+        let mut iter = agent[self].data.iter_u64_digits();
+        if iter.len() == 1 {
+            let data = iter.next().unwrap();
+            return if data < i64::MAX as u64 {
+                let data = data as i64;
+                if sign == Sign::Minus {
+                    BigIntMathematicalValue::Integer(data.neg())
+                } else {
+                    BigIntMathematicalValue::Integer(data)
+                }
+            } else {
+                let data = data as f64;
+                if sign == Sign::Minus {
+                    BigIntMathematicalValue::Number(data.neg())
+                } else {
+                    BigIntMathematicalValue::Number(data)
+                }
+            };
+        }
+        let mut base = 0.0f64;
+        let sign = if sign == Sign::Minus { -1.0 } else { 1.0 };
+        for (repeat, part) in iter.enumerate() {
+            let multiplier = sign * 2f64.powi(repeat as i32 * 64);
+            base += (part as f64) * multiplier;
+        }
+        BigIntMathematicalValue::Number(base)
     }
 }
 
@@ -652,9 +693,9 @@ impl TryFrom<Primitive> for BigInt<'_> {
     }
 }
 
-impl TryFrom<Numeric> for BigInt<'_> {
+impl<'a> TryFrom<Numeric<'a>> for BigInt<'a> {
     type Error = ();
-    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+    fn try_from(value: Numeric<'a>) -> Result<Self, Self::Error> {
         match value {
             Numeric::BigInt(x) => Ok(BigInt::BigInt(x)),
             Numeric::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -681,10 +722,10 @@ impl From<BigInt<'_>> for Primitive {
     }
 }
 
-impl From<BigInt<'_>> for Numeric {
-    fn from(value: BigInt<'_>) -> Numeric {
+impl<'a> From<BigInt<'a>> for Numeric<'a> {
+    fn from(value: BigInt<'a>) -> Numeric<'a> {
         match value {
-            BigInt::BigInt(x) => Numeric::BigInt(x.unbind()),
+            BigInt::BigInt(x) => Numeric::BigInt(x),
             BigInt::SmallBigInt(x) => Numeric::SmallBigInt(x),
         }
     }

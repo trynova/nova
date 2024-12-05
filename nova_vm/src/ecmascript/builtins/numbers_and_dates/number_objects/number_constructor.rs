@@ -15,8 +15,8 @@ use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::bigint::BigIntMathematicalValue;
 use crate::ecmascript::types::Function;
-use crate::ecmascript::types::IntoNumeric;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
@@ -82,27 +82,41 @@ impl NumberConstructor {
         // 1. If value is present, then
         let n = if !value.is_undefined() {
             // a. Let prim be ? ToNumeric(value).
-            let prim = value.to_numeric(agent, gc.reborrow())?;
+            let prim = value
+                .to_numeric(agent, gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
 
             // b. If prim is a BigInt, let n be 𝔽(ℝ(prim)).
-            if prim.is_bigint() {
-                todo!()
+            match prim {
+                Numeric::BigInt(b) => {
+                    let b = b.mathematical_value(agent, gc.nogc());
+                    match b {
+                        BigIntMathematicalValue::Integer(i) => {
+                            Number::from_i64(agent, gc.nogc(), i)
+                        }
+                        BigIntMathematicalValue::Number(f) => Number::from_f64(agent, gc.nogc(), f),
+                    }
+                }
+                Numeric::SmallBigInt(b) => Number::from_i64(agent, gc.nogc(), b.into_i64()),
+                Numeric::Number(n) => n.into(),
+                Numeric::Integer(i) => i.into(),
+                Numeric::SmallF64(f) => f.into(),
             }
             // c. Otherwise, let n be prim.
-            else {
-                prim
-            }
         }
         // 2. Else,
         else {
             // a. Let n be +0𝔽.
-            Number::from(0).into_numeric()
+            Number::from(0)
         };
 
         // 3. If NewTarget is undefined, return n.
         let Some(new_target) = new_target else {
             return Ok(n.into_value());
         };
+
+        let n = n.scope(agent, gc.nogc());
 
         let new_target = Function::try_from(new_target).unwrap();
 
@@ -114,12 +128,12 @@ impl NumberConstructor {
             ProtoIntrinsics::Number,
         )?)
         .unwrap();
+        let n = n.get(agent).unbind();
         // 5. Set O.[[NumberData]] to n.
         agent[o].data = match n {
-            Numeric::Number(d) => PrimitiveObjectData::Number(d),
-            Numeric::Integer(d) => PrimitiveObjectData::Integer(d),
-            Numeric::SmallF64(d) => PrimitiveObjectData::Float(d),
-            _ => unreachable!(),
+            Number::Number(d) => PrimitiveObjectData::Number(d),
+            Number::Integer(d) => PrimitiveObjectData::Integer(d),
+            Number::SmallF64(d) => PrimitiveObjectData::Float(d),
         };
         // 6. Return O.
         Ok(o.into_value())

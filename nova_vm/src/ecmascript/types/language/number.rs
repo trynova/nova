@@ -107,9 +107,9 @@ impl IntoValue for Number<'_> {
     }
 }
 
-impl IntoNumeric for HeapNumber<'_> {
-    fn into_numeric(self) -> Numeric {
-        Numeric::Number(self.unbind())
+impl<'a> IntoNumeric<'a> for HeapNumber<'a> {
+    fn into_numeric(self) -> Numeric<'a> {
+        Numeric::Number(self)
     }
 }
 
@@ -135,8 +135,8 @@ impl IntoPrimitive for Number<'_> {
     }
 }
 
-impl IntoNumeric for Number<'_> {
-    fn into_numeric(self) -> Numeric {
+impl<'a> IntoNumeric<'a> for Number<'a> {
+    fn into_numeric(self) -> Numeric<'a> {
         match self {
             Number::Number(idx) => Numeric::Number(idx.unbind()),
             Number::Integer(data) => Numeric::Integer(data),
@@ -253,9 +253,9 @@ impl TryFrom<Primitive> for Number<'_> {
     }
 }
 
-impl TryFrom<Numeric> for Number<'_> {
+impl<'a> TryFrom<Numeric<'a>> for Number<'a> {
     type Error = ();
-    fn try_from(value: Numeric) -> Result<Self, Self::Error> {
+    fn try_from(value: Numeric<'a>) -> Result<Self, Self::Error> {
         match value {
             Numeric::Number(data) => Ok(Number::Number(data)),
             Numeric::Integer(data) => Ok(Number::Integer(data)),
@@ -301,6 +301,17 @@ impl<'a> Number<'a> {
             // SAFETY: Number was not representable as a
             // stack-allocated Number.
             let id = unsafe { agent.heap.alloc_number(value) };
+            Number::Number(id.unbind().bind(gc))
+        }
+    }
+
+    pub fn from_i64(agent: &mut Agent, gc: NoGcScope<'a, '_>, value: i64) -> Self {
+        if let Ok(value) = Number::try_from(value) {
+            value
+        } else {
+            // SAFETY: Number was not representable as a
+            // stack-allocated Number.
+            let id = unsafe { agent.heap.alloc_number(value as f64) };
             Number::Number(id.unbind().bind(gc))
         }
     }

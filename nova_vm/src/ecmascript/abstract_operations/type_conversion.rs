@@ -254,21 +254,30 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric(
+pub(crate) fn to_numeric<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     value: impl IntoValue,
-) -> JsResult<Numeric> {
+) -> JsResult<Numeric<'a>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
 
+    to_numeric_primitive(agent, gc.into_nogc(), prim_value)
+}
+
+pub(crate) fn to_numeric_primitive<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    prim_value: impl IntoPrimitive,
+) -> JsResult<Numeric<'a>> {
+    let prim_value = prim_value.into_primitive();
     // 2. If primValue is a BigInt, return primValue.
     if let Ok(prim_value) = BigInt::try_from(prim_value) {
         return Ok(prim_value.into_numeric());
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number_primitive(agent, gc.nogc(), prim_value).map(|n| n.into_numeric())
+    to_number_primitive(agent, gc, prim_value).map(|n| n.into_numeric())
 }
 
 pub(crate) fn try_to_number<'gc>(

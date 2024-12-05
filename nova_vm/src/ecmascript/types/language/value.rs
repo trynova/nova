@@ -519,7 +519,11 @@ impl Value {
         to_big_int(agent, gc, self)
     }
 
-    pub fn to_numeric(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Numeric> {
+    pub fn to_numeric<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Numeric<'gc>> {
         to_numeric(agent, gc, self)
     }
 

@@ -137,7 +137,7 @@ mod private {
     impl RootableSealed for MapIterator {}
     impl RootableSealed for Module {}
     impl RootableSealed for Number<'_> {}
-    impl RootableSealed for Numeric {}
+    impl RootableSealed for Numeric<'_> {}
     impl RootableSealed for Object {}
     impl RootableSealed for OrdinaryObject {}
     impl RootableSealed for Primitive {}
