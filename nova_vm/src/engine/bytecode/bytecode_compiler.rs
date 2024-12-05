@@ -1486,6 +1486,7 @@ impl CompileEvaluation for ast::ChainExpression<'_> {
                 call.compile(ctx);
                 true
             }
+            ast::ChainElement::TSNonNullExpression(ref _call) => false,
         };
         // If chain succeeded, we come here and should jump over the nullish
         // case handling.

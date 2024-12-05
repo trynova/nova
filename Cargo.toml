@@ -7,23 +7,23 @@ lto = true
 
 [workspace.dependencies]
 ahash = "0.8.11"
-clap = { version = "4.5.21", features = ["derive"] }
+clap = { version = "4.5.22", features = ["derive"] }
 cliclack = "0.3.5"
 console = "0.15.8"
 ctrlc = "3.4.5"
 fast-float = "0.2.0"
-hashbrown = "0.15.1"
+hashbrown = "0.15.2"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
-oxc_allocator = "0.36.0"
-oxc_ast = "0.36.0"
-oxc_diagnostics = "0.36.0"
+oxc_allocator = "0.39.0"
+oxc_ast = "0.39.0"
+oxc_diagnostics = "0.39.0"
 oxc-miette = { version = "1.0.2", features = ["fancy"] }
-oxc_parser = "0.36.0"
-oxc_semantic = "0.36.0"
-oxc_span = "0.36.0"
-oxc_syntax = "0.36.0"
-oxc_ecmascript = "0.36.0"
+oxc_parser = "0.39.0"
+oxc_semantic = "0.39.0"
+oxc_span = "0.39.0"
+oxc_syntax = "0.39.0"
+oxc_ecmascript = "0.39.0"
 rand = "0.8.5"
 ryu-js = "1.0.1"
 sonic-rs = "0.3.16"
