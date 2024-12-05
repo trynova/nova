@@ -132,7 +132,7 @@ pub(crate) struct WorkQueues {
     pub arrays: Vec<Array>,
     pub array_iterators: Vec<ArrayIterator>,
     pub await_reactions: Vec<AwaitReactionIdentifier>,
-    pub bigints: Vec<HeapBigInt>,
+    pub bigints: Vec<HeapBigInt<'static>>,
     pub bound_functions: Vec<BoundFunction>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,

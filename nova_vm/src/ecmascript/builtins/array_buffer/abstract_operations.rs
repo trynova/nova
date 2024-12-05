@@ -321,12 +321,12 @@ pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> boo
 /// The abstract operation RawBytesToNumeric takes arguments type (a
 /// TypedArray element type), rawBytes (a List of byte values), and
 /// isLittleEndian (a Boolean) and returns a Number or a BigInt.
-pub(crate) fn raw_bytes_to_numeric<T: Viewable>(
+pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
     agent: &mut Agent,
-    gc: NoGcScope,
+    gc: NoGcScope<'a, '_>,
     raw_bytes: T,
     is_little_endian: bool,
-) -> Numeric {
+) -> Numeric<'a> {
     // 1. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 2. If isLittleEndian is false, reverse the order of the elements of rawBytes.
     // 3. If type is FLOAT32, then
@@ -383,15 +383,15 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// integer), type (a TypedArray element type), isTypedArray (a Boolean),
 /// and order (SEQ-CST or UNORDERED) and optional argument isLittleEndian
 /// (a Boolean) and returns a Number or a BigInt.
-pub(crate) fn get_value_from_buffer<T: Viewable>(
+pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
-    gc: NoGcScope,
+    gc: NoGcScope<'a, '_>,
     array_buffer: ArrayBuffer,
     byte_index: usize,
     _is_typed_array: bool,
     _order: Ordering,
     is_little_endian: Option<bool>,
-) -> Numeric {
+) -> Numeric<'a> {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
     debug_assert!(!array_buffer.is_detached(agent));
     // 2. Assert: There are sufficient bytes in arrayBuffer starting at byteIndex to represent a value of type.

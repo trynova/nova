@@ -442,11 +442,11 @@ pub(crate) enum PrimitiveObjectData {
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(SmallF64) = FLOAT_DISCRIMINANT,
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl TryFrom<PrimitiveObjectData> for BigInt {
+impl TryFrom<PrimitiveObjectData> for BigInt<'_> {
     type Error = ();
 
     fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
@@ -503,7 +503,7 @@ pub struct PrimitiveObjectHeapData {
 impl PrimitiveObjectHeapData {
     pub(crate) fn new_big_int_object(big_int: BigInt) -> Self {
         let data = match big_int {
-            BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data),
+            BigInt::BigInt(data) => PrimitiveObjectData::BigInt(data.unbind()),
             BigInt::SmallBigInt(data) => PrimitiveObjectData::SmallBigInt(data),
         };
         Self {

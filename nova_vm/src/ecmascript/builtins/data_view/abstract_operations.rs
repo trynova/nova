@@ -163,14 +163,14 @@ pub(crate) fn is_view_out_of_bounds(
 /// returns either a normal completion containing either a Number or a BigInt,
 /// or a throw completion. It is used by functions on DataView instances to
 /// retrieve values from the view's buffer.
-pub(crate) fn get_view_value<T: Viewable>(
+pub(crate) fn get_view_value<'gc, T: Viewable>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'gc, '_>,
     view: Value,
     request_index: Value,
     // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
-) -> JsResult<Numeric> {
+) -> JsResult<Numeric<'gc>> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
     let view = require_internal_slot_data_view(agent, gc.nogc(), view)?;

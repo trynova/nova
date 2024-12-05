@@ -435,7 +435,7 @@ impl PrimitiveHeap<'_> {
 pub(crate) trait PrimitiveHeapIndexable:
     Index<HeapNumber<'static>, Output = f64>
     + Index<HeapString<'static>, Output = StringHeapData>
-    + Index<HeapBigInt, Output = BigIntHeapData>
+    + Index<HeapBigInt<'static>, Output = BigIntHeapData>
 {
 }
 

@@ -190,7 +190,7 @@ impl<'a, T> Default for BaseIndex<'a, T> {
 pub type ArrayBufferIndex = BaseIndex<'static, ArrayBufferHeapData>;
 pub type ArrayIndex = BaseIndex<'static, ArrayHeapData>;
 pub type ArrayIteratorIndex = BaseIndex<'static, ArrayIteratorHeapData>;
-pub type BigIntIndex = BaseIndex<'static, BigIntHeapData>;
+pub type BigIntIndex<'a> = BaseIndex<'a, BigIntHeapData>;
 pub type BoundFunctionIndex = BaseIndex<'static, BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex = BaseIndex<'static, BuiltinFunctionHeapData>;
 pub type BuiltinConstructorIndex = BaseIndex<'static, BuiltinConstructorHeapData>;

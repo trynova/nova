@@ -110,7 +110,11 @@ impl BigIntPrototype {
 /// The abstract operation ThisBigIntValue takes argument value (an ECMAScript
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion.
-fn this_big_int_value(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<BigInt> {
+fn this_big_int_value<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    value: Value,
+) -> JsResult<BigInt<'a>> {
     match value {
         // 1. If value is a BigInt, return value.
         Value::BigInt(value) => Ok(value.into()),

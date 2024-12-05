@@ -254,21 +254,30 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric(
+pub(crate) fn to_numeric<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     value: impl IntoValue,
-) -> JsResult<Numeric> {
+) -> JsResult<Numeric<'a>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
 
+    to_numeric_primitive(agent, gc.into_nogc(), prim_value)
+}
+
+pub(crate) fn to_numeric_primitive<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    prim_value: impl IntoPrimitive,
+) -> JsResult<Numeric<'a>> {
+    let prim_value = prim_value.into_primitive();
     // 2. If primValue is a BigInt, return primValue.
     if let Ok(prim_value) = BigInt::try_from(prim_value) {
         return Ok(prim_value.into_numeric());
     }
 
     // 3. Return ? ToNumber(primValue).
-    to_number_primitive(agent, gc.nogc(), prim_value).map(|n| n.into_numeric())
+    to_number_primitive(agent, gc, prim_value).map(|n| n.into_numeric())
 }
 
 pub(crate) fn try_to_number<'gc>(
@@ -846,23 +855,24 @@ pub(crate) fn to_uint8_clamp_number(agent: &mut Agent, number: Number) -> u8 {
 
 /// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
 #[inline(always)]
-pub(crate) fn to_big_int(
+pub(crate) fn to_big_int<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     argument: Value,
-) -> JsResult<BigInt> {
+) -> JsResult<BigInt<'a>> {
     // 1. Let prim be ? ToPrimitive(argument, number).
     let prim = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::Number))?;
 
+    let gc = gc.into_nogc();
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
         Primitive::Undefined => Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc,
             ExceptionType::TypeError,
             "Invalid primitive 'undefined'",
         )),
         Primitive::Null => Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc,
             ExceptionType::TypeError,
             "Invalid primitive 'null'",
         )),
@@ -873,16 +883,16 @@ pub(crate) fn to_big_int(
                 Ok(BigInt::from(0))
             }
         }
-        Primitive::String(idx) => string_to_big_int(agent, gc.nogc(), idx.into()),
-        Primitive::SmallString(data) => string_to_big_int(agent, gc.nogc(), data.into()),
+        Primitive::String(idx) => string_to_big_int(agent, gc, idx.into()),
+        Primitive::SmallString(data) => string_to_big_int(agent, gc, data.into()),
         Primitive::Symbol(_) => Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc,
             ExceptionType::TypeError,
             "Cannot convert Symbol to BigInt",
         )),
         Primitive::Number(_) | Primitive::Integer(_) | Primitive::SmallF64(_) => Err(agent
             .throw_exception_with_static_message(
-                gc.nogc(),
+                gc,
                 ExceptionType::TypeError,
                 "Cannot convert Number to BigInt",
             )),
@@ -892,11 +902,11 @@ pub(crate) fn to_big_int(
 }
 
 /// ### [7.1.14 StringToBigInt ( str )](https://tc39.es/ecma262/#sec-stringtobigint)
-pub(crate) fn string_to_big_int(
+pub(crate) fn string_to_big_int<'a>(
     agent: &mut Agent,
-    nogc: NoGcScope<'_, '_>,
-    argument: String,
-) -> JsResult<BigInt> {
+    nogc: NoGcScope<'a, '_>,
+    argument: String<'a>,
+) -> JsResult<BigInt<'a>> {
     // 1. Let text be StringToCodePoints(str).
     // 2. Let literal be ParseText(text, StringIntegerLiteral).
     // 3. If literal is a List of errors, return undefined.

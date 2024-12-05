@@ -23,7 +23,7 @@ use super::{
         SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         UNDEFINED_DISCRIMINANT,
     },
-    IntoValue, Symbol, Value,
+    IntoPrimitive, IntoValue, Symbol, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -66,7 +66,7 @@ pub enum Primitive {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
@@ -108,7 +108,7 @@ pub(crate) enum HeapPrimitive {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
 }
 
 impl IntoValue for HeapPrimitive {
@@ -204,6 +204,13 @@ impl Primitive {
 impl From<Primitive> for Value {
     fn from(value: Primitive) -> Self {
         value.into_value()
+    }
+}
+
+impl IntoPrimitive for Primitive {
+    #[inline(always)]
+    fn into_primitive(self) -> Self {
+        self
     }
 }
 

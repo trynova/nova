@@ -4,10 +4,11 @@
 
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
+use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
+use crate::ecmascript::types::Numeric;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::type_conversion::to_numeric,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
             bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value,
@@ -293,6 +294,8 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         (px, py)
     };
 
+    let gc = gc.into_nogc();
+
     // 3. If px is a String and py is a String, then
     if px.is_string() && py.is_string() {
         // a. Let lx be the length of px.
@@ -331,10 +334,10 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
         // d. Let nx be ? ToNumeric(px).
-        let nx = to_numeric(agent, gc.reborrow(), px)?;
+        let nx = to_numeric_primitive(agent, gc, px)?;
 
         // e. Let ny be ? ToNumeric(py).
-        let ny = to_numeric(agent, gc.reborrow(), py)?;
+        let ny = to_numeric_primitive(agent, gc, py)?;
 
         // f. If Type(nx) is Type(ny), then
         if is_same_type(nx, ny) {
@@ -374,9 +377,33 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         }
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
-        let rnx = nx.to_real(agent, gc.reborrow())?;
-        let rny = nx.to_real(agent, gc)?;
-        Ok(Some(rnx < rny))
+        Ok(Some(match (nx, ny) {
+            (Numeric::Number(x), Numeric::Number(y)) => x != y && agent[x] < agent[y],
+            (Numeric::Number(x), Numeric::Integer(y)) => agent[x] < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::SmallF64(y)) => agent[x] < y.into_f64(),
+            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::Integer(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
+            (Numeric::Number(x), Numeric::BigInt(y)) => agent[y].ge(&agent[x]),
+            (Numeric::Number(x), Numeric::SmallBigInt(y)) => agent[x] < y.into_i64() as f64,
+            (Numeric::Integer(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
+            (Numeric::Integer(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::Integer(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
+            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < agent[y],
+            (Numeric::SmallF64(x), Numeric::Integer(y)) => x.into_f64() < y.into_i64() as f64,
+            (Numeric::SmallF64(x), Numeric::SmallF64(y)) => x.into_f64() < y.into_f64(),
+            (Numeric::SmallF64(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_f64()),
+            (Numeric::SmallF64(x), Numeric::SmallBigInt(y)) => x.into_f64() < y.into_i64() as f64,
+            (Numeric::BigInt(x), Numeric::Number(y)) => agent[x].le(&agent[y]),
+            (Numeric::BigInt(x), Numeric::Integer(y)) => agent[x].le(&y.into_i64()),
+            (Numeric::BigInt(x), Numeric::SmallF64(y)) => agent[x].le(&y.into_f64()),
+            (Numeric::BigInt(x), Numeric::BigInt(y)) => agent[x].data < agent[y].data,
+            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => agent[x].le(&y.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::SmallBigInt(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
+            (Numeric::SmallBigInt(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
+            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
+        }))
     }
 }
 

@@ -118,7 +118,7 @@ mod private {
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer {}
     impl RootableSealed for ArrayIterator {}
-    impl RootableSealed for BigInt {}
+    impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction {}
     impl RootableSealed for BuiltinConstructorFunction {}
     impl RootableSealed for BuiltinFunction {}
@@ -137,7 +137,7 @@ mod private {
     impl RootableSealed for MapIterator {}
     impl RootableSealed for Module {}
     impl RootableSealed for Number<'_> {}
-    impl RootableSealed for Numeric {}
+    impl RootableSealed for Numeric<'_> {}
     impl RootableSealed for Object {}
     impl RootableSealed for OrdinaryObject {}
     impl RootableSealed for Primitive {}
@@ -207,7 +207,7 @@ pub enum HeapRootData {
     String(HeapString<'static>) = STRING_DISCRIMINANT,
     Symbol(Symbol) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
-    BigInt(HeapBigInt) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
