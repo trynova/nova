@@ -28,7 +28,7 @@ pub enum PropertyKey {
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     String(HeapString<'static>) = STRING_DISCRIMINANT,
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
     // TODO: PrivateKey
 }
 
@@ -172,9 +172,9 @@ impl From<SmallString> for PropertyKey {
     }
 }
 
-impl From<Symbol> for PropertyKey {
+impl From<Symbol<'_>> for PropertyKey {
     fn from(value: Symbol) -> Self {
-        PropertyKey::Symbol(value)
+        PropertyKey::Symbol(value.unbind())
     }
 }
 

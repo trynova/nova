@@ -174,7 +174,11 @@ impl SymbolPrototype {
 }
 
 #[inline(always)]
-fn this_symbol_value(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Symbol> {
+fn this_symbol_value<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    value: Value,
+) -> JsResult<Symbol<'a>> {
     match value {
         Value::Symbol(symbol) => Ok(symbol),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {

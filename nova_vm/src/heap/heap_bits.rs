@@ -178,7 +178,7 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<SharedArrayBuffer>,
     pub strings: Vec<HeapString<'static>>,
-    pub symbols: Vec<Symbol>,
+    pub symbols: Vec<Symbol<'static>>,
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<TypedArrayIndex>,
     #[cfg(feature = "weak-refs")]

@@ -48,7 +48,7 @@ pub enum Primitive {
     /// demand from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.

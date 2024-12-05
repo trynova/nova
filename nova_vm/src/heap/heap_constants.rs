@@ -368,13 +368,13 @@ impl WellKnownSymbolIndexes {
     }
 }
 
-impl From<WellKnownSymbolIndexes> for SymbolIndex {
+impl From<WellKnownSymbolIndexes> for SymbolIndex<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         SymbolIndex::from_u32_index(value as u32)
     }
 }
 
-impl From<WellKnownSymbolIndexes> for Symbol {
+impl From<WellKnownSymbolIndexes> for Symbol<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         Symbol(value.into())
     }
