@@ -140,7 +140,7 @@ mod private {
     impl RootableSealed for Numeric<'_> {}
     impl RootableSealed for Object {}
     impl RootableSealed for OrdinaryObject {}
-    impl RootableSealed for Primitive {}
+    impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject {}
     impl RootableSealed for Promise {}
     impl RootableSealed for Proxy {}

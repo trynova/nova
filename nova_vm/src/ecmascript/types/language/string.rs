@@ -153,8 +153,8 @@ impl IntoValue for String<'_> {
     }
 }
 
-impl IntoPrimitive for String<'_> {
-    fn into_primitive(self) -> Primitive {
+impl<'a> IntoPrimitive<'a> for String<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
         match self {
             String::String(idx) => Primitive::String(idx.unbind()),
             String::SmallString(data) => Primitive::SmallString(data),
@@ -168,8 +168,8 @@ impl<'a> From<HeapString<'a>> for String<'a> {
     }
 }
 
-impl From<HeapString<'_>> for Primitive {
-    fn from(value: HeapString<'_>) -> Self {
+impl<'a> From<HeapString<'a>> for Primitive<'a> {
+    fn from(value: HeapString<'a>) -> Self {
         Self::String(value.unbind())
     }
 }
@@ -192,9 +192,9 @@ impl TryFrom<Value> for String<'_> {
     }
 }
 
-impl TryFrom<Primitive> for String<'_> {
+impl<'a> TryFrom<Primitive<'a>> for String<'a> {
     type Error = ();
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
             Primitive::String(x) => Ok(String::String(x)),
             Primitive::SmallString(x) => Ok(String::SmallString(x)),
@@ -230,14 +230,14 @@ impl IntoValue for SmallString {
     }
 }
 
-impl From<SmallString> for Primitive {
+impl From<SmallString> for Primitive<'static> {
     fn from(value: SmallString) -> Self {
         Self::SmallString(value)
     }
 }
 
-impl IntoPrimitive for SmallString {
-    fn into_primitive(self) -> Primitive {
+impl IntoPrimitive<'static> for SmallString {
+    fn into_primitive(self) -> Primitive<'static> {
         self.into()
     }
 }

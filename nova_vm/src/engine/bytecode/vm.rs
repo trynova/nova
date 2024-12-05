@@ -26,7 +26,7 @@ use crate::{
             },
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_string,
+                to_property_key, to_string, to_string_primitive,
             },
         },
         builtins::{
@@ -45,8 +45,8 @@ use crate::{
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, PropertyDescriptor, PropertyKey,
-            Reference, String, Value, BUILTIN_STRING_MEMORY,
+            IntoObject, IntoValue, Number, Numeric, Object, Primitive, PropertyDescriptor,
+            PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::context::GcScope,
@@ -2231,40 +2231,60 @@ fn apply_string_or_numeric_binary_operator(
     // 1. If opText is +, then
     let gc = if op_text == BinaryOperator::Addition {
         // a. Let lprim be ? ToPrimitive(lval).
-        let lprim = to_primitive(agent, gc.reborrow(), lval, None)?;
-
         // b. Let rprim be ? ToPrimitive(rval).
-        let rprim = to_primitive(agent, gc.reborrow(), rval, None)?;
+        let (lprim, rprim, gc) = match (Primitive::try_from(lval), Primitive::try_from(rval)) {
+            (Ok(lprim), Ok(rprim)) => {
+                let gc = gc.into_nogc();
+                (lprim.bind(gc), rprim.bind(gc), gc)
+            }
+            (Ok(lprim), Err(_)) => {
+                let lprim = lprim.scope(agent, gc.nogc());
+                let rprim = to_primitive(agent, gc.reborrow(), rval, None)?.unbind();
+                let gc = gc.into_nogc();
+                let lprim = lprim.get(agent);
+                (lprim.bind(gc), rprim.bind(gc), gc)
+            }
+            (Err(_), Ok(rprim)) => {
+                let rprim = rprim.scope(agent, gc.nogc());
+                let lprim = to_primitive(agent, gc.reborrow(), lval, None)?.unbind();
+                let gc = gc.into_nogc();
+                let rprim = rprim.get(agent);
+                (lprim.bind(gc), rprim.bind(gc), gc)
+            }
+            (Err(_), Err(_)) => {
+                let rval = rval.scope(agent, gc.nogc());
+                let lprim = to_primitive(agent, gc.reborrow(), lval, None)?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                let rprim = to_primitive(agent, gc.reborrow(), rval.get(agent), None)?.unbind();
+                let gc = gc.into_nogc();
+                let lprim = lprim.get(agent);
+                (lprim.bind(gc), rprim.bind(gc), gc)
+            }
+        };
 
         // c. If lprim is a String or rprim is a String, then
         match (String::try_from(lprim), String::try_from(rprim)) {
             (Ok(lstr), Ok(rstr)) => {
-                let gc = gc.into_nogc();
                 // iii. Return the string-concatenation of lstr and rstr.
                 return Ok(String::concat(agent, gc, [lstr, rstr]).into_value());
             }
             (Ok(lstr), Err(_)) => {
-                let lstr = lstr.bind(gc.nogc()).scope(agent, gc.nogc());
+                let lstr = lstr.bind(gc).scope(agent, gc);
                 // ii. Let rstr be ? ToString(rprim).
-                let rstr = to_string(agent, gc.reborrow(), rprim)?.unbind();
-                let gc = gc.into_nogc();
-                let rstr = rstr.bind(gc);
+                let rstr = to_string_primitive(agent, gc, rprim)?;
                 // iii. Return the string-concatenation of lstr and rstr.
                 return Ok(String::concat(agent, gc, [lstr.get(agent).bind(gc), rstr]).into_value());
             }
             (Err(_), Ok(rstr)) => {
-                let rstr = rstr.bind(gc.nogc()).scope(agent, gc.nogc());
+                let rstr = rstr.bind(gc).scope(agent, gc);
                 // i. Let lstr be ? ToString(lprim).
-                let lstr = to_string(agent, gc.reborrow(), lprim)?.unbind();
-                let gc = gc.into_nogc();
-                let lstr = lstr.bind(gc);
+                let lstr = to_string_primitive(agent, gc, lprim)?;
                 // iii. Return the string-concatenation of lstr and rstr.
                 return Ok(String::concat(agent, gc, [lstr, rstr.get(agent).bind(gc)]).into_value());
             }
             (Err(_), Err(_)) => {}
         }
-
-        let gc = gc.into_nogc();
 
         // d. Set lval to lprim.
         // e. Set rval to rprim.

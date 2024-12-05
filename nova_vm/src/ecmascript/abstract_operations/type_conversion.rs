@@ -61,12 +61,12 @@ pub enum PreferredType {
 /// > this specification only Dates (see 21.4.4.45) and Symbol objects (see
 /// > 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
 /// > absence of a hint as if the hint were STRING.
-pub(crate) fn to_primitive(
+pub(crate) fn to_primitive<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     input: impl IntoValue,
     preferred_type: Option<PreferredType>,
-) -> JsResult<Primitive> {
+) -> JsResult<Primitive<'a>> {
     let input = input.into_value();
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
@@ -124,12 +124,12 @@ pub(crate) fn to_primitive(
     }
 }
 
-pub(crate) fn to_primitive_object(
+pub(crate) fn to_primitive_object<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     input: impl IntoObject,
     preferred_type: Option<PreferredType>,
-) -> JsResult<Primitive> {
+) -> JsResult<Primitive<'a>> {
     let input = input.into_object();
     // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
     let exotic_to_prim = get_method(
@@ -186,12 +186,12 @@ pub(crate) fn to_primitive_object(
 /// The abstract operation OrdinaryToPrimitive takes arguments O (an Object)
 /// and hint (STRING or NUMBER) and returns either a normal completion
 /// containing an ECMAScript language value or a throw completion.
-pub(crate) fn ordinary_to_primitive(
+pub(crate) fn ordinary_to_primitive<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     o: Object,
     hint: PreferredType,
-) -> JsResult<Primitive> {
+) -> JsResult<Primitive<'a>> {
     let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
     let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
@@ -260,15 +260,18 @@ pub(crate) fn to_numeric<'a>(
     value: impl IntoValue,
 ) -> JsResult<Numeric<'a>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
-    let prim_value = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
+    let prim_value =
+        to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?.unbind();
+    let gc = gc.into_nogc();
+    let prim_value = prim_value.bind(gc);
 
-    to_numeric_primitive(agent, gc.into_nogc(), prim_value)
+    to_numeric_primitive(agent, gc, prim_value)
 }
 
 pub(crate) fn to_numeric_primitive<'a>(
     agent: &mut Agent,
     gc: NoGcScope<'a, '_>,
-    prim_value: impl IntoPrimitive,
+    prim_value: impl IntoPrimitive<'a>,
 ) -> JsResult<Numeric<'a>> {
     let prim_value = prim_value.into_primitive();
     // 2. If primValue is a BigInt, return primValue.
@@ -307,10 +310,13 @@ pub(crate) fn to_number<'gc>(
         let argument = Object::try_from(argument).unwrap();
         // 8. Let primValue be ? ToPrimitive(argument, number).
         let prim_value =
-            to_primitive_object(agent, gc.reborrow(), argument, Some(PreferredType::Number))?;
+            to_primitive_object(agent, gc.reborrow(), argument, Some(PreferredType::Number))?
+                .unbind();
+        let gc = gc.into_nogc();
+        let prim_value = prim_value.bind(gc);
         // 9. Assert: primValue is not an Object.
         // 10. Return ? ToNumber(primValue).
-        to_number(agent, gc, prim_value)
+        to_number_primitive(agent, gc, prim_value)
     }
 }
 
@@ -318,7 +324,7 @@ pub(crate) fn to_number<'gc>(
 pub(crate) fn to_number_primitive<'gc>(
     agent: &mut Agent,
     gc: NoGcScope<'gc, '_>,
-    argument: Primitive,
+    argument: Primitive<'gc>,
 ) -> JsResult<Number<'gc>> {
     match argument {
         // 3. If argument is undefined, return NaN.
@@ -861,9 +867,10 @@ pub(crate) fn to_big_int<'a>(
     argument: Value,
 ) -> JsResult<BigInt<'a>> {
     // 1. Let prim be ? ToPrimitive(argument, number).
-    let prim = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::Number))?;
-
+    let prim = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::Number))?.unbind();
     let gc = gc.into_nogc();
+    let prim = prim.bind(gc);
+
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
         Primitive::Undefined => Err(agent.throw_exception_with_static_message(
@@ -1059,10 +1066,13 @@ pub(crate) fn to_string<'gc>(
         // 9. Assert: argument is an Object.
         assert!(Object::try_from(argument).is_ok());
         // 10. Let primValue be ? ToPrimitive(argument, string).
-        let prim_value = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::String))?;
+        let prim_value =
+            to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::String))?.unbind();
+        let gc = gc.into_nogc();
+        let prim_value = prim_value.bind(gc);
         // 11. Assert: primValue is not an Object.
         // 12. Return ? ToString(primValue).
-        to_string(agent, gc, prim_value)
+        to_string_primitive(agent, gc, prim_value)
     }
 }
 
@@ -1070,7 +1080,7 @@ pub(crate) fn to_string<'gc>(
 pub(crate) fn to_string_primitive<'gc>(
     agent: &mut Agent,
     gc: NoGcScope<'gc, '_>,
-    argument: Primitive,
+    argument: Primitive<'gc>,
 ) -> JsResult<String<'gc>> {
     // 1. If argument is a String, return argument.
     match argument {
@@ -1209,7 +1219,9 @@ pub(crate) fn to_property_key(
     // We call ToPrimitive in case we're dealing with an object.
 
     // 1. Let key be ? ToPrimitive(argument, hint String).
-    let key = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::String))?;
+    let key = to_primitive(agent, gc.reborrow(), argument, Some(PreferredType::String))?.unbind();
+    let gc = gc.into_nogc();
+    let key = key.bind(gc);
 
     // 2. If Type(key) is Symbol, then
     //    a. Return key.
@@ -1224,7 +1236,7 @@ pub(crate) fn to_property_key(
         // stringifying.
 
         // 3. Return ! ToString(key).
-        to_string(agent, gc, key).unwrap().into()
+        to_string_primitive(agent, gc, key).unwrap().into()
     }))
 }
 

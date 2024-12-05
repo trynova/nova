@@ -5,10 +5,12 @@
 use small_string::SmallString;
 
 use crate::{
+    ecmascript::execution::Agent,
     engine::{
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
+        Scoped,
     },
     SmallInteger,
 };
@@ -28,7 +30,7 @@ use super::{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Primitive {
+pub enum Primitive<'a> {
     /// ### [6.1.1 The Undefined Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type)
     Undefined = UNDEFINED_DISCRIMINANT,
     /// ### [6.1.2 The Null Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-null-type)
@@ -40,7 +42,7 @@ pub enum Primitive {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString<'static>) = STRING_DISCRIMINANT,
+    String(HeapString<'a>) = STRING_DISCRIMINANT,
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -48,11 +50,11 @@ pub enum Primitive {
     /// demand from the data.
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
-    Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol<'a>) = SYMBOL_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
@@ -66,7 +68,7 @@ pub enum Primitive {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
@@ -134,30 +136,30 @@ impl TryFrom<Value> for HeapPrimitive {
     }
 }
 
-impl IntoValue for Primitive {
+impl<'a> IntoValue for Primitive<'a> {
     fn into_value(self) -> super::Value {
         match self {
             Primitive::Undefined => Value::Undefined,
             Primitive::Null => Value::Null,
             Primitive::Boolean(data) => Value::Boolean(data),
-            Primitive::String(data) => Value::String(data),
+            Primitive::String(data) => Value::String(data.unbind()),
             Primitive::SmallString(data) => Value::SmallString(data),
-            Primitive::Symbol(data) => Value::Symbol(data),
-            Primitive::Number(data) => Value::Number(data),
+            Primitive::Symbol(data) => Value::Symbol(data.unbind()),
+            Primitive::Number(data) => Value::Number(data.unbind()),
             Primitive::Integer(data) => Value::Integer(data),
             Primitive::SmallF64(data) => Value::SmallF64(data),
-            Primitive::BigInt(data) => Value::BigInt(data),
+            Primitive::BigInt(data) => Value::BigInt(data.unbind()),
             Primitive::SmallBigInt(data) => Value::SmallBigInt(data),
         }
     }
 }
 
-impl Primitive {
+impl<'a> Primitive<'a> {
     /// Unbind this Primitive from its current lifetime. This is necessary to
     /// use the Primitive as a parameter in a call that can perform garbage
     /// collection.
-    pub fn unbind(self) -> Self {
-        self
+    pub fn unbind(self) -> Primitive<'static> {
+        unsafe { std::mem::transmute::<Self, Primitive<'static>>(self) }
     }
 
     // Bind this Primitive to the garbage collection lifetime. This enables
@@ -169,8 +171,16 @@ impl Primitive {
     // let primitive = primitive.bind(&gc);
     // ```
     // to make sure that the unbound Primitive cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
-        self
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
+        unsafe { std::mem::transmute::<Primitive<'_>, Self>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Primitive<'static>> {
+        Scoped::new(agent, gc, self.unbind())
     }
 
     pub fn is_boolean(self) -> bool {
@@ -201,20 +211,20 @@ impl Primitive {
     }
 }
 
-impl From<Primitive> for Value {
+impl From<Primitive<'_>> for Value {
     fn from(value: Primitive) -> Self {
         value.into_value()
     }
 }
 
-impl IntoPrimitive for Primitive {
+impl<'a> IntoPrimitive<'a> for Primitive<'a> {
     #[inline(always)]
     fn into_primitive(self) -> Self {
         self
     }
 }
 
-impl TryFrom<Value> for Primitive {
+impl TryFrom<Value> for Primitive<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -235,7 +245,7 @@ impl TryFrom<Value> for Primitive {
     }
 }
 
-impl Rootable for Primitive {
+impl Rootable for Primitive<'_> {
     type RootRepr = PrimitiveRootRepr;
 
     #[inline]
@@ -244,13 +254,13 @@ impl Rootable for Primitive {
             Self::Undefined => Ok(Self::RootRepr::Undefined),
             Self::Null => Ok(Self::RootRepr::Null),
             Self::Boolean(bool) => Ok(Self::RootRepr::Boolean(bool)),
-            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
             Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
             Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
             Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
         }
     }

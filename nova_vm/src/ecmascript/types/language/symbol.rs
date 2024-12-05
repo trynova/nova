@@ -100,8 +100,8 @@ impl IntoValue for Symbol<'_> {
     }
 }
 
-impl IntoPrimitive for Symbol<'_> {
-    fn into_primitive(self) -> Primitive {
+impl<'a> IntoPrimitive<'a> for Symbol<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
         Primitive::Symbol(self.unbind())
     }
 }
@@ -112,8 +112,8 @@ impl From<Symbol<'_>> for Value {
     }
 }
 
-impl From<Symbol<'_>> for Primitive {
-    fn from(value: Symbol) -> Self {
+impl<'a> From<Symbol<'a>> for Primitive<'a> {
+    fn from(value: Symbol<'a>) -> Self {
         value.into_primitive()
     }
 }
@@ -129,10 +129,10 @@ impl TryFrom<Value> for Symbol<'_> {
     }
 }
 
-impl TryFrom<Primitive> for Symbol<'_> {
+impl<'a> TryFrom<Primitive<'a>> for Symbol<'a> {
     type Error = ();
 
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
             Primitive::Symbol(idx) => Ok(idx),
             _ => Err(()),
