@@ -46,7 +46,8 @@ impl BuiltinIntrinsicConstructor for SetConstructor {
 struct SetGetSpecies;
 impl Builtin for SetGetSpecies {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SetConstructor::get_species);
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(WellKnownSymbolIndexes::Species.to_property_key());
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 }

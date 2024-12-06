@@ -23,7 +23,7 @@ use agent::{Agent, JsResult};
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
 #[derive(Debug)]
-pub struct Reference {
+pub struct Reference<'a> {
     /// ### \[\[Base]]
     ///
     /// The value or Environment Record which holds the binding. A \[\[Base]]
@@ -34,7 +34,7 @@ pub struct Reference {
     ///
     /// The name of the binding. Always a String if \[\[Base]] value is an
     /// Environment Record.
-    pub(crate) referenced_name: PropertyKey,
+    pub(crate) referenced_name: PropertyKey<'a>,
 
     /// ### \[\[Strict]]
     ///
@@ -342,7 +342,7 @@ pub(crate) enum Base {
     Unresolvable,
 }
 
-impl HeapMarkAndSweep for Reference {
+impl HeapMarkAndSweep for Reference<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             base,

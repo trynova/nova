@@ -68,7 +68,7 @@ pub trait Builtin {
     const BEHAVIOUR: Behaviour;
 
     /// Set to Some if this builtin's property key is different from `NAME`.
-    const KEY: Option<PropertyKey> = None;
+    const KEY: Option<PropertyKey<'static>> = None;
 
     /// If the builtin function is created as a property then this controls the
     /// property's `[[Writable]]` value.
@@ -331,11 +331,11 @@ impl InternalMethods for BuiltinFunction {
         Some(function_internal_delete(self, agent, gc, property_key))
     }
 
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         Some(function_internal_own_property_keys(self, agent, gc))
     }
 

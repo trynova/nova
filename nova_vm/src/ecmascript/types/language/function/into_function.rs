@@ -3,16 +3,16 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::Function;
-use crate::ecmascript::builtins::ordinary::ordinary_get_own_property;
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
+        builtins::ordinary::{ordinary_get_own_property, ordinary_own_property_keys},
         execution::{Agent, JsResult},
         types::{
             language::IntoObject, InternalMethods, InternalSlots, ObjectHeapData, OrdinaryObject,
             PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
+    engine::context::{GcScope, NoGcScope},
     heap::{CreateHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 
@@ -260,13 +260,13 @@ pub(crate) fn function_internal_delete(
     }
 }
 
-pub(crate) fn function_internal_own_property_keys(
+pub(crate) fn function_internal_own_property_keys<'a>(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
-    gc: NoGcScope<'_, '_>,
-) -> Vec<PropertyKey> {
+    gc: NoGcScope<'a, '_>,
+) -> Vec<PropertyKey<'a>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.try_own_property_keys(agent, gc).unwrap()
+        ordinary_own_property_keys(agent, gc, backing_object)
     } else {
         vec![
             PropertyKey::from(BUILTIN_STRING_MEMORY.length),

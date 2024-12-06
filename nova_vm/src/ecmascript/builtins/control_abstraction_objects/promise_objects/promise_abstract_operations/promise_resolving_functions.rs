@@ -216,11 +216,11 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         Some(function_internal_delete(self, agent, gc, property_key))
     }
 
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         Some(function_internal_own_property_keys(self, agent, gc))
     }
 

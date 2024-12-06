@@ -27,7 +27,8 @@ pub(crate) struct ArrayBufferPrototype;
 struct ArrayBufferPrototypeGetByteLength;
 impl Builtin for ArrayBufferPrototypeGetByteLength {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_byteLength;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_byte_length);
 }
@@ -35,7 +36,8 @@ impl BuiltinGetter for ArrayBufferPrototypeGetByteLength {}
 struct ArrayBufferPrototypeGetDetached;
 impl Builtin for ArrayBufferPrototypeGetDetached {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_detached;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.detached.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.detached.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_detached);
 }
@@ -43,7 +45,8 @@ impl BuiltinGetter for ArrayBufferPrototypeGetDetached {}
 struct ArrayBufferPrototypeGetMaxByteLength;
 impl Builtin for ArrayBufferPrototypeGetMaxByteLength {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_maxByteLength;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.maxByteLength.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.maxByteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_max_byte_length);
 }
@@ -51,7 +54,8 @@ impl BuiltinGetter for ArrayBufferPrototypeGetMaxByteLength {}
 struct ArrayBufferPrototypeGetResizable;
 impl Builtin for ArrayBufferPrototypeGetResizable {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_resizable;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.resizable.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.resizable.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::get_resizable);
 }

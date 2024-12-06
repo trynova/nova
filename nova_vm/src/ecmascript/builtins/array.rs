@@ -613,11 +613,11 @@ impl InternalMethods for Array {
         }
     }
 
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.try_own_property_keys(agent, gc).unwrap()
         } else {

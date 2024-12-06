@@ -50,7 +50,7 @@ use crate::{
             PropertyDescriptor, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::GcScope,
+    engine::{context::GcScope, Scoped},
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
@@ -2139,15 +2139,21 @@ impl Vm {
         Ok(())
     }
 
-    fn execute_simple_object_binding(
+    fn execute_simple_object_binding<'a>(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope<'a, '_>,
         vm: &mut Vm,
         executable: Executable,
         object: Object,
         environment: Option<EnvironmentIndex>,
     ) -> JsResult<()> {
-        let mut excluded_names = AHashSet::new();
+        let mut excluded_names = Vec::<Scoped<'_, PropertyKey<'static>>>::new();
+
+        let is_excluded = |property_key: PropertyKey<'a>| {
+            excluded_names
+                .iter()
+                .any(|scoped| scoped.get(agent) == property_key)
+        };
 
         loop {
             let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
@@ -2159,12 +2165,15 @@ impl Vm {
                         gc.nogc(),
                     );
                     let property_key = if instr.kind == Instruction::BindingPatternBind {
-                        binding_id.into()
+                        binding_id.bind(gc.nogc()).into()
                     } else {
                         let key_value =
                             executable.fetch_constant(agent, instr.args[1].unwrap() as usize);
                         PropertyKey::try_from(key_value).unwrap()
                     };
+                    if !is_excluded(property_key) {
+                        excluded_names.push(property_key.scope(agent, gc.nogc()));
+                    }
 
                     let lhs = if let Some(lhs) =
                         try_resolve_binding(agent, gc.nogc(), binding_id, environment)
@@ -2191,6 +2200,7 @@ impl Vm {
                 Instruction::BindingPatternGetValueNamed => {
                     let property_key = PropertyKey::from_value(
                         agent,
+                        gc.nogc(),
                         executable.fetch_constant(agent, instr.args[0].unwrap() as usize),
                     )
                     .unwrap();

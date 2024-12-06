@@ -45,7 +45,8 @@ struct ArrayBufferGetSpecies;
 impl Builtin for ArrayBufferGetSpecies {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get__Symbol_species_;
 
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::Species.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(WellKnownSymbolIndexes::Species.to_property_key());
 
     const LENGTH: u8 = 0;
 

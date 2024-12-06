@@ -86,7 +86,8 @@ struct FunctionPrototypeHasInstance;
 impl Builtin for FunctionPrototypeHasInstance {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_hasInstance_;
 
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::HasInstance.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(WellKnownSymbolIndexes::HasInstance.to_property_key());
 
     const LENGTH: u8 = 0;
 

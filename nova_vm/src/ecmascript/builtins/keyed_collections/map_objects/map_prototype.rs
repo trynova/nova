@@ -82,7 +82,7 @@ impl Builtin for MapPrototypeSet {
 struct MapPrototypeGetSize;
 impl Builtin for MapPrototypeGetSize {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_size;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
+    const KEY: Option<PropertyKey<'static>> = Some(BUILTIN_STRING_MEMORY.size.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::get_size);
 }

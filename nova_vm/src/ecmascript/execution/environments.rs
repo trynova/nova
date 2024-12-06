@@ -41,6 +41,7 @@ pub(crate) use function_environment::{
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
+use sonic_rs::JsonValueTrait;
 
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
@@ -642,13 +643,13 @@ impl Default for Environments {
 /// Environment Record or null), name (a String), and strict (a Boolean) and
 /// returns either a normal completion containing a Reference Record or a throw
 /// completion.
-pub(crate) fn try_get_identifier_reference(
+pub(crate) fn try_get_identifier_reference<'a>(
     agent: &mut Agent,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope<'a, '_>,
     env: Option<EnvironmentIndex>,
-    name: String,
+    name: String<'a>,
     strict: bool,
-) -> Option<Reference> {
+) -> Option<Reference<'a>> {
     // 1. If env is null, then
     let Some(env) = env else {
         // a. Return the Reference Record {
@@ -699,15 +700,16 @@ pub(crate) fn try_get_identifier_reference(
 /// Environment Record or null), name (a String), and strict (a Boolean) and
 /// returns either a normal completion containing a Reference Record or a throw
 /// completion.
-pub(crate) fn get_identifier_reference(
+pub(crate) fn get_identifier_reference<'a, 'b>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, 'b>,
     env: Option<EnvironmentIndex>,
-    name: String,
+    name: String<'b>,
     strict: bool,
-) -> JsResult<Reference> {
+) -> JsResult<Reference<'a>> {
     // 1. If env is null, then
     let Some(env) = env else {
+        let name = name.bind(gc.into_nogc());
         // a. Return the Reference Record {
         return Ok(Reference {
             // [[Base]]: UNRESOLVABLE,
@@ -723,10 +725,19 @@ pub(crate) fn get_identifier_reference(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let exists = env.has_binding(agent, gc.reborrow(), name)?;
+    let (name, exists) = if let Some(result) = env.try_has_binding(agent, gc.nogc(), name) {
+        (name, result)
+    } else {
+        let name_scoped = name.scope(agent, gc.nogc());
+        let name = name.unbind();
+        let result = env.has_binding(agent, gc.reborrow(), name)?;
+        let name = name_scoped.get(agent);
+        (name, result)
+    };
 
     // 3. If exists is true, then
     if exists {
+        let name = name.bind(gc.into_nogc());
         // a. Return the Reference Record {
         Ok(Reference {
             // [[Base]]: env,

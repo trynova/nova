@@ -11,7 +11,14 @@ use super::{
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
     type_conversion::{to_length, to_object, to_property_key},
 };
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::{
+    ecmascript::types::{bind_property_keys, unbind_property_keys},
+    engine::{
+        context::{GcScope, NoGcScope},
+        rootable::Rootable,
+        Scoped,
+    },
+};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::iterator_step_value,
@@ -657,16 +664,45 @@ pub(crate) fn set_integrity_level<T: Level>(
     }
     // 3. Let keys be ? O.[[OwnPropertyKeys]]().
     let keys = o.internal_own_property_keys(agent, gc.reborrow())?;
+    let keys = bind_property_keys(unbind_property_keys(keys), gc.nogc());
     // 4. If level is SEALED, then
     if T::LEVEL == IntegrityLevel::Sealed {
         // a. For each element k of keys, do
+        let mut broke = false;
+        let mut i = 0;
+        for k in keys.iter() {
+            // i. Perform ? DefinePropertyOrThrow(O, k, PropertyDescriptor { [[Configurable]]: false }).
+            if let Some(result) = try_define_property_or_throw(
+                agent,
+                gc.nogc(),
+                o,
+                *k,
+                PropertyDescriptor {
+                    configurable: Some(false),
+                    ..Default::default()
+                },
+            ) {
+                result?;
+            } else {
+                broke = true;
+                break;
+            }
+            i += 1;
+        }
+        if !broke {
+            return Ok(true);
+        }
+        let keys = keys[i..]
+            .iter()
+            .map(|pk| pk.scope(agent, gc.nogc()))
+            .collect::<Vec<_>>();
         for k in keys {
             // i. Perform ? DefinePropertyOrThrow(O, k, PropertyDescriptor { [[Configurable]]: false }).
             define_property_or_throw(
                 agent,
                 gc.reborrow(),
                 o,
-                k,
+                k.get(agent),
                 PropertyDescriptor {
                     configurable: Some(false),
                     ..Default::default()
@@ -677,9 +713,16 @@ pub(crate) fn set_integrity_level<T: Level>(
         // 5. Else,
         // a. Assert: level is FROZEN.
         // b. For each element k of keys, do
-        for k in keys {
+        let mut broke = false;
+        let mut i = 0;
+        for &k in keys.iter() {
             // i. Let currentDesc be ? O.[[GetOwnProperty]](k).
-            let current_desc = o.internal_get_own_property(agent, gc.reborrow(), k)?;
+            let current_desc = if let Some(result) = o.try_get_own_property(agent, gc.nogc(), k) {
+                result
+            } else {
+                broke = true;
+                break;
+            };
             // ii. If currentDesc is not undefined, then
             if let Some(current_desc) = current_desc {
                 // 1. If IsAccessorDescriptor(currentDesc) is true, then
@@ -699,8 +742,47 @@ pub(crate) fn set_integrity_level<T: Level>(
                     }
                 };
                 // 3. Perform ? DefinePropertyOrThrow(O, k, desc).
-                define_property_or_throw(agent, gc.reborrow(), o, k, desc)?;
+                if let Some(result) = try_define_property_or_throw(agent, gc.nogc(), o, k, desc) {
+                    result?
+                } else {
+                    broke = true;
+                    break;
+                };
             }
+            i += 1;
+        }
+        if !broke {
+            return Ok(true);
+        }
+        let keys = keys[i..]
+            .iter()
+            .map(|pk| pk.scope(agent, gc.nogc()))
+            .collect::<Vec<_>>();
+        for k in keys {
+            // i. Let currentDesc be ? O.[[GetOwnProperty]](k).
+            let current_desc = o.internal_get_own_property(agent, gc.reborrow(), k.get(agent))?;
+            // ii. If currentDesc is not undefined, then
+            if let Some(current_desc) = current_desc {
+                // 1. If IsAccessorDescriptor(currentDesc) is true, then
+                let desc = if current_desc.is_accessor_descriptor() {
+                    // a. Let desc be the PropertyDescriptor { [[Configurable]]: false }.
+                    PropertyDescriptor {
+                        configurable: Some(false),
+                        ..Default::default()
+                    }
+                } else {
+                    // 2. Else,
+                    // a. Let desc be the PropertyDescriptor { [[Configurable]]: false, [[Writable]]: false }.
+                    PropertyDescriptor {
+                        configurable: Some(false),
+                        writable: Some(false),
+                        ..Default::default()
+                    }
+                };
+                // 3. Perform ? DefinePropertyOrThrow(O, k, desc).
+                define_property_or_throw(agent, gc.reborrow(), o, k.get(agent), desc)?;
+            }
+            i += 1;
         }
     }
     // 6. Return true.
@@ -727,11 +809,50 @@ pub(crate) fn test_integrity_level<T: Level>(
 
     // 4. Let keys be ? O.[[OwnPropertyKeys]]().
     let keys = o.internal_own_property_keys(agent, gc.reborrow())?;
+    let keys = bind_property_keys(unbind_property_keys(keys), gc.nogc());
+
+    let mut broke = false;
+    let mut i = 0;
     // 5. For each element k of keys, do
+    for &k in keys.iter() {
+        // a. Let currentDesc be ? O.[[GetOwnProperty]](k).
+        let Some(result) = o.try_get_own_property(agent, gc.nogc(), k) else {
+            broke = true;
+            break;
+        };
+        // b. If currentDesc is not undefined, then
+        if let Some(current_desc) = result {
+            // i. If currentDesc.[[Configurable]] is true, return false.
+            if current_desc.configurable == Some(true) {
+                return Ok(false);
+            }
+            // ii. If level is frozen and IsDataDescriptor(currentDesc) is true, then
+            if T::LEVEL == IntegrityLevel::Frozen && current_desc.is_data_descriptor() {
+                // 1. If currentDesc.[[Writable]] is true, return false.
+                if current_desc.writable == Some(true) {
+                    return Ok(false);
+                }
+            }
+        }
+        i += 1;
+    }
+
+    if !broke {
+        return Ok(true);
+    }
+
+    let keys = keys
+        .iter()
+        .skip(i)
+        .map(|pk| pk.scope(agent, gc.nogc()))
+        .collect::<Vec<_>>();
+
     for k in keys {
         // a. Let currentDesc be ? O.[[GetOwnProperty]](k).
         // b. If currentDesc is not undefined, then
-        if let Some(current_desc) = o.internal_get_own_property(agent, gc.reborrow(), k)? {
+        if let Some(current_desc) =
+            o.internal_get_own_property(agent, gc.reborrow(), k.get(agent))?
+        {
             // i. If currentDesc.[[Configurable]] is true, return false.
             if current_desc.configurable == Some(true) {
                 return Ok(false);
@@ -1357,19 +1478,20 @@ pub(crate) fn initialize_instance_elements(
 /// The abstract operation AddValueToKeyedGroup takes arguments groups (a List of Records with fields
 /// [[Key]] (an ECMAScript language value) and [[Elements]] (a List of ECMAScript language values)),
 /// key (an ECMAScript language value), and value (an ECMAScript language value) and returns UNUSED.
-pub(crate) fn add_value_to_keyed_group<K: Copy + Into<Value>>(
+pub(crate) fn add_value_to_keyed_group<'a, K: 'static + Rootable + Copy + Into<Value>>(
     agent: &mut Agent,
-    groups: &mut Vec<GroupByRecord<K>>,
+    gc: NoGcScope<'_, 'a>,
+    groups: &mut Vec<GroupByRecord<'a, K>>,
     key: K,
     value: Value,
 ) -> JsResult<()> {
     // 1. For each Record { [[Key]], [[Elements]] } g of groups, do
     for g in groups.iter_mut() {
         // a. If SameValue(g.[[Key]], key) is true, then
-        if same_value(agent, g.key, key) {
+        if same_value(agent, g.key.get(agent), key) {
             // i. Assert: Exactly one element of groups meets this criterion.
             // ii. Append value to g.[[Elements]].
-            g.elements.push(value);
+            g.elements.push(value.scope(agent, gc));
 
             // iii. Return UNUSED.
             return Ok(());
@@ -1377,9 +1499,10 @@ pub(crate) fn add_value_to_keyed_group<K: Copy + Into<Value>>(
     }
 
     // 2. Let group be the Record { [[Key]]: key, [[Elements]]: « value » }.
+    let key = Scoped::new(agent, gc, key);
     let group = GroupByRecord {
         key,
-        elements: vec![value],
+        elements: vec![value.scope(agent, gc)],
     };
 
     // 3. Append group to groups.
@@ -1390,9 +1513,9 @@ pub(crate) fn add_value_to_keyed_group<K: Copy + Into<Value>>(
 }
 
 #[derive(Debug)]
-pub(crate) struct GroupByRecord<K: Copy + Into<Value>> {
-    pub(crate) key: K,
-    pub(crate) elements: Vec<Value>,
+pub(crate) struct GroupByRecord<'a, K: 'static + Rootable + Copy + Into<Value>> {
+    pub(crate) key: Scoped<'a, K>,
+    pub(crate) elements: Vec<Scoped<'a, Value>>,
 }
 
 /// ### [7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
@@ -1403,12 +1526,12 @@ pub(crate) struct GroupByRecord<K: Copy + Into<Value>> {
 /// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 ///
 /// Note: This version is for "property" keyCoercion.
-pub(crate) fn group_by_property(
+pub(crate) fn group_by_property<'a, 'b>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, 'b>,
     items: Value,
     callback_fn: Value,
-) -> JsResult<Vec<GroupByRecord<PropertyKey>>> {
+) -> JsResult<Vec<GroupByRecord<'b, PropertyKey<'static>>>> {
     // 1. Perform ? RequireObjectCoercible(iterable).
     require_object_coercible(agent, gc.nogc(), items)?;
 
@@ -1422,7 +1545,7 @@ pub(crate) fn group_by_property(
     };
 
     // 3. Let groups be a new empty List.
-    let mut groups: Vec<GroupByRecord<PropertyKey>> = vec![];
+    let mut groups: Vec<GroupByRecord<'b, PropertyKey<'static>>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
     let mut iterator_record = get_iterator(agent, gc.reborrow(), items, false)?;
@@ -1458,9 +1581,8 @@ pub(crate) fn group_by_property(
         // d. Let value be next.
         let value = next;
 
-        let sk = SmallInteger::try_from(k as u64).unwrap();
         // 𝔽(k)
-        let fk = Number::from(sk).into_value();
+        let fk = Number::try_from(k).unwrap().into_value();
 
         // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
         let key = call_function(
@@ -1476,13 +1598,13 @@ pub(crate) fn group_by_property(
 
         // g. If keyCoercion is property, then
         // i. Set key to Completion(ToPropertyKey(key)).
-        let key = to_property_key(agent, gc.reborrow(), key);
+        let key = to_property_key(agent, gc.reborrow(), key).map(|pk| pk.unbind());
 
         // ii. IfAbruptCloseIterator(key, iteratorRecord).
         let key = if_abrupt_close_iterator(agent, gc.reborrow(), key, &iterator_record)?;
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key, value)?;
+        add_value_to_keyed_group(agent, gc.nogc(), &mut groups, key.unbind(), value)?;
 
         // j. Set k to k + 1.
         k += 1;
@@ -1497,12 +1619,12 @@ pub(crate) fn group_by_property(
 /// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 ///
 /// Note: This version is for "collection" keyCoercion.
-pub(crate) fn group_by_collection(
+pub(crate) fn group_by_collection<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'_, 'a>,
     items: Value,
     callback_fn: Value,
-) -> JsResult<Vec<GroupByRecord<Value>>> {
+) -> JsResult<Vec<GroupByRecord<'a, Value>>> {
     // 1. Perform ? RequireObjectCoercible(iterable).
     require_object_coercible(agent, gc.nogc(), items)?;
 
@@ -1516,7 +1638,7 @@ pub(crate) fn group_by_collection(
     };
 
     // 3. Let groups be a new empty List.
-    let mut groups: Vec<GroupByRecord<Value>> = vec![];
+    let mut groups: Vec<GroupByRecord<'a, Value>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
     let mut iterator_record = get_iterator(agent, gc.reborrow(), items, false)?;
@@ -1552,9 +1674,8 @@ pub(crate) fn group_by_collection(
         // d. Let value be next.
         let value = next;
 
-        let sk = SmallInteger::try_from(k as u64).unwrap();
         // 𝔽(k)
-        let fk = Number::from(sk).into_value();
+        let fk = Number::try_from(k).unwrap().into_value();
 
         // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
         let key = call_function(
@@ -1574,7 +1695,7 @@ pub(crate) fn group_by_collection(
         let key = canonicalize_keyed_collection_key(agent, key);
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key, value)?;
+        add_value_to_keyed_group(agent, gc.nogc(), &mut groups, key, value)?;
 
         // j. Set k to k + 1.
         k += 1;

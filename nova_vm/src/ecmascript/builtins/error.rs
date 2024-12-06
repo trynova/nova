@@ -373,11 +373,11 @@ impl InternalMethods for Error {
         }
     }
 
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => Some(backing_object.try_own_property_keys(agent, gc).unwrap()),
             None => {

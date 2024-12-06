@@ -96,7 +96,7 @@ pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
-pub use property_key::PropertyKey;
+pub use property_key::{bind_property_keys, unbind_property_keys, PropertyKey};
 pub use property_storage::PropertyStorage;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
@@ -3182,11 +3182,11 @@ impl InternalMethods for Object {
         }
     }
 
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         match self {
             Object::Object(data) => data.try_own_property_keys(agent, gc),
             Object::Array(data) => data.try_own_property_keys(agent, gc),
