@@ -5,7 +5,7 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
 use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
-use crate::ecmascript::types::Numeric;
+use crate::ecmascript::types::{Numeric, Primitive};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -272,29 +272,70 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> JsResult<Option<bool>> {
-    // 1. If LeftFirst is true, then
-    let (px, py) = if LEFT_FIRST {
-        // a. Let px be ? ToPrimitive(x, NUMBER).
-        let px = to_primitive(agent, gc.reborrow(), x.into(), Some(PreferredType::Number))?;
-
-        // b. Let py be ? ToPrimitive(y, NUMBER).
-        let py = to_primitive(agent, gc.reborrow(), y.into(), Some(PreferredType::Number))?;
-
-        (px, py)
-    }
-    // 2. Else,
-    else {
-        // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
-        // b. Let py be ? ToPrimitive(y, NUMBER).
-        let py = to_primitive(agent, gc.reborrow(), y.into(), Some(PreferredType::Number))?;
-
-        // c. Let px be ? ToPrimitive(x, NUMBER).
-        let px = to_primitive(agent, gc.reborrow(), x.into(), Some(PreferredType::Number))?;
-
-        (px, py)
+    let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
+        (Ok(px), Ok(py)) => {
+            let gc = gc.into_nogc();
+            (px.bind(gc), py.bind(gc), gc)
+        }
+        (Ok(px), Err(_)) => {
+            let px = px.scope(agent, gc.nogc());
+            let py =
+                to_primitive(agent, gc.reborrow(), y.into(), Some(PreferredType::Number))?.unbind();
+            let gc = gc.into_nogc();
+            let px = px.get(agent);
+            (px.bind(gc), py.bind(gc), gc)
+        }
+        (Err(_), Ok(py)) => {
+            let py = py.scope(agent, gc.nogc());
+            let px =
+                to_primitive(agent, gc.reborrow(), x.into(), Some(PreferredType::Number))?.unbind();
+            let gc = gc.into_nogc();
+            let py = py.get(agent);
+            (px.bind(gc), py.bind(gc), gc)
+        }
+        (Err(_), Err(_)) => {
+            if LEFT_FIRST {
+                // 1. If LeftFirst is true, then
+                // a. Let px be ? ToPrimitive(x, NUMBER).
+                // b. Let py be ? ToPrimitive(y, NUMBER).
+                let y: Value = y.into();
+                let y = y.scope(agent, gc.nogc());
+                let px = to_primitive(agent, gc.reborrow(), x.into(), Some(PreferredType::Number))?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                let py = to_primitive(
+                    agent,
+                    gc.reborrow(),
+                    y.get(agent),
+                    Some(PreferredType::Number),
+                )?
+                .unbind();
+                let gc = gc.into_nogc();
+                let px = px.get(agent);
+                (px.bind(gc), py.bind(gc), gc)
+            } else {
+                // 2. Else,
+                // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
+                // b. Let py be ? ToPrimitive(y, NUMBER).
+                // c. Let px be ? ToPrimitive(x, NUMBER).
+                let x: Value = x.into();
+                let x = x.scope(agent, gc.nogc());
+                let py = to_primitive(agent, gc.reborrow(), y.into(), Some(PreferredType::Number))?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                let px = to_primitive(
+                    agent,
+                    gc.reborrow(),
+                    x.get(agent),
+                    Some(PreferredType::Number),
+                )?
+                .unbind();
+                let gc = gc.into_nogc();
+                let py = py.get(agent);
+                (px.bind(gc), py.bind(gc), gc)
+            }
+        }
     };
-
-    let gc = gc.into_nogc();
 
     // 3. If px is a String and py is a String, then
     if px.is_string() && py.is_string() {
@@ -506,14 +547,16 @@ pub(crate) fn is_loosely_equal(
 
     // 11. If x is either a String, a Number, a BigInt, or a Symbol and y is an Object, return ! IsLooselyEqual(x, ? ToPrimitive(y)).
     if (x.is_string() || x.is_number() || x.is_bigint() || x.is_symbol()) && y.is_object() {
-        let y = to_primitive(agent, gc.reborrow(), y, None)?;
-        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
+        let x = x.scope(agent, gc.nogc());
+        let y = to_primitive(agent, gc.reborrow(), y, None)?.unbind();
+        return Ok(is_loosely_equal(agent, gc, x.get(agent), y).unwrap());
     }
 
     // 12. If x is an Object and y is either a String, a Number, a BigInt, or a Symbol, return ! IsLooselyEqual(? ToPrimitive(x), y).
     if x.is_object() && (y.is_string() || y.is_number() || y.is_bigint() || y.is_symbol()) {
-        let x = to_primitive(agent, gc.reborrow(), x, None)?;
-        return Ok(is_loosely_equal(agent, gc, x, y).unwrap());
+        let y = y.scope(agent, gc.nogc());
+        let x = to_primitive(agent, gc.reborrow(), x, None)?.unbind();
+        return Ok(is_loosely_equal(agent, gc, x, y.get(agent)).unwrap());
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then

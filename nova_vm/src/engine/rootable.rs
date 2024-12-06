@@ -140,7 +140,7 @@ mod private {
     impl RootableSealed for Numeric<'_> {}
     impl RootableSealed for Object {}
     impl RootableSealed for OrdinaryObject {}
-    impl RootableSealed for Primitive {}
+    impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject {}
     impl RootableSealed for Promise {}
     impl RootableSealed for Proxy {}
@@ -150,7 +150,7 @@ mod private {
     #[cfg(feature = "shared-array-buffer")]
     impl RootableSealed for SharedArrayBuffer {}
     impl RootableSealed for String<'_> {}
-    impl RootableSealed for Symbol {}
+    impl RootableSealed for Symbol<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray {}
     impl RootableSealed for Value {}
@@ -205,7 +205,7 @@ pub enum HeapRootData {
     // First the Value variants: This list should match 1-to-1 the list in
     // value.rs, but with the
     String(HeapString<'static>) = STRING_DISCRIMINANT,
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     Object(OrdinaryObject) = OBJECT_DISCRIMINANT,

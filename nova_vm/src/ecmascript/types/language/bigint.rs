@@ -34,8 +34,8 @@ impl IntoValue for BigInt<'_> {
     }
 }
 
-impl IntoPrimitive for BigInt<'_> {
-    fn into_primitive(self) -> Primitive {
+impl<'a> IntoPrimitive<'a> for BigInt<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
         self.into()
     }
 }
@@ -126,8 +126,8 @@ impl IntoValue for HeapBigInt<'_> {
     }
 }
 
-impl IntoPrimitive for HeapBigInt<'_> {
-    fn into_primitive(self) -> Primitive {
+impl<'a> IntoPrimitive<'a> for HeapBigInt<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
         Primitive::BigInt(self.unbind())
     }
 }
@@ -144,10 +144,10 @@ impl TryFrom<Value> for HeapBigInt<'_> {
     }
 }
 
-impl TryFrom<Primitive> for HeapBigInt<'_> {
+impl<'a> TryFrom<Primitive<'a>> for HeapBigInt<'a> {
     type Error = ();
 
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         if let Primitive::BigInt(x) = value {
             Ok(x)
         } else {
@@ -682,9 +682,9 @@ impl TryFrom<Value> for BigInt<'_> {
     }
 }
 
-impl TryFrom<Primitive> for BigInt<'_> {
+impl<'a> TryFrom<Primitive<'a>> for BigInt<'a> {
     type Error = ();
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
             Primitive::BigInt(x) => Ok(BigInt::BigInt(x)),
             Primitive::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -713,8 +713,8 @@ impl From<BigInt<'_>> for Value {
     }
 }
 
-impl From<BigInt<'_>> for Primitive {
-    fn from(value: BigInt<'_>) -> Primitive {
+impl<'a> From<BigInt<'a>> for Primitive<'a> {
+    fn from(value: BigInt<'a>) -> Primitive<'a> {
         match value {
             BigInt::BigInt(x) => Primitive::BigInt(x.unbind()),
             BigInt::SmallBigInt(x) => Primitive::SmallBigInt(x),

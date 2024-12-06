@@ -91,8 +91,8 @@ impl IntoValue for HeapNumber<'_> {
     }
 }
 
-impl IntoPrimitive for HeapNumber<'_> {
-    fn into_primitive(self) -> Primitive {
+impl<'a> IntoPrimitive<'a> for HeapNumber<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
         Primitive::Number(self.unbind())
     }
 }
@@ -125,8 +125,8 @@ impl TryFrom<Value> for HeapNumber<'_> {
     }
 }
 
-impl IntoPrimitive for Number<'_> {
-    fn into_primitive(self) -> Primitive {
+impl<'a> IntoPrimitive<'a> for Number<'a> {
+    fn into_primitive(self) -> Primitive<'a> {
         match self {
             Number::Number(idx) => Primitive::Number(idx.unbind()),
             Number::Integer(data) => Primitive::Integer(data),
@@ -241,9 +241,9 @@ impl TryFrom<Value> for Number<'_> {
     }
 }
 
-impl TryFrom<Primitive> for Number<'_> {
+impl<'a> TryFrom<Primitive<'a>> for Number<'a> {
     type Error = ();
-    fn try_from(value: Primitive) -> Result<Self, Self::Error> {
+    fn try_from(value: Primitive<'a>) -> Result<Self, Self::Error> {
         match value {
             Primitive::Number(data) => Ok(Number::Number(data)),
             Primitive::Integer(data) => Ok(Number::Integer(data)),

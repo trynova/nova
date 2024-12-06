@@ -438,7 +438,7 @@ pub(crate) enum PrimitiveObjectData {
     Boolean(bool) = BOOLEAN_DISCRIMINANT,
     String(HeapString<'static>) = STRING_DISCRIMINANT,
     SmallString(SmallString) = SMALL_STRING_DISCRIMINANT,
-    Symbol(Symbol) = SYMBOL_DISCRIMINANT,
+    Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     Integer(SmallInteger) = INTEGER_DISCRIMINANT,
     Float(SmallF64) = FLOAT_DISCRIMINANT,
@@ -483,7 +483,7 @@ impl TryFrom<PrimitiveObjectData> for String<'static> {
     }
 }
 
-impl TryFrom<PrimitiveObjectData> for Symbol {
+impl TryFrom<PrimitiveObjectData> for Symbol<'_> {
     type Error = ();
 
     fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
@@ -545,7 +545,7 @@ impl PrimitiveObjectHeapData {
     pub(crate) fn new_symbol_object(symbol: Symbol) -> Self {
         Self {
             object_index: None,
-            data: PrimitiveObjectData::Symbol(symbol),
+            data: PrimitiveObjectData::Symbol(symbol.unbind()),
         }
     }
 }
