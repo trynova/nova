@@ -1843,7 +1843,11 @@ impl ElementArrays {
 
     pub(crate) fn create_with_stuff(
         &mut self,
-        mut entries: Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>,
+        mut entries: Vec<(
+            PropertyKey<'static>,
+            Option<ElementDescriptor>,
+            Option<Value>,
+        )>,
     ) -> (ElementsVector, ElementsVector) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
@@ -1889,7 +1893,7 @@ impl ElementArrays {
 
     pub(crate) fn create_object_entries(
         &mut self,
-        entries: &[ObjectEntry],
+        entries: &[ObjectEntry<'static>],
     ) -> (ElementsVector, ElementsVector) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);

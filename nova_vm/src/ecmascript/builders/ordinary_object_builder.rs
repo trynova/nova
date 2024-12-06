@@ -29,7 +29,13 @@ pub struct CreatorPrototype<T: IntoObject>(T);
 pub struct NoProperties;
 
 #[derive(Clone)]
-pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>);
+pub struct CreatorProperties(
+    Vec<(
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    )>,
+);
 
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,
@@ -122,7 +128,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
 
 impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     #[must_use]
-    pub fn with_data_property(mut self, key: PropertyKey, value: Value) -> Self {
+    pub fn with_data_property(mut self, key: PropertyKey<'static>, value: Value) -> Self {
         self.properties.0.push((key, None, Some(value)));
         OrdinaryObjectBuilder {
             agent: self.agent,
@@ -139,7 +145,11 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
         mut self,
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+        ) -> (
+            PropertyKey<'static>,
+            Option<ElementDescriptor>,
+            Option<Value>,
+        ),
     ) -> Self {
         let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);

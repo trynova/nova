@@ -23,7 +23,7 @@ pub struct NoConfigurable;
 pub struct NoDefinition;
 
 #[derive(Clone, Copy)]
-pub struct CreatorKey(PropertyKey);
+pub struct CreatorKey(PropertyKey<'static>);
 
 #[derive(Clone, Copy)]
 pub struct CreatorGetAccessor(Function);
@@ -43,7 +43,7 @@ pub struct CreatorValue(Value);
 #[derive(Clone, Copy)]
 pub struct CreatorReadOnlyValue(Value);
 
-pub struct PropertyBuilder<'agent, K, D> {
+pub struct PropertyBuilder<'agent, K: 'static, D> {
     pub(crate) agent: &'agent mut Agent,
     key: K,
     definition: D,
@@ -64,7 +64,7 @@ impl<'agent> PropertyBuilder<'agent, NoKey, NoDefinition> {
 }
 
 impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
-    pub fn with_key(self, key: PropertyKey) -> PropertyBuilder<'agent, CreatorKey, D> {
+    pub fn with_key(self, key: PropertyKey<'static>) -> PropertyBuilder<'agent, CreatorKey, D> {
         PropertyBuilder {
             agent: self.agent,
             key: CreatorKey(key),
@@ -243,7 +243,13 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorValue> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(
+        self,
+    ) -> (
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    ) {
         (
             self.key.0,
             ElementDescriptor::new_with_wec(true, self.enumerable, self.configurable),
@@ -253,7 +259,13 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorValue> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorReadOnlyValue> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(
+        self,
+    ) -> (
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    ) {
         (
             self.key.0,
             ElementDescriptor::new_with_wec(false, self.enumerable, self.configurable),
@@ -263,7 +275,13 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorReadOnlyValue> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetAccessor> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(
+        self,
+    ) -> (
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    ) {
         (
             self.key.0,
             Some(ElementDescriptor::new_with_get_ec(
@@ -277,7 +295,13 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetAccessor> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorSetAccess> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(
+        self,
+    ) -> (
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    ) {
         (
             self.key.0,
             Some(ElementDescriptor::new_with_set_ec(
@@ -291,7 +315,13 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorSetAccess> {
 }
 
 impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetSetAccessor> {
-    pub fn build(self) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>) {
+    pub fn build(
+        self,
+    ) -> (
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    ) {
         (
             self.key.0,
             Some(ElementDescriptor::new_with_get_set_ec(

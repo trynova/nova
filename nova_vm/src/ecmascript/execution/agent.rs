@@ -466,12 +466,12 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// completion. It is used to determine the binding of name. env can be used to
 /// explicitly provide the Environment Record that is to be searched for the
 /// binding.
-pub(crate) fn try_resolve_binding(
+pub(crate) fn try_resolve_binding<'a>(
     agent: &mut Agent,
-    gc: NoGcScope<'_, '_>,
-    name: String,
+    gc: NoGcScope<'a, '_>,
+    name: String<'a>,
     env: Option<EnvironmentIndex>,
-) -> Option<Reference> {
+) -> Option<Reference<'a>> {
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
         //    a. Set env to the running execution context's LexicalEnvironment.
@@ -505,12 +505,12 @@ pub(crate) fn try_resolve_binding(
 /// completion. It is used to determine the binding of name. env can be used to
 /// explicitly provide the Environment Record that is to be searched for the
 /// binding.
-pub(crate) fn resolve_binding(
+pub(crate) fn resolve_binding<'a, 'b>(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
-    name: String,
+    gc: GcScope<'a, 'b>,
+    name: String<'b>,
     env: Option<EnvironmentIndex>,
-) -> JsResult<Reference> {
+) -> JsResult<Reference<'a>> {
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
         //    a. Set env to the running execution context's LexicalEnvironment.

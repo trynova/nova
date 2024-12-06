@@ -5,13 +5,13 @@
 use crate::ecmascript::types::{Function, PropertyDescriptor, PropertyKey, Value};
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct ObjectEntry {
-    pub key: PropertyKey,
+pub(crate) struct ObjectEntry<'a> {
+    pub key: PropertyKey<'a>,
     pub value: ObjectEntryPropertyDescriptor,
 }
 
-impl ObjectEntry {
-    pub(crate) fn new_data_entry(key: PropertyKey, value: Value) -> Self {
+impl<'a> ObjectEntry<'a> {
+    pub(crate) fn new_data_entry(key: PropertyKey<'a>, value: Value) -> Self {
         Self {
             key,
             value: ObjectEntryPropertyDescriptor::Data {

@@ -18,7 +18,8 @@ pub(crate) struct SharedArrayBufferPrototype;
 struct SharedArrayBufferPrototypeGetByteLength;
 impl Builtin for SharedArrayBufferPrototypeGetByteLength {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_byteLength;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.byteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::get_byte_length);
 }
@@ -32,7 +33,8 @@ impl Builtin for SharedArrayBufferPrototypeGrow {
 struct SharedArrayBufferPrototypeGetGrowable;
 impl Builtin for SharedArrayBufferPrototypeGetGrowable {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_growable;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.growable.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.growable.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::get_growable);
 }
@@ -40,7 +42,8 @@ impl BuiltinGetter for SharedArrayBufferPrototypeGetGrowable {}
 struct SharedArrayBufferPrototypeGetMaxByteLength;
 impl Builtin for SharedArrayBufferPrototypeGetMaxByteLength {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_maxByteLength;
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.maxByteLength.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.maxByteLength.to_property_key());
     const LENGTH: u8 = 0;
     const BEHAVIOUR: Behaviour =
         Behaviour::Regular(SharedArrayBufferPrototype::get_max_byte_length);

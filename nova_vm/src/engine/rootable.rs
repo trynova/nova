@@ -111,8 +111,8 @@ mod private {
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
-            BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, String, Symbol,
-            Value,
+            BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
+            String, Symbol, Value,
         },
     };
 
@@ -147,6 +147,7 @@ mod private {
     impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject {}
     impl RootableSealed for Promise {}
+    impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp {}
@@ -301,7 +302,7 @@ pub enum HeapRootData {
 /// as-is. It only make sense within some root list referring type,
 /// specifically `Local<T>` and `Global<T>`, and then those types should never
 /// appear within the heap directly.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct HeapRootRef(u32);
 

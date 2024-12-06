@@ -534,11 +534,11 @@ impl InternalMethods for Function {
         }
     }
 
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         match self {
             Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),

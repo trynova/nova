@@ -1202,16 +1202,16 @@ pub(crate) fn to_object(agent: &mut Agent, gc: NoGcScope, argument: Value) -> Js
 }
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
-pub(crate) fn to_property_key(
+pub(crate) fn to_property_key<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     argument: Value,
-) -> JsResult<PropertyKey> {
+) -> JsResult<PropertyKey<'a>> {
     // Note: Fast path and non-standard special case combined. Usually the
     // argument is already a valid property key. We also need to parse integer
     // strings back into integer property keys.
-    if let Some(simple_result) = to_property_key_simple(agent, argument) {
-        return Ok(simple_result);
+    if let Some(simple_result) = to_property_key_simple(agent, gc.nogc(), argument) {
+        return Ok(simple_result.unbind());
     }
 
     // If the argument is not a simple property key, it means that we may need
@@ -1229,7 +1229,7 @@ pub(crate) fn to_property_key(
     // If the property key was an object, it is now a primitive. We need to do
     // our non-standard parsing of integer strings back into integer property
     // keys here as well.
-    Ok(to_property_key_simple(agent, key).unwrap_or_else(|| {
+    Ok(to_property_key_simple(agent, gc, key).unwrap_or_else(|| {
         // Key was still not simple: This mean it's a heap allocated f64,
         // BigInt, or non-negative-zero f32: These should never be safe
         // integers and thus will never be PropertyKey::Integer after
@@ -1260,10 +1260,11 @@ pub(crate) fn to_property_key(
 ///
 /// If a complex case is found, the function returns None to indicate that the
 /// caller should handle the uncommon case.
-pub(crate) fn to_property_key_simple(
+pub(crate) fn to_property_key_simple<'a>(
     agent: &Agent,
+    _: NoGcScope<'a, '_>,
     argument: impl IntoValue,
-) -> Option<PropertyKey> {
+) -> Option<PropertyKey<'a>> {
     let argument = argument.into_value();
     match argument {
         Value::String(_) | Value::SmallString(_) => {
@@ -1299,7 +1300,7 @@ pub(crate) fn to_property_key_simple(
     }
 }
 
-pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey> {
+pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey<'static>> {
     // i64::from_string will accept eg. 0123 as 123 but JS property keys do
     // not agree. Hence, only "0" can start with "0", all other integer
     // keys must start with one of "1".."9".
