@@ -1,9 +1,24 @@
 [workspace]
 resolver = "2"
-members = ["nova_cli", "nova_vm", "common", "small_string", "tests"]
+members = ["nova_cli", "nova_vm", "small_string", "tests"]
 
-[profile.release]
-lto = true
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "MPL-2.0"
+homepage = "https://trynova.dev"
+keywords = [
+    "nova",
+    "engine",
+    "language",
+    "JavaScript",
+    "TypeScript",
+    "VM",
+    "data-oriented",
+    "data-oriented design"
+]
+categories = ["development-tools", "programming-languages"]
+authors = ["The Nova Team"]
 
 [workspace.dependencies]
 ahash = "0.8.11"
@@ -30,3 +45,6 @@ sonic-rs = "0.3.16"
 unicode-normalization = "0.1.24"
 wtf8 = "0.1"
 fast_float = "0.2.0"
+
+[profile.release]
+lto = true

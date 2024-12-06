@@ -1,8 +1,15 @@
 [package]
 name = "nova_cli"
-version = "0.1.0"
-edition = "2021"
+repository = "https://github.com/trynova/nova/tree/main/nova_cli"
+description = "Nova Command Line Interface"
 default-run = "nova_cli"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 clap = { workspace = true}
