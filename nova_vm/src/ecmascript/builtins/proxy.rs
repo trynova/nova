@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
@@ -105,6 +105,14 @@ impl InternalSlots for Proxy {
 }
 
 impl InternalMethods for Proxy {
+    fn try_get_prototype_of(
+        self,
+        agent: &mut Agent,
+        _gc: NoGcScope<'_, '_>,
+    ) -> Option<Option<Object>> {
+        Some(self.internal_prototype(agent))
+    }
+
     fn internal_get_prototype_of(
         self,
         agent: &mut Agent,

@@ -7,7 +7,10 @@ use std::{
     vec,
 };
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::{
+    ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
+    engine::context::{GcScope, NoGcScope},
+};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -41,6 +44,7 @@ use super::{
         set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
     },
     map::data::MapHeapData,
+    module::Module,
     primitive_objects::PrimitiveObjectHeapData,
     promise::data::PromiseHeapData,
     set::data::SetHeapData,
@@ -94,22 +98,40 @@ impl IndexMut<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
 impl InternalMethods for OrdinaryObject {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
-pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
+pub(crate) fn ordinary_get_prototype_of(
+    agent: &mut Agent,
+    _: NoGcScope,
+    object: OrdinaryObject,
+) -> Option<Object> {
     // 1. Return O.[[Prototype]].
     object.internal_prototype(agent)
 }
 
-/// Implements steps 5 through 7 of OrdinarySetPrototypeOf
-///
-/// Returns false if a loop is detected, corresponding to substep 7.b.i. of the
-/// abstract operation.
-pub(crate) fn ordinary_set_prototype_of_check_loop(
+/// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
+pub(crate) fn ordinary_set_prototype_of(
     agent: &mut Agent,
-    o: Object,
-    v: Option<Object>,
+    object: Object,
+    prototype: Option<Object>,
 ) -> bool {
+    // 1. Let current be O.[[Prototype]].
+    let current = object.internal_prototype(agent);
+
+    // 2. If SameValue(V, current) is true, return true.
+    if prototype == current {
+        return true;
+    }
+
+    // 3. Let extensible be O.[[Extensible]].
+    let extensible = object.internal_extensible(agent);
+
+    // 4. If extensible is false, return false.
+    if !extensible {
+        // 7.b.i. Return false.
+        return false;
+    }
+
     // 5. Let p be V.
-    let mut p = v;
+    let mut p = prototype;
     // 6. Let done be false.
     let mut done = false;
 
@@ -117,7 +139,7 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
     while !done {
         if let Some(p_inner) = p {
             // b. Else if SameValue(p, O) is true, then
-            if same_value(agent, p_inner, o) {
+            if p_inner == object {
                 // i. Return false.
                 return false;
             } else {
@@ -139,38 +161,6 @@ pub(crate) fn ordinary_set_prototype_of_check_loop(
             done = true;
         }
     }
-    o.internal_set_prototype(agent, v);
-    true
-}
-
-/// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
-pub(crate) fn ordinary_set_prototype_of(
-    agent: &mut Agent,
-    object: Object,
-    prototype: Option<Object>,
-) -> bool {
-    // 1. Let current be O.[[Prototype]].
-    let current = object.internal_prototype(agent);
-
-    // 2. If SameValue(V, current) is true, return true.
-    match (prototype, current) {
-        (Some(prototype), Some(current)) if same_value(agent, prototype, current) => return true,
-        (None, None) => return true,
-        _ => {}
-    }
-
-    // 3. Let extensible be O.[[Extensible]].
-    let extensible = object.internal_extensible(agent);
-
-    // 4. If extensible is false, return false.
-    if !extensible {
-        // 7.b.i. Return false.
-        return false;
-    }
-
-    if !ordinary_set_prototype_of_check_loop(agent, object, prototype) {
-        return false;
-    }
 
     // 8. Set O.[[Prototype]] to V.
     object.internal_set_prototype(agent, prototype);
@@ -180,13 +170,13 @@ pub(crate) fn ordinary_set_prototype_of(
 }
 
 /// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
-pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: Object) -> bool {
+pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: OrdinaryObject) -> bool {
     // 1. Return O.[[Extensible]].
     object.internal_extensible(agent)
 }
 
 /// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
-pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
+pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObject) -> bool {
     // 1. Set O.[[Extensible]] to false.
     object.internal_set_extensible(agent, false);
 
@@ -197,12 +187,15 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property(
     agent: &mut Agent,
-    object: Object,
+    object: OrdinaryObject,
     property_key: PropertyKey,
 ) -> Option<PropertyDescriptor> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let x = object.property_storage().get(agent, property_key)?;
+    let x = object
+        .into_object()
+        .property_storage()
+        .get(agent, property_key)?;
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();
@@ -237,15 +230,44 @@ pub(crate) fn ordinary_get_own_property(
 }
 
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
-pub(crate) fn ordinary_define_own_property(
+pub(crate) fn ordinary_try_define_own_property(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
-    object: Object,
+    gc: NoGcScope<'_, '_>,
+    object: OrdinaryObject,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
-) -> JsResult<bool> {
+) -> bool {
+    // 1. Let current be ! O.[[GetOwnProperty]](P).
+    let current = object
+        .try_get_own_property(agent, gc, property_key)
+        .unwrap();
+
+    // 2. Let extensible be ! IsExtensible(O).
+    let extensible = object.internal_extensible(agent);
+
+    // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
+    validate_and_apply_property_descriptor(
+        agent,
+        Some(object),
+        property_key,
+        extensible,
+        descriptor,
+        current,
+    )
+}
+
+/// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
+pub(crate) fn ordinary_define_own_property(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: OrdinaryObject,
+    property_key: PropertyKey,
+    descriptor: PropertyDescriptor,
+) -> bool {
     // 1. Let current be ? O.[[GetOwnProperty]](P).
-    let current = object.internal_get_own_property(agent, gc.reborrow(), property_key)?;
+    let current = object
+        .try_get_own_property(agent, gc, property_key)
+        .unwrap();
 
     // 2. Let extensible be ? IsExtensible(O).
     let extensible = object.internal_extensible(agent);
@@ -268,7 +290,7 @@ pub(crate) fn is_compatible_property_descriptor(
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
-) -> JsResult<bool> {
+) -> bool {
     let property_key = PropertyKey::from_str(agent, gc, "");
     validate_and_apply_property_descriptor(
         agent,
@@ -283,24 +305,24 @@ pub(crate) fn is_compatible_property_descriptor(
 /// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
-    object: Option<Object>,
+    object: Option<OrdinaryObject>,
     property_key: PropertyKey,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
-) -> JsResult<bool> {
+) -> bool {
     // 1. Assert: IsPropertyKey(P) is true.
 
     // 2. If current is undefined, then
     let Some(current) = current else {
         // a. If extensible is false, return false.
         if !extensible {
-            return Ok(false);
+            return false;
         }
 
         // b. If O is undefined, return true.
         let Some(object) = object else {
-            return Ok(true);
+            return true;
         };
 
         // c. If IsAccessorDescriptor(Desc) is true, then
@@ -309,7 +331,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -327,7 +349,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -341,7 +363,7 @@ fn validate_and_apply_property_descriptor(
         }
 
         // e. Return true.
-        return Ok(true);
+        return true;
     };
 
     // 3. Assert: current is a fully populated Property Descriptor.
@@ -349,20 +371,20 @@ fn validate_and_apply_property_descriptor(
 
     // 4. If Desc does not have any fields, return true.
     if !descriptor.has_fields() {
-        return Ok(true);
+        return true;
     }
 
     // 5. If current.[[Configurable]] is false, then
     if !current.configurable.unwrap() {
         // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
         if let Some(true) = descriptor.configurable {
-            return Ok(false);
+            return false;
         }
 
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
         if descriptor.enumerable.is_some() && descriptor.enumerable != current.enumerable {
-            return Ok(false);
+            return false;
         }
 
         // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
@@ -370,7 +392,7 @@ fn validate_and_apply_property_descriptor(
         if !descriptor.is_generic_descriptor()
             && descriptor.is_accessor_descriptor() != current.is_accessor_descriptor()
         {
-            return Ok(false);
+            return false;
         }
 
         // d. If IsAccessorDescriptor(current) is true, then
@@ -380,10 +402,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_get) = descriptor.get {
                 if let Some(cur_get) = current.get {
                     if desc_get != cur_get {
-                        return Ok(false);
+                        return false;
                     }
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             }
 
@@ -392,10 +414,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_set) = descriptor.set {
                 if let Some(cur_set) = current.set {
                     if desc_set != cur_set {
-                        return Ok(false);
+                        return false;
                     }
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
@@ -403,7 +425,7 @@ fn validate_and_apply_property_descriptor(
         else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
             if let Some(true) = descriptor.writable {
-                return Ok(false);
+                return false;
             }
 
             // ii. If Desc has a [[Value]] field and SameValue(Desc.[[Value]], current.[[Value]])
@@ -411,10 +433,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_value) = descriptor.value {
                 if let Some(cur_value) = current.value {
                     if !same_value(agent, desc_value, cur_value) {
-                        return Ok(false);
+                        return false;
                     }
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
@@ -441,7 +463,7 @@ fn validate_and_apply_property_descriptor(
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -478,7 +500,7 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -494,7 +516,7 @@ fn validate_and_apply_property_descriptor(
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -510,14 +532,48 @@ fn validate_and_apply_property_descriptor(
     }
 
     // 7. Return true.
-    Ok(true)
+    true
+}
+
+/// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
+pub(crate) fn ordinary_try_has_property(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: OrdinaryObject,
+    property_key: PropertyKey,
+) -> Option<bool> {
+    // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
+    // Note: ? means that if we'd call a Proxy's GetOwnProperty trap then we'll
+    // intead return None.
+    let has_own = object.try_get_own_property(agent, gc, property_key)?;
+
+    // 2. If hasOwn is not undefined, return true.
+    if has_own.is_some() {
+        return Some(true);
+    }
+
+    // 3. Let parent be ? O.[[GetPrototypeOf]]().
+    // Note: ? means that if we'd call a Proxy's GetPrototypeOf trap then we'll
+    // instead return None.
+    let parent = object.try_get_prototype_of(agent, gc)?;
+
+    // 4. If parent is not null, then
+    if let Some(parent) = parent {
+        // a. Return ? parent.[[HasProperty]](P).
+        // Note: Here too, if we would call a Proxy's HasProperty trap then
+        // we'll instead return None.
+        return parent.try_has_property(agent, gc, property_key);
+    }
+
+    // 5. Return false.
+    Some(false)
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-    object: Object,
+    object: OrdinaryObject,
     property_key: PropertyKey,
 ) -> JsResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
@@ -529,7 +585,16 @@ pub(crate) fn ordinary_has_property(
     }
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let parent = object.internal_get_prototype_of(agent, gc.reborrow())?;
+    let (parent, property_key) = if let Some(parent) = object.try_get_prototype_of(agent, gc.nogc())
+    {
+        (parent, property_key)
+    } else {
+        // Note: We should root property_key here.
+        (
+            object.internal_get_prototype_of(agent, gc.reborrow())?,
+            property_key,
+        )
+    };
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
@@ -542,10 +607,69 @@ pub(crate) fn ordinary_has_property(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
+pub(crate) fn ordinary_try_get(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: OrdinaryObject,
+    property_key: PropertyKey,
+    receiver: Value,
+) -> Option<Value> {
+    // 1. Let desc be ? O.[[GetOwnProperty]](P).
+    let Some(descriptor) = object.try_get_own_property(agent, gc, property_key)? else {
+        // 2. If desc is undefined, then
+
+        // a. Let parent be ? O.[[GetPrototypeOf]]().
+        let (parent, property_key, receiver) =
+            if let Some(parent) = object.try_get_prototype_of(agent, gc) {
+                let Some(parent) = parent else {
+                    return Some(Value::Undefined);
+                };
+                (parent, property_key, receiver)
+            } else {
+                // Note: We should root property_key and receiver here.
+                let receiver = receiver.scope(agent, gc);
+                let Some(parent) = object.try_get_prototype_of(agent, gc)? else {
+                    return Some(Value::Undefined);
+                };
+                let receiver = receiver.get(agent);
+                (parent, property_key, receiver)
+            };
+
+        // c. Return ? parent.[[Get]](P, Receiver).
+        return parent.try_get(agent, gc, property_key, receiver);
+    };
+
+    // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
+    if let Some(value) = descriptor.value {
+        debug_assert!(descriptor.is_data_descriptor());
+        return Some(value);
+    }
+
+    // 4. Assert: IsAccessorDescriptor(desc) is true.
+    debug_assert!(descriptor.is_accessor_descriptor());
+
+    // 5. Let getter be desc.[[Get]].
+    // 6. If getter is undefined, return undefined.
+    let Some(_getter) = descriptor.get else {
+        return Some(Value::Undefined);
+    };
+
+    // 7. Return ? Call(getter, Receiver).
+    // call_function(agent, gc, getter, receiver, None)
+    // Note: We cannot call a function without risking GC! There are future
+    // options here:
+    // 1. Special function types that are guaranteed to trigger no GC.
+    // 2. Return a special value that tells which getter to call. Note that the
+    //    receiver is statically known, so just returning the getter function
+    //    should be enough.
+    None
+}
+
+/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
 pub(crate) fn ordinary_get(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-    object: Object,
+    object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
 ) -> JsResult<Value> {
@@ -555,9 +679,21 @@ pub(crate) fn ordinary_get(
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let Some(parent) = object.internal_get_prototype_of(agent, gc.reborrow())? else {
-            return Ok(Value::Undefined);
-        };
+        let (parent, property_key, receiver) =
+            if let Some(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
+                let Some(parent) = parent else {
+                    return Ok(Value::Undefined);
+                };
+                (parent, property_key, receiver)
+            } else {
+                // Note: We should root property_key and receiver here.
+                let receiver = receiver.scope(agent, gc.nogc());
+                let Some(parent) = object.internal_get_prototype_of(agent, gc.reborrow())? else {
+                    return Ok(Value::Undefined);
+                };
+                let receiver = receiver.get(agent);
+                (parent, property_key, receiver)
+            };
 
         // c. Return ? parent.[[Get]](P, Receiver).
         return parent.internal_get(agent, gc, property_key, receiver);
@@ -580,6 +716,33 @@ pub(crate) fn ordinary_get(
 
     // 7. Return ? Call(getter, Receiver).
     call_function(agent, gc, getter, receiver, None)
+}
+
+/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
+pub(crate) fn ordinary_try_set(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: Object,
+    property_key: PropertyKey,
+    value: Value,
+    receiver: Value,
+) -> Option<bool> {
+    // 1. Let ownDesc be ! O.[[GetOwnProperty]](P).
+    // We're guaranteed to always get a result here.
+    let own_descriptor = object
+        .try_get_own_property(agent, gc, property_key)
+        .unwrap();
+
+    // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
+    ordinary_try_set_with_own_descriptor(
+        agent,
+        gc,
+        object,
+        property_key,
+        value,
+        receiver,
+        own_descriptor,
+    )
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
@@ -607,6 +770,116 @@ pub(crate) fn ordinary_set(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
+pub(crate) fn ordinary_try_set_with_own_descriptor(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: Object,
+    property_key: PropertyKey,
+    value: Value,
+    receiver: Value,
+    own_descriptor: Option<PropertyDescriptor>,
+) -> Option<bool> {
+    let own_descriptor = if let Some(own_descriptor) = own_descriptor {
+        own_descriptor
+    } else {
+        // 1. If ownDesc is undefined, then
+        // a. Let parent be ! O.[[GetPrototypeOf]]().
+        let parent = object.try_get_prototype_of(agent, gc).unwrap();
+
+        // b. If parent is not null, then
+        if let Some(parent) = parent {
+            // i. Return ? parent.[[Set]](P, V, Receiver).
+            // Note: Here we do not have guarantees: Parent could be a Proxy.
+            return parent.try_set(agent, gc, property_key, value, receiver);
+        }
+        // c. Else,
+        else {
+            // i. Set ownDesc to the PropertyDescriptor {
+            //      [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
+            //    }.
+            PropertyDescriptor {
+                value: Some(Value::Undefined),
+                writable: Some(true),
+                enumerable: Some(true),
+                configurable: Some(true),
+                ..Default::default()
+            }
+        }
+    };
+
+    // 2. If IsDataDescriptor(ownDesc) is true, then
+    if own_descriptor.is_data_descriptor() {
+        // a. If ownDesc.[[Writable]] is false, return false.
+        if own_descriptor.writable == Some(false) {
+            return Some(false);
+        }
+
+        // b. If Receiver is not an Object, return false.
+        let Ok(receiver) = Object::try_from(receiver) else {
+            return Some(false);
+        };
+
+        // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
+        // Note: Here again we do not have guarantees; the receiver could be a
+        // Proxy.
+        let existing_descriptor = receiver.try_get_own_property(agent, gc, property_key)?;
+
+        // d. If existingDescriptor is not undefined, then
+        if let Some(existing_descriptor) = existing_descriptor {
+            // i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
+            if existing_descriptor.is_accessor_descriptor() {
+                return Some(false);
+            }
+
+            // ii. If existingDescriptor.[[Writable]] is false, return false.
+            if existing_descriptor.writable == Some(false) {
+                return Some(false);
+            }
+
+            // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
+            let value_descriptor = PropertyDescriptor {
+                value: Some(value),
+                ..Default::default()
+            };
+
+            // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
+            // Again: Receiver could be a Proxy.
+            return receiver.try_define_own_property(agent, gc, property_key, value_descriptor);
+        }
+        // e. Else,
+        else {
+            // i. Assert: Receiver does not currently have a property P.
+            debug_assert!(receiver
+                .try_get_own_property(agent, gc, property_key)
+                .unwrap()
+                .is_none());
+
+            // ii. Return ? CreateDataProperty(Receiver, P, V).
+            // Again: Receiver could be a Proxy.
+            return try_create_data_property(agent, gc, receiver, property_key, value);
+        }
+    }
+
+    // 3. Assert: IsAccessorDescriptor(ownDesc) is true.
+    debug_assert!(own_descriptor.is_accessor_descriptor());
+
+    // 4. Let setter be ownDesc.[[Set]].
+    // 5. If setter is undefined, return false.
+    let Some(_setter) = own_descriptor.set else {
+        return Some(false);
+    };
+
+    // 6. Perform ? Call(setter, Receiver, « V »).
+    // Note: We cannot call a function as it may trigger GC. See above for
+    // future options.
+    // call_function(agent, gc, setter, receiver, Some(ArgumentsList(&[value])))?;
+
+    // 7. Return true.
+    // Some(true)
+    None
+}
+
+/// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
 pub(crate) fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
@@ -621,12 +894,14 @@ pub(crate) fn ordinary_set_with_own_descriptor(
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.internal_get_prototype_of(agent, gc.reborrow())?;
+        // Note: OrdinaryObject never fails to get prototype.
+        let parent = object.try_get_prototype_of(agent, gc.nogc()).unwrap();
 
         // b. If parent is not null, then
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
-            return parent.internal_set(agent, gc.reborrow(), property_key, value, receiver);
+            // Note: Prototype might be a Proxy or contain a setter.
+            return parent.internal_set(agent, gc, property_key, value, receiver);
         }
         // c. Else,
         else {
@@ -656,8 +931,19 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor =
-            receiver.internal_get_own_property(agent, gc.reborrow(), property_key)?;
+        let existing_descriptor = if matches!(
+            receiver,
+            Object::Proxy(_) | Object::Module(_) | Object::EmbedderObject(_)
+        ) {
+            // TODO: Handle rooting.
+            receiver.internal_get_own_property(agent, gc.reborrow(), property_key)?
+        } else {
+            // Note: Only Proxy, Module, and Embedder objects cannot fail
+            // getting own property.
+            receiver
+                .try_get_own_property(agent, gc.nogc(), property_key)
+                .unwrap()
+        };
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
@@ -717,29 +1003,35 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
-    object: Object,
+    gc: NoGcScope<'_, '_>,
+    object: OrdinaryObject,
     property_key: PropertyKey,
-) -> JsResult<bool> {
+) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = object.internal_get_own_property(agent, gc, property_key)?;
+    // We're guaranteed to always get a result here.
+    let descriptor = object
+        .try_get_own_property(agent, gc, property_key)
+        .unwrap();
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {
-        return Ok(true);
+        return true;
     };
 
     // 3. If desc.[[Configurable]] is true, then
     if let Some(true) = descriptor.configurable {
         // a. Remove the own property with name P from O.
-        object.property_storage().remove(agent, property_key);
+        object
+            .into_object()
+            .property_storage()
+            .remove(agent, property_key);
 
         // b. Return true.
-        return Ok(true);
+        return true;
     }
 
     // 4. Return false.
-    Ok(false)
+    false
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
@@ -1205,15 +1497,15 @@ pub(crate) fn get_prototype_from_constructor(
 #[inline]
 pub(crate) fn set_immutable_prototype(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
-    o: Object,
+    gc: NoGcScope<'_, '_>,
+    o: Module,
     v: Option<Object>,
-) -> JsResult<bool> {
+) -> bool {
     // 1. Let current be ? O.[[GetPrototypeOf]]().
-    let current = o.internal_get_prototype_of(agent, gc)?;
+    let current = o.try_get_prototype_of(agent, gc).unwrap();
     // 2. If SameValue(V, current) is true, return true.
     // 3. Return false.
-    Ok(same_value(agent, v, current))
+    v == current
 }
 
 impl HeapMarkAndSweep for OrdinaryObject {

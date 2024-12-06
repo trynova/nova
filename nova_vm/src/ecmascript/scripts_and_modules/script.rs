@@ -1571,7 +1571,9 @@ mod test {
         };
         let instance = Object::try_from(result).unwrap();
         assert_eq!(
-            instance.internal_get_prototype_of(&mut agent, gc).unwrap(),
+            instance
+                .try_get_prototype_of(&mut agent, gc.nogc())
+                .unwrap(),
             Some(foo_prototype)
         );
     }

@@ -11,7 +11,10 @@ use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::{
+    ecmascript::types::{function_try_get, function_try_has_property, function_try_set},
+    engine::context::{GcScope, NoGcScope},
+};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
@@ -341,23 +344,42 @@ impl FunctionInternalProperties for ECMAScriptFunction {
 }
 
 impl InternalMethods for ECMAScriptFunction {
-    fn internal_get_own_property(
+    fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        function_internal_get_own_property(self, agent, property_key)
+    ) -> Option<Option<PropertyDescriptor>> {
+        Some(function_internal_get_own_property(
+            self,
+            agent,
+            property_key,
+        ))
     }
 
-    fn internal_define_own_property(
+    fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
-        function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
+    ) -> Option<bool> {
+        Some(function_internal_define_own_property(
+            self,
+            agent,
+            gc,
+            property_key,
+            property_descriptor,
+        ))
+    }
+
+    fn try_has_property(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+    ) -> Option<bool> {
+        function_try_has_property(self, agent, gc, property_key)
     }
 
     fn internal_has_property(
@@ -369,6 +391,16 @@ impl InternalMethods for ECMAScriptFunction {
         function_internal_has_property(self, agent, gc, property_key)
     }
 
+    fn try_get(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> Option<Value> {
+        function_try_get(self, agent, gc, property_key, receiver)
+    }
+
     fn internal_get(
         self,
         agent: &mut Agent,
@@ -377,6 +409,17 @@ impl InternalMethods for ECMAScriptFunction {
         receiver: Value,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, gc, property_key, receiver)
+    }
+
+    fn try_set(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> Option<bool> {
+        function_try_set(self, agent, gc, property_key, value, receiver)
     }
 
     fn internal_set(
@@ -390,21 +433,21 @@ impl InternalMethods for ECMAScriptFunction {
         function_internal_set(self, agent, gc, property_key, value, receiver)
     }
 
-    fn internal_delete(
+    fn try_delete(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
-    ) -> JsResult<bool> {
-        function_internal_delete(self, agent, gc, property_key)
+    ) -> Option<bool> {
+        Some(function_internal_delete(self, agent, gc, property_key))
     }
 
-    fn internal_own_property_keys(
+    fn try_own_property_keys(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent, gc)
+        gc: NoGcScope<'_, '_>,
+    ) -> Option<Vec<PropertyKey>> {
+        Some(function_internal_own_property_keys(self, agent, gc))
     }
 
     /// ### [10.2.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-call)
@@ -885,7 +928,7 @@ pub(crate) fn make_constructor(
     agent: &mut Agent,
     function: impl IntoFunction + InternalMethods,
     writable_prototype: Option<bool>,
-    prototype: Option<Object>,
+    prototype: Option<OrdinaryObject>,
 ) {
     // 4. If writablePrototype is not present, set writablePrototype to true.
     let writable_prototype = writable_prototype.unwrap_or(true);
@@ -914,11 +957,15 @@ pub(crate) fn make_constructor(
     // 5. If prototype is not present, then
     let prototype = prototype.unwrap_or_else(|| {
         // a. Set prototype to OrdinaryObjectCreate(%Object.prototype%).
-        let prototype =
-            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
+        let prototype = OrdinaryObject::try_from(ordinary_object_create_with_intrinsics(
+            agent,
+            Some(ProtoIntrinsics::Object),
+            None,
+        ))
+        .unwrap();
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.constructor);
-        prototype.property_storage().set(
+        prototype.into_object().property_storage().set(
             agent,
             key,
             PropertyDescriptor {
@@ -958,9 +1005,10 @@ pub(crate) fn make_constructor(
 /// method.
 #[inline]
 pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object: Object) {
-    // 1. Set F.[[HomeObject]] to homeObject.
+    // 1. Assert: homeObject is an ordinary object.
+    // 2. Set F.[[HomeObject]] to homeObject.
     agent[f].ecmascript_function.home_object = Some(home_object);
-    // 2. Return unused.
+    // 3. Return unused.
 }
 
 /// ### [10.2.9 SetFunctionName ( F, name \[ , prefix \] )](https://tc39.es/ecma262/#sec-setfunctionname)

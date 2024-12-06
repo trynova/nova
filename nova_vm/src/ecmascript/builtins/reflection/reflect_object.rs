@@ -339,7 +339,7 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         if !arguments.get(0).is_object() {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
+                gc.into_nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
             ));

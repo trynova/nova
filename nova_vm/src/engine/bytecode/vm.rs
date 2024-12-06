@@ -45,8 +45,8 @@ use crate::{
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
             is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, Primitive, PropertyDescriptor,
-            PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
+            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::context::GcScope,
@@ -669,7 +669,7 @@ impl Vm {
                 let closure = ordinary_function_create(agent, gc.nogc(), params);
                 // 7. Perform MakeMethod(closure, object).
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
-                make_method(agent, closure, object);
+                make_method(agent, closure, object.into_object());
                 // 8. Perform SetFunctionName(closure, propKey, "get").
                 set_function_name(
                     agent,
@@ -738,7 +738,7 @@ impl Vm {
                 let closure = ordinary_function_create(agent, gc.nogc(), params);
                 // 6. Perform MakeMethod(closure, object).
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
-                make_method(agent, closure, object);
+                make_method(agent, closure, object.into_object());
                 // 7. Perform SetFunctionName(closure, propKey, "set").
                 set_function_name(
                     agent,
@@ -1040,11 +1040,11 @@ impl Vm {
                 } else {
                     None
                 };
-                let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
+                let proto = OrdinaryObject::try_from(*vm.stack.last().unwrap()).unwrap();
 
                 let is_null_derived_class = !has_constructor_parent
                     && proto
-                        .internal_get_prototype_of(agent, gc.reborrow())
+                        .try_get_prototype_of(agent, gc.nogc())
                         .unwrap()
                         .is_none();
 
@@ -1077,7 +1077,7 @@ impl Vm {
                 }
                 set_function_name(agent, gc.nogc(), function, class_name.into(), None);
                 make_constructor(agent, function, Some(false), Some(proto));
-                agent[function].ecmascript_function.home_object = Some(proto);
+                agent[function].ecmascript_function.home_object = Some(proto.into_object());
                 agent[function].ecmascript_function.constructor_status =
                     if has_constructor_parent || is_null_derived_class {
                         ConstructorStatus::DerivedClass
