@@ -2,7 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::builtins::prepare_for_ordinary_call;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
