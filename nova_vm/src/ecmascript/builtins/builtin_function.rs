@@ -312,8 +312,27 @@ impl InternalMethods for BuiltinFunction {
         this_argument: Value,
         arguments_list: ArgumentsList,
     ) -> JsResult<Value> {
+        #[usdt::provider]
+        mod nova {
+            fn start_builtin_call(name: &str) {}
+            fn stop_builtin_call(name: &str) {}
+        }
+        nova::start_builtin_call!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, gc, self, Some(this_argument), arguments_list, None)
+        let result =
+            builtin_call_or_construct(agent, gc, self, Some(this_argument), arguments_list, None);
+        nova::stop_builtin_call!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
+        result
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -329,9 +348,28 @@ impl InternalMethods for BuiltinFunction {
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
+        #[usdt::provider]
+        mod nova {
+            fn start_builtin_constructor(name: &str) {}
+            fn stop_builtin_constructor(name: &str) {}
+        }
+        nova::start_builtin_constructor!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, gc, self, None, arguments_list, Some(new_target))
-            .map(|result| result.try_into().unwrap())
+        let result =
+            builtin_call_or_construct(agent, gc, self, None, arguments_list, Some(new_target))
+                .map(|result| result.try_into().unwrap());
+        nova::stop_builtin_constructor!(|| {
+            agent[self]
+                .initial_name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
+        result
     }
 }
 

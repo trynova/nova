@@ -43,6 +43,8 @@ rand = "0.8.5"
 ryu-js = "1.0.1"
 sonic-rs = "0.3.16"
 unicode-normalization = "0.1.24"
+usdt = { git = "https://github.com/aapoalas/usdt", branch = "feat/linux-stap-support" }
+# usdt = { path = "../usdt/usdt" }
 wtf8 = "0.1"
 fast_float = "0.2.0"
 

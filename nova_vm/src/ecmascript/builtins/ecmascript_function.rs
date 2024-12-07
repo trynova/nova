@@ -11,10 +11,13 @@ use oxc_ast::ast::{FormalParameters, FunctionBody};
 use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
+        builtins::{
+            ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
+            ArgumentsList,
+        },
         execution::{
             agent::{
                 get_active_script_or_module,
@@ -38,15 +41,11 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
+    engine::context::{GcScope, NoGcScope},
     heap::{
         indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
     },
-};
-
-use super::{
-    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
-    ArgumentsList,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -421,6 +420,17 @@ impl InternalMethods for ECMAScriptFunction {
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
     ) -> JsResult<Value> {
+        #[usdt::provider]
+        mod nova {
+            fn start_function_call(name: &str) {}
+            fn stop_function_call(name: &str) {}
+        }
+        nova::start_function_call!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
@@ -462,6 +472,12 @@ impl InternalMethods for ECMAScriptFunction {
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.execution_context_stack.pop();
+        nova::stop_function_call!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 8. If result is a return completion, return result.[[Value]].
         // 9. ReturnIfAbrupt(result).
         // 10. Return undefined.
@@ -475,6 +491,17 @@ impl InternalMethods for ECMAScriptFunction {
         arguments_list: ArgumentsList,
         new_target: Function,
     ) -> JsResult<Object> {
+        #[usdt::provider]
+        mod nova {
+            fn start_ecmascript_constructor(name: &str) {}
+            fn stop_ecmascript_constructor(name: &str) {}
+        }
+        nova::start_ecmascript_constructor!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self]
             .ecmascript_function
@@ -536,7 +563,7 @@ impl InternalMethods for ECMAScriptFunction {
         let value = result?;
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
-        if let Ok(value) = Object::try_from(value) {
+        let result = if let Ok(value) = Object::try_from(value) {
             Ok(value)
         } else
         //   b. If kind is base, return thisArgument.
@@ -562,7 +589,14 @@ impl InternalMethods for ECMAScriptFunction {
 
             // 14. Return thisBinding.
             Ok(this_binding)
-        }
+        };
+        nova::stop_ecmascript_constructor!(|| {
+            agent[self]
+                .name
+                .as_ref()
+                .map_or("anonymous", |name| name.as_str(agent))
+        });
+        result
     }
 }
 

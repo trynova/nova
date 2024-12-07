@@ -680,6 +680,11 @@ impl ObjectConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
+        #[usdt::provider]
+        mod nova {
+            fn get_prototype_of() {}
+        }
+        // nova::get_prototype_of!(|| ());
         let obj = to_object(agent, gc.nogc(), arguments.get(0))?;
         obj.internal_get_prototype_of(agent, gc)
             .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))

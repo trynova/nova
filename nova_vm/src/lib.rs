@@ -10,3 +10,7 @@ pub mod heap;
 pub use engine::small_integer::SmallInteger;
 use heap::Heap;
 pub use small_string::SmallString;
+
+// Expose the USDT probe registering function. In Linux this is a no-op but it
+// is required on illumos and OS X for DTrace to work automatically.
+pub use usdt::register_probes;
