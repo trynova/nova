@@ -9,6 +9,8 @@ use private::RootableSealed;
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
@@ -17,6 +19,8 @@ use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "date")]
 use crate::ecmascript::types::DATE_DISCRIMINANT;
+#[cfg(feature = "regexp")]
+use crate::ecmascript::types::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 #[cfg(feature = "array-buffer")]
@@ -52,7 +56,6 @@ use crate::{
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
             proxy::Proxy,
-            regexp::RegExp,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
@@ -68,8 +71,8 @@ use crate::{
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
             MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT,
-            OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, REGEXP_DISCRIMINANT,
-            SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
+            OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, SET_DISCRIMINANT,
+            SET_ITERATOR_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         },
     },
     heap::HeapMarkAndSweep,
@@ -78,6 +81,8 @@ use crate::{
 mod private {
     #[cfg(feature = "date")]
     use crate::ecmascript::builtins::date::Date;
+    #[cfg(feature = "regexp")]
+    use crate::ecmascript::builtins::regexp::RegExp;
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
     #[cfg(feature = "array-buffer")]
@@ -102,7 +107,6 @@ mod private {
             promise::Promise,
             promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
             proxy::Proxy,
-            regexp::RegExp,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
@@ -144,6 +148,7 @@ mod private {
     impl RootableSealed for PrimitiveObject {}
     impl RootableSealed for Promise {}
     impl RootableSealed for Proxy {}
+    #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp {}
     impl RootableSealed for Set {}
     impl RootableSealed for SetIterator {}
@@ -233,6 +238,7 @@ pub enum HeapRootData {
     Map(Map) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
+    #[cfg(feature = "regexp")]
     RegExp(RegExp) = REGEXP_DISCRIMINANT,
     Set(Set) = SET_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
@@ -358,6 +364,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Map(map) => map.mark_values(queues),
             HeapRootData::Promise(promise) => promise.mark_values(queues),
             HeapRootData::Proxy(proxy) => proxy.mark_values(queues),
+            #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => reg_exp.mark_values(queues),
             HeapRootData::Set(set) => set.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
@@ -445,6 +452,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Map(map) => map.sweep_values(compactions),
             HeapRootData::Promise(promise) => promise.sweep_values(compactions),
             HeapRootData::Proxy(proxy) => proxy.sweep_values(compactions),
+            #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => reg_exp.sweep_values(compactions),
             HeapRootData::Set(set) => set.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]

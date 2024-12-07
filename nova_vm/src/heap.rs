@@ -36,7 +36,9 @@ use crate::ecmascript::builtins::regexp::RegExpHeapData;
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+    data_view::{data::DataViewHeapData, DataView},
+    typed_array::{data::TypedArrayHeapData, TypedArray},
+    ArrayBufferHeapData,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
@@ -54,7 +56,6 @@ use crate::{
                     promise_resolving_functions::PromiseResolvingFunctionHeapData,
                 },
             },
-            data_view::DataView,
             embedder_object::data::EmbedderObjectHeapData,
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -69,7 +70,6 @@ use crate::{
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
             set::data::SetHeapData,
-            typed_array::TypedArray,
             ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},

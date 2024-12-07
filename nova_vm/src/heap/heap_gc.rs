@@ -4,19 +4,19 @@
 
 use std::thread;
 
-#[cfg(feature = "array-buffer")]
-use super::indexes::TypedArrayIndex;
 use super::{
     element_array::ElementArrays,
     heap_bits::{
         mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
         sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_side_table_values,
-        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
+        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
+        HeapMarkAndSweep, WorkQueues,
     },
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
 };
+#[cfg(feature = "array-buffer")]
+use super::{heap_bits::sweep_side_table_values, indexes::TypedArrayIndex};
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
 #[cfg(feature = "regexp")]
