@@ -16,11 +16,14 @@ use crate::{
             to_int8_number, to_uint16_number, to_uint32_number, to_uint8_clamp_number,
             to_uint8_number,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{agent::ExceptionType, Agent, JsResult},
         types::{BigInt, IntoNumeric, Number, Numeric},
     },
     engine::context::NoGcScope,
 };
+
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::execution::ProtoIntrinsics;
 
 /// Sentinel pointer for a detached data block.
 ///
@@ -84,6 +87,8 @@ pub trait Viewable: private::Sealed + Copy {
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
     const IS_BIGINT: bool = false;
+
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics;
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a>;
@@ -93,6 +98,7 @@ pub trait Viewable: private::Sealed + Copy {
 }
 
 impl Viewable for u8 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -118,6 +124,7 @@ impl Viewable for u8 {
     }
 }
 impl Viewable for U8Clamped {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -143,6 +150,7 @@ impl Viewable for U8Clamped {
     }
 }
 impl Viewable for i8 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -168,6 +176,7 @@ impl Viewable for i8 {
     }
 }
 impl Viewable for u16 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -193,6 +202,7 @@ impl Viewable for u16 {
     }
 }
 impl Viewable for i16 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -218,6 +228,7 @@ impl Viewable for i16 {
     }
 }
 impl Viewable for u32 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -243,6 +254,7 @@ impl Viewable for u32 {
     }
 }
 impl Viewable for i32 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -269,6 +281,7 @@ impl Viewable for i32 {
 }
 impl Viewable for u64 {
     const IS_BIGINT: bool = true;
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -295,6 +308,7 @@ impl Viewable for u64 {
 }
 impl Viewable for i64 {
     const IS_BIGINT: bool = true;
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
 
     fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -320,6 +334,7 @@ impl Viewable for i64 {
     }
 }
 impl Viewable for f32 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
@@ -345,6 +360,7 @@ impl Viewable for f32 {
     }
 }
 impl Viewable for f64 {
+    #[cfg(feature = "array-buffer")]
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
     fn into_be_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {

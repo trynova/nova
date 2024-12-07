@@ -1169,6 +1169,7 @@ impl Rootable for Value {
             Self::Map(map) => Err(HeapRootData::Map(map)),
             Self::Promise(promise) => Err(HeapRootData::Promise(promise)),
             Self::Proxy(proxy) => Err(HeapRootData::Proxy(proxy)),
+            #[cfg(feature = "regexp")]
             Self::RegExp(reg_exp) => Err(HeapRootData::RegExp(reg_exp)),
             Self::Set(set) => Err(HeapRootData::Set(set)),
             #[cfg(feature = "shared-array-buffer")]
@@ -1282,6 +1283,7 @@ impl Rootable for Value {
             HeapRootData::Map(map) => Some(Self::Map(map)),
             HeapRootData::Promise(promise) => Some(Self::Promise(promise)),
             HeapRootData::Proxy(proxy) => Some(Self::Proxy(proxy)),
+            #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => Some(Self::RegExp(reg_exp)),
             HeapRootData::Set(set) => Some(Self::Set(set)),
             #[cfg(feature = "shared-array-buffer")]
