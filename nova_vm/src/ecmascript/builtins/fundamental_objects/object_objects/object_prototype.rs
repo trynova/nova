@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::is_prototype_of_loop;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{get, has_own_property, invoke},
-            testing_and_comparison::same_value,
             type_conversion::{to_object, to_property_key},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -94,26 +94,17 @@ impl ObjectPrototype {
 
     fn is_prototype_of(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let v = arguments.get(0);
-        let Ok(mut v) = Object::try_from(v) else {
+        let Ok(v) = Object::try_from(v) else {
             return Ok(false.into());
         };
         let o = to_object(agent, gc.nogc(), this_value)?;
-        loop {
-            let proto = v.internal_get_prototype_of(agent, gc.reborrow())?;
-            if let Some(proto) = proto {
-                v = proto;
-                if same_value(agent, o, v) {
-                    return Ok(true.into());
-                }
-            } else {
-                return Ok(false.into());
-            }
-        }
+        let result = is_prototype_of_loop(agent, gc, o, v)?;
+        Ok(result.into())
     }
 
     fn property_is_enumerable(

@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::ordinary::{
@@ -203,12 +203,12 @@ impl InternalSlots for PrimitiveObject {
 }
 
 impl InternalMethods for PrimitiveObject {
-    fn internal_get_own_property(
+    fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        _: NoGcScope<'_, '_>,
         property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
+    ) -> Option<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
         // For string exotic objects:
@@ -216,27 +216,27 @@ impl InternalMethods for PrimitiveObject {
         // 2. If desc is not undefined, return desc.
         if let Some(backing_object) = self.get_backing_object(agent) {
             if let Some(property_descriptor) =
-                ordinary_get_own_property(agent, backing_object.into_object(), property_key)
+                ordinary_get_own_property(agent, backing_object, property_key)
             {
-                return Ok(Some(property_descriptor));
+                return Some(Some(property_descriptor));
             }
         }
 
         if let Ok(string) = String::try_from(agent[self].data) {
             // 3. Return StringGetOwnProperty(S, P).
-            Ok(string.get_property_descriptor(agent, property_key))
+            Some(string.get_property_descriptor(agent, property_key))
         } else {
-            Ok(None)
+            Some(None)
         }
     }
 
-    fn internal_define_own_property(
+    fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
+    ) -> Option<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // For string exotic objects:
             // 1. Let stringDesc be StringGetOwnProperty(S, P).
@@ -244,22 +244,27 @@ impl InternalMethods for PrimitiveObject {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
                 // a. Let extensible be S.[[Extensible]].
                 // b. Return IsCompatiblePropertyDescriptor(extensible, Desc, stringDesc).
-                return is_compatible_property_descriptor(
+                return Some(is_compatible_property_descriptor(
                     agent,
-                    gc.nogc(),
+                    gc,
                     self.internal_extensible(agent),
                     property_descriptor,
                     Some(string_desc),
-                );
+                ));
             }
             // 3. Return ! OrdinaryDefineOwnProperty(S, P, Desc).
         }
 
         let backing_object = self
             .get_backing_object(agent)
-            .unwrap_or_else(|| self.create_backing_object(agent))
-            .into_object();
-        ordinary_define_own_property(agent, gc, backing_object, property_key, property_descriptor)
+            .unwrap_or_else(|| self.create_backing_object(agent));
+        Some(ordinary_define_own_property(
+            agent,
+            gc,
+            backing_object,
+            property_key,
+            property_descriptor,
+        ))
     }
 
     fn internal_has_property(
@@ -279,9 +284,7 @@ impl InternalMethods for PrimitiveObject {
 
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_has_property(agent, gc, backing_object.into_object(), property_key)
-            }
+            Some(backing_object) => ordinary_has_property(agent, gc, backing_object, property_key),
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
@@ -313,13 +316,7 @@ impl InternalMethods for PrimitiveObject {
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get(
-                agent,
-                gc,
-                backing_object.into_object(),
-                property_key,
-                receiver,
-            ),
+            Some(backing_object) => ordinary_get(agent, gc, backing_object, property_key, receiver),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
@@ -351,11 +348,33 @@ impl InternalMethods for PrimitiveObject {
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        let backing_object = self
-            .get_backing_object(agent)
-            .unwrap_or_else(|| self.create_backing_object(agent))
-            .into_object();
-        ordinary_set(agent, gc, backing_object, property_key, value, receiver)
+        ordinary_set(agent, gc, self.into_object(), property_key, value, receiver)
+    }
+
+    fn try_delete(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+    ) -> Option<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            // A String will return unconfigurable descriptors for length and
+            // all valid string indexes, making delete return false.
+            if property_key == BUILTIN_STRING_MEMORY.length.into() {
+                return Some(false);
+            } else if let PropertyKey::Integer(index) = property_key {
+                let index = index.into_i64();
+                if index >= 0 && (index as usize) < string.utf16_len(agent) {
+                    return Some(false);
+                }
+            }
+        }
+
+        // 1. Return ! OrdinaryDelete(O, P).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => Some(ordinary_delete(agent, gc, backing_object, property_key)),
+            None => Some(true),
+        }
     }
 
     fn internal_delete(
@@ -364,22 +383,9 @@ impl InternalMethods for PrimitiveObject {
         gc: GcScope<'_, '_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
-        if let Ok(string) = String::try_from(agent[self].data) {
-            if string
-                .get_property_descriptor(agent, property_key)
-                .is_some()
-            {
-                return Ok(false);
-            }
-        }
-
-        // 1. Return ? OrdinaryDelete(O, P).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_delete(agent, gc, backing_object.into_object(), property_key)
-            }
-            None => Ok(true),
-        }
+        Ok(self
+            .try_delete(agent, gc.into_nogc(), property_key)
+            .unwrap())
     }
 
     fn internal_own_property_keys(

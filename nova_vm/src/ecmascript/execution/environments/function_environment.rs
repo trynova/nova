@@ -5,7 +5,8 @@
 use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::ecmascript::types::OrdinaryObject;
+use crate::engine::context::NoGcScope;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -442,30 +443,30 @@ impl FunctionEnvironmentIndex {
     ///
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
-    /// containing either an Object, null, or undefined, or a throw completion.
-    pub(crate) fn get_super_base(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<Value> {
+    /// containing either an Object, null, or undefined.
+    pub(crate) fn get_super_base(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+    ) -> Option<Option<Object>> {
         let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].
         let home = match env_rec.function_object {
             Function::BoundFunction(_) => todo!(),
             Function::BuiltinFunction(_) => unreachable!(),
-            Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object,
+            // 2. If home is undefined, return undefined.
+            Function::ECMAScriptFunction(func) => agent[func].ecmascript_function.home_object?,
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(_) => unreachable!(),
             Function::BuiltinPromiseResolvingFunction(_) => unreachable!(),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         };
-        // 2. If home is undefined, return undefined.
-        let Some(home) = home else {
-            return Ok(Value::Undefined);
-        };
-        // 3. Assert: home is an Object.
-        // Type guarantees Objectness.
-        // 4. Return ? home.[[GetPrototypeOf]]().
-        home.internal_get_prototype_of(agent, gc)
-            .map(|proto| proto.map_or_else(|| Value::Null, |proto| proto.into_value()))
+        // 3. Assert: home is an ordinary object.
+        let home = OrdinaryObject::try_from(home).unwrap();
+        // 4. Return ! home.[[GetPrototypeOf]]().
+        Some(home.try_get_prototype_of(agent, gc).unwrap())
     }
 }
 

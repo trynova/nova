@@ -213,7 +213,13 @@ impl ObjectPropertiesIterator {
                     }
                 }
             }
-            let prototype = object.internal_get_prototype_of(agent, gc.reborrow())?;
+            let got_prototype = object.try_get_prototype_of(agent, gc.nogc());
+            let prototype = if let Some(prototype) = got_prototype {
+                prototype
+            } else {
+                // Note: We should be probably be rooting some values here.
+                object.internal_get_prototype_of(agent, gc.reborrow())?
+            };
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype;

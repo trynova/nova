@@ -139,6 +139,38 @@ pub(crate) fn set(
 /// > assignment operator. Normally, the property will not already exist. If it
 /// > does exist and is not configurable or if O is not extensible,
 /// > [\[DefineOwnProperty]] will return false.
+pub(crate) fn try_create_data_property(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: Object,
+    property_key: PropertyKey,
+    value: Value,
+) -> Option<bool> {
+    // 1. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true }.
+    let new_desc = PropertyDescriptor {
+        value: Some(value),
+        writable: Some(true),
+        get: None,
+        set: None,
+        enumerable: Some(true),
+        configurable: Some(true),
+    };
+    // 2. Return ? O.[[DefineOwnProperty]](P, newDesc).
+    object.try_define_own_property(agent, gc, property_key, new_desc)
+}
+
+/// ### [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
+///
+/// The abstract operation CreateDataProperty takes arguments O (an Object), P
+/// (a property key), and V (an ECMAScript language value) and returns either a
+/// normal completion containing a Boolean or a throw completion. It is used to
+/// create a new own property of an object.
+///
+/// > NOTE: This abstract operation creates a property whose attributes are set
+/// > to the same defaults used for properties created by the ECMAScript language
+/// > assignment operator. Normally, the property will not already exist. If it
+/// > does exist and is not configurable or if O is not extensible,
+/// > [\[DefineOwnProperty]] will return false.
 pub(crate) fn create_data_property(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
@@ -673,7 +705,7 @@ pub(crate) fn ordinary_has_instance(
         return instanceof_operator(agent, gc.reborrow(), o, bc);
     }
     // 3. If O is not an Object, return false.
-    let Ok(mut o) = Object::try_from(o.into_value()) else {
+    let Ok(o) = Object::try_from(o.into_value()) else {
         return Ok(false);
     };
     // 4. Let P be ? Get(C, "prototype").
@@ -688,18 +720,42 @@ pub(crate) fn ordinary_has_instance(
         ));
     };
     // 6. Repeat,
-    loop {
-        // a. Set O to ? O.[[GetPrototypeOf]]().
-        let o_prototype = o.internal_get_prototype_of(agent, gc.reborrow())?;
-        if let Some(o_prototype) = o_prototype {
-            o = o_prototype;
-        } else {
-            // b. If O is null, return false.
-            return Ok(false);
+    is_prototype_of_loop(agent, gc, p, o)
+}
+
+pub(crate) fn is_prototype_of_loop(
+    agent: &mut Agent,
+    mut gc: GcScope,
+    o: Object,
+    mut v: Object,
+) -> JsResult<bool> {
+    {
+        let gc = gc.nogc();
+        loop {
+            let proto = v.try_get_prototype_of(agent, gc);
+            let Some(proto) = proto else {
+                break;
+            };
+            if let Some(proto) = proto {
+                v = proto;
+                if o == v {
+                    return Ok(true);
+                }
+            } else {
+                return Ok(false);
+            }
         }
-        // c. If SameValue(P, O) is true, return true.
-        if same_value(agent, p, o) {
-            return Ok(true);
+    }
+    let o = o.scope(agent, gc.nogc());
+    loop {
+        let proto = v.internal_get_prototype_of(agent, gc.reborrow())?;
+        if let Some(proto) = proto {
+            v = proto;
+            if o.get(agent) == v {
+                return Ok(true);
+            }
+        } else {
+            return Ok(false);
         }
     }
 }

@@ -681,6 +681,9 @@ impl ObjectConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let obj = to_object(agent, gc.nogc(), arguments.get(0))?;
+        // Note: We do not use try_get_prototype_of here as we don't need to
+        // protect any on-stack values from GC. We're perfectly okay with
+        // triggering GC here.
         obj.internal_get_prototype_of(agent, gc)
             .map(|proto| proto.map_or(Value::Null, |proto| proto.into_value()))
     }

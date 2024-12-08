@@ -8,13 +8,13 @@ use std::ops::{Index, IndexMut};
 
 pub(crate) use data::ErrorHeapData;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -98,19 +98,19 @@ impl InternalSlots for Error {
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
         let prototype = self.internal_prototype(agent).unwrap();
         let message_entry = agent[self].message.map(|message| ObjectEntry {
-            key: PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.message),
             value: ObjectEntryPropertyDescriptor::Data {
                 value: message.into_value(),
-                writable: false,
+                writable: true,
                 enumerable: false,
                 configurable: true,
             },
         });
         let cause_entry = agent[self].cause.map(|cause| ObjectEntry {
-            key: PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            key: PropertyKey::from(BUILTIN_STRING_MEMORY.cause),
             value: ObjectEntryPropertyDescriptor::Data {
                 value: cause,
-                writable: false,
+                writable: true,
                 enumerable: false,
                 configurable: true,
             },
@@ -163,16 +163,14 @@ impl InternalSlots for Error {
 }
 
 impl InternalMethods for Error {
-    fn internal_get_own_property(
+    fn try_get_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
-    ) -> JsResult<Option<crate::ecmascript::types::PropertyDescriptor>> {
+    ) -> Option<Option<PropertyDescriptor>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                backing_object.internal_get_own_property(agent, gc, property_key)
-            }
+            Some(backing_object) => backing_object.try_get_own_property(agent, gc, property_key),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -182,7 +180,7 @@ impl InternalMethods for Error {
                     } else {
                         None
                     };
-                Ok(property_value.map(|value| PropertyDescriptor {
+                Some(property_value.map(|value| PropertyDescriptor {
                     value: Some(value),
                     writable: Some(true),
                     get: None,
@@ -191,6 +189,26 @@ impl InternalMethods for Error {
                     configurable: Some(true),
                 }))
             }
+        }
+    }
+
+    fn try_has_property(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+    ) -> Option<bool> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => backing_object.try_has_property(agent, gc, property_key),
+            None => Some(
+                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                    agent[self].message.is_some()
+                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                    agent[self].cause.is_some()
+                } else {
+                    false
+                },
+            ),
         }
     }
 
@@ -214,10 +232,40 @@ impl InternalMethods for Error {
         }
     }
 
+    fn try_get(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> Option<Value> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => backing_object.try_get(agent, gc, property_key, receiver),
+            None => {
+                let property_value =
+                    if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                        agent[self].message.map(|message| message.into_value())
+                    } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                        agent[self].cause
+                    } else {
+                        None
+                    };
+                if let Some(property_value) = property_value {
+                    Some(property_value)
+                } else if let Some(parent) = self.try_get_prototype_of(agent, gc).unwrap() {
+                    // c. Return ? parent.[[Get]](P, Receiver).
+                    parent.try_get(agent, gc, property_key, receiver)
+                } else {
+                    Some(Value::Undefined)
+                }
+            }
+        }
+    }
+
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -234,7 +282,9 @@ impl InternalMethods for Error {
                     };
                 if let Some(property_value) = property_value {
                     Ok(property_value)
-                } else if let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? {
+                } else if let Some(parent) = self.try_get_prototype_of(agent, gc.nogc()).unwrap() {
+                    // Note: Error is never a prototype so [[GetPrototypeOf]]
+                    // cannot call user code.
                     // c. Return ? parent.[[Get]](P, Receiver).
                     parent.internal_get(agent, gc, property_key, receiver)
                 } else {
@@ -244,13 +294,92 @@ impl InternalMethods for Error {
         }
     }
 
-    fn internal_own_property_keys(
+    fn try_set(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> Option<bool> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                backing_object.try_set(agent, gc, property_key, value, receiver)
+            }
+            None => {
+                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+                    && value.is_string()
+                {
+                    agent[self].message = Some(String::try_from(value).unwrap());
+                    Some(true)
+                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                    agent[self].cause = Some(value);
+                    Some(true)
+                } else {
+                    let backing_object = self.create_backing_object(agent);
+                    backing_object.try_set(agent, gc, property_key, value, receiver)
+                }
+            }
+        }
+    }
+
+    fn internal_set(
         self,
         agent: &mut Agent,
         gc: GcScope<'_, '_>,
-    ) -> JsResult<Vec<PropertyKey>> {
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.internal_own_property_keys(agent, gc),
+            Some(backing_object) => {
+                backing_object.internal_set(agent, gc, property_key, value, receiver)
+            }
+            None => {
+                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
+                    && value.is_string()
+                {
+                    agent[self].message = Some(String::try_from(value).unwrap());
+                    Ok(true)
+                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                    agent[self].cause = Some(value);
+                    Ok(true)
+                } else {
+                    let backing_object = self.create_backing_object(agent);
+                    backing_object.internal_set(agent, gc, property_key, value, receiver)
+                }
+            }
+        }
+    }
+
+    fn try_delete(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+    ) -> Option<bool> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                Some(backing_object.try_delete(agent, gc, property_key).unwrap())
+            }
+            None => {
+                if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
+                    agent[self].message = None;
+                } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
+                    agent[self].cause = None;
+                }
+                Some(true)
+            }
+        }
+    }
+
+    fn try_own_property_keys(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+    ) -> Option<Vec<PropertyKey>> {
+        match self.get_backing_object(agent) {
+            Some(backing_object) => Some(backing_object.try_own_property_keys(agent, gc).unwrap()),
             None => {
                 let mut property_keys = Vec::with_capacity(2);
                 if agent[self].message.is_some() {
@@ -259,7 +388,7 @@ impl InternalMethods for Error {
                 if agent[self].cause.is_some() {
                     property_keys.push(BUILTIN_STRING_MEMORY.cause.into());
                 }
-                Ok(property_keys)
+                Some(property_keys)
             }
         }
     }

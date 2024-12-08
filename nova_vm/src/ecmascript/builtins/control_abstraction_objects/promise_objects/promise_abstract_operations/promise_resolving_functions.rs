@@ -4,7 +4,8 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
@@ -117,23 +118,42 @@ impl InternalSlots for BuiltinPromiseResolvingFunction {
 }
 
 impl InternalMethods for BuiltinPromiseResolvingFunction {
-    fn internal_get_own_property(
+    fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _: GcScope<'_, '_>,
+        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        function_internal_get_own_property(self, agent, property_key)
+    ) -> Option<Option<PropertyDescriptor>> {
+        Some(function_internal_get_own_property(
+            self,
+            agent,
+            property_key,
+        ))
     }
 
-    fn internal_define_own_property(
+    fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
-        function_internal_define_own_property(self, agent, gc, property_key, property_descriptor)
+    ) -> Option<bool> {
+        Some(function_internal_define_own_property(
+            self,
+            agent,
+            gc,
+            property_key,
+            property_descriptor,
+        ))
+    }
+
+    fn try_has_property(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+    ) -> Option<bool> {
+        function_try_has_property(self, agent, gc, property_key)
     }
 
     fn internal_has_property(
@@ -145,6 +165,16 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         function_internal_has_property(self, agent, gc, property_key)
     }
 
+    fn try_get(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> Option<Value> {
+        function_try_get(self, agent, gc, property_key, receiver)
+    }
+
     fn internal_get(
         self,
         agent: &mut Agent,
@@ -153,6 +183,17 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         receiver: Value,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, gc, property_key, receiver)
+    }
+
+    fn try_set(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> Option<bool> {
+        function_try_set(self, agent, gc, property_key, value, receiver)
     }
 
     fn internal_set(
@@ -166,21 +207,21 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
         function_internal_set(self, agent, gc, property_key, value, receiver)
     }
 
-    fn internal_delete(
+    fn try_delete(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
-    ) -> JsResult<bool> {
-        function_internal_delete(self, agent, gc, property_key)
+    ) -> Option<bool> {
+        Some(function_internal_delete(self, agent, gc, property_key))
     }
 
-    fn internal_own_property_keys(
+    fn try_own_property_keys(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Vec<PropertyKey>> {
-        function_internal_own_property_keys(self, agent, gc)
+        gc: NoGcScope<'_, '_>,
+    ) -> Option<Vec<PropertyKey>> {
+        Some(function_internal_own_property_keys(self, agent, gc))
     }
 
     fn internal_call(
