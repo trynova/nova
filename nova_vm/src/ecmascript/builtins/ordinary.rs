@@ -544,7 +544,7 @@ pub(crate) fn ordinary_try_has_property(
 ) -> Option<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
     // Note: ? means that if we'd call a Proxy's GetOwnProperty trap then we'll
-    // intead return None.
+    // instead return None.
     let has_own = object.try_get_own_property(agent, gc, property_key)?;
 
     // 2. If hasOwn is not undefined, return true.
