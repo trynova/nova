@@ -1566,7 +1566,7 @@ mod test {
             Ok(result) => result,
             Err(err) => panic!(
                 "{}",
-                err.to_string(&mut agent, gc.reborrow(),).as_str(&agent)
+                err.to_string(&mut agent, gc.reborrow()).as_str(&agent)
             ),
         };
         let instance = Object::try_from(result).unwrap();

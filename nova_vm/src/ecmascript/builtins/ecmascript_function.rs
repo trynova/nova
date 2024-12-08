@@ -1040,7 +1040,7 @@ pub(crate) fn set_function_name(
         // 3. Else if name is a Private Name, then
         // a. Set name to name.[[Description]].
         PropertyKey::Integer(integer) => {
-            String::from_string(agent, gc, format!("{}", integer.into_i64()))
+            String::from_string(agent, gc, integer.into_i64().to_string())
         }
         PropertyKey::SmallString(str) => str.into(),
         PropertyKey::String(str) => str.into(),

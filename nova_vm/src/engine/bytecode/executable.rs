@@ -202,7 +202,12 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn fetch_identifier(self, agent: &Agent, index: usize) -> String<'static> {
+    pub(super) fn fetch_identifier<'gc>(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> String<'gc> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable
@@ -211,7 +216,7 @@ impl Executable {
         let Ok(value) = String::try_from(value) else {
             handle_identifier_failure()
         };
-        value
+        value.bind(gc)
     }
 
     #[inline]

@@ -92,7 +92,7 @@ fn garbage_collection_tests() {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
                 d.display(),
-                err.value().string_repr(agent, gc).as_str(agent)
+                err.value().string_repr(agent, gc.reborrow()).as_str(agent)
             )
         });
     });
@@ -109,7 +109,7 @@ fn garbage_collection_tests() {
                     "Loop index run {} '{}' failed: {:?}",
                     i,
                     d.display(),
-                    err.value().string_repr(agent, gc.reborrow(),).as_str(agent)
+                    err.value().string_repr(agent, gc.reborrow()).as_str(agent)
                 )
             });
         });

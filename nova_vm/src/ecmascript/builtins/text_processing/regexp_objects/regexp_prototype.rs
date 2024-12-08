@@ -307,7 +307,7 @@ impl RegExpPrototype {
         let Ok(r) = Object::try_from(this_value) else {
             let error_message = format!(
                 "{} is not an object",
-                this_value.string_repr(agent, gc.reborrow(),).as_str(agent)
+                this_value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };

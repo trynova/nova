@@ -184,7 +184,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     "Uncaught exception: {}",
                                     error
                                         .value()
-                                        .string_repr(agent, gc.reborrow(),)
+                                        .string_repr(agent, gc.reborrow())
                                         .as_str(agent)
                                 );
                                 std::process::exit(1);
@@ -252,7 +252,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "Uncaught exception: {}",
                                 error
                                     .value()
-                                    .string_repr(agent, gc.reborrow(),)
+                                    .string_repr(agent, gc.reborrow())
                                     .as_str(agent)
                             );
                         }

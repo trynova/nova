@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ObjectEnvironmentIndex, OuterEnv};
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    try_define_property_or_throw, try_get, try_has_property, try_set,
+};
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -97,6 +100,53 @@ impl HeapMarkAndSweep for ObjectEnvironment {
 }
 
 impl ObjectEnvironmentIndex {
+    /// ### Try [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
+    ///
+    /// The HasBinding concrete method of an Object Environment Record envRec
+    /// takes argument N (a String) and returns either a normal completion
+    /// containing a Boolean or a throw completion. It determines if its
+    /// associated binding object has a property whose name is N.
+    pub(crate) fn try_has_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        n: String,
+    ) -> Option<bool> {
+        let env_rec = &agent[self];
+        // 1. Let bindingObject be envRec.[[BindingObject]].
+        let binding_object = env_rec.binding_object;
+        let is_with_environment = env_rec.is_with_environment;
+        let name = PropertyKey::from(n);
+        // 2. Let foundBinding be ? HasProperty(bindingObject, N).
+        let found_binding = try_has_property(agent, gc, binding_object, name)?;
+        // 3. If foundBinding is false, return false.
+        if !found_binding {
+            return Some(false);
+        }
+        // 4. If envRec.[[IsWithEnvironment]] is false, return true.
+        if !is_with_environment {
+            return Some(true);
+        }
+        // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
+        let unscopables = try_get(
+            agent,
+            gc,
+            binding_object,
+            PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
+        )?;
+        // 6. If unscopables is an Object, then
+        if let Ok(unscopables) = Object::try_from(unscopables) {
+            // a. Let blocked be ToBoolean(? Get(unscopables, N)).
+            let blocked = try_get(agent, gc, unscopables, name)?;
+            let blocked = to_boolean(agent, blocked);
+            // b. If blocked is true, return false.
+            Some(!blocked)
+        } else {
+            // 7. Return true.
+            Some(true)
+        }
+    }
+
     /// ### [9.1.1.2.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of an Object Environment Record envRec
@@ -143,6 +193,50 @@ impl ObjectEnvironmentIndex {
             Ok(true)
         }
     }
+
+    /// ### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
+    ///
+    /// The CreateMutableBinding concrete method of an Object Environment
+    /// Record envRec takes arguments N (a String) and D (a Boolean) and
+    /// returns either a normal completion containing UNUSED or a throw
+    /// completion. It creates in an Environment Record's associated binding
+    /// object a property whose name is N and initializes it to the value
+    /// undefined. If D is true, the new property's [[Configurable]] attribute
+    /// is set to true; otherwise it is set to false.
+    pub(crate) fn try_create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        n: String,
+        d: bool,
+    ) -> Option<JsResult<()>> {
+        let env_rec = &agent[self];
+        // 1. Let bindingObject be envRec.[[BindingObject]].
+        let binding_object = env_rec.binding_object;
+        // 2. Perform ? DefinePropertyOrThrow(bindingObject, N, PropertyDescriptor { [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }).
+        // 3. Return UNUSED.
+        let n = PropertyKey::from(n);
+        try_define_property_or_throw(
+            agent,
+            gc,
+            binding_object,
+            n,
+            PropertyDescriptor {
+                value: Some(Value::Undefined),
+                writable: Some(true),
+                get: None,
+                set: None,
+                enumerable: Some(true),
+                configurable: Some(d),
+            },
+        )
+        // NOTE
+        // Normally envRec will not have a binding for N but if it does, the
+        // semantics of DefinePropertyOrThrow may result in an existing binding
+        // being replaced or shadowed or cause an abrupt completion to be
+        // returned.
+    }
+
     /// ### [9.1.1.2.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-object-environment-records-createmutablebinding-n-d)
     ///
     /// The CreateMutableBinding concrete method of an Object Environment
@@ -191,6 +285,32 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: String, _: bool) {
         unreachable!("The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.")
     }
+
+    /// ### Try [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
+    ///
+    /// The InitializeBinding concrete method of an Object Environment Record
+    /// envRec takes arguments N (a String) and V (an ECMAScript language
+    /// value) and returns either a normal completion containing UNUSED or a
+    /// throw completion. It is used to set the bound value of the current
+    /// binding of the identifier whose name is N to the value V.
+    pub(crate) fn try_initialize_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        n: String,
+        v: Value,
+    ) -> Option<JsResult<()>> {
+        // 1. Perform ? envRec.SetMutableBinding(N, V, false).
+        // 2. Return UNUSED.
+        self.try_set_mutable_binding(agent, gc, n, v, false)
+        // NOTE
+        // In this specification, all uses of CreateMutableBinding for Object
+        // Environment Records are immediately followed by a call to
+        // InitializeBinding for the same name. Hence, this specification does
+        // not explicitly track the initialization state of bindings in Object
+        // Environment Records.
+    }
+
     /// ### [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)
     ///
     /// The InitializeBinding concrete method of an Object Environment Record
@@ -215,6 +335,48 @@ impl ObjectEnvironmentIndex {
         // InitializeBinding for the same name. Hence, this specification does
         // not explicitly track the initialization state of bindings in Object
         // Environment Records.
+    }
+
+    /// ### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
+    ///
+    /// The SetMutableBinding concrete method of an Object Environment Record
+    /// envRec takes arguments N (a String), V (an ECMAScript language value),
+    /// and S (a Boolean) and returns either a normal completion containing
+    /// UNUSED or a throw completion. It attempts to set the value of the
+    /// Environment Record's associated binding object's property whose name is
+    /// N to the value V. A property named N normally already exists but if it
+    /// does not or is not currently writable, error handling is determined by
+    /// S.
+    pub(crate) fn try_set_mutable_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        n: String,
+        v: Value,
+        s: bool,
+    ) -> Option<JsResult<()>> {
+        let env_rec = &agent[self];
+        // 1. Let bindingObject be envRec.[[BindingObject]].
+        let binding_object = env_rec.binding_object;
+        // 2. Let stillExists be ? HasProperty(bindingObject, N).
+        let n = PropertyKey::from(n);
+        let still_exists = try_has_property(agent, gc, binding_object, n)?;
+        // 3. If stillExists is false and S is true, throw a ReferenceError exception.
+        if !still_exists && s {
+            let error_message = format!(
+                "Property '{}' does not exist in object.",
+                n.as_display(agent)
+            );
+            Some(Err(agent.throw_exception(
+                gc,
+                ExceptionType::ReferenceError,
+                error_message,
+            )))
+        } else {
+            // 4. Perform ? Set(bindingObject, N, V, S).
+            // 5. Return UNUSED.
+            try_set(agent, gc, binding_object, n, v, s)
+        }
     }
 
     /// ### [9.1.1.2.5 SetMutableBinding ( N, V, S )](https://tc39.es/ecma262/#sec-object-environment-records-setmutablebinding-n-v-s)
@@ -259,6 +421,50 @@ impl ObjectEnvironmentIndex {
             Ok(())
         }
     }
+
+    /// ### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
+    ///
+    /// The GetBindingValue concrete method of an Object Environment Record
+    /// envRec takes arguments N (a String) and S (a Boolean) and returns
+    /// either a normal completion containing an ECMAScript language value or a
+    /// throw completion. It returns the value of its associated binding
+    /// object's property whose name is N. The property should already exist
+    /// but if it does not the result depends upon S.
+    pub(crate) fn try_get_binding_value(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        n: String,
+        s: bool,
+    ) -> Option<JsResult<Value>> {
+        let env_rec = &agent[self];
+        // 1. Let bindingObject be envRec.[[BindingObject]].
+        let binding_object = env_rec.binding_object;
+        let name = PropertyKey::from(n);
+        // 2. Let value be ? HasProperty(bindingObject, N).
+        let value = try_has_property(agent, gc, binding_object, name)?;
+        // 3. If value is false, then
+        if !value {
+            // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
+            if !s {
+                Some(Ok(Value::Undefined))
+            } else {
+                let error_message = format!(
+                    "Property '{}' does not exist in object.",
+                    name.as_display(agent)
+                );
+                Some(Err(agent.throw_exception(
+                    gc,
+                    ExceptionType::ReferenceError,
+                    error_message,
+                )))
+            }
+        } else {
+            // 4. Return ? Get(bindingObject, N).
+            try_get(agent, gc, binding_object, name).map(Ok)
+        }
+    }
+
     /// ### [9.1.1.2.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-getbindingvalue-n-s)
     ///
     /// The GetBindingValue concrete method of an Object Environment Record
@@ -300,6 +506,27 @@ impl ObjectEnvironmentIndex {
             // 4. Return ? Get(bindingObject, N).
             get(agent, gc, binding_object, name)
         }
+    }
+
+    /// ### Try [9.1.1.2.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-deletebinding-n)
+    ///
+    /// The DeleteBinding concrete method of an Object Environment Record
+    /// envRec takes argument N (a String) and returns either a normal
+    /// completion containing a Boolean or a throw completion. It can only
+    /// delete bindings that correspond to properties of the environment
+    /// object whose [[Configurable]] attribute have the value true.
+    pub(crate) fn try_delete_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+    ) -> Option<bool> {
+        let env_rec = &agent[self];
+        // 1. Let bindingObject be envRec.[[BindingObject]].
+        let binding_object = env_rec.binding_object;
+        let name = PropertyKey::from(name);
+        // 2. Return ? bindingObject.[[Delete]](N).
+        binding_object.try_delete(agent, gc, name)
     }
 
     /// ### [9.1.1.2.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-deletebinding-n)

@@ -17,9 +17,10 @@ use crate::{
             operations_on_iterator_objects::iterator_close,
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
-                copy_data_properties_into_object, create_data_property,
-                create_data_property_or_throw, define_property_or_throw, get, get_method,
-                has_property, ordinary_has_instance, set,
+                copy_data_properties_into_object, create_data_property_or_throw,
+                define_property_or_throw, get, get_method, has_property, ordinary_has_instance,
+                set, try_copy_data_properties_into_object, try_create_data_property,
+                try_create_data_property_or_throw, try_get,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -37,7 +38,7 @@ use crate::{
             OrdinaryFunctionCreateParams,
         },
         execution::{
-            agent::{resolve_binding, ExceptionType, JsError},
+            agent::{resolve_binding, try_resolve_binding, ExceptionType, JsError},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
             JsResult, ProtoIntrinsics,
@@ -432,9 +433,12 @@ impl Vm {
             }
             Instruction::ResolveBinding => {
                 let identifier =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
 
-                let reference = resolve_binding(agent, gc, identifier, None)?;
+                let reference = {
+                    let identifier = identifier.unbind();
+                    resolve_binding(agent, gc, identifier, None)?
+                };
 
                 vm.reference = Some(reference);
             }
@@ -522,7 +526,9 @@ impl Vm {
                 let key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
-                create_data_property_or_throw(agent, gc.reborrow(), object, key, value).unwrap()
+                try_create_data_property_or_throw(agent, gc.nogc(), object, key, value)
+                    .unwrap()
+                    .unwrap();
             }
             Instruction::ObjectDefineMethod => {
                 let FunctionExpression { expression, .. } =
@@ -846,10 +852,21 @@ impl Vm {
                     excluded_items.insert(reference.referenced_name);
                 }
 
-                vm.result = Some(
-                    copy_data_properties_into_object(agent, gc.reborrow(), from, &excluded_items)?
+                if let Some(result) =
+                    try_copy_data_properties_into_object(agent, gc.nogc(), from, &excluded_items)
+                {
+                    vm.result = Some(result.into_value());
+                } else {
+                    vm.result = Some(
+                        copy_data_properties_into_object(
+                            agent,
+                            gc.reborrow(),
+                            from,
+                            &excluded_items,
+                        )?
                         .into_value(),
-                );
+                    );
+                }
             }
             Instruction::InstantiateArrowFunctionExpression => {
                 // ArrowFunction : ArrowParameters => ConciseBody
@@ -1289,7 +1306,7 @@ impl Vm {
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let error_message = format!(
                         "'{}' is not a constructor.",
-                        constructor.string_repr(agent, gc.reborrow(),).as_str(agent)
+                        constructor.string_repr(agent, gc.reborrow()).as_str(agent)
                     );
                     return Err(agent.throw_exception(
                         gc.nogc(),
@@ -1349,7 +1366,7 @@ impl Vm {
                     let error_message = format!(
                         "'{}' is not a constructor.",
                         func.map_or(Value::Null, |func| func.into_value())
-                            .string_repr(agent, gc.reborrow(),)
+                            .string_repr(agent, gc.reborrow())
                             .as_str(agent)
                     );
                     return Err(agent.throw_exception(
@@ -1402,7 +1419,7 @@ impl Vm {
             }
             Instruction::EvaluatePropertyAccessWithIdentifierKey => {
                 let property_name_string =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 let base_value = vm.result.take().unwrap();
                 let strict = agent
                     .running_execution_context()
@@ -1494,7 +1511,7 @@ impl Vm {
                 let Ok(rval) = Object::try_from(rval) else {
                     let error_message = format!(
                         "The right-hand side of an `in` expression must be an object, got '{}'.",
-                        rval.string_repr(agent, gc.reborrow(),).as_str(agent)
+                        rval.string_repr(agent, gc.reborrow()).as_str(agent)
                     );
                     return Err(agent.throw_exception(
                         gc.nogc(),
@@ -1682,7 +1699,9 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let name =
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
+                let name = name.unbind();
                 lex_env
                     .create_mutable_binding(agent, gc.reborrow(), name, false)
                     .unwrap();
@@ -1694,7 +1713,8 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let name =
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 lex_env
                     .create_immutable_binding(agent, gc.nogc(), name, true)
                     .unwrap();
@@ -1706,14 +1726,32 @@ impl Vm {
                     .as_ref()
                     .unwrap()
                     .lexical_environment;
-                let name = executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                let name =
+                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 lex_env
-                    .create_mutable_binding(agent, gc.reborrow(), name, false)
+                    .try_create_mutable_binding(agent, gc.nogc(), name, false)
+                    .unwrap()
                     .unwrap();
-                lex_env
-                    .initialize_binding(agent, gc.reborrow(), name, vm.exception.unwrap())
-                    .unwrap();
-                vm.exception = None;
+                let name = name.unbind();
+                if let Err(result) =
+                    lex_env.initialize_binding(agent, gc, name, vm.exception.take().unwrap())
+                {
+                    let old_env = agent
+                        .running_execution_context()
+                        .ecmascript_code
+                        .as_ref()
+                        .unwrap()
+                        .lexical_environment
+                        .get_outer_env(agent)
+                        .unwrap();
+                    agent
+                        .running_execution_context_mut()
+                        .ecmascript_code
+                        .as_mut()
+                        .unwrap()
+                        .lexical_environment = old_env;
+                    return Err(result);
+                }
             }
             Instruction::Throw => {
                 let result = vm.result.take().unwrap();
@@ -1950,7 +1988,7 @@ impl Vm {
                 let mut idx: u32 = 0;
                 while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
                     let key = PropertyKey::Integer(idx.into());
-                    create_data_property(agent, gc.reborrow(), array, key, value).unwrap();
+                    try_create_data_property(agent, gc.nogc(), array, key, value).unwrap();
                     idx += 1;
                 }
                 vm.result = Some(array.into_value());
@@ -2033,13 +2071,14 @@ impl Vm {
                         let rest = array_create(agent, gc.nogc(), 0, capacity, None).unwrap();
                         let mut idx = 0u32;
                         while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
-                            create_data_property_or_throw(
+                            try_create_data_property_or_throw(
                                 agent,
-                                gc.reborrow(),
+                                gc.nogc(),
                                 rest,
                                 PropertyKey::from(idx),
                                 result,
                             )
+                            .unwrap()
                             .unwrap();
                             idx += 1;
                         }
@@ -2054,9 +2093,15 @@ impl Vm {
 
             match instr.kind {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
-                    let binding_id =
-                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
-                    let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
+                    let binding_id = executable.fetch_identifier(
+                        agent,
+                        instr.args[0].unwrap() as usize,
+                        gc.nogc(),
+                    );
+                    let lhs = {
+                        let binding_id = binding_id.unbind();
+                        resolve_binding(agent, gc.reborrow(), binding_id, environment)?
+                    };
                     if environment.is_none() {
                         put_value(agent, gc.reborrow(), &lhs, value)?;
                     } else {
@@ -2108,8 +2153,11 @@ impl Vm {
             let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
             match instr.kind {
                 Instruction::BindingPatternBind | Instruction::BindingPatternBindNamed => {
-                    let binding_id =
-                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
+                    let binding_id = executable.fetch_identifier(
+                        agent,
+                        instr.args[0].unwrap() as usize,
+                        gc.nogc(),
+                    );
                     let property_key = if instr.kind == Instruction::BindingPatternBind {
                         binding_id.into()
                     } else {
@@ -2117,10 +2165,23 @@ impl Vm {
                             executable.fetch_constant(agent, instr.args[1].unwrap() as usize);
                         PropertyKey::try_from(key_value).unwrap()
                     };
-                    excluded_names.insert(property_key);
 
-                    let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
-                    let v = get(agent, gc.reborrow(), object, property_key)?;
+                    let lhs = if let Some(lhs) =
+                        try_resolve_binding(agent, gc.nogc(), binding_id, environment)
+                    {
+                        lhs
+                    } else {
+                        // TODO: Root object and property_key
+                        let binding_id = binding_id.unbind();
+                        resolve_binding(agent, gc.reborrow(), binding_id, environment)?
+                    };
+                    let v = if let Some(v) = try_get(agent, gc.nogc(), object, property_key) {
+                        v
+                    } else {
+                        // TODO: Root lhs
+                        get(agent, gc.reborrow(), object, property_key)?
+                    };
+                    excluded_names.insert(property_key);
                     if environment.is_none() {
                         put_value(agent, gc.reborrow(), &lhs, v)?;
                     } else {
@@ -2146,9 +2207,15 @@ impl Vm {
                 }
                 Instruction::BindingPatternBindRest => {
                     // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
-                    let binding_id =
-                        executable.fetch_identifier(agent, instr.args[0].unwrap() as usize);
-                    let lhs = resolve_binding(agent, gc.reborrow(), binding_id, environment)?;
+                    let binding_id = executable.fetch_identifier(
+                        agent,
+                        instr.args[0].unwrap() as usize,
+                        gc.nogc(),
+                    );
+                    let lhs = {
+                        let binding_id = binding_id.unbind();
+                        resolve_binding(agent, gc.reborrow(), binding_id, environment)?
+                    };
                     // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                     // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                     let rest_obj = copy_data_properties_into_object(
@@ -2497,7 +2564,7 @@ pub(crate) fn instanceof_operator(
             "Invalid instanceof target {}.",
             target
                 .into_value()
-                .string_repr(agent, gc.reborrow(),)
+                .string_repr(agent, gc.reborrow())
                 .as_str(agent)
         );
         return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
@@ -2527,7 +2594,7 @@ pub(crate) fn instanceof_operator(
                 "Invalid instanceof target {} is not a function.",
                 target
                     .into_value()
-                    .string_repr(agent, gc.reborrow(),)
+                    .string_repr(agent, gc.reborrow())
                     .as_str(agent)
             );
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
