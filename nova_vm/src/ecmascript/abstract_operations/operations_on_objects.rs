@@ -549,12 +549,12 @@ pub(crate) fn try_has_own_property(
     gc: NoGcScope<'_, '_>,
     o: Object,
     p: PropertyKey,
-) -> Option<JsResult<bool>> {
+) -> Option<bool> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let desc = o.try_get_own_property(agent, gc, p)?;
     // 2. If desc is undefined, return false.
     // 3. Return true.
-    Some(Ok(desc.is_some()))
+    Some(desc.is_some())
 }
 
 /// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
@@ -1059,7 +1059,7 @@ pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
                 }
                 PropertyKey::Integer(int) => {
                     let int = int.into_i64();
-                    String::from_string(agent, gc.nogc(), format!("{}", int))
+                    String::from_string(agent, gc.nogc(), int.to_string())
                 }
                 PropertyKey::SmallString(str) => str.into(),
                 PropertyKey::String(str) => str.into(),
@@ -1083,7 +1083,7 @@ pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
                     }
                     PropertyKey::Integer(int) => {
                         let int = int.into_i64();
-                        String::from_string(agent, gc.nogc(), format!("{}", int))
+                        String::from_string(agent, gc.nogc(), int.to_string())
                     }
                     PropertyKey::SmallString(str) => str.into(),
                     PropertyKey::String(str) => str.into(),
@@ -1186,6 +1186,63 @@ pub(crate) fn copy_data_properties(
 
     // 5. Return UNUSED.
     Ok(())
+}
+
+/// ### Try [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)
+/// The abstract operation CopyDataProperties takes arguments target (an Object), source (an
+/// ECMAScript language value), and excludedItems (a List of property keys) and returns either a
+/// normal completion containing unused or a throw completion.
+///
+/// NOTE: This implementation of CopyDataProperties also creates the target object with
+/// `OrdinaryObjectCreate(%Object.prototype%)`. This can be used to implement the rest operator in
+/// object destructuring, but not the spread operator in object literals.
+pub(crate) fn try_copy_data_properties_into_object(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    source: impl IntoObject,
+    excluded_items: &AHashSet<PropertyKey>,
+) -> Option<OrdinaryObject> {
+    let from = source.into_object();
+    let mut entries = Vec::new();
+
+    // 3. Let keys be ? from.[[OwnPropertyKeys]]().
+    // 4. For each element nextKey of keys, do
+    for next_key in from.try_own_property_keys(agent, gc)? {
+        // a. Let excluded be false.
+        // b. For each element e of excludedItems, do
+        //   i. If SameValue(e, nextKey) is true, then
+        //     1. Set excluded to true.
+        if excluded_items.contains(&next_key) {
+            continue;
+        }
+
+        // c. If excluded is false, then
+        //   i. Let desc be ? from.[[GetOwnProperty]](nextKey).
+        //   ii. If desc is not undefined and desc.[[Enumerable]] is true, then
+        if let Some(dest) = from.try_get_own_property(agent, gc, next_key)? {
+            if dest.enumerable.unwrap() {
+                // 1. Let propValue be ? Get(from, nextKey).
+                let prop_value = if let Some(prop_value) = dest.value {
+                    prop_value
+                } else {
+                    try_get(agent, gc, from, next_key)?
+                };
+                // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
+                entries.push(ObjectEntry::new_data_entry(next_key, prop_value));
+            }
+        }
+    }
+
+    Some(
+        agent.heap.create_object_with_prototype(
+            agent
+                .current_realm()
+                .intrinsics()
+                .object_prototype()
+                .into_object(),
+            &entries,
+        ),
+    )
 }
 
 /// ### [7.3.25 CopyDataProperties ( target, source, excludedItems )](https://tc39.es/ecma262/#sec-copydataproperties)

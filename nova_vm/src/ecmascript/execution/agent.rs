@@ -10,7 +10,7 @@
 use ahash::AHashMap;
 
 use super::{
-    environments::get_identifier_reference, initialize_default_realm, initialize_host_defined_realm, EnvironmentIndex, ExecutionContext, Realm, RealmIdentifier
+    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, EnvironmentIndex, ExecutionContext, Realm, RealmIdentifier
 };
 use crate::{
     ecmascript::{
@@ -456,6 +456,45 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
         .rev()
         .find(|context| context.script_or_module.is_some());
     ec.map(|context| context.script_or_module.unwrap())
+}
+
+/// ### Try [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)
+///
+/// The abstract operation ResolveBinding takes argument name (a String) and
+/// optional argument env (an Environment Record or undefined) and returns
+/// either a normal completion containing a Reference Record or a throw
+/// completion. It is used to determine the binding of name. env can be used to
+/// explicitly provide the Environment Record that is to be searched for the
+/// binding.
+pub(crate) fn try_resolve_binding(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    name: String,
+    env: Option<EnvironmentIndex>,
+) -> Option<Reference> {
+    let env = env.unwrap_or_else(|| {
+        // 1. If env is not present or env is undefined, then
+        //    a. Set env to the running execution context's LexicalEnvironment.
+        agent
+            .running_execution_context()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment
+    });
+
+    // 2. Assert: env is an Environment Record.
+    // Implicit from env's type.
+
+    // 3. Let strict be IsStrict(the syntactic production that is being evaluated).
+    let strict = agent
+        .running_execution_context()
+        .ecmascript_code
+        .unwrap()
+        .is_strict_mode;
+
+    // 4. Return ? GetIdentifierReference(env, name, strict).
+    try_get_identifier_reference(agent, gc, Some(env), name, strict)
 }
 
 /// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)

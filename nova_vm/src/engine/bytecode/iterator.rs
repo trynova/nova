@@ -47,7 +47,7 @@ impl VmIterator {
                 if let Some(result) = result {
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
-                            Value::from_string(agent, gc.nogc(), format!("{}", int.into_i64()))
+                            Value::from_string(agent, gc.nogc(), int.into_i64().to_string())
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
                         PropertyKey::String(data) => Value::String(data),

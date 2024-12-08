@@ -359,7 +359,7 @@ impl ObjectConstructor {
         } else {
             let error_message = format!(
                 "{} is not an object or null",
-                o.string_repr(agent, gc.reborrow(),).as_str(agent)
+                o.string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
@@ -386,7 +386,7 @@ impl ObjectConstructor {
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.string_repr(agent, gc.reborrow(),).as_str(agent)
+                o.string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
@@ -412,7 +412,7 @@ impl ObjectConstructor {
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.string_repr(agent, gc.reborrow(),).as_str(agent)
+                o.string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
@@ -577,7 +577,7 @@ impl ObjectConstructor {
         // 3. Assert: obj is an extensible ordinary object with no own properties.
         let obj = OrdinaryObject::try_from(obj).unwrap();
         debug_assert!(obj
-            .internal_own_property_keys(agent, gc.reborrow(),)
+            .internal_own_property_keys(agent, gc.reborrow())
             .unwrap()
             .is_empty());
         // 4. Let closure be a new Abstract Closure with parameters (key,
@@ -874,7 +874,7 @@ impl ObjectConstructor {
         } else {
             let error_message = format!(
                 "{} is not an object or null",
-                proto.string_repr(agent, gc.reborrow(),).as_str(agent)
+                proto.string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
@@ -1034,7 +1034,7 @@ pub fn add_entries_from_iterable_from_entries(
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error_message = format!(
                 "Invalid iterator next return value: {} is not an object",
-                next.string_repr(agent, gc.reborrow(),).as_str(agent)
+                next.string_repr(agent, gc.reborrow()).as_str(agent)
             );
             let error = agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message);
             // ii. Return ? IteratorClose(iteratorRecord, error).
@@ -1092,7 +1092,7 @@ fn get_own_string_property_keys(
         match next_key {
             // i. Append nextKey to nameList.
             PropertyKey::Integer(next_key) => {
-                let next_key = format!("{}", next_key.into_i64());
+                let next_key = next_key.into_i64().to_string();
                 name_list.push(Value::from_string(agent, gc.nogc(), next_key));
             }
             PropertyKey::SmallString(next_key) => name_list.push(Value::SmallString(next_key)),

@@ -214,6 +214,24 @@ impl EnvironmentIndex {
         }
     }
 
+    /// ### Try [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Determine if an Environment Record has a binding for the String value
+    /// N. Return true if it does and false if it does not.
+    pub(crate) fn try_has_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+    ) -> Option<bool> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => Some(idx.has_binding(agent, name)),
+            EnvironmentIndex::Function(idx) => Some(idx.has_binding(agent, name)),
+            EnvironmentIndex::Global(idx) => idx.try_has_binding(agent, gc, name),
+            EnvironmentIndex::Object(idx) => idx.try_has_binding(agent, gc, name),
+        }
+    }
+
     /// ### [HasBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Determine if an Environment Record has a binding for the String value
@@ -229,6 +247,36 @@ impl EnvironmentIndex {
             EnvironmentIndex::Function(idx) => Ok(idx.has_binding(agent, name)),
             EnvironmentIndex::Global(idx) => idx.has_binding(agent, gc, name),
             EnvironmentIndex::Object(idx) => idx.has_binding(agent, gc, name),
+        }
+    }
+
+    /// ### Try [CreateMutableBinding(N, D)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Create a new but uninitialized mutable binding in an Environment
+    /// Record. The String value N is the text of the bound name. If the
+    /// Boolean argument D is true the binding may be subsequently deleted.
+    pub(crate) fn try_create_mutable_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+        is_deletable: bool,
+    ) -> Option<JsResult<()>> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => {
+                idx.create_mutable_binding(agent, name, is_deletable);
+                Some(Ok(()))
+            }
+            EnvironmentIndex::Function(idx) => {
+                idx.create_mutable_binding(agent, name, is_deletable);
+                Some(Ok(()))
+            }
+            EnvironmentIndex::Global(idx) => {
+                Some(idx.create_mutable_binding(agent, gc, name, is_deletable))
+            }
+            EnvironmentIndex::Object(idx) => {
+                idx.try_create_mutable_binding(agent, gc, name, is_deletable)
+            }
         }
     }
 
@@ -295,6 +343,33 @@ impl EnvironmentIndex {
         }
     }
 
+    /// ### Try [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Set the value of an already existing but uninitialized binding in an
+    /// Environment Record. The String value N is the text of the bound name.
+    /// V is the value for the binding and is a value of any ECMAScript
+    /// language type.
+    pub(crate) fn try_initialize_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+        value: Value,
+    ) -> Option<JsResult<()>> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => {
+                idx.initialize_binding(agent, name, value);
+                Some(Ok(()))
+            }
+            EnvironmentIndex::Function(idx) => {
+                idx.initialize_binding(agent, name, value);
+                Some(Ok(()))
+            }
+            EnvironmentIndex::Global(idx) => idx.try_initialize_binding(agent, gc, name, value),
+            EnvironmentIndex::Object(idx) => idx.try_initialize_binding(agent, gc, name, value),
+        }
+    }
+
     /// ### [InitializeBinding(N, V)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Set the value of an already existing but uninitialized binding in an
@@ -319,6 +394,37 @@ impl EnvironmentIndex {
             }
             EnvironmentIndex::Global(idx) => idx.initialize_binding(agent, gc, name, value),
             EnvironmentIndex::Object(idx) => idx.initialize_binding(agent, gc, name, value),
+        }
+    }
+
+    /// ### Try [SetMutableBinding(N, V, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Set the value of an already existing mutable binding in an Environment
+    /// Record. The String value N is the text of the bound name. V is the
+    /// value for the binding and may be a value of any ECMAScript language
+    /// type. S is a Boolean flag. If S is true and the binding cannot be set
+    /// throw a TypeError exception.
+    pub(crate) fn try_set_mutable_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+        value: Value,
+        is_strict: bool,
+    ) -> Option<JsResult<()>> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => {
+                Some(idx.set_mutable_binding(agent, gc, name, value, is_strict))
+            }
+            EnvironmentIndex::Function(idx) => {
+                Some(idx.set_mutable_binding(agent, gc, name, value, is_strict))
+            }
+            EnvironmentIndex::Global(idx) => {
+                idx.try_set_mutable_binding(agent, gc, name, value, is_strict)
+            }
+            EnvironmentIndex::Object(idx) => {
+                idx.try_set_mutable_binding(agent, gc, name, value, is_strict)
+            }
         }
     }
 
@@ -353,6 +459,34 @@ impl EnvironmentIndex {
         }
     }
 
+    /// ### Try [GetBindingValue(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Returns the value of an already existing binding from an Environment
+    /// Record. The String value N is the text of the bound name. S is used to
+    /// identify references originating in strict mode code or that otherwise
+    /// require strict mode reference semantics. If S is true and the binding
+    /// does not exist throw a ReferenceError exception. If the binding exists
+    /// but is uninitialized a ReferenceError is thrown, regardless of the
+    /// value of S.
+    pub(crate) fn try_get_binding_value(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+        is_strict: bool,
+    ) -> Option<JsResult<Value>> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => {
+                Some(idx.get_binding_value(agent, gc, name, is_strict))
+            }
+            EnvironmentIndex::Function(idx) => {
+                Some(idx.get_binding_value(agent, gc, name, is_strict))
+            }
+            EnvironmentIndex::Global(idx) => idx.try_get_binding_value(agent, gc, name, is_strict),
+            EnvironmentIndex::Object(idx) => idx.try_get_binding_value(agent, gc, name, is_strict),
+        }
+    }
+
     /// ### [GetBindingValue(N, S)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
     ///
     /// Returns the value of an already existing binding from an Environment
@@ -378,6 +512,26 @@ impl EnvironmentIndex {
             }
             EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, gc, name, is_strict),
             EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, gc, name, is_strict),
+        }
+    }
+
+    /// ### Try [DeleteBinding(N)](https://tc39.es/ecma262/#table-abstract-methods-of-environment-records)
+    ///
+    /// Delete a binding from an Environment Record. The String value N is the
+    /// text of the bound name. If a binding for N exists, remove the binding
+    /// and return true. If the binding exists but cannot be removed return
+    /// false.
+    pub(crate) fn try_delete_binding(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        name: String,
+    ) -> Option<JsResult<bool>> {
+        match self {
+            EnvironmentIndex::Declarative(idx) => Some(Ok(idx.delete_binding(agent, name))),
+            EnvironmentIndex::Function(idx) => Some(Ok(idx.delete_binding(agent, name))),
+            EnvironmentIndex::Global(idx) => idx.try_delete_binding(agent, gc, name),
+            EnvironmentIndex::Object(idx) => idx.try_delete_binding(agent, gc, name).map(Ok),
         }
     }
 
@@ -479,6 +633,63 @@ impl Default for Environments {
             object: Vec::with_capacity(1024),
             private: Vec::with_capacity(0),
         }
+    }
+}
+
+/// ### Try [9.1.2.1 GetIdentifierReference ( env, name, strict )](https://tc39.es/ecma262/#sec-getidentifierreference)
+///
+/// The abstract operation GetIdentifierReference takes arguments env (an
+/// Environment Record or null), name (a String), and strict (a Boolean) and
+/// returns either a normal completion containing a Reference Record or a throw
+/// completion.
+pub(crate) fn try_get_identifier_reference(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    env: Option<EnvironmentIndex>,
+    name: String,
+    strict: bool,
+) -> Option<Reference> {
+    // 1. If env is null, then
+    let Some(env) = env else {
+        // a. Return the Reference Record {
+        return Some(Reference {
+            // [[Base]]: UNRESOLVABLE,
+            base: Base::Unresolvable,
+            // [[ReferencedName]]: name,
+            referenced_name: name.into(),
+            // [[Strict]]: strict,
+            strict,
+            // [[ThisValue]]: EMPTY
+            this_value: None,
+        });
+        // }.
+    };
+
+    // 2. Let exists be ? env.HasBinding(name).
+    let exists = env.try_has_binding(agent, gc, name)?;
+
+    // 3. If exists is true, then
+    if exists {
+        // a. Return the Reference Record {
+        Some(Reference {
+            // [[Base]]: env,
+            base: Base::Environment(env),
+            // [[ReferencedName]]: name,
+            referenced_name: name.into(),
+            // [[Strict]]: strict,
+            strict,
+            // [[ThisValue]]: EMPTY
+            this_value: None,
+        })
+        // }.
+    }
+    // 4. Else,
+    else {
+        // a. Let outer be env.[[OuterEnv]].
+        let outer = env.get_outer_env(agent);
+
+        // b. Return ? GetIdentifierReference(outer, name, strict).
+        try_get_identifier_reference(agent, gc, outer, name, strict)
     }
 }
 

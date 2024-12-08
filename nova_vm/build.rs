@@ -41,7 +41,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
         strings.push(line);
     }
 
-    let array_size = format!("{}", i);
+    let array_size = i.to_string();
     let mut output = String::with_capacity(2048);
     output.push_str("pub const BUILTIN_STRINGS_LIST: [&str; ");
     output.push_str(&array_size);
@@ -77,7 +77,7 @@ fn gen_builtin_strings() -> io::Result<Vec<u8>> {
             output.push_str(
                 ": crate::ecmascript::types::String::String(HeapString(StringIndex::from_index(",
             );
-            output.push_str(&format!("{}", i));
+            output.push_str(&i.to_string());
             output.push_str("))),\n");
             i += 1;
         }
