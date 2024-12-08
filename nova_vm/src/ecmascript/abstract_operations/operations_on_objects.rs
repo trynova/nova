@@ -68,6 +68,7 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 /// key) and returns either a normal completion containing an ECMAScript
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
+#[inline]
 pub(crate) fn get(
     agent: &mut Agent,
     gc: GcScope<'_, '_>,
@@ -76,6 +77,23 @@ pub(crate) fn get(
 ) -> JsResult<Value> {
     // 1. Return ? O.[[Get]](P, O).
     o.into_object().internal_get(agent, gc, p, o.into_value())
+}
+
+/// ### Try [7.3.2 Get ( O, P )](https://tc39.es/ecma262/#sec-get-o-p)
+///
+/// The abstract operation Get takes arguments O (an Object) and P (a property
+/// key) and returns either a normal completion containing an ECMAScript
+/// language value or a throw completion. It is used to retrieve the value of a
+/// specific property of an object.
+#[inline]
+pub(crate) fn try_get(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    o: impl IntoObject,
+    p: PropertyKey,
+) -> Option<Value> {
+    // 1. Return ? O.[[Get]](P, O).
+    o.into_object().try_get(agent, gc, p, o.into_value())
 }
 
 /// ### [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -98,6 +116,31 @@ pub(crate) fn get_v(
     o.internal_get(agent, gc, p, o.into())
 }
 
+/// ### Try [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
+///
+/// The abstract operation GetV takes arguments V (an ECMAScript language
+/// value) and P (a property key) and returns either a normal completion
+/// containing an ECMAScript language value or a throw completion. It is used
+/// to retrieve the value of a specific property of an ECMAScript language
+/// value. If the value is not an object, the property lookup is performed
+/// using a wrapper object appropriate for the type of the value.
+pub(crate) fn try_get_v(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    v: Value,
+    p: PropertyKey,
+) -> Option<JsResult<Value>> {
+    // 1. Let O be ? ToObject(V).
+    let o = match to_object(agent, gc, v) {
+        Ok(o) => o,
+        Err(err) => {
+            return Some(Err(err));
+        }
+    };
+    // 2. Return ? O.[[Get]](P, V).
+    Some(Ok(o.try_get(agent, gc, p, o.into())?))
+}
+
 /// ### [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
 ///
 /// The abstract operation Set takes arguments O (an Object), P (a property
@@ -118,7 +161,7 @@ pub(crate) fn set(
     // 2. If success is false and Throw is true, throw a TypeError exception.
     if !success && throw {
         return Err(agent.throw_exception(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             format!("Could not set property '{}'.", p.as_display(agent)),
         ));
@@ -127,7 +170,36 @@ pub(crate) fn set(
     Ok(())
 }
 
-/// ### [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
+/// ### Try [7.3.4 Set ( O, P, V, Throw )](https://tc39.es/ecma262/#sec-set-o-p-v-throw)
+///
+/// The abstract operation Set takes arguments O (an Object), P (a property
+/// key), V (an ECMAScript language value), and Throw (a Boolean) and returns
+/// either a normal completion containing UNUSED or a throw completion. It is
+/// used to set the value of a specific property of an object. V is the new
+/// value for the property.
+pub(crate) fn try_set(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    o: Object,
+    p: PropertyKey,
+    v: Value,
+    throw: bool,
+) -> Option<JsResult<()>> {
+    // 1. Let success be ? O.[[Set]](P, V, O).
+    let success = o.try_set(agent, gc, p, v, o.into_value())?;
+    // 2. If success is false and Throw is true, throw a TypeError exception.
+    if !success && throw {
+        return Some(Err(agent.throw_exception(
+            gc,
+            ExceptionType::TypeError,
+            format!("Could not set property '{}'.", p.as_display(agent)),
+        )));
+    }
+    // 3. Return UNUSED.
+    Some(Ok(()))
+}
+
+/// ### Try [7.3.5] CreateDataProperty ( O, P, V )[https://tc39.es/ecma262/#sec-createdataproperty]
 ///
 /// The abstract operation CreateDataProperty takes arguments O (an Object), P
 /// (a property key), and V (an ECMAScript language value) and returns either a
@@ -142,7 +214,7 @@ pub(crate) fn set(
 pub(crate) fn try_create_data_property(
     agent: &mut Agent,
     gc: NoGcScope<'_, '_>,
-    object: Object,
+    object: impl InternalMethods,
     property_key: PropertyKey,
     value: Value,
 ) -> Option<bool> {
@@ -191,6 +263,35 @@ pub(crate) fn create_data_property(
     object.internal_define_own_property(agent, gc, property_key, new_desc)
 }
 
+/// ### Try [7.3.7 CreateDataPropertyOrThrow ( O, P, V )](https://tc39.es/ecma262/#sec-createdatapropertyorthrow)
+///
+/// The abstract operation CreateDataPropertyOrThrow takes arguments O (an
+/// Object), P (a property key), and V (an ECMAScript language value) and
+/// returns either a normal completion containing UNUSED or a throw completion.
+/// It is used to create a new own property of an object. It throws a TypeError
+/// exception if the requested property update cannot be performed.
+pub(crate) fn try_create_data_property_or_throw(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: impl InternalMethods,
+    property_key: PropertyKey,
+    value: Value,
+) -> Option<JsResult<()>> {
+    let success = try_create_data_property(agent, gc, object, property_key, value)?;
+    if !success {
+        Some(Err(agent.throw_exception(
+            gc,
+            ExceptionType::TypeError,
+            format!(
+                "Could not create property '{}'.",
+                property_key.as_display(agent)
+            ),
+        )))
+    } else {
+        Some(Ok(()))
+    }
+}
+
 /// ### [7.3.7 CreateDataPropertyOrThrow ( O, P, V )](https://tc39.es/ecma262/#sec-createdatapropertyorthrow)
 ///
 /// The abstract operation CreateDataPropertyOrThrow takes arguments O (an
@@ -208,7 +309,7 @@ pub(crate) fn create_data_property_or_throw(
     let success = create_data_property(agent, gc.reborrow(), object, property_key, value)?;
     if !success {
         Err(agent.throw_exception(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             format!(
                 "Could not create property '{}'.",
@@ -217,6 +318,36 @@ pub(crate) fn create_data_property_or_throw(
         ))
     } else {
         Ok(())
+    }
+}
+
+/// ### Try [7.3.8 DefinePropertyOrThrow ( O, P, desc )](https://tc39.es/ecma262/#sec-definepropertyorthrow)
+///
+/// The abstract operation DefinePropertyOrThrow takes arguments O (an Object),
+/// P (a property key), and desc (a Property Descriptor) and returns either a
+/// normal completion containing UNUSED or a throw completion. It is used to
+/// call the \[\[DefineOwnProperty]] internal method of an object in a manner
+/// that will throw a TypeError exception if the requested property update
+/// cannot be performed.
+pub(crate) fn try_define_property_or_throw(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    object: impl InternalMethods,
+    property_key: PropertyKey,
+    desc: PropertyDescriptor,
+) -> Option<JsResult<()>> {
+    // 1. Let success be ? O.[[DefineOwnProperty]](P, desc).
+    let success = object.try_define_own_property(agent, gc, property_key, desc)?;
+    // 2. If success is false, throw a TypeError exception.
+    if !success {
+        Some(Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Failed to defined property on object",
+        )))
+    } else {
+        // 3. Return UNUSED.
+        Some(Ok(()))
     }
 }
 
@@ -240,7 +371,7 @@ pub(crate) fn define_property_or_throw(
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Failed to defined property on object",
         ))
@@ -256,10 +387,37 @@ pub(crate) fn define_property_or_throw(
 /// and P (a property key) and returns either a normal completion containing
 /// unused or a throw completion. It is used to remove a specific own property
 /// of an object. It throws an exception if the property is not configurable.
+pub(crate) fn try_delete_property_or_throw(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    o: impl InternalMethods,
+    p: PropertyKey,
+) -> Option<JsResult<()>> {
+    // 1. Let success be ? O.[[Delete]](P).
+    let success = o.try_delete(agent, gc, p)?;
+    // 2. If success is false, throw a TypeError exception.
+    if !success {
+        Some(Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Failed to delete property",
+        )))
+    } else {
+        // 3. Return unused.
+        Some(Ok(()))
+    }
+}
+
+/// ### [7.3.9 DeletePropertyOrThrow ( O, P )](https://tc39.es/ecma262/#sec-deletepropertyorthrow)
+///
+/// The abstract operation DeletePropertyOrThrow takes arguments O (an Object)
+/// and P (a property key) and returns either a normal completion containing
+/// unused or a throw completion. It is used to remove a specific own property
+/// of an object. It throws an exception if the property is not configurable.
 pub(crate) fn delete_property_or_throw(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
-    o: Object,
+    o: impl InternalMethods,
     p: PropertyKey,
 ) -> JsResult<()> {
     // 1. Let success be ? O.[[Delete]](P).
@@ -267,7 +425,7 @@ pub(crate) fn delete_property_or_throw(
     // 2. If success is false, throw a TypeError exception.
     if !success {
         Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Failed to delete property",
         ))
@@ -277,6 +435,43 @@ pub(crate) fn delete_property_or_throw(
     }
 }
 
+/// ### Try [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
+///
+/// The abstract operation GetMethod takes arguments V (an ECMAScript language
+/// value) and P (a property key) and returns either a normal completion
+/// containing either a function object or undefined, or a throw completion. It
+/// is used to get the value of a specific property of an ECMAScript language
+/// value when the value of the property is expected to be a function.
+pub(crate) fn try_get_method(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    v: Value,
+    p: PropertyKey,
+) -> Option<JsResult<Option<Function>>> {
+    // 1. Let func be ? GetV(V, P).
+    let func = match try_get_v(agent, gc, v, p)? {
+        Ok(func) => func,
+        Err(err) => {
+            return Some(Err(err));
+        }
+    };
+    // 2. If func is either undefined or null, return undefined.
+    if func.is_undefined() || func.is_null() {
+        return Some(Ok(None));
+    }
+    // 3. If IsCallable(func) is false, throw a TypeError exception.
+    let func = is_callable(func);
+    if func.is_none() {
+        return Some(Err(agent.throw_exception_with_static_message(
+            gc,
+            ExceptionType::TypeError,
+            "Not a callable object",
+        )));
+    }
+    // 4. Return func.
+    Some(Ok(func))
+}
+
 /// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
 ///
 /// The abstract operation GetMethod takes arguments V (an ECMAScript language
@@ -284,7 +479,6 @@ pub(crate) fn delete_property_or_throw(
 /// containing either a function object or undefined, or a throw completion. It
 /// is used to get the value of a specific property of an ECMAScript language
 /// value when the value of the property is expected to be a function.
-
 pub(crate) fn get_method(
     agent: &mut Agent,
     mut gc: GcScope<'_, '_>,
@@ -301,13 +495,30 @@ pub(crate) fn get_method(
     let func = is_callable(func);
     if func.is_none() {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Not a callable object",
         ));
     }
     // 4. Return func.
     Ok(func)
+}
+
+/// ### Try [7.3.12 HasProperty ( O, P )](https://tc39.es/ecma262/#sec-hasproperty)
+///
+/// The abstract operation HasProperty takes arguments O (an Object) and P (a
+/// property key) and returns either a normal completion containing a Boolean
+/// or a throw completion. It is used to determine whether an object has a
+/// property with the specified property key. The property may be either own or
+/// inherited.
+pub(crate) fn try_has_property(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    o: Object,
+    p: PropertyKey,
+) -> Option<bool> {
+    // 1. Return ? O.[[HasProperty]](P).
+    o.try_has_property(agent, gc, p)
 }
 
 /// ### [7.3.12 HasProperty ( O, P )](https://tc39.es/ecma262/#sec-hasproperty)
@@ -325,6 +536,25 @@ pub(crate) fn has_property(
 ) -> JsResult<bool> {
     // 1. Return ? O.[[HasProperty]](P).
     o.internal_has_property(agent, gc, p)
+}
+
+/// ### Try [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
+///
+/// The abstract operation HasOwnProperty takes arguments O (an Object) and P
+/// (a property key) and returns either a normal completion containing a
+/// Boolean or a throw completion. It is used to determine whether an object
+/// has an own property with the specified property key.
+pub(crate) fn try_has_own_property(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    o: Object,
+    p: PropertyKey,
+) -> Option<JsResult<bool>> {
+    // 1. Let desc be ? O.[[GetOwnProperty]](P).
+    let desc = o.try_get_own_property(agent, gc, p)?;
+    // 2. If desc is undefined, return false.
+    // 3. Return true.
+    Some(Ok(desc.is_some()))
 }
 
 /// ### [7.3.13 HasOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-hasownproperty)
@@ -369,7 +599,7 @@ pub(crate) fn call(
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     match is_callable(f) {
         None => Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Not a callable object",
         )),
@@ -619,7 +849,7 @@ pub(crate) fn create_list_from_array_like(
         }
         // 2. If obj is not an Object, throw a TypeError exception.
         _ => Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Not an object",
         )),
@@ -714,7 +944,7 @@ pub(crate) fn ordinary_has_instance(
     // 5. If P is not an Object, throw a TypeError exception.
     let Ok(p) = Object::try_from(p) else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Non-object prototype found",
         ));
@@ -1128,7 +1358,7 @@ pub(crate) fn group_by_property(
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
     let Some(callback_fn) = is_callable(callback_fn) else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Callback is not callable",
         ));
@@ -1222,7 +1452,7 @@ pub(crate) fn group_by_collection(
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
     let Some(callback_fn) = is_callable(callback_fn) else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
+            gc.into_nogc(),
             ExceptionType::TypeError,
             "Callback is not callable",
         ));
