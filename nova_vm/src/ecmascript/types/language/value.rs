@@ -1338,7 +1338,7 @@ impl Rootable for Value {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum ValueRootRepr {
     Undefined = UNDEFINED_DISCRIMINANT,
