@@ -828,7 +828,7 @@ mod test {
         let script = parse_script(&mut agent, gc.nogc(), source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, gc.reborrow(), script).unwrap();
         assert!(result.is_undefined());
-        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "foo");
+        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "foo").unbind();
         let foo = agent
             .get_realm(realm)
             .global_object
@@ -857,7 +857,7 @@ mod test {
         let script = parse_script(&mut agent, gc.nogc(), source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, gc.reborrow(), script).unwrap();
         assert!(result.is_undefined());
-        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "foo");
+        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "foo").unbind();
         let foo = agent
             .get_realm(realm)
             .global_object
@@ -868,7 +868,7 @@ mod test {
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "a");
+        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "a").unbind();
         assert!(result
             .internal_has_property(&mut agent, gc.reborrow(), key)
             .unwrap());
@@ -1051,8 +1051,6 @@ mod test {
             script_or_module: None,
         });
 
-        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "test");
-
         struct TestBuiltinFunction;
 
         impl Builtin for TestBuiltinFunction {
@@ -1074,6 +1072,7 @@ mod test {
 
         let func = BuiltinFunctionBuilder::new::<TestBuiltinFunction>(&mut agent, realm).build();
 
+        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "test").unbind();
         create_data_property_or_throw(&mut agent, gc.reborrow(), global, key, func.into_value())
             .unwrap();
 
@@ -1201,7 +1200,7 @@ mod test {
         let script = parse_script(&mut agent, gc.nogc(), source_text, realm, false, None).unwrap();
         let result = script_evaluation(&mut agent, gc.reborrow(), script).unwrap();
         assert_eq!(result, Value::Undefined);
-        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "i");
+        let key = PropertyKey::from_static_str(&mut agent, gc.nogc(), "i").unbind();
         let i: Value = agent
             .get_realm(realm)
             .global_object
@@ -1287,7 +1286,7 @@ mod test {
         let result = script_evaluation(&mut agent, gc.reborrow(), script).unwrap();
         let object = Object::try_from(result).unwrap();
 
-        let pk = PropertyKey::from_static_str(&mut agent, gc.nogc(), "a");
+        let pk = PropertyKey::from_static_str(&mut agent, gc.nogc(), "a").unbind();
         assert_eq!(
             object
                 .internal_get(&mut agent, gc, pk, object.into_value())

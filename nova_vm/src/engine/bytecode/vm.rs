@@ -20,7 +20,7 @@ use crate::{
                 copy_data_properties_into_object, create_data_property_or_throw,
                 define_property_or_throw, get, get_method, has_property, ordinary_has_instance,
                 set, try_copy_data_properties_into_object, try_create_data_property,
-                try_create_data_property_or_throw, try_get,
+                try_create_data_property_or_throw, try_define_property_or_throw, try_get,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -112,16 +112,16 @@ struct ExceptionJumpTarget {
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug)]
-pub(crate) struct Vm {
+pub(crate) struct Vm<'a> {
     /// Instruction pointer.
     ip: usize,
     stack: Vec<Value>,
-    reference_stack: Vec<Reference>,
-    iterator_stack: Vec<VmIterator>,
+    reference_stack: Vec<Reference<'a>>,
+    iterator_stack: Vec<VmIterator<'a>>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
-    reference: Option<Reference>,
+    reference: Option<Reference<'a>>,
 }
 
 #[derive(Debug)]
@@ -135,11 +135,11 @@ pub(crate) struct SuspendedVm {
     /// Note: Reference stack is non-empty only if the code awaits inside a
     /// call expression. This means that usually no heap data clone is
     /// required.
-    reference_stack: Box<[Reference]>,
+    reference_stack: Box<[Reference<'static>]>,
     /// Note: Iterator stack is non-empty only if the code awaits inside a
     /// for-in or for-of loop. This means that often no heap data clone is
     /// required.
-    iterator_stack: Box<[VmIterator]>,
+    iterator_stack: Box<[VmIterator<'static>]>,
     /// Note: Exception jump stack is non-empty only if the code awaits inside
     /// a try block. This means that often no heap data clone is required.
     exception_jump_target_stack: Box<[ExceptionJumpTarget]>,
@@ -175,7 +175,7 @@ impl SuspendedVm {
     }
 }
 
-impl Vm {
+impl<'a> Vm<'a> {
     fn new() -> Self {
         Self {
             ip: 0,
@@ -193,8 +193,16 @@ impl Vm {
         SuspendedVm {
             ip: self.ip,
             stack: self.stack.into_boxed_slice(),
-            reference_stack: self.reference_stack.into_boxed_slice(),
-            iterator_stack: self.iterator_stack.into_boxed_slice(),
+            reference_stack: unsafe {
+                std::mem::transmute::<Box<[Reference<'a>]>, Box<[Reference<'static>]>>(
+                    self.reference_stack.into_boxed_slice(),
+                )
+            },
+            iterator_stack: unsafe {
+                std::mem::transmute::<Box<[VmIterator<'a>]>, Box<[VmIterator<'static>]>>(
+                    self.iterator_stack.into_boxed_slice(),
+                )
+            },
             exception_jump_target_stack: self.exception_jump_target_stack.into_boxed_slice(),
         }
     }
@@ -440,7 +448,7 @@ impl Vm {
                     resolve_binding(agent, gc, identifier, None)?
                 };
 
-                vm.reference = Some(reference);
+                vm.reference = Some(reference.unbind());
             }
             Instruction::ResolveThisBinding => {
                 // 1. Let envRec be GetThisEnvironment().
@@ -523,9 +531,12 @@ impl Vm {
             }
             Instruction::ObjectDefineProperty => {
                 let value = vm.result.take().unwrap();
-                let key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
+                let key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?
+                    .unbind()
+                    .bind(gc.nogc());
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
+                let key = key.unbind();
                 try_create_data_property_or_throw(agent, gc.nogc(), object, key, value)
                     .unwrap()
                     .unwrap();
@@ -536,7 +547,9 @@ impl Vm {
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
+                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?
+                    .unbind()
+                    .bind(gc.nogc());
                 let object = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
                 // 2. Let env be the running execution context's LexicalEnvironment.
@@ -613,6 +626,7 @@ impl Vm {
                 // b. Perform ? DefinePropertyOrThrow(homeObject, key, desc).
                 // c. NOTE: DefinePropertyOrThrow only returns an abrupt
                 // completion when attempting to define a class static method whose key is "prototype".
+                let prop_key = prop_key.unbind();
                 define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
                 // c. Return unused.
             }
@@ -622,7 +636,9 @@ impl Vm {
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
+                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?
+                    .unbind()
+                    .bind(gc.nogc());
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
                 let ECMAScriptCodeEvaluationState {
@@ -697,6 +713,7 @@ impl Vm {
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
+                let prop_key = prop_key.unbind();
                 define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
                 // c. Return unused.
             }
@@ -706,7 +723,9 @@ impl Vm {
                 let function_expression = expression.get();
                 let enumerable = instr.args[1].unwrap() != 0;
                 // 1. Let propKey be ? Evaluation of ClassElementName.
-                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?;
+                let prop_key = to_property_key(agent, gc.reborrow(), vm.stack.pop().unwrap())?
+                    .unbind()
+                    .bind(gc.nogc());
                 // 2. Let env be the running execution context's LexicalEnvironment.
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
                 let ECMAScriptCodeEvaluationState {
@@ -766,6 +785,7 @@ impl Vm {
                     configurable: Some(true),
                 };
                 // b. Perform ? DefinePropertyOrThrow(object, propKey, desc).
+                let prop_key = prop_key.unbind();
                 define_property_or_throw(agent, gc.reborrow(), object, prop_key, desc)?;
                 // c. Return unused.
             }
@@ -911,9 +931,13 @@ impl Vm {
                     match parameter {
                         NamedEvaluationParameter::Result => {
                             to_property_key(agent, gc.reborrow(), vm.result.unwrap())?
+                                .unbind()
+                                .bind(gc.nogc())
                         }
                         NamedEvaluationParameter::Stack => {
                             to_property_key(agent, gc.reborrow(), *vm.stack.last().unwrap())?
+                                .unbind()
+                                .bind(gc.nogc())
                         }
                         NamedEvaluationParameter::Reference => {
                             vm.reference.as_ref().unwrap().referenced_name
@@ -952,9 +976,13 @@ impl Vm {
                     let name = match parameter {
                         NamedEvaluationParameter::Result => {
                             to_property_key(agent, gc.reborrow(), vm.result.unwrap())?
+                                .unbind()
+                                .bind(gc.nogc())
                         }
                         NamedEvaluationParameter::Stack => {
                             to_property_key(agent, gc.reborrow(), *vm.stack.last().unwrap())?
+                                .unbind()
+                                .bind(gc.nogc())
                         }
                         NamedEvaluationParameter::Reference => {
                             vm.reference.as_ref().unwrap().referenced_name
@@ -1011,9 +1039,9 @@ impl Vm {
                         ),
                     );
                     // 8. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
-                    define_property_or_throw(
+                    try_define_property_or_throw(
                         agent,
-                        gc.reborrow(),
+                        gc.nogc(),
                         function,
                         BUILTIN_STRING_MEMORY.prototype.to_property_key(),
                         PropertyDescriptor {
@@ -1025,13 +1053,14 @@ impl Vm {
                             configurable: Some(false),
                         },
                     )
+                    .unwrap()
                     .unwrap();
                 }
 
                 if init_binding {
                     let name = match name {
                         PropertyKey::SmallString(data) => data.into(),
-                        PropertyKey::String(data) => data.into(),
+                        PropertyKey::String(data) => data.unbind().into(),
                         _ => unreachable!("maybe?"),
                     };
                     env.initialize_binding(agent, gc.reborrow(), name, function.into_value())
@@ -1195,7 +1224,10 @@ impl Vm {
 
                 let func_reference =
                     resolve_binding(agent, gc.reborrow(), BUILTIN_STRING_MEMORY.eval, None)?;
-                let func = get_value(agent, gc.reborrow(), &func_reference)?;
+                let func = {
+                    let func_reference = func_reference.unbind();
+                    get_value(agent, gc.reborrow(), &func_reference)?
+                };
 
                 // a. If SameValue(func, %eval%) is true, then
                 if func == agent.current_realm().intrinsics().eval().into_value() {
@@ -1412,7 +1444,7 @@ impl Vm {
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value),
-                    referenced_name: property_key,
+                    referenced_name: property_key.unbind(),
                     strict,
                     this_value: None,
                 });
@@ -1429,7 +1461,7 @@ impl Vm {
 
                 vm.reference = Some(Reference {
                     base: Base::Value(base_value),
-                    referenced_name: property_name_string.into(),
+                    referenced_name: property_name_string.unbind().into(),
                     strict,
                     this_value: None,
                 });
@@ -1521,12 +1553,15 @@ impl Vm {
                 };
                 // 6. Return ? HasProperty(rval, ? ToPropertyKey(lval)).
                 let property_key = to_property_key(agent, gc.reborrow(), lval)?;
-                vm.result = Some(Value::Boolean(has_property(
-                    agent,
-                    gc.reborrow(),
-                    rval,
-                    property_key,
-                )?));
+                vm.result = {
+                    let property_key = property_key.unbind();
+                    Some(Value::Boolean(has_property(
+                        agent,
+                        gc.reborrow(),
+                        rval,
+                        property_key,
+                    )?))
+                };
             }
             Instruction::IsStrictlyEqual => {
                 let lval = vm.stack.pop().unwrap();
@@ -2636,7 +2671,7 @@ impl HeapMarkAndSweep for ExceptionJumpTarget {
     }
 }
 
-impl HeapMarkAndSweep for Vm {
+impl HeapMarkAndSweep for Vm<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Vm {
             ip: _,

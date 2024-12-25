@@ -201,11 +201,11 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn internal_own_property_keys(
+    fn internal_own_property_keys<'a>(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-    ) -> JsResult<Vec<PropertyKey>> {
+        _gc: GcScope<'a, '_>,
+    ) -> JsResult<Vec<PropertyKey<'a>>> {
         todo!();
     }
 

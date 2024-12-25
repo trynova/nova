@@ -87,8 +87,11 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?
+            .unbind()
+            .bind(gc.nogc());
         let o = to_object(agent, gc.nogc(), this_value)?;
+        let p = p.unbind();
         has_own_property(agent, gc.reborrow(), o, p).map(|result| result.into())
     }
 
@@ -113,9 +116,14 @@ impl ObjectPrototype {
         this_value: Value,
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
-        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?;
+        let p = to_property_key(agent, gc.reborrow(), arguments.get(0))?
+            .unbind()
+            .bind(gc.nogc());
         let o = to_object(agent, gc.nogc(), this_value)?;
-        let desc = o.internal_get_own_property(agent, gc.reborrow(), p)?;
+        let desc = {
+            let p = p.unbind();
+            o.internal_get_own_property(agent, gc.reborrow(), p)?
+        };
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {

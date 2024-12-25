@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::{try_get, try_has_property};
+use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::Scoped;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -40,7 +42,56 @@ pub struct PropertyDescriptor {
     pub configurable: Option<bool>,
 }
 
+#[derive(Debug)]
+pub struct ScopedPropertyDescriptor<'a> {
+    /// \[\[Value]]
+    pub value: Option<Scoped<'a, Value>>,
+
+    /// \[\[Writable]]
+    pub writable: Option<bool>,
+
+    /// \[\[Get]]
+    pub get: Option<Scoped<'a, Function>>,
+
+    /// \[\[Set]]
+    pub set: Option<Scoped<'a, Function>>,
+
+    /// \[\[Enumerable]]
+    pub enumerable: Option<bool>,
+
+    /// \[\[Configurable]]
+    pub configurable: Option<bool>,
+}
+
+impl ScopedPropertyDescriptor<'_> {
+    pub(crate) fn into_property_descriptor(self, agent: &Agent) -> PropertyDescriptor {
+        PropertyDescriptor {
+            value: self.value.map(|v| v.get(agent)),
+            writable: self.writable,
+            get: self.get.map(|f| f.get(agent)),
+            set: self.set.map(|f| f.get(agent)),
+            enumerable: self.enumerable,
+            configurable: self.configurable,
+        }
+    }
+}
+
 impl PropertyDescriptor {
+    pub(crate) fn scope<'a>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'a>,
+    ) -> ScopedPropertyDescriptor<'a> {
+        ScopedPropertyDescriptor {
+            value: self.value.map(|v| v.scope(agent, gc)),
+            writable: self.writable,
+            get: self.get.map(|f| f.scope(agent, gc)),
+            set: self.set.map(|f| f.scope(agent, gc)),
+            enumerable: self.enumerable,
+            configurable: self.configurable,
+        }
+    }
+
     pub fn new_data_descriptor(value: Value) -> Self {
         Self {
             value: Some(value),
@@ -326,6 +377,119 @@ impl PropertyDescriptor {
         }
         // 16. Return desc.
         Ok(desc)
+    }
+
+    pub(crate) fn try_to_property_descriptor(
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        obj: Value,
+    ) -> Option<JsResult<Self>> {
+        // 1. If Obj is not an Object, throw a TypeError exception.
+        let Ok(obj) = Object::try_from(obj) else {
+            return Some(Err(agent.throw_exception_with_static_message(
+                gc,
+                ExceptionType::TypeError,
+                "Property descriptor must be an object",
+            )));
+        };
+        // 2. Let desc be a new Property Descriptor that initially has no
+        // fields.
+        let mut desc = PropertyDescriptor::default();
+        // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
+        let has_enumerable =
+            try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.enumerable.into())?;
+        // 4. If hasEnumerable is true, then
+        if has_enumerable {
+            // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
+            let enumerable = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.enumerable.into())?;
+            let enumerable = to_boolean(agent, enumerable);
+            // b. Set desc.[[Enumerable]] to enumerable.
+            desc.enumerable = Some(enumerable);
+        }
+        // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
+        let has_configurable =
+            try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.configurable.into())?;
+        // 6. If hasConfigurable is true, then
+        if has_configurable {
+            // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
+            let configurable = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.configurable.into())?;
+            let configurable = to_boolean(agent, configurable);
+            // b. Set desc.[[Configurable]] to configurable.
+            desc.configurable = Some(configurable);
+        }
+        // 7. Let hasValue be ? HasProperty(Obj, "value").
+        let has_value = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.value.into())?;
+        // 8. If hasValue is true, then
+        if has_value {
+            // a. Let value be ? Get(Obj, "value").
+            let value = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.value.into())?;
+            // b. Set desc.[[Value]] to value.
+            desc.value = Some(value);
+        }
+        // 9. Let hasWritable be ? HasProperty(Obj, "writable").
+        let has_writable = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.writable.into())?;
+        // 10. If hasWritable is true, then
+        if has_writable {
+            // a. Let writable be ToBoolean(? Get(Obj, "writable")).
+            let writable = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.writable.into())?;
+            let writable = to_boolean(agent, writable);
+            // b. Set desc.[[Writable]] to writable.
+            desc.writable = Some(writable);
+        }
+        // 11. Let hasGet be ? HasProperty(Obj, "get").
+        let has_get = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.get.into())?;
+        // 12. If hasGet is true, then
+        if has_get {
+            // a. Let getter be ? Get(Obj, "get").
+            let getter = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.get.into())?;
+            // b. If IsCallable(getter) is false and getter is not undefined,
+            // throw a TypeError exception.
+            if !getter.is_undefined() {
+                let Some(getter) = is_callable(getter) else {
+                    return Some(Err(agent.throw_exception_with_static_message(
+                        gc,
+                        ExceptionType::TypeError,
+                        "getter is not callable",
+                    )));
+                };
+                // c. Set desc.[[Get]] to getter.
+                desc.get = Some(getter);
+            }
+        }
+        // 13. Let hasSet be ? HasProperty(Obj, "set").
+        let has_set = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
+        // 14. If hasSet is true, then
+        if has_set {
+            // a. Let setter be ? Get(Obj, "set").
+            let setter = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
+            // b. If IsCallable(setter) is false and setter is not undefined,
+            // throw a TypeError exception.
+            if !setter.is_undefined() {
+                let Some(setter) = is_callable(setter) else {
+                    return Some(Err(agent.throw_exception_with_static_message(
+                        gc,
+                        ExceptionType::TypeError,
+                        "setter is not callable",
+                    )));
+                };
+                // c. Set desc.[[Set]] to setter.
+                desc.set = Some(setter);
+            }
+        }
+        // 15. If desc has a [[Get]] field or desc has a [[Set]] field, then
+        if desc.get.is_some() || desc.set.is_some() {
+            // a. If desc has a [[Value]] field or desc has a [[Writable]]
+            // field, throw a TypeError exception.
+            if desc.writable.is_some() || desc.writable.is_some() {
+                return Some(Err(agent.throw_exception_with_static_message(
+                    gc,
+                    ExceptionType::TypeError,
+                    "Over-defined property descriptor",
+                )));
+            }
+        }
+        // 16. Return desc.
+        Some(Ok(desc))
     }
 
     pub fn is_fully_populated(&self) -> bool {

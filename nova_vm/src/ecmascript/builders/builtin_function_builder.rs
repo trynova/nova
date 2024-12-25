@@ -281,7 +281,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
 }
 
 impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
-    pub(crate) fn get_name(&self) -> String {
+    pub(crate) fn get_name(&self) -> String<'static> {
         self.name.0
     }
 }

@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::{context::{GcScope, NoGcScope}, Scoped};
 use crate::{
     ecmascript::{
         builtins::{
@@ -191,6 +191,10 @@ impl Function {
     // to make sure that the unbound Function cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'_, '_>) -> Self {
         self
+    }
+
+    pub fn scope<'a>(self, agent: &mut Agent, gc: NoGcScope<'_, 'a>) -> Scoped<'a, Function> {
+        Scoped::new(agent, gc, self.unbind())
     }
 
     pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {

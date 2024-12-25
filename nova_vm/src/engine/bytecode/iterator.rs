@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -22,14 +22,14 @@ use crate::{
 use super::executable::SendableRef;
 
 #[derive(Debug)]
-pub(super) enum VmIterator {
-    ObjectProperties(ObjectPropertiesIterator),
+pub(super) enum VmIterator<'a> {
+    ObjectProperties(ObjectPropertiesIterator<'a>),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
     SliceIterator(SendableRef<[Value]>),
 }
 
-impl VmIterator {
+impl<'a> VmIterator<'a> {
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
     ///
     /// While not exactly equal to the IteratorStepValue method in usage, this
@@ -39,7 +39,7 @@ impl VmIterator {
     pub(super) fn step_value(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope<'a, '_>,
     ) -> JsResult<Option<Value>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
@@ -50,7 +50,7 @@ impl VmIterator {
                             Value::from_string(agent, gc.nogc(), int.into_i64().to_string())
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
-                        PropertyKey::String(data) => Value::String(data),
+                        PropertyKey::String(data) => Value::String(data.unbind()),
                         _ => unreachable!(),
                     }))
                 } else {
@@ -166,14 +166,14 @@ impl VmIterator {
 }
 
 #[derive(Debug)]
-pub(super) struct ObjectPropertiesIterator {
+pub(super) struct ObjectPropertiesIterator<'a> {
     object: Object,
     object_was_visited: bool,
-    visited_keys: Vec<PropertyKey>,
-    remaining_keys: VecDeque<PropertyKey>,
+    visited_keys: Vec<PropertyKey<'a>>,
+    remaining_keys: VecDeque<PropertyKey<'a>>,
 }
 
-impl ObjectPropertiesIterator {
+impl<'a> ObjectPropertiesIterator<'a> {
     pub(super) fn new(object: Object) -> Self {
         Self {
             object,
@@ -183,11 +183,51 @@ impl ObjectPropertiesIterator {
         }
     }
 
+    pub(super) fn try_next(
+        &mut self,
+        agent: &mut Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Option<PropertyKey<'a>>> {
+        loop {
+            let object = self.object;
+            if !self.object_was_visited {
+                let keys = object.try_own_property_keys(agent, gc)?;
+                for key in keys {
+                    if let PropertyKey::Symbol(_) = key {
+                        continue;
+                    } else {
+                        self.remaining_keys.push_back(key);
+                    }
+                }
+                self.object_was_visited = true;
+            }
+            while let Some(r) = self.remaining_keys.pop_front() {
+                if self.visited_keys.contains(&r) {
+                    continue;
+                }
+                let desc = object.try_get_own_property(agent, gc, r)?;
+                if let Some(desc) = desc {
+                    self.visited_keys.push(r);
+                    if desc.enumerable == Some(true) {
+                        return Some(Some(r));
+                    }
+                }
+            }
+            let prototype = object.try_get_prototype_of(agent, gc)?;
+            if let Some(prototype) = prototype {
+                self.object_was_visited = false;
+                self.object = prototype;
+            } else {
+                return Some(None);
+            }
+        }
+    }
+
     pub(super) fn next(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Option<PropertyKey>> {
+        mut gc: GcScope<'a, 'a>,
+    ) -> JsResult<Option<PropertyKey<'a>>> {
         loop {
             let object = self.object;
             if !self.object_was_visited {
@@ -276,7 +316,7 @@ impl ArrayValuesIterator {
     }
 }
 
-impl HeapMarkAndSweep for ObjectPropertiesIterator {
+impl HeapMarkAndSweep for ObjectPropertiesIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object,
@@ -316,7 +356,7 @@ impl HeapMarkAndSweep for ArrayValuesIterator {
     }
 }
 
-impl HeapMarkAndSweep for VmIterator {
+impl HeapMarkAndSweep for VmIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),

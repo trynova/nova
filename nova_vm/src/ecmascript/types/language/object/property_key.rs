@@ -152,6 +152,17 @@ pub fn bind_property_keys<'a>(
     unsafe { std::mem::transmute::<Vec<PropertyKey<'static>>, Vec<PropertyKey<'a>>>(vec) }
 }
 
+#[inline]
+pub fn scope_property_keys<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, 'a>,
+    keys: Vec<PropertyKey<'_>>,
+) -> Vec<Scoped<'a, PropertyKey<'static>>> {
+    keys.into_iter()
+        .map(|k| k.scope(agent, gc))
+        .collect::<Vec<_>>()
+}
+
 pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
     key: &'b PropertyKey<'a>,
     agent: &'c Agent,

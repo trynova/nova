@@ -388,11 +388,11 @@ impl InternalMethods for PrimitiveObject {
             .unwrap())
     }
 
-    fn internal_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-    ) -> JsResult<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);
@@ -406,7 +406,7 @@ impl InternalMethods for PrimitiveObject {
             let backing_object_keys;
             let (integer_keys, other_keys) = match self.get_backing_object(agent) {
                 Some(backing_object) => {
-                    backing_object_keys = ordinary_own_property_keys(agent, backing_object);
+                    backing_object_keys = ordinary_own_property_keys(agent, gc, backing_object);
                     if let Some(PropertyKey::Integer(smi)) = backing_object_keys.first() {
                         debug_assert!(smi.into_i64() >= len as i64);
                     }
@@ -427,13 +427,13 @@ impl InternalMethods for PrimitiveObject {
             keys.push(BUILTIN_STRING_MEMORY.length.into());
             keys.extend(other_keys);
 
-            return Ok(keys);
+            return Some(keys);
         }
 
         // 1. Return OrdinaryOwnPropertyKeys(O).
         match self.get_backing_object(agent) {
-            Some(backing_object) => Ok(ordinary_own_property_keys(agent, backing_object)),
-            None => Ok(vec![]),
+            Some(backing_object) => Some(ordinary_own_property_keys(agent, gc, backing_object)),
+            None => Some(vec![]),
         }
     }
 }
