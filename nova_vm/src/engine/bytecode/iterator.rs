@@ -4,17 +4,14 @@
 
 use std::collections::VecDeque;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::ecmascript::abstract_operations::operations_on_objects::{try_get, try_get_method};
+use crate::engine::context::NoGcScope;
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, IteratorRecord},
-            operations_on_objects::{call, get, get_method},
-            type_conversion::to_boolean,
-        },
+        abstract_operations::operations_on_iterator_objects::IteratorRecord,
         builtins::Array,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{InternalMethods, Object, PropertyKey, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -30,6 +27,30 @@ pub(super) enum VmIterator<'a> {
 }
 
 impl<'a> VmIterator<'a> {
+    /// Unbind this VmIterator from its current lifetime. This is necessary to use
+    /// the VmIterator as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> VmIterator<'static> {
+        unsafe { std::mem::transmute::<VmIterator<'_>, VmIterator<'static>>(self) }
+    }
+
+    // Bind this VmIterator to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your VmIterators cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound VmIterator cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> VmIterator<'gc> {
+        unsafe { std::mem::transmute::<VmIterator<'a>, VmIterator<'gc>>(self) }
+    }
+
+    pub fn bind_mut<'gc>(&mut self, _: NoGcScope<'gc, '_>) -> &'gc mut VmIterator<'gc> {
+        unsafe { std::mem::transmute::<&mut VmIterator<'a>, &'gc mut VmIterator<'gc>>(self) }
+    }
+
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
     ///
     /// While not exactly equal to the IteratorStepValue method in usage, this
@@ -39,15 +60,15 @@ impl<'a> VmIterator<'a> {
     pub(super) fn step_value(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'a, '_>,
+        gc: NoGcScope<'a, '_>,
     ) -> JsResult<Option<Value>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
-                let result = iter.next(agent, gc.reborrow())?;
+                let result = iter.next(agent, gc)?;
                 if let Some(result) = result {
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
-                            Value::from_string(agent, gc.nogc(), int.into_i64().to_string())
+                            Value::from_string(agent, gc, int.into_i64().to_string())
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
                         PropertyKey::String(data) => Value::String(data.unbind()),
@@ -57,42 +78,33 @@ impl<'a> VmIterator<'a> {
                     Ok(None)
                 }
             }
-            VmIterator::ArrayValues(iter) => iter.next(agent, gc.reborrow()),
-            VmIterator::GenericIterator(iter) => {
-                let result = call(
-                    agent,
-                    gc.reborrow(),
-                    iter.next_method,
-                    iter.iterator.into_value(),
-                    None,
-                )?;
-                let Ok(result) = Object::try_from(result) else {
-                    return Err(agent.throw_exception_with_static_message(
-                        gc.nogc(),
-                        ExceptionType::TypeError,
-                        "Iterator returned a non-object result",
-                    ));
-                };
-                // 1. Return ToBoolean(? Get(iterResult, "done")).
-                let done = get(
-                    agent,
-                    gc.reborrow(),
-                    result,
-                    BUILTIN_STRING_MEMORY.done.into(),
-                )?;
-                let done = to_boolean(agent, done);
-                if done {
-                    Ok(None)
-                } else {
-                    // 1. Return ? Get(iterResult, "value").
-                    let value = get(
-                        agent,
-                        gc.reborrow(),
-                        result,
-                        BUILTIN_STRING_MEMORY.value.into(),
-                    )?;
-                    Ok(Some(value))
-                }
+            VmIterator::ArrayValues(iter) => iter.next(agent, gc),
+            VmIterator::GenericIterator(_iter) => {
+                todo!("TODO: Interleaved GC in VmIterator::from_value")
+                // let result = call(
+                //     agent,
+                //     gc,
+                //     iter.next_method,
+                //     iter.iterator.into_value(),
+                //     None,
+                // )?;
+                // let Ok(result) = Object::try_from(result) else {
+                //     return Err(agent.throw_exception_with_static_message(
+                //         gc,
+                //         ExceptionType::TypeError,
+                //         "Iterator returned a non-object result",
+                //     ));
+                // };
+                // // 1. Return ToBoolean(? Get(iterResult, "done")).
+                // let done = get(agent, gc, result, BUILTIN_STRING_MEMORY.done.into())?;
+                // let done = to_boolean(agent, done);
+                // if done {
+                //     Ok(None)
+                // } else {
+                //     // 1. Return ? Get(iterResult, "value").
+                //     let value = get(agent, gc, result, BUILTIN_STRING_MEMORY.value.into())?;
+                //     Ok(Some(value))
+                // }
             }
             VmIterator::SliceIterator(slice_ref) => {
                 let slice = slice_ref.get();
@@ -118,22 +130,30 @@ impl<'a> VmIterator<'a> {
         }
     }
 
+    /// ### [7.4.4 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
+    ///
+    /// The abstract operation GetIterator takes arguments obj (an ECMAScript
+    /// language value) and returns either a normal completion containing an
+    /// Iterator Record or a throw completion.
+    ///
+    /// This method version performs the SYNC version of the method.
     pub(super) fn from_value(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: NoGcScope<'a, '_>,
         value: Value,
     ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
-        let method = get_method(
+        let method = try_get_method(
             agent,
-            gc.reborrow(),
+            gc,
             value,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-        )?;
+        )
+        .expect("TODO: Interleaved GC in VmIterator::from_value")?;
+        // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
-            // 3. If method is undefined, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
+                gc,
                 ExceptionType::TypeError,
                 "Iterator method cannot be undefined",
             ));
@@ -141,25 +161,22 @@ impl<'a> VmIterator<'a> {
 
         // 4. Return ? GetIteratorFromMethod(obj, method).
         match value {
+            // Optimisation: Check if we're using the Array values iterator on
+            // an Array.
             Value::Array(array)
-                if get_method(
-                    agent,
-                    gc.reborrow(),
-                    value,
-                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                )? == Some(
-                    agent
+                if method
+                    == agent
                         .current_realm()
                         .intrinsics()
                         .array_prototype_values()
-                        .into(),
-                ) =>
+                        .into() =>
             {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, gc, value, method)?;
-                Ok(VmIterator::GenericIterator(js_iterator))
+                todo!("TODO: Interleaved GC in VmIterator::from_value");
+                // let js_iterator = get_iterator_from_method(agent, gc, value, method)?;
+                // Ok(VmIterator::GenericIterator(js_iterator))
             }
         }
     }
@@ -183,55 +200,17 @@ impl<'a> ObjectPropertiesIterator<'a> {
         }
     }
 
-    pub(super) fn try_next(
-        &mut self,
-        agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> Option<Option<PropertyKey<'a>>> {
-        loop {
-            let object = self.object;
-            if !self.object_was_visited {
-                let keys = object.try_own_property_keys(agent, gc)?;
-                for key in keys {
-                    if let PropertyKey::Symbol(_) = key {
-                        continue;
-                    } else {
-                        self.remaining_keys.push_back(key);
-                    }
-                }
-                self.object_was_visited = true;
-            }
-            while let Some(r) = self.remaining_keys.pop_front() {
-                if self.visited_keys.contains(&r) {
-                    continue;
-                }
-                let desc = object.try_get_own_property(agent, gc, r)?;
-                if let Some(desc) = desc {
-                    self.visited_keys.push(r);
-                    if desc.enumerable == Some(true) {
-                        return Some(Some(r));
-                    }
-                }
-            }
-            let prototype = object.try_get_prototype_of(agent, gc)?;
-            if let Some(prototype) = prototype {
-                self.object_was_visited = false;
-                self.object = prototype;
-            } else {
-                return Some(None);
-            }
-        }
-    }
-
     pub(super) fn next(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'a, 'a>,
+        gc: NoGcScope<'a, '_>,
     ) -> JsResult<Option<PropertyKey<'a>>> {
         loop {
             let object = self.object;
             if !self.object_was_visited {
-                let keys = object.internal_own_property_keys(agent, gc.reborrow())?;
+                let keys = object
+                    .try_own_property_keys(agent, gc)
+                    .expect("TODO: Interleaved GC in ObjectIterator::next");
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
@@ -245,7 +224,9 @@ impl<'a> ObjectPropertiesIterator<'a> {
                 if self.visited_keys.contains(&r) {
                     continue;
                 }
-                let desc = object.internal_get_own_property(agent, gc.reborrow(), r)?;
+                let desc = object
+                    .try_get_own_property(agent, gc, r)
+                    .expect("TODO: Interleaved GC in ObjectIterator::next");
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
                     if desc.enumerable == Some(true) {
@@ -253,13 +234,9 @@ impl<'a> ObjectPropertiesIterator<'a> {
                     }
                 }
             }
-            let got_prototype = object.try_get_prototype_of(agent, gc.nogc());
-            let prototype = if let Some(prototype) = got_prototype {
-                prototype
-            } else {
-                // Note: We should be probably be rooting some values here.
-                object.internal_get_prototype_of(agent, gc.reborrow())?
-            };
+            let prototype = object
+                .try_get_prototype_of(agent, gc)
+                .expect("TODO: Interleaved GC in ObjectIterator::Next");
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype;
@@ -288,7 +265,7 @@ impl ArrayValuesIterator {
     pub(super) fn next(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: NoGcScope<'_, '_>,
     ) -> JsResult<Option<Value>> {
         // b. Repeat,
         let array = self.array;
@@ -309,7 +286,8 @@ impl ArrayValuesIterator {
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        let element_value = get(agent, gc.reborrow(), self.array, index.into())?;
+        let element_value = try_get(agent, gc, self.array, index.into())
+            .expect("TODO: Interleaved GC in ArrayIterator::Next");
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))

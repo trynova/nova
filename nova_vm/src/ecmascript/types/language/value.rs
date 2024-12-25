@@ -26,6 +26,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
             to_big_int, to_int16, to_int32, to_number, to_numeric, to_string, to_uint16, to_uint32,
+            try_to_string,
         },
         builtins::{
             bound_function::BoundFunction,
@@ -547,6 +548,14 @@ impl Value {
         to_string(agent, gc, self)
     }
 
+    pub fn try_to_string<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<JsResult<String<'gc>>> {
+        try_to_string(agent, gc, self)
+    }
+
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
     pub fn string_repr<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
@@ -560,6 +569,27 @@ impl Value {
             Err(_) => {
                 debug_assert!(self.is_object());
                 BUILTIN_STRING_MEMORY.Object
+            }
+        }
+    }
+
+    /// A string conversion that will never throw, meant for things like
+    /// displaying exceptions.
+    pub fn try_string_repr<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<String<'gc>> {
+        if let Value::Symbol(symbol_idx) = self {
+            // ToString of a symbol always throws. We use the descriptive
+            // string instead (the result of `String(symbol)`).
+            return Some(symbol_idx.descriptive_string(agent, gc));
+        };
+        match self.try_to_string(agent, gc)? {
+            Ok(result) => Some(result),
+            Err(_) => {
+                debug_assert!(self.is_object());
+                Some(BUILTIN_STRING_MEMORY.Object)
             }
         }
     }

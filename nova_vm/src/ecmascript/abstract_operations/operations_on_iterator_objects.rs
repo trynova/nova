@@ -4,18 +4,17 @@
 
 //! ## [7.4 Operations on Iterator Objects](https://tc39.es/ecma262/#sec-operations-on-iterator-objects)
 
-use super::{
-    operations_on_objects::{call, get},
-    type_conversion::{to_boolean, to_object},
-};
-use crate::{ecmascript::types::PropertyDescriptor, engine::context::GcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::{call_function, get_method},
+        abstract_operations::{
+            operations_on_objects::{call, call_function, get, get_method, try_get_method},
+            type_conversion::{to_boolean, to_object},
+        },
         builtins::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList},
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-        types::{Function, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        types::{Function, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::context::{GcScope, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
@@ -379,6 +378,52 @@ pub(crate) fn iterator_close<T>(
     }
     // 8. Return ? completion.
     Ok(completion)
+}
+
+/// ### [7.4.9 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
+///
+/// The abstract operation IteratorClose takes arguments iteratorRecord (an
+/// Iterator Record) and completion (a Completion Record) and returns a
+/// Completion Record. It is used to notify an iterator that it should perform
+/// any actions it would normally perform when it has reached its completed
+/// state.
+pub(crate) fn try_iterator_close<'a, T>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    iterator_record: &IteratorRecord,
+    completion: JsResult<T>,
+) -> Option<JsResult<T>> {
+    // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
+    // 2. Let iterator be iteratorRecord.[[Iterator]].
+    let iterator = iterator_record.iterator;
+    // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
+    let inner_result = try_get_method(
+        agent,
+        gc,
+        iterator.into_value(),
+        BUILTIN_STRING_MEMORY.r#return.into(),
+    )?;
+    // 4. If innerResult.[[Type]] is normal, then
+    match inner_result {
+        Ok(return_function) => {
+            // a. Let return be innerResult.[[Value]].
+            match return_function {
+                // c. Set innerResult to Completion(Call(return, iterator)).
+                // Can't call functions in NoGcScope.
+                Some(_) => None,
+                // b. If return is undefined, return ? completion.
+                None => Some(completion),
+            }
+        }
+        Err(inner_result) => {
+            match completion {
+                // 6. If innerResult.[[Type]] is throw, return ? innerResult.
+                Ok(_) => Some(Err(inner_result)),
+                // 5. If completion.[[Type]] is throw, return ? completion.
+                Err(err) => Some(Err(err)),
+            }
+        }
+    }
 }
 
 /// ### [7.4.10 IfAbruptCloseIterator ( value, iteratorRecord )](https://tc39.es/ecma262/#sec-ifabruptcloseiterator)

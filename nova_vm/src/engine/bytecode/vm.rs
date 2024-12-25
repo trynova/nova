@@ -21,8 +21,8 @@ use crate::{
             operations_on_objects::{
                 call, call_function, construct, copy_data_properties,
                 copy_data_properties_into_object, create_data_property_or_throw,
-                define_property_or_throw, get, get_method, has_property, ordinary_has_instance,
-                set, try_copy_data_properties_into_object, try_create_data_property,
+                define_property_or_throw, get_method, has_property, ordinary_has_instance, set,
+                try_copy_data_properties_into_object, try_create_data_property,
                 try_create_data_property_or_throw, try_define_property_or_throw, try_get,
             },
             testing_and_comparison::{
@@ -53,16 +53,17 @@ use crate::{
             PropertyDescriptor, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::GcScope,
+    engine::{
+        bytecode::{
+            executable::{ArrowFunctionExpression, SendableRef},
+            instructions::Instr,
+            iterator::{ObjectPropertiesIterator, VmIterator},
+            Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
+            NamedEvaluationParameter,
+        },
+        context::{GcScope, NoGcScope},
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
-};
-
-use super::{
-    executable::{ArrowFunctionExpression, SendableRef},
-    instructions::Instr,
-    iterator::{ObjectPropertiesIterator, VmIterator},
-    Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
-    NamedEvaluationParameter,
 };
 
 struct EmptyParametersList(ast::FormalParameters<'static>);
@@ -179,6 +180,14 @@ impl SuspendedVm {
 }
 
 impl<'a> Vm<'a> {
+    pub fn unbind_mut(&mut self, _: NoGcScope<'a, '_>) -> &'static mut Vm<'static> {
+        unsafe { std::mem::transmute::<&mut Self, &'static mut Vm<'static>>(self) }
+    }
+
+    pub fn bind_mut<'b>(&mut self, _: NoGcScope<'a, '_>) -> &'b mut Vm<'a> {
+        unsafe { std::mem::transmute::<&mut Self, &'b mut Vm<'a>>(self) }
+    }
+
     fn new() -> Self {
         Self {
             ip: 0,
@@ -299,7 +308,7 @@ impl<'a> Vm<'a> {
     fn inner_execute(
         mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope<'a, '_>,
         executable: Executable,
     ) -> ExecutionResult {
         #[cfg(feature = "interleaved-gc")]
@@ -328,7 +337,9 @@ impl<'a> Vm<'a> {
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                 }
             }
-            match Self::execute_instruction(agent, gc.reborrow(), &mut self, executable, &instr) {
+            let temp = &mut self;
+            let temp_self = unsafe { std::mem::transmute::<&mut Vm<'a>, &mut Vm<'static>>(temp) };
+            match Self::execute_instruction(agent, gc.reborrow(), temp_self, executable, &instr) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
                     let result = self.result.unwrap_or(Value::Undefined);
@@ -378,8 +389,8 @@ impl<'a> Vm<'a> {
 
     fn execute_instruction(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
-        vm: &mut Vm,
+        mut gc: GcScope<'a, '_>,
+        vm: &mut Vm<'a>,
         executable: Executable,
         instr: &Instr,
     ) -> JsResult<ContinuationKind> {
@@ -1848,7 +1859,8 @@ impl<'a> Vm<'a> {
                     // Var binding, var [] = a;
                     None
                 };
-                let iterator = vm.iterator_stack.pop().unwrap();
+                let gc = gc.into_nogc();
+                let iterator = vm.iterator_stack.pop().unwrap().bind(gc);
                 execute_simple_array_binding(agent, gc, vm, executable, iterator, env)?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
@@ -1867,7 +1879,8 @@ impl<'a> Vm<'a> {
                     // Var binding, var {} = a;
                     None
                 };
-                let object = to_object(agent, gc.nogc(), vm.stack.pop().unwrap())?;
+                let gc = gc.into_nogc();
+                let object = to_object(agent, gc, vm.stack.pop().unwrap())?;
                 execute_simple_object_binding(agent, gc, vm, executable, object, env)?
             }
             Instruction::BindingPatternBind
@@ -1984,13 +1997,18 @@ impl<'a> Vm<'a> {
             Instruction::GetIteratorSync => {
                 let expr_value = vm.result.take().unwrap();
                 vm.iterator_stack
-                    .push(VmIterator::from_value(agent, gc, expr_value)?);
+                    .push(VmIterator::from_value(agent, gc.nogc(), expr_value)?.unbind());
             }
             Instruction::GetIteratorAsync => {
                 todo!();
             }
             Instruction::IteratorStepValue => {
-                let result = vm.iterator_stack.last_mut().unwrap().step_value(agent, gc);
+                let result = vm
+                    .iterator_stack
+                    .last_mut()
+                    .unwrap()
+                    .bind_mut(gc.nogc())
+                    .step_value(agent, gc.nogc());
                 if let Ok(result) = result {
                     vm.result = result;
                     if result.is_none() {
@@ -2004,8 +2022,8 @@ impl<'a> Vm<'a> {
                 }
             }
             Instruction::IteratorStepValueOrUndefined => {
-                let iterator = vm.iterator_stack.last_mut().unwrap();
-                let result = iterator.step_value(agent, gc);
+                let iterator = vm.iterator_stack.last_mut().unwrap().bind_mut(gc.nogc());
+                let result = iterator.step_value(agent, gc.nogc());
                 if let Ok(result) = result {
                     vm.result = Some(result.unwrap_or(Value::Undefined));
                     if result.is_none() {
@@ -2024,7 +2042,7 @@ impl<'a> Vm<'a> {
                 let array = array_create(agent, gc.nogc(), 0, capacity, None)?;
 
                 let mut idx: u32 = 0;
-                while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
+                while let Some(value) = iterator.step_value(agent, gc.nogc())? {
                     let key = PropertyKey::Integer(idx.into());
                     try_create_data_property(agent, gc.nogc(), array, key, value).unwrap();
                     idx += 1;
@@ -2081,9 +2099,9 @@ impl<'a> Vm<'a> {
 /// returns either a normal completion containing either a String, a BigInt,
 /// or a Number, or a throw completion.
 #[inline]
-fn apply_string_or_numeric_binary_operator(
+fn apply_string_or_numeric_binary_operator<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
@@ -2347,9 +2365,9 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 /// > that did not use a @@hasInstance method to define the instanceof operator
 /// > semantics. If an object does not define or inherit @@hasInstance it uses
 /// > the default instanceof semantics.
-pub(crate) fn instanceof_operator(
+pub(crate) fn instanceof_operator<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'a, '_>,
     value: impl IntoValue,
     target: impl IntoValue,
 ) -> JsResult<bool> {
