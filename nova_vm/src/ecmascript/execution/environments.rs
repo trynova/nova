@@ -41,7 +41,6 @@ pub(crate) use function_environment::{
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
-use sonic_rs::JsonValueTrait;
 
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
