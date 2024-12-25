@@ -1893,21 +1893,21 @@ impl ElementArrays {
 
     pub(crate) fn create_object_entries(
         &mut self,
-        entries: &[ObjectEntry<'static>],
+        entries: &[ObjectEntry<'_>],
     ) -> (ElementsVector, ElementsVector) {
         let length = entries.len();
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
-        entries.iter().enumerate().for_each(|(index, entry)| {
+        for (index, entry) in entries.into_iter().enumerate() {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_object_entry_property_descriptor(value);
-            let key = match key {
-                PropertyKey::Integer(data) => Value::Integer(*data),
-                PropertyKey::SmallString(data) => Value::SmallString(*data),
-                PropertyKey::String(data) => Value::String(*data),
-                PropertyKey::Symbol(data) => Value::Symbol(*data),
+            let key = match *key {
+                PropertyKey::Integer(data) => Value::Integer(data),
+                PropertyKey::SmallString(data) => Value::SmallString(data),
+                PropertyKey::String(data) => Value::String(data.unbind()),
+                PropertyKey::Symbol(data) => Value::Symbol(data.unbind()),
             };
             keys.push(Some(key));
             values.push(maybe_value);
@@ -1920,7 +1920,7 @@ impl ElementArrays {
                     .unwrap()
                     .insert(index as u32, descriptor);
             }
-        });
+        }
         let cap = ElementArrayKey::from(length);
         let len = length as u32;
         let key_elements_index = self.push_with_key(cap, &keys, None);

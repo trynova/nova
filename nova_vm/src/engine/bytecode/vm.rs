@@ -2101,10 +2101,14 @@ impl Vm {
                     let lhs = {
                         let binding_id = binding_id.unbind();
                         resolve_binding(agent, gc.reborrow(), binding_id, environment)?
+                            .unbind()
+                            .bind(gc.nogc())
                     };
                     if environment.is_none() {
+                        let lhs = lhs.unbind();
                         put_value(agent, gc.reborrow(), &lhs, value)?;
                     } else {
+                        let lhs = lhs.unbind();
                         initialize_referenced_binding(agent, gc.reborrow(), lhs, value)?;
                     }
                 }

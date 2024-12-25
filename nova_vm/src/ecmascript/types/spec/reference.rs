@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
@@ -50,6 +50,28 @@ pub struct Reference<'a> {
     /// that case, the \[\[ThisValue]] field holds the this value at the time
     /// the Reference Record was created.
     pub(crate) this_value: Option<Value>,
+}
+
+impl<'a> Reference<'a> {
+    /// Unbind this Reference from its current lifetime. This is necessary to use
+    /// the Reference as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Reference<'static> {
+        unsafe { std::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
+    }
+
+    // Bind this Reference to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your References cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound Reference cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Reference<'gc> {
+        unsafe { std::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
+    }
 }
 
 /// ### [6.2.5.1 IsPropertyReference ( V )](https://tc39.es/ecma262/#sec-ispropertyreference)

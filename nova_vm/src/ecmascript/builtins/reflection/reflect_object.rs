@@ -464,7 +464,9 @@ impl ReflectObject {
         let target = Object::try_from(arguments.get(0)).unwrap();
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?
+            .unbind()
+            .bind(gc.nogc());
 
         let v = arguments.get(2);
         let receiver = if arguments.len() > 3 {
@@ -476,7 +478,10 @@ impl ReflectObject {
         };
 
         // 4. Return ? target.[[Set]](key, V, receiver).
-        let ret = target.internal_set(agent, gc.reborrow(), key, v, receiver)?;
+        let ret = {
+            let key = key.unbind();
+            target.internal_set(agent, gc.reborrow(), key, v, receiver)?
+        };
         Ok(ret.into())
     }
 

@@ -89,7 +89,7 @@ impl<'a> PropertyKey<'a> {
         self.into()
     }
 
-    pub fn from_value(agent: &Agent, gc: NoGcScope<'a, '_>, value: Value) -> Option<Self> {
+    pub fn from_value(agent: &Agent, _: NoGcScope<'a, '_>, value: Value) -> Option<Self> {
         if let Ok(string) = String::try_from(value) {
             if let Some(pk) = parse_string_to_integer_property_key(string.as_str(agent)) {
                 return Some(pk);
@@ -147,7 +147,7 @@ pub fn unbind_property_keys<'a>(vec: Vec<PropertyKey<'a>>) -> Vec<PropertyKey<'s
 #[inline(always)]
 pub fn bind_property_keys<'a>(
     vec: Vec<PropertyKey<'static>>,
-    gc: NoGcScope<'a, '_>,
+    _: NoGcScope<'a, '_>,
 ) -> Vec<PropertyKey<'a>> {
     unsafe { std::mem::transmute::<Vec<PropertyKey<'static>>, Vec<PropertyKey<'a>>>(vec) }
 }
