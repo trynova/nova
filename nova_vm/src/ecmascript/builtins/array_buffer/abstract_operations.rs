@@ -37,12 +37,12 @@ pub(crate) enum Ordering {
 /// completion. It is used to create an ArrayBuffer.
 pub(crate) fn allocate_array_buffer(
     agent: &mut Agent,
-    gc: NoGcScope,
     // TODO: Verify that constructor is %ArrayBuffer% and if not,
     // create the `ObjectHeapData` for obj.
     _constructor: Function,
     byte_length: u64,
     max_byte_length: Option<u64>,
+    gc: NoGcScope,
 ) -> JsResult<ArrayBuffer> {
     // 1. Let slots be « [[ArrayBufferData]], [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] ».
     // 2. If maxByteLength is present and maxByteLength is not EMPTY, let allocatingResizableBuffer be true; otherwise let allocatingResizableBuffer be false.
@@ -52,9 +52,9 @@ pub(crate) fn allocate_array_buffer(
         // a. If byteLength > maxByteLength, throw a RangeError exception.
         if byte_length > max_byte_length.unwrap() {
             return Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::RangeError,
                 "Byte length is over maximumm byte length",
+                gc,
             ));
         }
         // b. Append [[ArrayBufferMaxByteLength]] to slots.
@@ -65,7 +65,7 @@ pub(crate) fn allocate_array_buffer(
     //      a. If it is not possible to create a Data Block block consisting of maxByteLength bytes, throw a RangeError exception.
     //      b. NOTE: Resizable ArrayBuffers are designed to be implementable with in-place growth. Implementations may throw if, for example, virtual memory cannot be reserved up front.
     //      c. Set obj.[[ArrayBufferMaxByteLength]] to maxByteLength.
-    let block = DataBlock::create_byte_data_block(agent, gc, byte_length)?;
+    let block = DataBlock::create_byte_data_block(agent, byte_length, gc)?;
     // 6. Set obj.[[ArrayBufferData]] to block.
     // 7. Set obj.[[ArrayBufferByteLength]] to byteLength.
     let obj = if allocating_resizable_buffer {
@@ -145,10 +145,10 @@ pub(crate) fn detach_array_buffer(
 /// range starting at srcByteOffset and continuing for srcLength bytes.
 pub(crate) fn clone_array_buffer(
     agent: &mut Agent,
-    gc: NoGcScope,
     src_buffer: ArrayBuffer,
     src_byte_offset: usize,
     src_length: usize,
+    gc: NoGcScope,
 ) -> JsResult<ArrayBuffer> {
     // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
     debug_assert!(!src_buffer.is_detached(agent));
@@ -156,10 +156,10 @@ pub(crate) fn clone_array_buffer(
     // 2. Let targetBuffer be ? AllocateArrayBuffer(%ArrayBuffer%, srcLength).
     let target_buffer = allocate_array_buffer(
         agent,
-        gc,
         array_buffer_constructor.into_function(),
         src_length as u64,
         None,
+        gc,
     )?;
     let Heap { array_buffers, .. } = &mut agent.heap;
     let (target_buffer_data, array_buffers) = array_buffers.split_last_mut().unwrap();
@@ -187,8 +187,8 @@ pub(crate) fn clone_array_buffer(
 /// completion.
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     options: Value,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
@@ -198,7 +198,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     };
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
     let property = PropertyKey::from(BUILTIN_STRING_MEMORY.maxByteLength);
-    let max_byte_length = get(agent, gc.reborrow(), options, property)?;
+    let max_byte_length = get(agent, options, property, gc.reborrow())?;
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {
         return Ok(None);
@@ -220,9 +220,9 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
         Ok(Some(integer))
     } else {
         Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::RangeError,
             "Not a SafeInteger",
+            gc.nogc(),
         ))
     }
 }
@@ -323,9 +323,9 @@ pub(crate) const fn is_no_tear_configuration(r#type: (), order: Ordering) -> boo
 /// isLittleEndian (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn raw_bytes_to_numeric<'a, T: Viewable>(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
     raw_bytes: T,
     is_little_endian: bool,
+    gc: NoGcScope<'a, '_>,
 ) -> Numeric<'a> {
     // 1. Let elementSize be the Element Size value specified in Table 71 for Element Type type.
     // 2. If isLittleEndian is false, reverse the order of the elements of rawBytes.
@@ -385,12 +385,12 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
     array_buffer: ArrayBuffer,
     byte_index: usize,
     _is_typed_array: bool,
     _order: Ordering,
     is_little_endian: Option<bool>,
+    gc: NoGcScope<'a, '_>,
 ) -> Numeric<'a> {
     // 1. Assert: IsDetachedBuffer(arrayBuffer) is false.
     debug_assert!(!array_buffer.is_detached(agent));
@@ -419,9 +419,9 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
     raw_bytes_to_numeric::<T>(
         agent,
-        gc,
         block.get_offset_by_byte::<T>(byte_index).unwrap(),
         is_little_endian,
+        gc,
     )
 }
 

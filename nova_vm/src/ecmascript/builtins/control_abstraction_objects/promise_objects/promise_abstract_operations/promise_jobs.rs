@@ -58,10 +58,10 @@ impl PromiseResolveThenableJob {
         // implementation.
         let then_call_result = call_function(
             agent,
-            gc,
             self.then,
             self.thenable.into_value(),
             Some(ArgumentsList(&[resolve_function, reject_function])),
+            gc,
         );
 
         // c. If thenCallResult is an abrupt completion, then
@@ -125,15 +125,15 @@ impl PromiseReactionJob {
             // different implementation.
             PromiseReactionHandler::JobCallback(callback) => call_function(
                 agent,
-                gc.reborrow(),
                 callback,
                 Value::Undefined,
                 Some(ArgumentsList(&[self.argument])),
+                gc.reborrow(),
             ),
             PromiseReactionHandler::Await(await_reaction) => {
                 assert!(agent[self.reaction].capability.is_none());
                 let reaction_type = agent[self.reaction].reaction_type;
-                await_reaction.resume(agent, gc.reborrow(), reaction_type, self.argument);
+                await_reaction.resume(agent, reaction_type, self.argument, gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 3. f. Return undefined.
                 // 5. f. Return undefined.
@@ -157,7 +157,7 @@ impl PromiseReactionJob {
             // i. Else,
             Ok(value) => {
                 // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.resolve(agent, gc, value)
+                promise_capability.resolve(agent, value, gc)
             }
         };
         Ok(())

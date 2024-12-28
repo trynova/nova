@@ -43,7 +43,7 @@ impl JsError {
     }
 
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
-        to_string(agent, gc, self.0).unwrap()
+        to_string(agent, self.0, gc).unwrap()
     }
 }
 
@@ -186,7 +186,7 @@ impl GcAgent {
         &mut self,
         create_global_object: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
         create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
-        initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope, Object)>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
     ) -> RealmRoot {
         let realm = self.agent.create_realm(
             create_global_object,
@@ -246,7 +246,7 @@ impl GcAgent {
         }
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
-        heap_gc(&mut self.agent, gc, &mut self.realm_roots);
+        heap_gc(&mut self.agent, &mut self.realm_roots, gc);
     }
 }
 
@@ -296,17 +296,17 @@ impl Agent {
         &mut self,
         create_global_object: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
         create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
-        initialize_global_object: Option<impl FnOnce(&mut Agent, GcScope, Object)>,
+        initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
     ) -> RealmIdentifier {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };
         let gc = GcScope::new(&mut gc, &mut scope);
 
         initialize_host_defined_realm(
             self,
-            gc,
             create_global_object,
             create_global_this_value,
             initialize_global_object,
+            gc,
         );
         self.get_created_realm_root()
     }
@@ -367,11 +367,11 @@ impl Agent {
 
     pub fn create_exception_with_static_message(
         &mut self,
-        gc: NoGcScope,
         kind: ExceptionType,
         message: &'static str,
+        gc: NoGcScope,
     ) -> Value {
-        let message = String::from_static_str(self, gc, message).unbind();
+        let message = String::from_static_str(self, message, gc).unbind();
         self.heap
             .create(ErrorHeapData::new(kind, Some(message), None))
             .into_value()
@@ -380,23 +380,23 @@ impl Agent {
     /// ### [5.2.3.2 Throw an Exception](https://tc39.es/ecma262/#sec-throw-an-exception)
     pub fn throw_exception_with_static_message(
         &mut self,
-        gc: NoGcScope,
         kind: ExceptionType,
         message: &'static str,
+        gc: NoGcScope,
     ) -> JsError {
         JsError(
-            self.create_exception_with_static_message(gc, kind, message)
+            self.create_exception_with_static_message(kind, message, gc)
                 .unbind(),
         )
     }
 
     pub fn throw_exception(
         &mut self,
-        gc: NoGcScope,
         kind: ExceptionType,
         message: std::string::String,
+        gc: NoGcScope,
     ) -> JsError {
-        let message = String::from_string(self, gc, message).unbind();
+        let message = String::from_string(self, message, gc).unbind();
         JsError(
             self.heap
                 .create(ErrorHeapData::new(kind, Some(message), None))
@@ -468,9 +468,9 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 /// binding.
 pub(crate) fn try_resolve_binding<'a>(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
     name: String<'a>,
     env: Option<EnvironmentIndex>,
+    gc: NoGcScope<'a, '_>,
 ) -> Option<Reference<'a>> {
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
@@ -494,7 +494,7 @@ pub(crate) fn try_resolve_binding<'a>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    try_get_identifier_reference(agent, gc, Some(env), name, strict)
+    try_get_identifier_reference(agent, Some(env), name, strict, gc)
 }
 
 /// ### [9.4.2 ResolveBinding ( name \[ , env \] )](https://tc39.es/ecma262/#sec-resolvebinding)
@@ -507,9 +507,9 @@ pub(crate) fn try_resolve_binding<'a>(
 /// binding.
 pub(crate) fn resolve_binding<'a, 'b>(
     agent: &mut Agent,
-    gc: GcScope<'a, 'b>,
     name: String<'b>,
     env: Option<EnvironmentIndex>,
+    gc: GcScope<'a, 'b>,
 ) -> JsResult<Reference<'a>> {
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
@@ -533,7 +533,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    get_identifier_reference(agent, gc, Some(env), name, strict)
+    get_identifier_reference(agent, Some(env), name, strict, gc)
 }
 
 #[derive(Debug, Clone, Copy)]

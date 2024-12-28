@@ -59,10 +59,10 @@ impl Builtin for DateUTC {
 impl DateConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
@@ -114,9 +114,9 @@ impl DateConstructor {
         // 6. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Date.prototype%", « [[DateValue]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            gc.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::Date,
+            gc.reborrow(),
         )?;
         // 7. Set O.[[DateValue]] to dv.
         agent[Date::try_from(o).unwrap()].date = Some(dv);
@@ -127,9 +127,9 @@ impl DateConstructor {
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn now(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let time_value = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -146,9 +146,9 @@ impl DateConstructor {
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn parse(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -156,46 +156,46 @@ impl DateConstructor {
     /// ### [21.4.3.4 Date.UTC ( year \[ , month \[ , date \[ , hours \[ , minutes \[ , seconds \[ , ms \] \] \] \] \] \] )](https://tc39.es/ecma262/#sec-date.utc)
     fn utc(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).
-        let _y = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let _y = to_number(agent, arguments.get(0), gc.reborrow())?;
         // 2. If month is present, let m be ? ToNumber(month); else let m be +0𝔽.
         let _m = if arguments.len() > 1 {
-            to_number(agent, gc.reborrow(), arguments.get(1))?
+            to_number(agent, arguments.get(1), gc.reborrow())?
         } else {
             0.into()
         };
         // 3. If date is present, let dt be ? ToNumber(date); else let dt be 1𝔽.
         let _dt = if arguments.len() > 2 {
-            to_number(agent, gc.reborrow(), arguments.get(2))?
+            to_number(agent, arguments.get(2), gc.reborrow())?
         } else {
             0.into()
         };
         // 4. If hours is present, let h be ? ToNumber(hours); else let h be +0𝔽.
         let _h = if arguments.len() > 3 {
-            to_number(agent, gc.reborrow(), arguments.get(3))?
+            to_number(agent, arguments.get(3), gc.reborrow())?
         } else {
             0.into()
         };
         // 5. If minutes is present, let min be ? ToNumber(minutes); else let min be +0𝔽.
         let _min = if arguments.len() > 4 {
-            to_number(agent, gc.reborrow(), arguments.get(4))?
+            to_number(agent, arguments.get(4), gc.reborrow())?
         } else {
             0.into()
         };
         // 6. If seconds is present, let s be ? ToNumber(seconds); else let s be +0𝔽.
         let _s = if arguments.len() > 5 {
-            to_number(agent, gc.reborrow(), arguments.get(5))?
+            to_number(agent, arguments.get(5), gc.reborrow())?
         } else {
             0.into()
         };
         // 7. If ms is present, let milli be ? ToNumber(ms); else let milli be +0𝔽.
         let _milli = if arguments.len() > 6 {
-            to_number(agent, gc.reborrow(), arguments.get(6))?
+            to_number(agent, arguments.get(6), gc.reborrow())?
         } else {
             0.into()
         };

@@ -146,14 +146,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     |agent, mut gc| -> Result<(), Box<dyn std::error::Error>> {
                         let realm = agent.current_realm_id();
                         let file = std::fs::read_to_string(&path)?;
-                        let source_text = JsString::from_string(agent, gc.nogc(), file);
+                        let source_text = JsString::from_string(agent, file, gc.nogc());
                         let script = match parse_script(
                             agent,
-                            gc.nogc(),
                             source_text,
                             realm,
                             !no_strict,
                             None,
+                            gc.nogc(),
                         ) {
                             Ok(script) => script,
                             Err(errors) => {
@@ -162,7 +162,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, &path, source_text)
                             }
                         };
-                        let mut result = script_evaluation(agent, gc.reborrow(), script);
+                        let mut result = script_evaluation(agent, script, gc.reborrow());
 
                         if result.is_ok() {
                             while let Some(job) = host_hooks.pop_promise_job() {
@@ -234,15 +234,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 placeholder = input.to_string();
                 agent.run_in_realm(&realm, |agent, mut gc| {
                     let realm = agent.current_realm_id();
-                    let source_text = JsString::from_string(agent, gc.nogc(), input);
+                    let source_text = JsString::from_string(agent, input, gc.nogc());
                     let script =
-                        match parse_script(agent, gc.nogc(), source_text, realm, true, None) {
+                        match parse_script(agent, source_text, realm, true, None, gc.nogc()) {
                             Ok(script) => script,
                             Err(errors) => {
                                 exit_with_parse_errors(errors, "<stdin>", &placeholder);
                             }
                         };
-                    let result = script_evaluation(agent, gc.reborrow(), script);
+                    let result = script_evaluation(agent, script, gc.reborrow());
                     match result {
                         Ok(result) => {
                             println!("{:?}\n", result);

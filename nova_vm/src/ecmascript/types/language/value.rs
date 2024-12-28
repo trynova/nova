@@ -377,23 +377,23 @@ impl Value {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Value> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
-    pub fn from_str(agent: &mut Agent, gc: NoGcScope<'_, '_>, str: &str) -> Value {
-        String::from_str(agent, gc, str).into_value()
+    pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'_, '_>) -> Value {
+        String::from_str(agent, str, gc).into_value()
     }
 
-    pub fn from_string(agent: &mut Agent, gc: NoGcScope, string: std::string::String) -> Value {
-        String::from_string(agent, gc, string).into_value()
+    pub fn from_string(agent: &mut Agent, string: std::string::String, gc: NoGcScope) -> Value {
+        String::from_string(agent, string, gc).into_value()
     }
 
-    pub fn from_static_str(agent: &mut Agent, gc: NoGcScope, str: &'static str) -> Value {
-        String::from_static_str(agent, gc, str).into_value()
+    pub fn from_static_str(agent: &mut Agent, str: &'static str, gc: NoGcScope) -> Value {
+        String::from_static_str(agent, str, gc).into_value()
     }
 
-    pub fn from_f64(agent: &mut Agent, gc: NoGcScope<'_, '_>, value: f64) -> Value {
-        Number::from_f64(agent, gc, value).into_value()
+    pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'_, '_>) -> Value {
+        Number::from_f64(agent, value, gc).into_value()
     }
 
     pub fn nan() -> Self {
@@ -513,11 +513,11 @@ impl Value {
     }
 
     pub fn to_number<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<Number<'gc>> {
-        to_number(agent, gc, self)
+        to_number(agent, self, gc)
     }
 
     pub fn to_bigint<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<BigInt<'gc>> {
-        to_big_int(agent, gc, self)
+        to_big_int(agent, self, gc)
     }
 
     pub fn to_numeric<'gc>(
@@ -525,27 +525,27 @@ impl Value {
         agent: &mut Agent,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Numeric<'gc>> {
-        to_numeric(agent, gc, self)
+        to_numeric(agent, self, gc)
     }
 
     pub fn to_int32(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<i32> {
-        to_int32(agent, gc, self)
+        to_int32(agent, self, gc)
     }
 
     pub fn to_uint32(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<u32> {
-        to_uint32(agent, gc, self)
+        to_uint32(agent, self, gc)
     }
 
     pub fn to_int16(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<i16> {
-        to_int16(agent, gc, self)
+        to_int16(agent, self, gc)
     }
 
     pub fn to_uint16(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<u16> {
-        to_uint16(agent, gc, self)
+        to_uint16(agent, self, gc)
     }
 
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> JsResult<String<'gc>> {
-        to_string(agent, gc, self)
+        to_string(agent, self, gc)
     }
 
     pub fn try_to_string<'gc>(
@@ -553,7 +553,7 @@ impl Value {
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
     ) -> Option<JsResult<String<'gc>>> {
-        try_to_string(agent, gc, self)
+        try_to_string(agent, self, gc)
     }
 
     /// A string conversion that will never throw, meant for things like
@@ -601,7 +601,7 @@ impl Value {
             Value::Integer(i) => i.into_i64() as f64,
             Value::SmallF64(f) => f.into_f64(),
             // NOTE: Converting to a number should give us a nice error message.
-            _ => to_number(agent, gc, self)?.into_f64(agent),
+            _ => to_number(agent, self, gc)?.into_f64(agent),
         })
     }
 

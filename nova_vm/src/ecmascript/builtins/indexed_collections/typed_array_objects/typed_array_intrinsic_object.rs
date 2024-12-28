@@ -72,50 +72,50 @@ impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
     fn behaviour(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Abstract class TypedArray not directly constructable",
+            gc.nogc(),
         ))
     }
 
     fn from(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn is_array(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         is_array(agent, arguments.get(0)).map(Value::Boolean)
     }
 
     fn of(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn get_species(
         _: &mut Agent,
-        _gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Ok(this_value)
     }
@@ -368,9 +368,9 @@ impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {}
 impl TypedArrayPrototype {
     fn at(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -381,16 +381,15 @@ impl TypedArrayPrototype {
     /// function is undefined.
     fn get_buffer(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
         // 4. Let buffer be O.[[ViewedArrayBuffer]].
-        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
+        let o = require_internal_slot_typed_array(agent, this_value, gc.nogc())?;
 
         // 5. Return buffer.
         Ok(o.get_viewed_array_buffer(agent).into_value())
@@ -402,15 +401,14 @@ impl TypedArrayPrototype {
     /// accessor function is undefined.
     fn get_byte_length(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
-        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
+        let o = require_internal_slot_typed_array(agent, this_value, gc.nogc())?;
 
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
@@ -441,15 +439,14 @@ impl TypedArrayPrototype {
     /// accessor function is undefined.
     fn get_byte_offset(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
-        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
+        let o = require_internal_slot_typed_array(agent, this_value, gc.nogc())?;
 
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
@@ -480,9 +477,9 @@ impl TypedArrayPrototype {
 
     fn copy_within(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -490,14 +487,13 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
     fn entries(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, gc.nogc(), this_value, Ordering::SeqCst)?;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?;
         // 3. Return CreateArrayIterator(O, key+value).
         Ok(ArrayIterator::from_object(
             agent,
@@ -509,90 +505,90 @@ impl TypedArrayPrototype {
 
     fn every(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn fill(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn filter(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn find(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn find_index(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn find_last(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn find_last_index(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn for_each(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn includes(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn index_of(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -606,15 +602,15 @@ impl TypedArrayPrototype {
     /// `[[TypedArrayName]]` internal slot.
     fn join(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let separator = arguments.get(0);
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let ta_record = validate_typed_array(agent, gc.nogc(), o, Ordering::SeqCst)?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         let o = TypedArray::try_from(o).unwrap();
         // 3. Let len be TypedArrayLength(taRecord).
         let (len, element_size) = match o {
@@ -671,7 +667,7 @@ impl TypedArrayPrototype {
         } else {
             // 5. Else, let sep be ? ToString(separator).
             (
-                to_string(agent, gc.reborrow(), separator)?
+                to_string(agent, separator, gc.reborrow())?
                     .unbind()
                     .bind(gc.nogc()),
                 true,
@@ -772,125 +768,124 @@ impl TypedArrayPrototype {
             let element = match o {
                 TypedArray::Int8Array(_) => get_value_from_buffer::<i8>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Uint8Array(_) => get_value_from_buffer::<u8>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Uint8ClampedArray(_) => get_value_from_buffer::<U8Clamped>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Int16Array(_) => get_value_from_buffer::<i16>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Uint16Array(_) => get_value_from_buffer::<u16>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Int32Array(_) => get_value_from_buffer::<i32>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Uint32Array(_) => get_value_from_buffer::<u32>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::BigInt64Array(_) => get_value_from_buffer::<i64>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::BigUint64Array(_) => get_value_from_buffer::<u64>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Float32Array(_) => get_value_from_buffer::<f32>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
                 TypedArray::Float64Array(_) => get_value_from_buffer::<f64>(
                     agent,
-                    gc.nogc(),
                     viewed_array_buffer,
                     byte_index_in_buffer,
                     true,
                     Ordering::Unordered,
                     None,
+                    gc.nogc(),
                 ),
             };
             // i. Let S be ! ToString(element).
-            let s = try_to_string(agent, gc.nogc(), element).unwrap().unwrap();
+            let s = try_to_string(agent, element, gc.nogc()).unwrap().unwrap();
             // ii. Set R to the string-concatenation of R and S.
             r.push_str(s.as_str(agent));
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_string(agent, gc.nogc(), r).into_value())
+        Ok(String::from_string(agent, r, gc.nogc()).into_value())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
     fn keys(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, gc.nogc(), this_value, Ordering::SeqCst)?;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?;
         // 3. Return CreateArrayIterator(O, key).
         Ok(
             ArrayIterator::from_object(agent, o.object.into_object(), CollectionIteratorKind::Key)
@@ -900,9 +895,9 @@ impl TypedArrayPrototype {
 
     fn last_index_of(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -910,15 +905,14 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
     fn get_length(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
         // 3. Assert: O has [[ViewedArrayBuffer]] and [[ArrayLength]] internal slots.
-        let o = require_internal_slot_typed_array(agent, gc.nogc(), this_value)?;
+        let o = require_internal_slot_typed_array(agent, this_value, gc.nogc())?;
         // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
         let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst);
         // 5. If IsTypedArrayOutOfBounds(taRecord) is true, return +0𝔽.
@@ -959,117 +953,117 @@ impl TypedArrayPrototype {
 
     fn map(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn reduce(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn reduce_right(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn reverse(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn set(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn slice(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn some(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn sort(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn subarray(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn to_locale_string(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn to_reversed(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn to_sorted(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
 
     fn to_spliced(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -1077,14 +1071,13 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn values(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, gc.nogc(), this_value, Ordering::SeqCst)?;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?;
         // 3. Return CreateArrayIterator(O, value).
         Ok(
             ArrayIterator::from_object(
@@ -1098,9 +1091,9 @@ impl TypedArrayPrototype {
 
     fn with(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -1108,10 +1101,9 @@ impl TypedArrayPrototype {
     /// ### [23.2.3.38 get %TypedArray%.prototype \[ %Symbol.toStringTag% \]](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn get_to_string_tag(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
-
         this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         if let Ok(o) = TypedArray::try_from(this_value) {
@@ -1210,15 +1202,15 @@ impl TypedArrayPrototype {
 #[inline]
 pub(crate) fn require_internal_slot_typed_array(
     agent: &mut Agent,
-    gc: NoGcScope<'_, '_>,
     o: Value,
+    gc: NoGcScope<'_, '_>,
 ) -> JsResult<TypedArray> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     TypedArray::try_from(o).map_err(|_| {
         agent.throw_exception_with_static_message(
-            gc,
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Expected this to be TypedArray",
+            gc,
         )
     })
 }

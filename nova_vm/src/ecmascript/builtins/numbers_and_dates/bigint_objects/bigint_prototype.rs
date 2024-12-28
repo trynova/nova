@@ -48,20 +48,20 @@ impl Builtin for BigIntPrototypeValueOf {
 impl BigIntPrototype {
     fn to_locale_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::to_string(agent, gc, this_value, arguments)
+        Self::to_string(agent, this_value, arguments, gc)
     }
 
     fn to_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _x = this_big_int_value(agent, gc.nogc(), this_value)?;
+        let _x = this_big_int_value(agent, this_value, gc.nogc())?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
             // BigInt::to_string_radix_10(agent, x).map(|result| result.into_value())
@@ -73,11 +73,11 @@ impl BigIntPrototype {
 
     fn value_of(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        this_big_int_value(agent, gc.nogc(), this_value).map(|result| result.into_value())
+        this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -112,8 +112,8 @@ impl BigIntPrototype {
 /// or a throw completion.
 fn this_big_int_value<'a>(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
     value: Value,
+    gc: NoGcScope<'a, '_>,
 ) -> JsResult<BigInt<'a>> {
     match value {
         // 1. If value is a BigInt, return value.
@@ -131,9 +131,9 @@ fn this_big_int_value<'a>(
         }
         // 3. Throw a TypeError exception.
         _ => Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::TypeError,
             "Not a BigInt",
+            gc,
         )),
     }
 }

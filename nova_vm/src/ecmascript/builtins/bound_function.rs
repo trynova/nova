@@ -77,10 +77,10 @@ impl IntoFunction for BoundFunction {
 /// used to specify the creation of new bound function exotic objects.
 pub(crate) fn bound_function_create(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     target_function: Function,
     bound_this: Value,
     bound_args: &[Value],
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<BoundFunction> {
     // 1. Let proto be ? targetFunction.[[GetPrototypeOf]]().
     let proto = target_function.internal_get_prototype_of(agent, gc.reborrow())?;
@@ -112,7 +112,7 @@ pub(crate) fn bound_function_create(
     // 8. Set obj.[[BoundThis]] to boundThis.
     // 9. Set obj.[[BoundArguments]] to boundArgs.
     let obj = agent.heap.create(data);
-    obj.internal_set_prototype_of(agent, gc.reborrow(), proto)
+    obj.internal_set_prototype_of(agent, proto, gc.reborrow())
         .unwrap();
     // 10. Return obj.
     Ok(obj)
@@ -149,8 +149,8 @@ impl InternalMethods for BoundFunction {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        _gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         Some(function_internal_get_own_property(
             self,
@@ -162,86 +162,86 @@ impl InternalMethods for BoundFunction {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         Some(function_internal_define_own_property(
             self,
             agent,
-            gc,
             property_key,
             property_descriptor,
+            gc,
         ))
     }
 
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_has_property(self, agent, gc, property_key)
+        function_try_has_property(self, agent, property_key, gc)
     }
 
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_has_property(self, agent, gc, property_key)
+        function_internal_has_property(self, agent, property_key, gc)
     }
 
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
-        function_try_get(self, agent, gc, property_key, receiver)
+        function_try_get(self, agent, property_key, receiver, gc)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc, property_key, receiver)
+        function_internal_get(self, agent, property_key, receiver, gc)
     }
 
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_set(self, agent, gc, property_key, value, receiver)
+        function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc, property_key, value, receiver)
+        function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        Some(function_internal_delete(self, agent, gc, property_key))
+        Some(function_internal_delete(self, agent, property_key, gc))
     }
 
     fn try_own_property_keys<'a>(
@@ -262,9 +262,9 @@ impl InternalMethods for BoundFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _: Value,
         arguments_list: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
@@ -276,7 +276,7 @@ impl InternalMethods for BoundFunction {
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
             // arguments list without changes to the bound function.
-            call_function(agent, gc, target, bound_this, Some(arguments_list))
+            call_function(agent, target, bound_this, Some(arguments_list), gc)
         } else {
             // Note: We currently cannot optimise against an empty arguments
             // list, as we must create a Vec from the bound_args ElementsVector
@@ -288,7 +288,7 @@ impl InternalMethods for BoundFunction {
                 .for_each(|item| args.push(item.unwrap()));
             args.extend_from_slice(&arguments_list);
             // 5. Return ? Call(target, boundThis, args).
-            call_function(agent, gc, target, bound_this, Some(ArgumentsList(&args)))
+            call_function(agent, target, bound_this, Some(ArgumentsList(&args)), gc)
         }
     }
 
@@ -301,9 +301,9 @@ impl InternalMethods for BoundFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         arguments_list: ArgumentsList,
         new_target: Function,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
@@ -330,10 +330,10 @@ impl InternalMethods for BoundFunction {
         // 6. Return ? Construct(target, args, newTarget).
         construct(
             agent,
-            gc.reborrow(),
             target,
             Some(ArgumentsList(&args)),
             Some(new_target),
+            gc.reborrow(),
         )
     }
 }

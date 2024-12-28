@@ -46,9 +46,9 @@ impl ArgumentsList<'_> {
     }
 }
 
-pub type RegularFn = fn(&mut Agent, GcScope, Value, ArgumentsList<'_>) -> JsResult<Value>;
+pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>, GcScope) -> JsResult<Value>;
 pub type ConstructorFn =
-    fn(&mut Agent, GcScope, Value, ArgumentsList<'_>, Option<Object>) -> JsResult<Value>;
+    fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>, GcScope) -> JsResult<Value>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -236,8 +236,8 @@ impl InternalMethods for BuiltinFunction {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        _gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         Some(function_internal_get_own_property(
             self,
@@ -249,86 +249,86 @@ impl InternalMethods for BuiltinFunction {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         Some(function_internal_define_own_property(
             self,
             agent,
-            gc,
             property_key,
             property_descriptor,
+            gc,
         ))
     }
 
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_has_property(self, agent, gc, property_key)
+        function_try_has_property(self, agent, property_key, gc)
     }
 
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_has_property(self, agent, gc, property_key)
+        function_internal_has_property(self, agent, property_key, gc)
     }
 
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
-        function_try_get(self, agent, gc, property_key, receiver)
+        function_try_get(self, agent, property_key, receiver, gc)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc, property_key, receiver)
+        function_internal_get(self, agent, property_key, receiver, gc)
     }
 
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_set(self, agent, gc, property_key, value, receiver)
+        function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc, property_key, value, receiver)
+        function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        Some(function_internal_delete(self, agent, gc, property_key))
+        Some(function_internal_delete(self, agent, property_key, gc))
     }
 
     fn try_own_property_keys<'a>(
@@ -349,12 +349,12 @@ impl InternalMethods for BuiltinFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_argument: Value,
         arguments_list: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
-        builtin_call_or_construct(agent, gc, self, Some(this_argument), arguments_list, None)
+        builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
     }
 
     /// ### [10.3.2 \[\[Construct\]\] ( argumentsList, newTarget )](https://tc39.es/ecma262/#sec-built-in-function-objects-construct-argumentslist-newtarget)
@@ -366,12 +366,12 @@ impl InternalMethods for BuiltinFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         arguments_list: ArgumentsList,
         new_target: Function,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
-        builtin_call_or_construct(agent, gc, self, None, arguments_list, Some(new_target))
+        builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
             .map(|result| result.try_into().unwrap())
     }
 }
@@ -385,11 +385,11 @@ impl InternalMethods for BuiltinFunction {
 /// completion containing an ECMAScript language value or a throw completion.
 pub(crate) fn builtin_call_or_construct(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
     new_target: Option<Function>,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
@@ -426,25 +426,25 @@ pub(crate) fn builtin_call_or_construct(
         Behaviour::Regular(func) => {
             if new_target.is_some() {
                 Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Not a constructor",
+                    gc.nogc(),
                 ))
             } else {
                 func(
                     agent,
-                    gc,
                     this_argument.unwrap_or(Value::Undefined),
                     arguments_list,
+                    gc,
                 )
             }
         }
         Behaviour::Constructor(func) => func(
             agent,
-            gc,
             this_argument.unwrap_or(Value::Undefined),
             arguments_list,
             new_target.map(|target| target.into_object()),
+            gc,
         ),
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
@@ -473,9 +473,9 @@ pub(crate) fn builtin_call_or_construct(
 /// built-in function object.
 pub fn create_builtin_function(
     agent: &mut Agent,
-    gc: NoGcScope,
     behaviour: Behaviour,
     args: BuiltinFunctionArgs,
+    gc: NoGcScope,
 ) -> BuiltinFunction {
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm = args.realm.unwrap_or(agent.current_realm_id());
@@ -485,11 +485,11 @@ pub fn create_builtin_function(
     let initial_name = if let Some(prefix) = args.prefix {
         // 12. Else,
         // a. Perform SetFunctionName(func, name, prefix).
-        String::from_string(agent, gc, format!("{} {}", args.name, prefix))
+        String::from_string(agent, format!("{} {}", args.name, prefix), gc)
     } else {
         // 11. If prefix is not present, then
         // a. Perform SetFunctionName(func, name).
-        String::from_str(agent, gc, args.name)
+        String::from_str(agent, args.name, gc)
     };
 
     // 2. If prototype is not present, set prototype to realm.[[Intrinsics]].[[%Function.prototype%]].

@@ -263,7 +263,7 @@ impl Intrinsics {
         }
     }
 
-    pub(crate) fn create_intrinsics(agent: &mut Agent, gc: NoGcScope, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsics(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
         GlobalObject::create_intrinsic(agent, realm);
         ObjectPrototype::create_intrinsic(agent, realm);
         ObjectConstructor::create_intrinsic(agent, realm);
@@ -280,11 +280,11 @@ impl Intrinsics {
         AggregateErrorPrototype::create_intrinsic(agent, realm);
         AggregateErrorConstructor::create_intrinsic(agent, realm);
         NumberPrototype::create_intrinsic(agent, realm);
-        NumberConstructor::create_intrinsic(agent, gc, realm);
+        NumberConstructor::create_intrinsic(agent, realm, gc);
         BigIntPrototype::create_intrinsic(agent, realm);
         BigIntConstructor::create_intrinsic(agent, realm);
         #[cfg(feature = "math")]
-        MathObject::create_intrinsic(agent, gc, realm);
+        MathObject::create_intrinsic(agent, realm, gc);
         #[cfg(feature = "date")]
         DatePrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "date")]

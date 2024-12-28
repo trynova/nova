@@ -270,7 +270,7 @@ impl<'a> String<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, String<'static>> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
     pub fn is_empty_string(self) -> bool {
@@ -294,8 +294,8 @@ impl<'a> String<'a> {
 
     pub fn concat<'gc>(
         agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
         strings: impl AsRef<[Self]>,
+        gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
         // TODO: This function will need heavy changes once we support creating
         // WTF-8 strings, since WTF-8 concatenation isn't byte concatenation.
@@ -508,19 +508,19 @@ impl<'a> String<'a> {
 }
 
 impl<'gc> String<'gc> {
-    pub fn from_str(agent: &mut Agent, _gc: NoGcScope<'gc, '_>, str: &str) -> Self {
+    pub fn from_str(agent: &mut Agent, str: &str, _gc: NoGcScope<'gc, '_>) -> Self {
         agent.heap.create(str)
     }
 
     pub fn from_string(
         agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
         string: std::string::String,
+        gc: NoGcScope<'gc, '_>,
     ) -> Self {
         agent.heap.create(string).bind(gc)
     }
 
-    pub fn from_static_str(agent: &mut Agent, _gc: NoGcScope<'gc, '_>, str: &'static str) -> Self {
+    pub fn from_static_str(agent: &mut Agent, str: &'static str, _gc: NoGcScope<'gc, '_>) -> Self {
         if let Ok(value) = String::try_from(str) {
             value
         } else {

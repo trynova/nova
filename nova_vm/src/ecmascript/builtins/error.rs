@@ -166,11 +166,11 @@ impl InternalMethods for Error {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.try_get_own_property(agent, gc, property_key),
+            Some(backing_object) => backing_object.try_get_own_property(agent, property_key, gc),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -195,11 +195,11 @@ impl InternalMethods for Error {
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.try_has_property(agent, gc, property_key),
+            Some(backing_object) => backing_object.try_has_property(agent, property_key, gc),
             None => Some(
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
                     agent[self].message.is_some()
@@ -215,11 +215,11 @@ impl InternalMethods for Error {
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.internal_has_property(agent, gc, property_key),
+            Some(backing_object) => backing_object.internal_has_property(agent, property_key, gc),
             None => Ok(
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
                     agent[self].message.is_some()
@@ -235,12 +235,12 @@ impl InternalMethods for Error {
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.try_get(agent, gc, property_key, receiver),
+            Some(backing_object) => backing_object.try_get(agent, property_key, receiver, gc),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -254,7 +254,7 @@ impl InternalMethods for Error {
                     Some(property_value)
                 } else if let Some(parent) = self.try_get_prototype_of(agent, gc).unwrap() {
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.try_get(agent, gc, property_key, receiver)
+                    parent.try_get(agent, property_key, receiver, gc)
                 } else {
                     Some(Value::Undefined)
                 }
@@ -265,12 +265,12 @@ impl InternalMethods for Error {
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => backing_object.internal_get(agent, gc, property_key, receiver),
+            Some(backing_object) => backing_object.internal_get(agent, property_key, receiver, gc),
             None => {
                 let property_value =
                     if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
@@ -286,7 +286,7 @@ impl InternalMethods for Error {
                     // Note: Error is never a prototype so [[GetPrototypeOf]]
                     // cannot call user code.
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.internal_get(agent, gc, property_key, receiver)
+                    parent.internal_get(agent, property_key, receiver, gc)
                 } else {
                     Ok(Value::Undefined)
                 }
@@ -297,14 +297,14 @@ impl InternalMethods for Error {
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                backing_object.try_set(agent, gc, property_key, value, receiver)
+                backing_object.try_set(agent, property_key, value, receiver, gc)
             }
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
@@ -317,7 +317,7 @@ impl InternalMethods for Error {
                     Some(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);
-                    backing_object.try_set(agent, gc, property_key, value, receiver)
+                    backing_object.try_set(agent, property_key, value, receiver, gc)
                 }
             }
         }
@@ -326,14 +326,14 @@ impl InternalMethods for Error {
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                backing_object.internal_set(agent, gc, property_key, value, receiver)
+                backing_object.internal_set(agent, property_key, value, receiver, gc)
             }
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
@@ -346,7 +346,7 @@ impl InternalMethods for Error {
                     Ok(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);
-                    backing_object.internal_set(agent, gc, property_key, value, receiver)
+                    backing_object.internal_set(agent, property_key, value, receiver, gc)
                 }
             }
         }
@@ -355,12 +355,12 @@ impl InternalMethods for Error {
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                Some(backing_object.try_delete(agent, gc, property_key).unwrap())
+                Some(backing_object.try_delete(agent, property_key, gc).unwrap())
             }
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {

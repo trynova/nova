@@ -40,10 +40,10 @@ impl BuiltinIntrinsicConstructor for BooleanConstructor {
 impl BooleanConstructor {
     fn behaviour(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
         let b = to_boolean(agent, value);
@@ -53,9 +53,9 @@ impl BooleanConstructor {
         let new_target = Function::try_from(new_target).unwrap();
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
-            gc,
             new_target,
             ProtoIntrinsics::Boolean,
+            gc,
         )?)
         .unwrap();
         agent[o].data = PrimitiveObjectData::Boolean(b);

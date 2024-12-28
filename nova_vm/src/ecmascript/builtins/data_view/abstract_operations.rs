@@ -165,18 +165,18 @@ pub(crate) fn is_view_out_of_bounds(
 /// retrieve values from the view's buffer.
 pub(crate) fn get_view_value<'gc, T: Viewable>(
     agent: &mut Agent,
-    mut gc: GcScope<'gc, '_>,
     view: Value,
     request_index: Value,
     // 4. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Numeric<'gc>> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
-    let view = require_internal_slot_data_view(agent, gc.nogc(), view)?;
+    let view = require_internal_slot_data_view(agent, view, gc.nogc())?;
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
-    let get_index = to_index(agent, gc.reborrow(), request_index)? as usize;
+    let get_index = to_index(agent, request_index, gc.reborrow())? as usize;
     // No GC is possible beyond this point.
     let gc = gc.into_nogc();
     // 5. Let viewOffset be view.[[ByteOffset]].
@@ -189,9 +189,9 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     // 8. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
     if is_view_out_of_bounds(agent, &view_record) {
         return Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::TypeError,
             "DataView is out of bounds",
+            gc,
         ));
     }
 
@@ -204,9 +204,9 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     // 11. If getIndex + elementSize > viewSize, throw a RangeError exception.
     if get_index + element_size > view_size {
         return Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::RangeError,
             "Index out of bounds",
+            gc,
         ));
     }
 
@@ -216,12 +216,12 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
     // 13. Return GetValueFromBuffer(view.[[ViewedArrayBuffer]], bufferIndex, type, false, unordered, isLittleEndian).
     Ok(get_value_from_buffer::<T>(
         agent,
-        gc,
         view.get_viewed_array_buffer(agent),
         buffer_index,
         false,
         Ordering::Unordered,
         Some(is_little_endian),
+        gc,
     ))
 }
 
@@ -235,26 +235,26 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
 /// DataView instances to store values into the view's buffer.
 pub(crate) fn set_view_value<T: Viewable>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     view: Value,
     request_index: Value,
     // 6. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
     value: Value,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
-    let view = require_internal_slot_data_view(agent, gc.nogc(), view)?;
+    let view = require_internal_slot_data_view(agent, view, gc.nogc())?;
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
-    let get_index = to_index(agent, gc.reborrow(), request_index)? as usize;
+    let get_index = to_index(agent, request_index, gc.reborrow())? as usize;
 
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
     let number_value = if T::IS_BIGINT {
-        to_big_int(agent, gc.reborrow(), value)?.into_numeric()
+        to_big_int(agent, value, gc.reborrow())?.into_numeric()
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
-        to_number(agent, gc.reborrow(), value)?.into_numeric()
+        to_number(agent, value, gc.reborrow())?.into_numeric()
     };
 
     // 7. Let viewOffset be view.[[ByteOffset]].
@@ -267,9 +267,9 @@ pub(crate) fn set_view_value<T: Viewable>(
     // 10. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
     if is_view_out_of_bounds(agent, &view_record) {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "DataView is out of bounds",
+            gc.nogc(),
         ));
     }
 
@@ -281,9 +281,9 @@ pub(crate) fn set_view_value<T: Viewable>(
     // 13. If getIndex + elementSize > viewSize, throw a RangeError exception.
     if get_index + element_size > view_size {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::RangeError,
             "Index out of bounds",
+            gc.nogc(),
         ));
     }
 

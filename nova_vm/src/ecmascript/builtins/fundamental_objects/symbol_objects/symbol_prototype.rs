@@ -73,13 +73,13 @@ impl SymbolPrototype {
     /// function is undefined.
     fn get_description(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
-        let sym = this_symbol_value(agent, gc.nogc(), this_value)?;
+        let sym = this_symbol_value(agent, this_value, gc.nogc())?;
         // 3. Return sym.[[Description]].
         agent[sym]
             .descriptor
@@ -88,21 +88,21 @@ impl SymbolPrototype {
 
     fn to_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let symb = this_symbol_value(agent, gc.nogc(), this_value)?;
-        Ok(symbol_descriptive_string(agent, gc.nogc(), symb).into_value())
+        let symb = this_symbol_value(agent, this_value, gc.nogc())?;
+        Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value())
     }
 
     fn value_of(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        this_symbol_value(agent, gc.nogc(), this_value).map(|res| res.into_value())
+        this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -178,8 +178,8 @@ impl SymbolPrototype {
 #[inline(always)]
 fn this_symbol_value<'a>(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
     value: Value,
+    gc: NoGcScope<'a, '_>,
 ) -> JsResult<Symbol<'a>> {
     match value {
         Value::Symbol(symbol) => Ok(symbol),
@@ -188,9 +188,9 @@ fn this_symbol_value<'a>(
             Ok(s)
         }
         _ => Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::TypeError,
             "this is not a symbol",
+            gc,
         )),
     }
 }
@@ -201,8 +201,8 @@ fn this_symbol_value<'a>(
 /// and returns a String.
 fn symbol_descriptive_string<'gc>(
     agent: &mut Agent,
-    gc: NoGcScope<'gc, '_>,
     sym: Symbol,
+    gc: NoGcScope<'gc, '_>,
 ) -> String<'gc> {
     // 1. Let desc be sym's [[Description]] value.
     let desc = agent[sym].descriptor;
@@ -211,7 +211,7 @@ fn symbol_descriptive_string<'gc>(
         // 3. Assert: desc is a String.
         // 4. Return the string-concatenation of "Symbol(", desc, and ")".
         let result = format!("Symbol({})", desc.as_str(agent));
-        String::from_string(agent, gc, result)
+        String::from_string(agent, result, gc)
     } else {
         BUILTIN_STRING_MEMORY.Symbol__
     }

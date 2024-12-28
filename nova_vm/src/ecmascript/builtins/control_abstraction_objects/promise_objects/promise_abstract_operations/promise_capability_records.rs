@@ -137,7 +137,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn resolve(self, agent: &mut Agent, gc: GcScope<'_, '_>, resolution: Value) {
+    pub fn resolve(self, agent: &mut Agent, resolution: Value, gc: GcScope<'_, '_>) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -157,9 +157,9 @@ impl PromiseCapability {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
             let exception = agent.create_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Tried to resolve a promise with itself.",
+                gc.nogc(),
             );
             self.internal_reject(agent, exception);
             // c. Return undefined.
@@ -175,7 +175,7 @@ impl PromiseCapability {
         };
 
         // 9. Let then be Completion(Get(resolution, "then")).
-        let then_action = match get(agent, gc, resolution, BUILTIN_STRING_MEMORY.then.into()) {
+        let then_action = match get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc) {
             // 11. Let thenAction be then.[[Value]].
             Ok(then_action) => then_action,
             // 10. If then is an abrupt completion, then

@@ -90,13 +90,14 @@ impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
     fn add(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
             bigints,
@@ -151,13 +152,14 @@ impl SetPrototype {
     /// > iterating over that List.
     fn clear(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
         // element whose value is EMPTY.
@@ -175,13 +177,14 @@ impl SetPrototype {
     /// > such as physically removing the entry from internal data structures.
     fn delete(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
             bigints,
@@ -225,16 +228,17 @@ impl SetPrototype {
 
     fn entries(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, KEY+VALUE).
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
     }
 
@@ -273,21 +277,21 @@ impl SetPrototype {
     /// > **forEach** begins are visited.
     fn for_each(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let s = require_set_data_internal_slot(agent, this_value, gc.nogc())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Callback function is not a function",
+                gc.nogc(),
             ));
         };
         // 4. Let entries be S.[[SetData]].
@@ -308,10 +312,10 @@ impl SetPrototype {
                 // i. Perform ? Call(callbackfn, thisArg, « e, e, S »).
                 call_function(
                     agent,
-                    gc.reborrow(),
                     callback_fn,
                     this_arg,
                     Some(ArgumentsList(&[e, e, s.into_value()])),
+                    gc.reborrow(),
                 )?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
@@ -325,13 +329,14 @@ impl SetPrototype {
     /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
     fn has(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
             bigints,
@@ -372,13 +377,14 @@ impl SetPrototype {
     /// is undefined.
     fn get_size(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
         let size = agent[s].size();
         // 4. Return 𝔽(size).
@@ -387,16 +393,17 @@ impl SetPrototype {
 
     fn values(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, VALUE).
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, gc.nogc(), this_value)?;
+        let gc = gc.into_nogc();
+        let s = require_set_data_internal_slot(agent, this_value, gc)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
 
@@ -448,13 +455,13 @@ impl SetPrototype {
 }
 
 #[inline(always)]
-fn require_set_data_internal_slot(agent: &mut Agent, gc: NoGcScope, value: Value) -> JsResult<Set> {
+fn require_set_data_internal_slot(agent: &mut Agent, value: Value, gc: NoGcScope) -> JsResult<Set> {
     match value {
         Value::Set(map) => Ok(map),
         _ => Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::TypeError,
             "Object is not a Set",
+            gc,
         )),
     }
 }

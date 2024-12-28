@@ -229,8 +229,8 @@ impl PropertyDescriptor {
     /// containing a Property Descriptor or a throw completion.
     pub fn to_property_descriptor(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         obj: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
@@ -239,7 +239,7 @@ impl PropertyDescriptor {
                 "Property descriptor must be an object, got '{}'.",
                 obj_repr.as_str(agent)
             );
-            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
         // 2. Let desc be a new Property Descriptor that initially has no
         // fields.
@@ -247,18 +247,18 @@ impl PropertyDescriptor {
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
         let has_enumerable = has_property(
             agent,
-            gc.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.enumerable.into(),
+            gc.reborrow(),
         )?;
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
             let enumerable = get(
                 agent,
-                gc.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.enumerable.into(),
+                gc.reborrow(),
             )?;
             let enumerable = to_boolean(agent, enumerable);
             // b. Set desc.[[Enumerable]] to enumerable.
@@ -267,18 +267,18 @@ impl PropertyDescriptor {
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
         let has_configurable = has_property(
             agent,
-            gc.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.configurable.into(),
+            gc.reborrow(),
         )?;
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
             let configurable = get(
                 agent,
-                gc.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.configurable.into(),
+                gc.reborrow(),
             )?;
             let configurable = to_boolean(agent, configurable);
             // b. Set desc.[[Configurable]] to configurable.
@@ -287,18 +287,18 @@ impl PropertyDescriptor {
         // 7. Let hasValue be ? HasProperty(Obj, "value").
         let has_value = has_property(
             agent,
-            gc.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.value.into(),
+            gc.reborrow(),
         )?;
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
             let value = get(
                 agent,
-                gc.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.value.into(),
+                gc.reborrow(),
             )?;
             // b. Set desc.[[Value]] to value.
             desc.value = Some(value);
@@ -306,37 +306,37 @@ impl PropertyDescriptor {
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
         let has_writable = has_property(
             agent,
-            gc.reborrow(),
             obj,
             BUILTIN_STRING_MEMORY.writable.into(),
+            gc.reborrow(),
         )?;
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
             let writable = get(
                 agent,
-                gc.reborrow(),
                 obj,
                 BUILTIN_STRING_MEMORY.writable.into(),
+                gc.reborrow(),
             )?;
             let writable = to_boolean(agent, writable);
             // b. Set desc.[[Writable]] to writable.
             desc.writable = Some(writable);
         }
         // 11. Let hasGet be ? HasProperty(Obj, "get").
-        let has_get = has_property(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.get.into())?;
+        let has_get = has_property(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc.reborrow())?;
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = get(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.get.into())?;
+            let getter = get(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc.reborrow())?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter) else {
                     return Err(agent.throw_exception_with_static_message(
-                        gc.nogc(),
                         ExceptionType::TypeError,
                         "getter is not callable",
+                        gc.nogc(),
                     ));
                 };
                 // c. Set desc.[[Get]] to getter.
@@ -344,19 +344,19 @@ impl PropertyDescriptor {
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
-        let has_set = has_property(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.set.into())?;
+        let has_set = has_property(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc.reborrow())?;
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = get(agent, gc.reborrow(), obj, BUILTIN_STRING_MEMORY.set.into())?;
+            let setter = get(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc.reborrow())?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter) else {
                     return Err(agent.throw_exception_with_static_message(
-                        gc.nogc(),
                         ExceptionType::TypeError,
                         "setter is not callable",
+                        gc.nogc(),
                     ));
                 };
                 // c. Set desc.[[Set]] to setter.
@@ -369,9 +369,9 @@ impl PropertyDescriptor {
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
+                    gc.nogc(),
                 ));
             }
         }
@@ -381,15 +381,15 @@ impl PropertyDescriptor {
 
     pub(crate) fn try_to_property_descriptor(
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         obj: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<JsResult<Self>> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
             return Some(Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::TypeError,
                 "Property descriptor must be an object",
+                gc,
             )));
         };
         // 2. Let desc be a new Property Descriptor that initially has no
@@ -397,59 +397,59 @@ impl PropertyDescriptor {
         let mut desc = PropertyDescriptor::default();
         // 3. Let hasEnumerable be ? HasProperty(Obj, "enumerable").
         let has_enumerable =
-            try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.enumerable.into())?;
+            try_has_property(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into(), gc)?;
         // 4. If hasEnumerable is true, then
         if has_enumerable {
             // a. Let enumerable be ToBoolean(? Get(Obj, "enumerable")).
-            let enumerable = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.enumerable.into())?;
+            let enumerable = try_get(agent, obj, BUILTIN_STRING_MEMORY.enumerable.into(), gc)?;
             let enumerable = to_boolean(agent, enumerable);
             // b. Set desc.[[Enumerable]] to enumerable.
             desc.enumerable = Some(enumerable);
         }
         // 5. Let hasConfigurable be ? HasProperty(Obj, "configurable").
         let has_configurable =
-            try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.configurable.into())?;
+            try_has_property(agent, obj, BUILTIN_STRING_MEMORY.configurable.into(), gc)?;
         // 6. If hasConfigurable is true, then
         if has_configurable {
             // a. Let configurable be ToBoolean(? Get(Obj, "configurable")).
-            let configurable = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.configurable.into())?;
+            let configurable = try_get(agent, obj, BUILTIN_STRING_MEMORY.configurable.into(), gc)?;
             let configurable = to_boolean(agent, configurable);
             // b. Set desc.[[Configurable]] to configurable.
             desc.configurable = Some(configurable);
         }
         // 7. Let hasValue be ? HasProperty(Obj, "value").
-        let has_value = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.value.into())?;
+        let has_value = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.value.into(), gc)?;
         // 8. If hasValue is true, then
         if has_value {
             // a. Let value be ? Get(Obj, "value").
-            let value = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.value.into())?;
+            let value = try_get(agent, obj, BUILTIN_STRING_MEMORY.value.into(), gc)?;
             // b. Set desc.[[Value]] to value.
             desc.value = Some(value);
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
-        let has_writable = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.writable.into())?;
+        let has_writable = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.writable.into(), gc)?;
         // 10. If hasWritable is true, then
         if has_writable {
             // a. Let writable be ToBoolean(? Get(Obj, "writable")).
-            let writable = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.writable.into())?;
+            let writable = try_get(agent, obj, BUILTIN_STRING_MEMORY.writable.into(), gc)?;
             let writable = to_boolean(agent, writable);
             // b. Set desc.[[Writable]] to writable.
             desc.writable = Some(writable);
         }
         // 11. Let hasGet be ? HasProperty(Obj, "get").
-        let has_get = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.get.into())?;
+        let has_get = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc)?;
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.get.into())?;
+            let getter = try_get(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc)?;
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter) else {
                     return Some(Err(agent.throw_exception_with_static_message(
-                        gc,
                         ExceptionType::TypeError,
                         "getter is not callable",
+                        gc,
                     )));
                 };
                 // c. Set desc.[[Get]] to getter.
@@ -457,19 +457,19 @@ impl PropertyDescriptor {
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
-        let has_set = try_has_property(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
+        let has_set = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc)?;
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = try_get(agent, gc, obj, BUILTIN_STRING_MEMORY.set.into())?;
+            let setter = try_get(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc)?;
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter) else {
                     return Some(Err(agent.throw_exception_with_static_message(
-                        gc,
                         ExceptionType::TypeError,
                         "setter is not callable",
+                        gc,
                     )));
                 };
                 // c. Set desc.[[Set]] to setter.
@@ -482,9 +482,9 @@ impl PropertyDescriptor {
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
                 return Some(Err(agent.throw_exception_with_static_message(
-                    gc,
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
+                    gc,
                 )));
             }
         }

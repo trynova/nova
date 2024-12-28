@@ -151,9 +151,9 @@ impl ReflectObject {
     /// [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
     fn apply(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let this_argument = arguments.get(1);
@@ -162,24 +162,24 @@ impl ReflectObject {
         // 1. If IsCallable(target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not callable",
+                gc.nogc(),
             ));
         };
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
-        let args = create_list_from_array_like(agent, gc.reborrow(), arguments_list)?;
+        let args = create_list_from_array_like(agent, arguments_list, gc.reborrow())?;
         // TODO: 3. Perform PrepareForTailCall().
         // 4. Return ? Call(target, thisArgument, args)
-        call_function(agent, gc, target, this_argument, Some(ArgumentsList(&args)))
+        call_function(agent, target, this_argument, Some(ArgumentsList(&args)), gc)
     }
 
     /// [28.1.2 Reflect.construct ( target, argumentsList \[ , newTarget \] )](https://tc39.es/ecma262/#sec-reflect.construct)
     fn construct(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let arguments_list = arguments.get(1);
@@ -187,9 +187,9 @@ impl ReflectObject {
         // 1. If IsConstructor(target) is false, throw a TypeError exception.
         let Some(target) = is_constructor(agent, target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not a constructor",
+                gc.nogc(),
             ));
         };
 
@@ -199,9 +199,9 @@ impl ReflectObject {
             let new_target = arguments.get(2);
             let Some(new_target) = is_constructor(agent, new_target) else {
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "Value is not a constructor",
+                    gc.nogc(),
                 ));
             };
             new_target
@@ -210,14 +210,14 @@ impl ReflectObject {
         };
 
         // 4. Let args be ? CreateListFromArrayLike(argumentsList).
-        let args = create_list_from_array_like(agent, gc.reborrow(), arguments_list)?;
+        let args = create_list_from_array_like(agent, arguments_list, gc.reborrow())?;
         // 5. Return ? Construct(target, args, newTarget)
         let ret = construct(
             agent,
-            gc.reborrow(),
             target,
             Some(ArgumentsList(&args)),
             Some(new_target),
+            gc.reborrow(),
         )?;
         Ok(ret.into_value())
     }
@@ -225,9 +225,9 @@ impl ReflectObject {
     /// [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
     fn define_property(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -236,21 +236,21 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
         let mut scoped_target = None;
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let mut key = if let Some(key) = to_property_key_simple(agent, gc.nogc(), property_key) {
+        let mut key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
             key
         } else {
             scoped_target = Some(target.scope(agent, gc.nogc()));
             let scoped_attributes = attributes.scope(agent, gc.nogc());
-            let key = to_property_key_complex(agent, gc.reborrow(), property_key)?
+            let key = to_property_key_complex(agent, property_key, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             target = scoped_target.as_ref().unwrap().get(agent);
@@ -260,7 +260,7 @@ impl ReflectObject {
 
         // 3. Let desc be ? ToPropertyDescriptor(attributes).
         let desc = if let Some(desc) =
-            PropertyDescriptor::try_to_property_descriptor(agent, gc.nogc(), attributes)
+            PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc())
         {
             desc?
         } else {
@@ -269,27 +269,23 @@ impl ReflectObject {
             }
             let scoped_key = key.scope(agent, gc.nogc());
             let desc =
-                PropertyDescriptor::to_property_descriptor(agent, gc.reborrow(), attributes)?;
+                PropertyDescriptor::to_property_descriptor(agent, attributes, gc.reborrow())?;
             key = scoped_key.get(agent).bind(gc.nogc());
             target = scoped_target.unwrap().get(agent).bind(gc.nogc());
             desc
         };
         // 4. Return ? target.[[DefineOwnProperty]](key, desc).
-        let ret = {
-            let key = key.unbind();
-            let target = target.unbind();
-            // let desc = desc.unbind();
-            target.internal_define_own_property(agent, gc.reborrow(), key, desc)?
-        };
+        let ret = target.internal_define_own_property(agent, key.unbind(), desc, gc.reborrow())?;
+
         Ok(ret.into())
     }
 
     /// [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
     fn delete_property(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -297,37 +293,35 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, gc.nogc(), property_key) {
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
-            let key = to_property_key_complex(agent, gc.reborrow(), property_key)?
+            let key = to_property_key_complex(agent, property_key, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             target = scoped_target.get(agent);
             key
         };
         // 3. Return ? target.[[Delete]](key).
-        let ret = {
-            let key = key.unbind();
-            target.internal_delete(agent, gc.reborrow(), key)?
-        };
+        let ret = target.internal_delete(agent, key.unbind(), gc.reborrow())?;
+
         Ok(ret.into())
     }
 
     /// [28.1.5 Reflect.get ( target, propertyKey \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.get)
     fn get(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -340,19 +334,19 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, gc.nogc(), property_key) {
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
             let scoped_receiver = receiver.map(|receiver| receiver.scope(agent, gc.nogc()));
-            let key = to_property_key_complex(agent, gc.reborrow(), property_key)?
+            let key = to_property_key_complex(agent, property_key, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             target = scoped_target.get(agent).bind(gc.nogc());
@@ -363,16 +357,15 @@ impl ReflectObject {
         //   a. Set receiver to target.
         let receiver = receiver.unwrap_or(target.into_value());
         // 4. Return ? target.[[Get]](key, receiver).
-        let key = key.unbind();
-        target.internal_get(agent, gc.reborrow(), key, receiver)
+        target.internal_get(agent, key.unbind(), receiver, gc.reborrow())
     }
 
     /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
     fn get_own_property_descriptor(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -380,28 +373,25 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, gc.nogc(), property_key) {
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
-            let key = to_property_key_complex(agent, gc.reborrow(), property_key)?
+            let key = to_property_key_complex(agent, property_key, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             target = scoped_target.get(agent).bind(gc.nogc());
             key
         };
         // 3. Let desc be ? target.[[GetOwnProperty]](key).
-        let desc = {
-            let key = key.unbind();
-            target.internal_get_own_property(agent, gc.reborrow(), key)?
-        };
+        let desc = target.internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
         match PropertyDescriptor::from_property_descriptor(desc, agent) {
             Some(ret) => Ok(ret.into_value()),
@@ -412,18 +402,18 @@ impl ReflectObject {
     /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
     fn get_prototype_of(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.into_nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.into_nogc(),
             ));
         };
 
@@ -437,9 +427,9 @@ impl ReflectObject {
     /// [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
     fn has(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -447,46 +437,43 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, gc.nogc(), property_key) {
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
-            let key = to_property_key_complex(agent, gc.reborrow(), property_key)?
+            let key = to_property_key_complex(agent, property_key, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             target = scoped_target.get(agent).bind(gc.nogc());
             key
         };
         // 3. Return ? target.[[HasProperty]](key).
-        let ret = {
-            let key = key.unbind();
-            target.internal_has_property(agent, gc.reborrow(), key)?
-        };
+        let ret = target.internal_has_property(agent, key.unbind(), gc.reborrow())?;
         Ok(ret.into())
     }
 
     /// [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
     fn is_extensible(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
@@ -498,18 +485,18 @@ impl ReflectObject {
     /// [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
     fn own_keys(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
@@ -522,24 +509,24 @@ impl ReflectObject {
             .map(PropertyKey::into_value)
             .collect();
         // 3. Return CreateArrayFromList(keys).
-        Ok(create_array_from_list(agent, gc.nogc(), &keys).into_value())
+        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
     }
 
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
     fn prevent_extensions(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
@@ -551,9 +538,9 @@ impl ReflectObject {
     /// [28.1.12 Reflect.set ( target, propertyKey, V \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.set)
     fn set(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -567,20 +554,20 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(mut target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, gc.nogc(), property_key) {
+        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
             key.bind(gc.nogc())
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
             let scoped_v = v.scope(agent, gc.nogc());
             let scoped_receiver = receiver.map(|receiver| receiver.scope(agent, gc.nogc()));
-            let key = to_property_key_complex(agent, gc.reborrow(), property_key)?
+            let key = to_property_key_complex(agent, property_key, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             target = scoped_target.get(agent);
@@ -594,19 +581,16 @@ impl ReflectObject {
         let receiver = receiver.unwrap_or(target.into_value());
 
         // 4. Return ? target.[[Set]](key, V, receiver).
-        let ret = {
-            let key = key.unbind();
-            target.internal_set(agent, gc.reborrow(), key, v, receiver)?
-        };
+        let ret = target.internal_set(agent, key.unbind(), v, receiver, gc.reborrow())?;
         Ok(ret.into())
     }
 
     /// [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
     fn set_prototype_of(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let proto = arguments.get(1);
@@ -614,9 +598,9 @@ impl ReflectObject {
         // 1. If target is not an Object, throw a TypeError exception.
         let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Value is not an object",
+                gc.nogc(),
             ));
         };
 
@@ -627,14 +611,14 @@ impl ReflectObject {
             None
         } else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Prototype must be an object or null",
+                gc.nogc(),
             ));
         };
 
         // 3. Return ? target.[[SetPrototypeOf]](proto).
-        let ret = target.internal_set_prototype_of(agent, gc.reborrow(), proto)?;
+        let ret = target.internal_set_prototype_of(agent, proto, gc.reborrow())?;
         Ok(ret.into())
     }
 

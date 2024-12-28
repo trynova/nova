@@ -65,7 +65,7 @@ impl<'a> Symbol<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Symbol<'static>> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
     pub(crate) const fn _def() -> Self {
@@ -81,12 +81,12 @@ impl<'a> Symbol<'a> {
         if let Some(descriptor) = agent[self].descriptor {
             String::concat(
                 agent,
-                gc,
                 [
                     String::from_small_string("Symbol("),
                     descriptor,
                     String::from_small_string(")"),
                 ],
+                gc,
             )
         } else {
             BUILTIN_STRING_MEMORY.Symbol__

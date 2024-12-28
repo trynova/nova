@@ -228,9 +228,9 @@ impl FunctionEnvironmentIndex {
             ThisBindingStatus::Lexical => unreachable!(),
             ThisBindingStatus::Initialized => Ok(env_rec.this_value.unwrap()),
             ThisBindingStatus::Uninitialized => Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::ReferenceError,
                 "Uninitialized this binding",
+                gc,
             )),
         }
     }
@@ -270,10 +270,10 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope,
         name: String,
         value: Value,
         mut is_strict: bool,
+        gc: NoGcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         let dcl_rec = env_rec.declarative_environment;
@@ -283,9 +283,9 @@ impl FunctionEnvironmentIndex {
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
                 return Err(agent.throw_exception(
-                    gc,
                     ExceptionType::ReferenceError,
                     error_message,
+                    gc,
                 ));
             }
 
@@ -313,7 +313,7 @@ impl FunctionEnvironmentIndex {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message));
+            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -332,7 +332,7 @@ impl FunctionEnvironmentIndex {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message));
+                return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }
         }
 
@@ -344,13 +344,13 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        gc: NoGcScope,
         name: String,
         is_strict: bool,
+        gc: NoGcScope,
     ) -> JsResult<Value> {
         agent[self]
             .declarative_environment
-            .get_binding_value(agent, gc, name, is_strict)
+            .get_binding_value(agent, name, is_strict, gc)
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
@@ -375,8 +375,8 @@ impl FunctionEnvironmentIndex {
     pub(crate) fn bind_this_value(
         self,
         agent: &mut Agent,
-        gc: NoGcScope,
         value: Value,
+        gc: NoGcScope,
     ) -> JsResult<Value> {
         let env_rec = &mut agent[self];
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
@@ -386,9 +386,9 @@ impl FunctionEnvironmentIndex {
         // ReferenceError exception.
         if env_rec.this_binding_status == ThisBindingStatus::Initialized {
             return Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::ReferenceError,
                 "[[ThisBindingStatus]] is INITIALIZED",
+                gc,
             ));
         }
 

@@ -39,7 +39,7 @@ where
         gc: NoGcScope<'_, '_>,
     ) -> Option<Option<Object>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_get_prototype_of(agent, gc, backing_object)),
+            Some(backing_object) => Some(ordinary_get_prototype_of(agent, backing_object, gc)),
             None => Some(self.internal_prototype(agent)),
         }
     }
@@ -69,8 +69,8 @@ where
     fn try_set_prototype_of(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
         prototype: Option<Object>,
+        _gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         Some(ordinary_set_prototype_of(
             agent,
@@ -84,11 +84,11 @@ where
         self,
         agent: &mut Agent,
         // Note: Because of Proxies, this can trigger GC.
-        gc: GcScope<'_, '_>,
         prototype: Option<Object>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         Ok(self
-            .try_set_prototype_of(agent, gc.into_nogc(), prototype)
+            .try_set_prototype_of(agent, prototype, gc.into_nogc())
             .unwrap())
     }
 
@@ -155,8 +155,8 @@ where
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        _gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
         match self.get_backing_object(agent) {
@@ -173,11 +173,11 @@ where
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         Ok(self
-            .try_get_own_property(agent, gc.into_nogc(), property_key)
+            .try_get_own_property(agent, property_key, gc.into_nogc())
             .unwrap())
     }
 
@@ -191,19 +191,19 @@ where
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
         Some(ordinary_try_define_own_property(
             agent,
-            gc,
             backing_object,
             property_key,
             property_descriptor,
+            gc,
         ))
     }
 
@@ -211,12 +211,12 @@ where
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         Ok(self
-            .try_define_own_property(agent, gc.into_nogc(), property_key, property_descriptor)
+            .try_define_own_property(agent, property_key, property_descriptor, gc.into_nogc())
             .unwrap())
     }
 
@@ -230,13 +230,13 @@ where
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_try_has_property(agent, gc, backing_object, property_key)
+                ordinary_try_has_property(agent, backing_object, property_key, gc)
             }
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
@@ -245,7 +245,7 @@ where
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.try_has_property(agent, gc, property_key)
+                    parent.try_has_property(agent, property_key, gc)
                 } else {
                     // 5. Return false.
                     Some(false)
@@ -258,12 +258,12 @@ where
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_has_property(agent, gc, backing_object, property_key),
+            Some(backing_object) => ordinary_has_property(agent, backing_object, property_key, gc),
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
@@ -271,7 +271,7 @@ where
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, gc, property_key)
+                    parent.internal_has_property(agent, property_key, gc)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -290,14 +290,14 @@ where
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
-                ordinary_try_get(agent, gc, backing_object, property_key, receiver)
+                ordinary_try_get(agent, backing_object, property_key, receiver, gc)
             }
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
@@ -307,7 +307,7 @@ where
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.try_get(agent, gc, property_key, receiver)
+                parent.try_get(agent, property_key, receiver, gc)
             }
         }
     }
@@ -316,13 +316,13 @@ where
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get(agent, gc, backing_object, property_key, receiver),
+            Some(backing_object) => ordinary_get(agent, backing_object, property_key, receiver, gc),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
@@ -331,7 +331,7 @@ where
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, gc, property_key, receiver)
+                parent.internal_get(agent, property_key, receiver, gc)
             }
         }
     }
@@ -346,26 +346,26 @@ where
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_try_set(agent, gc, self.into_object(), property_key, value, receiver)
+        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
     }
 
     /// ## \[\[Set\]\]
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, gc, self.into_object(), property_key, value, receiver)
+        ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
     }
 
     /// ## Infallible \[\[Delete\]\]
@@ -378,12 +378,12 @@ where
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_delete(agent, gc, backing_object, property_key)),
+            Some(backing_object) => Some(ordinary_delete(agent, backing_object, property_key, gc)),
             None => Some(true),
         }
     }
@@ -392,11 +392,11 @@ where
     fn internal_delete(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         Ok(self
-            .try_delete(agent, gc.into_nogc(), property_key)
+            .try_delete(agent, property_key, gc.into_nogc())
             .unwrap())
     }
 
@@ -414,7 +414,7 @@ where
     ) -> Option<Vec<PropertyKey<'a>>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_own_property_keys(agent, gc, backing_object)),
+            Some(backing_object) => Some(ordinary_own_property_keys(agent, backing_object, gc)),
             None => Some(vec![]),
         }
     }
@@ -432,9 +432,9 @@ where
     fn internal_call(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments_list: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         unreachable!()
     }
@@ -443,9 +443,9 @@ where
     fn internal_construct(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _arguments_list: ArgumentsList,
         _new_target: Function,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         unreachable!()
     }

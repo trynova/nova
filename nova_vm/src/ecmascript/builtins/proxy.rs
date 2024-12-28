@@ -124,8 +124,8 @@ impl InternalMethods for Proxy {
     fn internal_set_prototype_of(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _prototype: Option<Object>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -146,8 +146,8 @@ impl InternalMethods for Proxy {
     fn internal_get_own_property(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _property_key: PropertyKey,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
     }
@@ -155,9 +155,9 @@ impl InternalMethods for Proxy {
     fn internal_define_own_property(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _property_key: PropertyKey,
         _property_descriptor: PropertyDescriptor,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -165,8 +165,8 @@ impl InternalMethods for Proxy {
     fn internal_has_property(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _property_key: PropertyKey,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -174,9 +174,9 @@ impl InternalMethods for Proxy {
     fn internal_get(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _property_key: PropertyKey,
         _receiver: Value,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -184,10 +184,10 @@ impl InternalMethods for Proxy {
     fn internal_set(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _property_key: PropertyKey,
         _value: Value,
         _receiver: Value,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -195,8 +195,8 @@ impl InternalMethods for Proxy {
     fn internal_delete(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _property_key: PropertyKey,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
     }
@@ -212,9 +212,9 @@ impl InternalMethods for Proxy {
     fn internal_call(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments_list: super::ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -222,9 +222,9 @@ impl InternalMethods for Proxy {
     fn internal_construct(
         self,
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _arguments_list: super::ArgumentsList,
         _new_target: crate::ecmascript::types::Function,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         todo!()
     }

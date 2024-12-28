@@ -123,12 +123,12 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 /// ordinary object.
 pub(crate) fn create_unmapped_arguments_object(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     arguments_list: &[Value],
+    mut gc: GcScope<'_, '_>,
 ) -> Object {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
-    let len = Number::from_f64(agent, gc.nogc(), len as f64).into_value();
+    let len = Number::from_f64(agent, len as f64, gc.nogc()).into_value();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
     let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
     let Object::Object(obj) = obj else {
@@ -139,7 +139,6 @@ pub(crate) fn create_unmapped_arguments_object(
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
     define_property_or_throw(
         agent,
-        gc.reborrow(),
         obj,
         key,
         PropertyDescriptor {
@@ -153,6 +152,7 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(true),
             ..Default::default()
         },
+        gc.reborrow(),
     )
     .unwrap();
     // 5. Let index be 0.
@@ -163,7 +163,7 @@ pub(crate) fn create_unmapped_arguments_object(
         debug_assert!(index < u32::MAX as usize);
         let index = index as u32;
         let key = PropertyKey::Integer(index.into());
-        create_data_property_or_throw(agent, gc.reborrow(), obj, key, *val).unwrap();
+        create_data_property_or_throw(agent, obj, key, *val, gc.reborrow()).unwrap();
         // c. Set index to index + 1.
     }
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
@@ -172,7 +172,6 @@ pub(crate) fn create_unmapped_arguments_object(
     // let array_prototype_values = agent.current_realm().intrinsics().array_prototype();
     define_property_or_throw(
         agent,
-        gc.reborrow(),
         obj,
         key,
         PropertyDescriptor {
@@ -192,6 +191,7 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(true),
             ..Default::default()
         },
+        gc.reborrow(),
     )
     .unwrap();
     let throw_type_error = agent.current_realm().intrinsics().throw_type_error();
@@ -199,7 +199,6 @@ pub(crate) fn create_unmapped_arguments_object(
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.callee);
     define_property_or_throw(
         agent,
-        gc.reborrow(),
         obj,
         key,
         PropertyDescriptor {
@@ -213,6 +212,7 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(false),
             ..Default::default()
         },
+        gc.reborrow(),
     )
     .unwrap();
     // 9. Return obj.

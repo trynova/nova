@@ -27,9 +27,9 @@ impl Builtin for AsyncIteratorPrototypeIterator {
 impl AsyncIteratorPrototype {
     fn iterator(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Ok(this_value)
     }

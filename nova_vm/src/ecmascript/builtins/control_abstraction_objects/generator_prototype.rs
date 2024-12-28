@@ -50,28 +50,28 @@ impl Builtin for GeneratorPrototypeThrow {
 impl GeneratorPrototype {
     fn next(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Generator expected",
+                gc.nogc(),
             ));
         };
 
         // 1. Return ? GeneratorResume(this value, value, empty).
-        Ok(generator.resume(agent, gc, arguments.get(0))?.into_value())
+        Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
     }
 
     fn r#return(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
@@ -81,9 +81,9 @@ impl GeneratorPrototype {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Generator expected",
+                gc.nogc(),
             ));
         };
 
@@ -107,9 +107,9 @@ impl GeneratorPrototype {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The generator is currently running",
+                    gc.nogc(),
                 ))
             }
             GeneratorState::Completed => {}
@@ -124,16 +124,16 @@ impl GeneratorPrototype {
 
     fn throw(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Generator expected",
+                gc.nogc(),
             ));
         };
 
@@ -141,7 +141,7 @@ impl GeneratorPrototype {
         // 2. Let C be ThrowCompletion(exception).
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
         Ok(generator
-            .resume_throw(agent, gc, arguments.get(0))?
+            .resume_throw(agent, arguments.get(0), gc)?
             .into_value())
     }
 

@@ -66,7 +66,7 @@ impl VmIterator {
                 if let Some(result) = result {
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
-                            Value::from_string(agent, gc.nogc(), int.into_i64().to_string())
+                            Value::from_string(agent, int.into_i64().to_string(), gc.nogc())
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
                         PropertyKey::String(data) => Value::String(data.unbind()),
@@ -80,24 +80,24 @@ impl VmIterator {
             VmIterator::GenericIterator(iter) => {
                 let result = call(
                     agent,
-                    gc.reborrow(),
                     iter.next_method,
                     iter.iterator.into_value(),
                     None,
+                    gc.reborrow(),
                 )?;
                 let Ok(result) = Object::try_from(result) else {
                     return Err(agent.throw_exception_with_static_message(
-                        gc.nogc(),
                         ExceptionType::TypeError,
                         "Iterator returned a non-object result",
+                        gc.nogc(),
                     ));
                 };
                 // 1. Return ToBoolean(? Get(iterResult, "done")).
                 let done = get(
                     agent,
-                    gc.reborrow(),
                     result,
                     BUILTIN_STRING_MEMORY.done.into(),
+                    gc.reborrow(),
                 )?;
                 let done = to_boolean(agent, done);
                 if done {
@@ -106,9 +106,9 @@ impl VmIterator {
                     // 1. Return ? Get(iterResult, "value").
                     let value = get(
                         agent,
-                        gc.reborrow(),
                         result,
                         BUILTIN_STRING_MEMORY.value.into(),
+                        gc.reborrow(),
                     )?;
                     Ok(Some(value))
                 }
@@ -146,22 +146,22 @@ impl VmIterator {
     /// This method version performs the SYNC version of the method.
     pub(super) fn from_value(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         value: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
-            gc.reborrow(),
             value,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            gc.reborrow(),
         )?;
         // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Iterator method cannot be undefined",
+                gc.nogc(),
             ));
         };
 
@@ -180,7 +180,7 @@ impl VmIterator {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, gc, value, method)?;
+                let js_iterator = get_iterator_from_method(agent, value, method, gc)?;
                 Ok(VmIterator::GenericIterator(js_iterator))
             }
         }
@@ -229,7 +229,7 @@ impl ObjectPropertiesIterator {
                     continue;
                 }
                 // TODO: Properly handle potential GC.
-                let desc = object.internal_get_own_property(agent, gc.reborrow(), r)?;
+                let desc = object.internal_get_own_property(agent, r, gc.reborrow())?;
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
                     if desc.enumerable == Some(true) {
@@ -289,7 +289,7 @@ impl ArrayValuesIterator {
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
         // TODO: Properly handle potential GC.
-        let element_value = get(agent, gc, self.array, index.into())?;
+        let element_value = get(agent, self.array, index.into(), gc)?;
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))

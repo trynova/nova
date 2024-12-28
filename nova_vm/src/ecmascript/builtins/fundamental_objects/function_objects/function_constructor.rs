@@ -43,10 +43,10 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 impl FunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -64,11 +64,11 @@ impl FunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, normal, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
-            gc.reborrow(),
             constructor,
             DynamicFunctionKind::Normal,
             parameter_args,
             body_arg,
+            gc.reborrow(),
         )?;
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 32. Else if kind is normal, then
@@ -127,11 +127,11 @@ impl DynamicFunctionKind {
 /// NOTE: This implementation doesn't cover steps 30-32, those should be handled by the caller.
 pub(crate) fn create_dynamic_function(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     constructor: Function,
     kind: DynamicFunctionKind,
     parameter_args: &[Value],
     body_arg: Value,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<ECMAScriptFunction> {
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
@@ -154,14 +154,13 @@ pub(crate) fn create_dynamic_function(
             for param in parameter_args {
                 parameter_strings.push(to_string_primitive(
                     agent,
-                    gc,
                     Primitive::try_from(*param).unwrap(),
+                    gc,
                 )?);
             }
             parameter_strings_vec = parameter_strings;
             parameter_strings_slice = &parameter_strings_vec;
-            body_string =
-                to_string_primitive(agent, gc, Primitive::try_from(body_arg).unwrap())?.bind(gc);
+            body_string = to_string_primitive(agent, Primitive::try_from(body_arg).unwrap(), gc)?;
         } else {
             // Some of the parameters are non-primitives. This means we'll be
             // calling into JavaScript during this work.
@@ -170,7 +169,7 @@ pub(crate) fn create_dynamic_function(
                 // Each parameter has to be rooted in case the next parameter
                 // or the body argument is the one that calls to JavaScript.
                 parameter_string_roots.push(
-                    to_string(agent, gc.reborrow(), *param)?
+                    to_string(agent, *param, gc.reborrow())?
                         .unbind()
                         .scope(agent, gc.nogc()),
                 );
@@ -217,7 +216,7 @@ pub(crate) fn create_dynamic_function(
 
         debug_assert_eq!(string.len(), str_len);
 
-        String::from_string(agent, gc.nogc(), string)
+        String::from_string(agent, string, gc.nogc())
     };
 
     // The spec says to parse the parameters and the function body separately to
@@ -234,7 +233,7 @@ pub(crate) fn create_dynamic_function(
         // successfully, then the program's AST and the SourceCode will both be
         // kept alive in the returned function object.
         let parsed_result =
-            unsafe { SourceCode::parse_source(agent, gc.nogc(), source_string, source_type) };
+            unsafe { SourceCode::parse_source(agent, source_string, source_type, gc.nogc()) };
 
         if let Ok((program, sc)) = parsed_result {
             source_code = Some(sc);
@@ -272,9 +271,9 @@ pub(crate) fn create_dynamic_function(
                 );
             }
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::SyntaxError,
                 "Invalid function source text.",
+                gc.nogc(),
             ));
         }
     };
@@ -282,9 +281,9 @@ pub(crate) fn create_dynamic_function(
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
-            gc.reborrow(),
             constructor,
             kind.intrinsic_prototype(),
+            gc.reborrow(),
         )?,
         source_code: Some(source_code),
         source_text: function.span,
@@ -297,14 +296,14 @@ pub(crate) fn create_dynamic_function(
         env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
         private_env: None,
     };
-    let f = ordinary_function_create(agent, gc.nogc(), params);
+    let f = ordinary_function_create(agent, params, gc.nogc());
 
     set_function_name(
         agent,
-        gc.nogc(),
         f,
         BUILTIN_STRING_MEMORY.anonymous.to_property_key(),
         None,
+        gc.nogc(),
     );
     // NOTE: Skipping steps 30-32.
 

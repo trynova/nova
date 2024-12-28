@@ -42,9 +42,9 @@ impl SourceCode {
     /// they drop the parsed code.
     pub(crate) unsafe fn parse_source(
         agent: &mut Agent,
-        gc: NoGcScope,
         source: String,
         source_type: SourceType,
+        gc: NoGcScope,
     ) -> Result<(Program<'static>, Self), Vec<OxcDiagnostic>> {
         // If the source code is not a heap string, pad it with whitespace and
         // allocate it on the heap. This makes it safe (for some definition of
@@ -64,7 +64,7 @@ impl SourceCode {
                 // should guarantee that the string gets heap-allocated.
                 let original_length = source.len();
                 let data = format!("{}          ", source.as_str());
-                let source = String::from_string(agent, gc, data);
+                let source = String::from_string(agent, data, gc);
                 let String::String(source) = source else {
                     unreachable!()
                 };

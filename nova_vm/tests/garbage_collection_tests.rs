@@ -12,7 +12,7 @@ use nova_vm::{
     engine::context::GcScope,
 };
 
-fn initialize_global_object(agent: &mut Agent, gc: GcScope<'_, '_>, global: Object) {
+fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope<'_, '_>) {
     use nova_vm::ecmascript::{
         builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::JsResult,
@@ -22,9 +22,9 @@ fn initialize_global_object(agent: &mut Agent, gc: GcScope<'_, '_>, global: Obje
     // `print` function
     fn print(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if args.len() == 0 {
             println!();
@@ -35,20 +35,20 @@ fn initialize_global_object(agent: &mut Agent, gc: GcScope<'_, '_>, global: Obje
     }
     let function = create_builtin_function(
         agent,
-        gc.nogc(),
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
+        gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print").unbind();
+    let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc()).unbind();
     global
         .internal_define_own_property(
             agent,
-            gc,
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
                 ..Default::default()
             },
+            gc,
         )
         .unwrap();
 }
@@ -86,9 +86,9 @@ fn garbage_collection_tests() {
     );
     agent.run_in_realm(&realm, |agent, mut gc| {
         let realm = agent.current_realm_id();
-        let source_text = String::from_string(agent, gc.nogc(), header_contents);
-        let script = parse_script(agent, gc.nogc(), source_text, realm, false, None).unwrap();
-        let _ = script_evaluation(agent, gc.reborrow(), script).unwrap_or_else(|err| {
+        let source_text = String::from_string(agent, header_contents, gc.nogc());
+        let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
+        let _ = script_evaluation(agent, script, gc.reborrow()).unwrap_or_else(|err| {
             panic!(
                 "Header evaluation failed: '{}' failed: {:?}",
                 d.display(),
@@ -101,9 +101,9 @@ fn garbage_collection_tests() {
     for i in 0..2 {
         agent.run_in_realm(&realm, |agent, mut gc| {
             let realm = agent.current_realm_id();
-            let source_text = String::from_string(agent, gc.nogc(), call_contents.clone());
-            let script = parse_script(agent, gc.nogc(), source_text, realm, false, None).unwrap();
-            let _ = script_evaluation(agent, gc.reborrow(), script).unwrap_or_else(|err| {
+            let source_text = String::from_string(agent, call_contents.clone(), gc.nogc());
+            let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
+            let _ = script_evaluation(agent, script, gc.reborrow()).unwrap_or_else(|err| {
                 println!("Error kind: {:?}", err.value());
                 panic!(
                     "Loop index run {} '{}' failed: {:?}",

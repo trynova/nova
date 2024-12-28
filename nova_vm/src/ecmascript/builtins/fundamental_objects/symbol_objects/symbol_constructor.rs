@@ -61,23 +61,23 @@ impl Builtin for SymbolKeyFor {
 impl SymbolConstructor {
     fn behaviour(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Symbol is not a constructor",
+                gc.nogc(),
             ));
         }
         let description = arguments.get(0);
         let desc_string = if description.is_undefined() {
             None
         } else {
-            Some(to_string(agent, gc, description)?.unbind())
+            Some(to_string(agent, description, gc)?.unbind())
         };
 
         Ok(agent
@@ -90,18 +90,18 @@ impl SymbolConstructor {
 
     fn r#for(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Ok(arguments.get(0))
     }
 
     fn key_for(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Ok(arguments.get(0))
     }

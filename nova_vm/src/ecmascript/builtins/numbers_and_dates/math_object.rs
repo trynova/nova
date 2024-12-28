@@ -338,36 +338,36 @@ impl Builtin for MathObjectTrunc {
 impl MathObject {
     fn abs(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
         Ok(n.abs(agent).into_value())
     }
 
     fn acos(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
         // 3. If n is 1𝔽, return +0𝔽.
         // 4. Return an implementation-approximated Number value representing the result of the inverse cosine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.acos()))
+        Ok(Value::from_f64(agent, n.acos(), gc.into_nogc()))
     }
 
     fn acosh(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -383,17 +383,17 @@ impl MathObject {
 
         // 4. If n < 1𝔽, return NaN.
         // 5. Return an implementation-approximated Number value representing the result of the inverse hyperbolic cosine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.acosh()))
+        Ok(Value::from_f64(agent, n.acosh(), gc.into_nogc()))
     }
 
     fn asin(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -408,17 +408,17 @@ impl MathObject {
         }
 
         // 4. Return an implementation-approximated Number value representing the result of the inverse sine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.asin()))
+        Ok(Value::from_f64(agent, n.asin(), gc.into_nogc()))
     }
 
     fn asinh(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -427,17 +427,17 @@ impl MathObject {
 
         // 3. Return an implementation-approximated Number value representing the result of the inverse hyperbolic sine of ℝ(n).
         let result = n.into_f64(agent).asinh();
-        Ok(Value::from_f64(agent, gc.into_nogc(), result))
+        Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
     fn atan(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -446,27 +446,27 @@ impl MathObject {
 
         // 3. If n is +∞𝔽, return an implementation-approximated Number value representing π / 2.
         if n.is_pos_infinity(agent) {
-            return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, consts::FRAC_PI_2, gc.into_nogc()));
         }
 
         // 4. If n is -∞𝔽, return an implementation-approximated Number value representing -π / 2.
         if n.is_neg_infinity(agent) {
-            return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, -consts::FRAC_PI_2, gc.into_nogc()));
         }
 
         // 5. Return an implementation-approximated Number value representing the result of the inverse tangent of ℝ(n).
         let result = n.into_f64(agent).atan();
-        Ok(Value::from_f64(agent, gc.into_nogc(), result))
+        Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
     fn atanh(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
@@ -491,19 +491,19 @@ impl MathObject {
         }
 
         // 6. Return an implementation-approximated Number value representing the result of the inverse hyperbolic tangent of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.atanh()))
+        Ok(Value::from_f64(agent, n.atanh(), gc.into_nogc()))
     }
 
     fn atan2(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let ny be ? ToNumber(y).
-        let ny = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
+        let ny = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
         // 2. Let nx be ? ToNumber(x).
-        let nx = to_number(agent, gc.reborrow(), arguments.get(1))?.into_f64(agent);
+        let nx = to_number(agent, arguments.get(1), gc.reborrow())?.into_f64(agent);
 
         // 3. If ny is NaN or nx is NaN, return NaN.
         if ny.is_nan() || nx.is_nan() {
@@ -515,19 +515,19 @@ impl MathObject {
             if nx.is_infinite() {
                 // a. If nx is +∞𝔽, return an implementation-approximated Number value representing π / 4.
                 if nx.is_sign_positive() {
-                    return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_4));
+                    return Ok(Value::from_f64(agent, consts::FRAC_PI_4, gc.into_nogc()));
                 }
                 // b. If nx is -∞𝔽, return an implementation-approximated Number value representing 3π / 4.
                 if nx.is_sign_negative() {
                     return Ok(Value::from_f64(
                         agent,
-                        gc.into_nogc(),
                         3.0 * consts::FRAC_PI_4,
+                        gc.into_nogc(),
                     ));
                 }
             }
             // c. Return an implementation-approximated Number value representing π / 2.
-            return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, consts::FRAC_PI_2, gc.into_nogc()));
         }
 
         // 5. If ny is -∞𝔽, then
@@ -535,19 +535,19 @@ impl MathObject {
             if nx.is_infinite() {
                 // a. If nx is +∞𝔽, return an implementation-approximated Number value representing -π / 4.
                 if nx.is_sign_positive() {
-                    return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_4));
+                    return Ok(Value::from_f64(agent, -consts::FRAC_PI_4, gc.into_nogc()));
                 }
                 // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -3π / 4.
                 if nx.is_sign_negative() {
                     return Ok(Value::from_f64(
                         agent,
-                        gc.into_nogc(),
                         -3.0 * consts::FRAC_PI_4,
+                        gc.into_nogc(),
                     ));
                 }
             }
             // c. Return an implementation-approximated Number value representing -π / 2.
-            return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_2));
+            return Ok(Value::from_f64(agent, -consts::FRAC_PI_2, gc.into_nogc()));
         }
 
         // 6. If ny is +0𝔽, then
@@ -558,7 +558,7 @@ impl MathObject {
                     return Ok(Value::pos_zero());
                 }
                 // b. Return an implementation-approximated Number value representing π.
-                return Ok(Value::from_f64(agent, gc.into_nogc(), consts::PI));
+                return Ok(Value::from_f64(agent, consts::PI, gc.into_nogc()));
             }
 
             // 7. If ny is -0𝔽, then
@@ -568,7 +568,7 @@ impl MathObject {
                     return Ok(Value::neg_zero());
                 }
                 // b. Return an implementation-approximated Number value representing -π.
-                return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::PI));
+                return Ok(Value::from_f64(agent, -consts::PI, gc.into_nogc()));
             }
         }
 
@@ -584,12 +584,12 @@ impl MathObject {
                 }
                 // b. If nx is -∞𝔽, return an implementation-approximated Number value representing π.
                 if nx.is_sign_negative() {
-                    return Ok(Value::from_f64(agent, gc.into_nogc(), consts::PI));
+                    return Ok(Value::from_f64(agent, consts::PI, gc.into_nogc()));
                 }
             }
             // c. If nx is either +0𝔽 or -0𝔽, return an implementation-approximated Number value representing π / 2.
             if nx == 0.0 {
-                return Ok(Value::from_f64(agent, gc.into_nogc(), consts::FRAC_PI_2));
+                return Ok(Value::from_f64(agent, consts::FRAC_PI_2, gc.into_nogc()));
             }
         }
 
@@ -601,11 +601,11 @@ impl MathObject {
             }
             // b. If nx is -∞𝔽, return an implementation-approximated Number value representing -π.
             if nx.is_sign_negative() {
-                return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::PI));
+                return Ok(Value::from_f64(agent, -consts::PI, gc.into_nogc()));
             }
             // c. If nx is either +0𝔽 or -0𝔽, return an implementation-approximated Number value representing -π / 2.
             if nx == 0.0 {
-                return Ok(Value::from_f64(agent, gc.into_nogc(), -consts::FRAC_PI_2));
+                return Ok(Value::from_f64(agent, -consts::FRAC_PI_2, gc.into_nogc()));
             }
         }
 
@@ -634,17 +634,17 @@ impl MathObject {
         }
 
         // 15. Return an implementation-approximated Number value representing r.
-        Ok(Value::from_f64(agent, gc.into_nogc(), r))
+        Ok(Value::from_f64(agent, r, gc.into_nogc()))
     }
 
     fn cbrt(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.unbind();
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?.unbind();
         let gc = gc.into_nogc();
         let n = n.bind(gc);
 
@@ -654,14 +654,14 @@ impl MathObject {
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the cube root of ℝ(n).
-        Ok(Value::from_f64(agent, gc, n.into_f64(agent).cbrt()))
+        Ok(Value::from_f64(agent, n.into_f64(agent).cbrt(), gc))
     }
 
     fn ceil(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let n = arguments.get(0);
         // 4. If n is an integral Number, return n.
@@ -670,7 +670,7 @@ impl MathObject {
         }
 
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), n)?;
+        let n = to_number(agent, n, gc.reborrow())?;
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
@@ -690,17 +690,17 @@ impl MathObject {
         }
 
         // 5. Return the smallest (closest to -∞) integral Number value that is not less than n.
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.ceil()))
+        Ok(Value::from_f64(agent, n.ceil(), gc.into_nogc()))
     }
 
     fn clz32(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToUint32(x).
-        let n = to_uint32(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_uint32(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. Let p be the number of leading zero bits in the unsigned 32-bit binary representation of n.
         let p = n.leading_zeros();
@@ -711,12 +711,12 @@ impl MathObject {
 
     fn cos(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
 
         // 2. If n is not finite, return NaN.
         if !n.is_finite() {
@@ -729,17 +729,17 @@ impl MathObject {
         }
 
         // 4. Return an implementation-approximated Number value representing the result of the cosine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.cos()))
+        Ok(Value::from_f64(agent, n.cos(), gc.into_nogc()))
     }
 
     fn cosh(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?.into_f64(agent);
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
 
         // 2. If n is NaN, return NaN.
         if n.is_nan() {
@@ -757,17 +757,17 @@ impl MathObject {
         }
 
         // 5. Return an implementation-approximated Number value representing the result of the hyperbolic cosine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.cosh()))
+        Ok(Value::from_f64(agent, n.cosh(), gc.into_nogc()))
     }
 
     fn exp(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         //1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         //2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
@@ -787,17 +787,17 @@ impl MathObject {
         }
 
         //5. Return an implementation-approximated Number value representing the result of the exponential function of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.exp()))
+        Ok(Value::from_f64(agent, n.exp(), gc.into_nogc()))
     }
 
     fn expm1(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan(agent)
@@ -816,14 +816,14 @@ impl MathObject {
         }
 
         // 4. Return an implementation-approximated Number value representing the result of subtracting 1 from the exponential function of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.exp_m1()))
+        Ok(Value::from_f64(agent, n.exp_m1(), gc.into_nogc()))
     }
 
     fn floor(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let n = arguments.get(0);
 
@@ -833,7 +833,7 @@ impl MathObject {
         }
 
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), n)?;
+        let n = to_number(agent, n, gc.reborrow())?;
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
@@ -853,17 +853,17 @@ impl MathObject {
         }
 
         // 5. Return the greatest (closest to +∞) integral Number value that is not greater than n.
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.floor()))
+        Ok(Value::from_f64(agent, n.floor(), gc.into_nogc()))
     }
 
     fn fround(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is NaN, return NaN.
         if n.is_nan(agent) {
@@ -886,14 +886,14 @@ impl MathObject {
         let n64 = n32 as f64;
 
         // 6. Return the ECMAScript Number value corresponding to n64.
-        Ok(Value::from_f64(agent, gc.into_nogc(), n64))
+        Ok(Value::from_f64(agent, n64, gc.into_nogc()))
     }
 
     fn hypot(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let coerced be a new empty List.
 
@@ -905,7 +905,7 @@ impl MathObject {
         let mut contains_nan = false;
         for &arg in arguments.iter() {
             // a. Let n be ? ToNumber(arg).
-            let n = to_number(agent, gc.reborrow(), arg)?.into_f64(agent);
+            let n = to_number(agent, arg, gc.reborrow())?.into_f64(agent);
 
             // 3. For each element number of coerced, do
             if n.is_infinite() {
@@ -942,22 +942,22 @@ impl MathObject {
         // 7. Return an implementation-approximated Number value representing the square root of the sum of squares of the mathematical values of the elements of coerced.
         return Ok(Value::from_f64(
             agent,
-            gc.into_nogc(),
             sum_of_squares.sqrt(),
+            gc.into_nogc(),
         ));
     }
 
     fn imul(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let a be ℝ(? ToUint32(x)).
-        let a = to_uint32(agent, gc.reborrow(), arguments.get(0))?;
+        let a = to_uint32(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. Let b be ℝ(? ToUint32(y)).
-        let b = to_uint32(agent, gc.reborrow(), arguments.get(1))?;
+        let b = to_uint32(agent, arguments.get(1), gc.reborrow())?;
 
         // 3. Let product be (a × b) modulo 2**32.
         let product = a.wrapping_mul(b);
@@ -968,12 +968,12 @@ impl MathObject {
 
     fn log(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
 
         // 2. If n is either NaN or +∞𝔽, return n.
@@ -997,17 +997,17 @@ impl MathObject {
         }
 
         // 6. Return an implementation-approximated Number value representing the result of the natural logarithm of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.ln()))
+        Ok(Value::from_f64(agent, n.ln(), gc.into_nogc()))
     }
 
     fn log1p(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
@@ -1022,17 +1022,17 @@ impl MathObject {
             return Ok(Value::nan());
         }
         // 5. Return an implementation-approximated Number value representing the natural logarithm of 1 + ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.ln_1p()))
+        Ok(Value::from_f64(agent, n.ln_1p(), gc.into_nogc()))
     }
 
     fn log10(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
@@ -1052,17 +1052,17 @@ impl MathObject {
         }
 
         // 6. Return an implementation-approximated Number value representing the base 10 logarithm of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.log10()))
+        Ok(Value::from_f64(agent, n.log10(), gc.into_nogc()))
     }
 
     fn log2(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
@@ -1081,14 +1081,14 @@ impl MathObject {
             return Ok(Value::nan());
         }
         // 6. Return an implementation-approximated Number value
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.log2()))
+        Ok(Value::from_f64(agent, n.log2(), gc.into_nogc()))
     }
 
     fn max(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if arguments.is_empty() {
             return Ok(Value::neg_inf());
@@ -1112,7 +1112,7 @@ impl MathObject {
             let n = if let Ok(n) = Number::try_from(arg) {
                 Some(n)
             } else if let Ok(prim) = Primitive::try_from(arg) {
-                Some(to_number_primitive(agent, gc.nogc(), prim)?)
+                Some(to_number_primitive(agent, prim, gc.nogc())?)
             } else {
                 None
             };
@@ -1178,16 +1178,16 @@ impl MathObject {
                 // Note: This happens automatically as +0.max(-0) is +0.
                 highest_f64 = (highest_i64 as f64).max(highest_f64);
             }
-            let result = Number::from_f64(agent, gc.nogc(), highest_f64);
+            let result = Number::from_f64(agent, highest_f64, gc.nogc());
             Ok(result.into_value())
         }
     }
 
     fn min(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if arguments.is_empty() {
             return Ok(Value::pos_inf());
@@ -1212,7 +1212,7 @@ impl MathObject {
             let n = if let Ok(n) = Number::try_from(arg) {
                 Some(n)
             } else if let Ok(prim) = Primitive::try_from(arg) {
-                Some(to_number_primitive(agent, gc.nogc(), prim)?)
+                Some(to_number_primitive(agent, prim, gc.nogc())?)
             } else {
                 None
             };
@@ -1280,15 +1280,15 @@ impl MathObject {
                     lowest_f64 = lowest_f64.min(lowest_i64 as f64);
                 }
             }
-            Ok(Number::from_f64(agent, gc.nogc(), lowest_f64).into_value())
+            Ok(Number::from_f64(agent, lowest_f64, gc.nogc()).into_value())
         }
     }
 
     fn pow(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let base = arguments.get(0);
         let exponent = arguments.get(1);
@@ -1299,15 +1299,15 @@ impl MathObject {
         } else if let (Ok(base), Ok(exponent)) =
             (Primitive::try_from(base), Primitive::try_from(exponent))
         {
-            let base = to_number_primitive(agent, gc.nogc(), base)?;
-            let exponent = to_number_primitive(agent, gc.nogc(), exponent)?;
+            let base = to_number_primitive(agent, base, gc.nogc())?;
+            let exponent = to_number_primitive(agent, exponent, gc.nogc())?;
             (base.bind(gc.nogc()), exponent.bind(gc.nogc()))
         } else {
             let exponent = exponent.scope(agent, gc.nogc());
-            let base = to_number(agent, gc.reborrow(), base)?
+            let base = to_number(agent, base, gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
-            let exponent = to_number(agent, gc.reborrow(), exponent.get(agent))?.unbind();
+            let exponent = to_number(agent, exponent.get(agent), gc.reborrow())?.unbind();
             (base.get(agent).bind(gc.nogc()), exponent.bind(gc.nogc()))
         };
         let gc = gc.nogc();
@@ -1319,23 +1319,23 @@ impl MathObject {
                     if let Ok(result) = Number::try_from(result) {
                         return Ok(result.into_value());
                     } else {
-                        return Ok(Value::from_f64(agent, gc, result as f64));
+                        return Ok(Value::from_f64(agent, result as f64, gc));
                     }
                 } else if let Some(result) = (base as i128).checked_pow(exponent) {
-                    return Ok(Value::from_f64(agent, gc, result as f64));
+                    return Ok(Value::from_f64(agent, result as f64, gc));
                 } else {
                     return Ok(Value::from_f64(
                         agent,
-                        gc,
                         (base as f64).powf(exponent as f64),
+                        gc,
                     ));
                 }
             } else if let Ok(exponent) = i32::try_from(exponent) {
                 let result = (base as f64).powi(exponent);
-                return Ok(Value::from_f64(agent, gc, result));
+                return Ok(Value::from_f64(agent, result, gc));
             } else {
                 let result = (base as f64).powf(exponent as f64);
-                return Ok(Value::from_f64(agent, gc, result));
+                return Ok(Value::from_f64(agent, result, gc));
             }
         }
         Ok(Number::exponentiate(agent, base, exponent).into_value())
@@ -1343,29 +1343,29 @@ impl MathObject {
 
     fn random(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Ok(Value::from_f64(
             agent,
-            gc.into_nogc(),
             rand::random::<f64>(),
+            gc.into_nogc(),
         ))
     }
 
     fn round(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let n = arguments.get(0);
         if n.is_integer() {
             return Ok(n);
         }
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), n)?;
+        let n = to_number(agent, n, gc.reborrow())?;
 
         // 2. If n is not finite or n is an integral Number, return n.
         if !n.is_finite(agent) || n.is_integer(agent) {
@@ -1385,17 +1385,17 @@ impl MathObject {
         }
 
         // 5. Return the integral Number closest to n, preferring the Number closer to +∞ in the case of a tie.
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.round()))
+        Ok(Value::from_f64(agent, n.round(), gc.into_nogc()))
     }
 
     fn sign(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
             return Ok(n.into_value());
@@ -1410,12 +1410,12 @@ impl MathObject {
 
     fn sin(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
@@ -1426,34 +1426,34 @@ impl MathObject {
             return Ok(Value::nan());
         }
         // 4. Return an implementation-approximated Number value representing the sine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.sin()))
+        Ok(Value::from_f64(agent, n.sin(), gc.into_nogc()))
     }
 
     fn sinh(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
             return Ok(n_number.into_value());
         }
         // 3. Return an implementation-approximated Number value representing the hyperbolic sine of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.sinh()))
+        Ok(Value::from_f64(agent, n.sinh(), gc.into_nogc()))
     }
 
     fn sqrt(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
@@ -1464,17 +1464,17 @@ impl MathObject {
             return Ok(Value::nan());
         }
         // 4. Return an implementation-approximated Number value representing the square root of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.sqrt()))
+        Ok(Value::from_f64(agent, n.sqrt(), gc.into_nogc()))
     }
 
     fn tan(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
@@ -1485,17 +1485,17 @@ impl MathObject {
             return Ok(Value::nan());
         }
         // 4. Return an implementation-approximated Number value representing the tangent of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.tan()))
+        Ok(Value::from_f64(agent, n.tan(), gc.into_nogc()))
     }
 
     fn tanh(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
@@ -1510,17 +1510,17 @@ impl MathObject {
             return Ok(Value::from(-1));
         }
         // 5. Return an implementation-approximated Number value representing the hyperbolic tangent of ℝ(n).
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.tanh()))
+        Ok(Value::from_f64(agent, n.tanh(), gc.into_nogc()))
     }
 
     fn trunc(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let n be ? ToNumber(x).
-        let n_number = to_number(agent, gc.reborrow(), arguments.get(0))?;
+        let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
@@ -1539,10 +1539,10 @@ impl MathObject {
         }
 
         // 5. Return the integral Number nearest n in the direction of +0𝔽.
-        Ok(Value::from_f64(agent, gc.into_nogc(), n.trunc()))
+        Ok(Value::from_f64(agent, n.trunc(), gc.into_nogc()))
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, gc: NoGcScope, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
@@ -1554,7 +1554,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::E).into_value()
+                        Number::from_f64(agent, consts::E, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1564,7 +1564,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN10.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::LN_10).into_value()
+                        Number::from_f64(agent, consts::LN_10, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1574,7 +1574,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::LN_2).into_value()
+                        Number::from_f64(agent, consts::LN_2, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1584,7 +1584,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG10E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::LOG10_E).into_value()
+                        Number::from_f64(agent, consts::LOG10_E, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1594,7 +1594,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG2E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::LOG2_E).into_value()
+                        Number::from_f64(agent, consts::LOG2_E, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1604,7 +1604,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.PI.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::PI).into_value()
+                        Number::from_f64(agent, consts::PI, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1614,7 +1614,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT1_2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::FRAC_1_SQRT_2).into_value()
+                        Number::from_f64(agent, consts::FRAC_1_SQRT_2, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1624,7 +1624,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, gc, consts::SQRT_2).into_value()
+                        Number::from_f64(agent, consts::SQRT_2, gc).into_value()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1699,7 +1699,7 @@ fn max_slow_path(
     // them to Numbers, reducing their value into the current limit.
     for arg in remaining_arguments.into_iter() {
         // a. Let n be ? ToNumber(arg).
-        let n = to_number(agent, gc.reborrow(), arg.get(agent))?;
+        let n = to_number(agent, arg.get(agent), gc.reborrow())?;
         // b. Append n to coerced.
 
         if let Number::Integer(int) = n {
@@ -1743,7 +1743,7 @@ fn min_slow_path(
     // them to Numbers, reducing their value into the current limit.
     for arg in remaining_arguments.into_iter() {
         // a. Let n be ? ToNumber(arg).
-        let number = to_number(agent, gc.reborrow(), arg.get(agent))?;
+        let number = to_number(agent, arg.get(agent), gc.reborrow())?;
         // b. Append n to coerced.
 
         if let Number::Integer(int) = number {

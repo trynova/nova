@@ -99,24 +99,24 @@ impl Builtin for FunctionPrototypeHasInstance {
 }
 
 impl FunctionPrototype {
-    fn behaviour(_: &mut Agent, _: GcScope<'_, '_>, _: Value, _: ArgumentsList) -> JsResult<Value> {
+    fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList, _: GcScope<'_, '_>) -> JsResult<Value> {
         Ok(Value::Undefined)
     }
 
     /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
     fn apply(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
+                gc.nogc(),
             ));
         };
         let this_arg = args.get(0);
@@ -125,14 +125,14 @@ impl FunctionPrototype {
             // 3. If argArray is either undefined or null, then
             //   a. TODO: Perform PrepareForTailCall().
             //   b. Return ? Call(func, thisArg).
-            return call_function(agent, gc, func, this_arg, None);
+            return call_function(agent, func, this_arg, None, gc);
         }
         // 4. Let argList be ? CreateListFromArrayLike(argArray).
-        let args = create_list_from_array_like(agent, gc.reborrow(), arg_array)?;
+        let args = create_list_from_array_like(agent, arg_array, gc.reborrow())?;
         let args_list = ArgumentsList(&args);
         // 5. TODO: Perform PrepareForTailCall().
         // 6.Return ? Call(func, thisArg, argList).
-        call_function(agent, gc, func, this_arg, Some(args_list))
+        call_function(agent, func, this_arg, Some(args_list), gc)
     }
 
     /// ### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
@@ -149,9 +149,9 @@ impl FunctionPrototype {
     /// > subsequent calls to `F`.
     fn bind(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let this_arg = args.get(0);
         let args = if args.len() > 1 { &args[1..] } else { &[] };
@@ -160,30 +160,30 @@ impl FunctionPrototype {
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
         let Some(target) = is_callable(target) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot bind a non-callable object",
+                gc.nogc(),
             ));
         };
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
-        let f = bound_function_create(agent, gc.reborrow(), target, this_arg, args)?;
+        let f = bound_function_create(agent, target, this_arg, args, gc.reborrow())?;
         // 4. Let L be 0.
         let mut l = 0;
         // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
         let target_has_length = has_own_property(
             agent,
-            gc.reborrow(),
             target.into_object(),
             BUILTIN_STRING_MEMORY.length.into(),
+            gc.reborrow(),
         )?;
         // 6. If targetHasLength is true, then
         if target_has_length {
             // a. Let targetLen be ? Get(Target, "length").
             let target_len = get(
                 agent,
-                gc.reborrow(),
                 target,
                 BUILTIN_STRING_MEMORY.length.into(),
+                gc.reborrow(),
             )?;
             // b. If targetLen is a Number, then
             if let Ok(target_len) = Number::try_from(target_len) {
@@ -208,8 +208,8 @@ impl FunctionPrototype {
                             // 1. Let targetLenAsInt be ! ToIntegerOrInfinity(targetLen).
                             let target_len_as_int = to_integer_or_infinity(
                                 agent,
-                                gc.reborrow(),
                                 target_len.into_value(),
+                                gc.reborrow(),
                             )
                             .unwrap()
                             .into_i64();
@@ -228,19 +228,19 @@ impl FunctionPrototype {
         // 8. Let targetName be ? Get(Target, "name").
         let target_name = get(
             agent,
-            gc.reborrow(),
             target,
             BUILTIN_STRING_MEMORY.name.into(),
+            gc.reborrow(),
         )?;
         // 9. If targetName is not a String, set targetName to the empty String.
         let target_name = String::try_from(target_name).unwrap_or(String::EMPTY_STRING);
         // 10. Perform SetFunctionName(F, targetName, "bound").
         set_function_name(
             agent,
-            gc.nogc(),
             f,
             target_name.into(),
             Some(BUILTIN_STRING_MEMORY.bound),
+            gc.nogc(),
         );
         // 11. Return F.
 
@@ -249,36 +249,36 @@ impl FunctionPrototype {
 
     fn call(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let Some(func) = is_callable(this_value) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
+                gc.nogc(),
             ));
         };
         // TODO: PrepareForTailCall
         let this_arg = args.get(0);
         let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });
-        call_function(agent, gc, func, this_arg, Some(args))
+        call_function(agent, func, this_arg, Some(args), gc)
     }
 
     fn to_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Not a callable value",
+                gc.nogc(),
             ));
         };
 
@@ -293,7 +293,7 @@ impl FunctionPrototype {
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
                     .to_string();
-                Ok(Value::from_string(agent, gc.nogc(), source_text))
+                Ok(Value::from_string(agent, source_text, gc.nogc()))
             }
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.
@@ -319,20 +319,20 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_string(agent, gc.nogc(), initial_name))
+                Ok(Value::from_string(agent, initial_name, gc.nogc()))
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(_) => Ok(Value::from_static_str(
                 agent,
-                gc.nogc(),
                 "class { [ native code ] }",
+                gc.nogc(),
             )),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
                 Ok(Value::from_static_str(
                     agent,
-                    gc.nogc(),
                     "function () { [ native code ] }",
+                    gc.nogc(),
                 ))
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
@@ -346,13 +346,13 @@ impl FunctionPrototype {
 
     fn has_instance(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let v = args.get(0);
         let f = this_value;
-        ordinary_has_instance(agent, gc, f, v).map(|result| result.into())
+        ordinary_has_instance(agent, f, v, gc).map(|result| result.into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -414,11 +414,11 @@ impl BuiltinIntrinsic for ThrowTypeError {
 impl ThrowTypeError {
     fn behaviour(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Err(agent.throw_exception_with_static_message(gc.nogc(),ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"))
+        Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

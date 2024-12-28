@@ -194,7 +194,7 @@ impl Function {
     }
 
     pub fn scope<'a>(self, agent: &mut Agent, gc: NoGcScope<'_, 'a>) -> Scoped<'a, Function> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
     pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
@@ -288,17 +288,17 @@ impl InternalMethods for Function {
     fn try_set_prototype_of(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         prototype: Option<Object>,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self {
-            Function::BoundFunction(x) => x.try_set_prototype_of(agent, gc, prototype),
-            Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, gc, prototype),
-            Function::ECMAScriptFunction(x) => x.try_set_prototype_of(agent, gc, prototype),
+            Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
+            Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
+            Function::ECMAScriptFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_set_prototype_of(agent, gc, prototype),
+            Function::BuiltinConstructorFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_set_prototype_of(agent, gc, prototype)
+                x.try_set_prototype_of(agent, prototype, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -334,19 +334,19 @@ impl InternalMethods for Function {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         match self {
-            Function::BoundFunction(x) => x.try_get_own_property(agent, gc, property_key),
-            Function::BuiltinFunction(x) => x.try_get_own_property(agent, gc, property_key),
-            Function::ECMAScriptFunction(x) => x.try_get_own_property(agent, gc, property_key),
+            Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.try_get_own_property(agent, property_key, gc),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_get_own_property(agent, gc, property_key)
+                x.try_get_own_property(agent, property_key, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_get_own_property(agent, gc, property_key)
+                x.try_get_own_property(agent, property_key, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -356,26 +356,26 @@ impl InternalMethods for Function {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self {
             Function::BoundFunction(x) => {
-                x.try_define_own_property(agent, gc, property_key, property_descriptor)
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Function::BuiltinFunction(x) => {
-                x.try_define_own_property(agent, gc, property_key, property_descriptor)
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Function::ECMAScriptFunction(x) => {
-                x.try_define_own_property(agent, gc, property_key, property_descriptor)
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_define_own_property(agent, gc, property_key, property_descriptor)
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_define_own_property(agent, gc, property_key, property_descriptor)
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -385,17 +385,17 @@ impl InternalMethods for Function {
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self {
-            Function::BoundFunction(x) => x.try_has_property(agent, gc, property_key),
-            Function::BuiltinFunction(x) => x.try_has_property(agent, gc, property_key),
-            Function::ECMAScriptFunction(x) => x.try_has_property(agent, gc, property_key),
+            Function::BoundFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_has_property(agent, gc, property_key),
+            Function::BuiltinConstructorFunction(x) => x.try_has_property(agent, property_key, gc),
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_has_property(agent, gc, property_key)
+                x.try_has_property(agent, property_key, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -405,19 +405,19 @@ impl InternalMethods for Function {
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         match self {
-            Function::BoundFunction(x) => x.internal_has_property(agent, gc, property_key),
-            Function::BuiltinFunction(x) => x.internal_has_property(agent, gc, property_key),
-            Function::ECMAScriptFunction(x) => x.internal_has_property(agent, gc, property_key),
+            Function::BoundFunction(x) => x.internal_has_property(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.internal_has_property(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.internal_has_property(agent, property_key, gc),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_has_property(agent, gc, property_key)
+                x.internal_has_property(agent, property_key, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_has_property(agent, gc, property_key)
+                x.internal_has_property(agent, property_key, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -427,18 +427,18 @@ impl InternalMethods for Function {
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
         match self {
-            Function::BoundFunction(x) => x.try_get(agent, gc, property_key, receiver),
-            Function::BuiltinFunction(x) => x.try_get(agent, gc, property_key, receiver),
-            Function::ECMAScriptFunction(x) => x.try_get(agent, gc, property_key, receiver),
+            Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_get(agent, gc, property_key, receiver),
+            Function::BuiltinConstructorFunction(x) => x.try_get(agent, property_key, receiver, gc),
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_get(agent, gc, property_key, receiver)
+                x.try_get(agent, property_key, receiver, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -448,20 +448,20 @@ impl InternalMethods for Function {
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         match self {
-            Function::BoundFunction(x) => x.internal_get(agent, gc, property_key, receiver),
-            Function::BuiltinFunction(x) => x.internal_get(agent, gc, property_key, receiver),
-            Function::ECMAScriptFunction(x) => x.internal_get(agent, gc, property_key, receiver),
+            Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
+            Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver, gc),
+            Function::ECMAScriptFunction(x) => x.internal_get(agent, property_key, receiver, gc),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_get(agent, gc, property_key, receiver)
+                x.internal_get(agent, property_key, receiver, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_get(agent, gc, property_key, receiver)
+                x.internal_get(agent, property_key, receiver, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -471,21 +471,21 @@ impl InternalMethods for Function {
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self {
-            Function::BoundFunction(x) => x.try_set(agent, gc, property_key, value, receiver),
-            Function::BuiltinFunction(x) => x.try_set(agent, gc, property_key, value, receiver),
-            Function::ECMAScriptFunction(x) => x.try_set(agent, gc, property_key, value, receiver),
+            Function::BoundFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
+            Function::BuiltinFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
+            Function::ECMAScriptFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.try_set(agent, gc, property_key, value, receiver)
+                x.try_set(agent, property_key, value, receiver, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.try_set(agent, gc, property_key, value, receiver)
+                x.try_set(agent, property_key, value, receiver, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -495,25 +495,25 @@ impl InternalMethods for Function {
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         match self {
-            Function::BoundFunction(x) => x.internal_set(agent, gc, property_key, value, receiver),
+            Function::BoundFunction(x) => x.internal_set(agent, property_key, value, receiver, gc),
             Function::BuiltinFunction(x) => {
-                x.internal_set(agent, gc, property_key, value, receiver)
+                x.internal_set(agent, property_key, value, receiver, gc)
             }
             Function::ECMAScriptFunction(x) => {
-                x.internal_set(agent, gc, property_key, value, receiver)
+                x.internal_set(agent, property_key, value, receiver, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_set(agent, gc, property_key, value, receiver)
+                x.internal_set(agent, property_key, value, receiver, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_set(agent, gc, property_key, value, receiver)
+                x.internal_set(agent, property_key, value, receiver, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -523,16 +523,16 @@ impl InternalMethods for Function {
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match self {
-            Function::BoundFunction(x) => x.try_delete(agent, gc, property_key),
-            Function::BuiltinFunction(x) => x.try_delete(agent, gc, property_key),
-            Function::ECMAScriptFunction(x) => x.try_delete(agent, gc, property_key),
+            Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(x) => x.try_delete(agent, gc, property_key),
-            Function::BuiltinPromiseResolvingFunction(x) => x.try_delete(agent, gc, property_key),
+            Function::BuiltinConstructorFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
@@ -558,24 +558,24 @@ impl InternalMethods for Function {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_argument: Value,
         arguments_list: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         match self {
-            Function::BoundFunction(x) => x.internal_call(agent, gc, this_argument, arguments_list),
+            Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments_list, gc),
             Function::BuiltinFunction(x) => {
-                x.internal_call(agent, gc, this_argument, arguments_list)
+                x.internal_call(agent, this_argument, arguments_list, gc)
             }
             Function::ECMAScriptFunction(x) => {
-                x.internal_call(agent, gc, this_argument, arguments_list)
+                x.internal_call(agent, this_argument, arguments_list, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_call(agent, gc, this_argument, arguments_list)
+                x.internal_call(agent, this_argument, arguments_list, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_call(agent, gc, this_argument, arguments_list)
+                x.internal_call(agent, this_argument, arguments_list, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -585,26 +585,26 @@ impl InternalMethods for Function {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         arguments_list: ArgumentsList,
         new_target: Function,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         match self {
             Function::BoundFunction(x) => {
-                x.internal_construct(agent, gc, arguments_list, new_target)
+                x.internal_construct(agent, arguments_list, new_target, gc)
             }
             Function::BuiltinFunction(x) => {
-                x.internal_construct(agent, gc, arguments_list, new_target)
+                x.internal_construct(agent, arguments_list, new_target, gc)
             }
             Function::ECMAScriptFunction(x) => {
-                x.internal_construct(agent, gc, arguments_list, new_target)
+                x.internal_construct(agent, arguments_list, new_target, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_construct(agent, gc, arguments_list, new_target)
+                x.internal_construct(agent, arguments_list, new_target, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_construct(agent, gc, arguments_list, new_target)
+                x.internal_construct(agent, arguments_list, new_target, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -644,11 +644,11 @@ impl Function {
     pub fn call(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_argument: Value,
         args: &[Value],
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        self.internal_call(agent, gc, this_argument, ArgumentsList(args))
+        self.internal_call(agent, this_argument, ArgumentsList(args), gc)
     }
 }
 

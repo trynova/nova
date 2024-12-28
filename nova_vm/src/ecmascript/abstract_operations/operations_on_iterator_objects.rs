@@ -37,28 +37,28 @@ pub(crate) struct IteratorRecord {
 /// completion.
 pub(crate) fn get_iterator_from_method(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     obj: Value,
     method: Function,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<IteratorRecord> {
     // 1. Let iterator be ? Call(method, obj).
-    let iterator = call(agent, gc.reborrow(), method.into(), obj, None)?;
+    let iterator = call(agent, method.into(), obj, None, gc.reborrow())?;
 
     // 2. If iterator is not an Object, throw a TypeError exception.
-    let Ok(iterator) = to_object(agent, gc.nogc(), iterator) else {
+    let Ok(iterator) = to_object(agent, iterator, gc.nogc()) else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "Iterator is not an object",
+            gc.nogc(),
         ));
     };
 
     // 3. Let nextMethod be ? Get(iterator, "next").
     let next_method = get(
         agent,
-        gc.reborrow(),
         iterator,
         BUILTIN_STRING_MEMORY.next.into(),
+        gc.reborrow(),
     )?;
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
@@ -77,18 +77,18 @@ pub(crate) fn get_iterator_from_method(
 /// completion containing an Iterator Record or a throw completion.
 pub(crate) fn get_iterator(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     obj: Value,
     is_async: bool,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<IteratorRecord> {
     // 1. If kind is async, then
     let method = if is_async {
         // a. Let method be ? GetMethod(obj, @@asyncIterator).
         let method = get_method(
             agent,
-            gc.reborrow(),
             obj,
             PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
+            gc.reborrow(),
         )?;
 
         // b. If method is undefined, then
@@ -96,22 +96,22 @@ pub(crate) fn get_iterator(
             // i. Let syncMethod be ? GetMethod(obj, @@iterator).
             let Some(sync_method) = get_method(
                 agent,
-                gc.reborrow(),
                 obj,
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                gc.reborrow(),
             )?
             else {
                 // ii. If syncMethod is undefined, throw a TypeError exception.
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "No iterator on object",
+                    gc.nogc(),
                 ));
             };
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
             let _sync_iterator_record =
-                get_iterator_from_method(agent, gc.reborrow(), obj, sync_method)?;
+                get_iterator_from_method(agent, obj, sync_method, gc.reborrow())?;
 
             // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
             todo!("Implement create_async_from_sync_iterator(sync_iterator_record)")
@@ -123,23 +123,23 @@ pub(crate) fn get_iterator(
         // a. Let method be ? GetMethod(obj, @@iterator).
         get_method(
             agent,
-            gc.reborrow(),
             obj,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+            gc.reborrow(),
         )?
     };
 
     // 3. If method is undefined, throw a TypeError exception.
     let Some(method) = method else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "Iterator method cannot be undefined",
+            gc.nogc(),
         ));
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
-    get_iterator_from_method(agent, gc.reborrow(), obj, method)
+    get_iterator_from_method(agent, obj, method, gc.reborrow())
 }
 
 /// ### [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
@@ -150,9 +150,9 @@ pub(crate) fn get_iterator(
 /// completion.
 pub(crate) fn iterator_next(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iterator_record: &IteratorRecord,
     value: Option<Value>,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
     // 1. If value is not present, then
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
@@ -160,12 +160,12 @@ pub(crate) fn iterator_next(
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « value »).
     let result = call(
         agent,
-        gc.reborrow(),
         iterator_record.next_method,
         iterator_record.iterator.into(),
         value
             .as_ref()
             .map(|data| ArgumentsList(std::slice::from_ref(data))),
+        gc.reborrow(),
     )?;
 
     // 3. If result is not an Object, throw a TypeError exception.
@@ -173,9 +173,9 @@ pub(crate) fn iterator_next(
     result
         .try_into()
         .or(Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "The iterator result was not an object",
+            gc.nogc(),
         )))
 }
 
@@ -186,15 +186,15 @@ pub(crate) fn iterator_next(
 /// throw completion.
 pub(crate) fn iterator_complete(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iter_result: Object,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(
         agent,
-        gc.reborrow(),
         iter_result,
         BUILTIN_STRING_MEMORY.done.into(),
+        gc.reborrow(),
     )?;
     Ok(to_boolean(agent, done))
 }
@@ -206,15 +206,15 @@ pub(crate) fn iterator_complete(
 /// language value or a throw completion.
 pub(crate) fn iterator_value(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iter_result: Object,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Return ? Get(iterResult, "value").
     get(
         agent,
-        gc.reborrow(),
         iter_result,
         BUILTIN_STRING_MEMORY.value.into(),
+        gc.reborrow(),
     )
 }
 
@@ -232,14 +232,14 @@ pub(crate) fn iterator_value(
 /// > where the false state is None. That way we can pass the Object as is.
 pub(crate) fn iterator_step(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iterator_record: &IteratorRecord,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Option<Object>> {
     // 1. Let result be ? IteratorNext(iteratorRecord).
-    let result = iterator_next(agent, gc.reborrow(), iterator_record, None)?;
+    let result = iterator_next(agent, iterator_record, None, gc.reborrow())?;
 
     // 2. Let done be ? IteratorComplete(result).
-    let done = iterator_complete(agent, gc.reborrow(), result)?;
+    let done = iterator_complete(agent, result, gc.reborrow())?;
 
     // 3. If done is true, return false.
     if done {
@@ -260,11 +260,11 @@ pub(crate) fn iterator_step(
 /// a next value is available.
 pub(crate) fn iterator_step_value(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iterator_record: &mut IteratorRecord,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Option<Value>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
-    let result = iterator_next(agent, gc.reborrow(), iterator_record, None);
+    let result = iterator_next(agent, iterator_record, None, gc.reborrow());
 
     // 2. If result is a throw completion, then
     let result = match result {
@@ -280,7 +280,7 @@ pub(crate) fn iterator_step_value(
     };
 
     // 4. Let done be Completion(IteratorComplete(result)).
-    let done = iterator_complete(agent, gc.reborrow(), result);
+    let done = iterator_complete(agent, result, gc.reborrow());
 
     // 5. If done is a throw completion, then
     let done = match done {
@@ -307,9 +307,9 @@ pub(crate) fn iterator_step_value(
     // 8. Let value be Completion(Get(result, "value")).
     let value = get(
         agent,
-        gc.reborrow(),
         result,
         BUILTIN_STRING_MEMORY.value.into(),
+        gc.reborrow(),
     );
 
     // 9. If value is a throw completion, then
@@ -331,9 +331,9 @@ pub(crate) fn iterator_step_value(
 /// state.
 pub(crate) fn iterator_close<T>(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iterator_record: &IteratorRecord,
     completion: JsResult<T>,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<T> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -341,9 +341,9 @@ pub(crate) fn iterator_close<T>(
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
     let inner_result = get_method(
         agent,
-        gc.reborrow(),
         iterator.into_value(),
         BUILTIN_STRING_MEMORY.r#return.into(),
+        gc.reborrow(),
     );
     // 4. If innerResult.[[Type]] is normal, then
     let inner_result = match inner_result {
@@ -356,10 +356,10 @@ pub(crate) fn iterator_close<T>(
             // c. Set innerResult to Completion(Call(return, iterator)).
             call_function(
                 agent,
-                gc.reborrow(),
                 return_function,
                 iterator.into_value(),
                 None,
+                gc.reborrow(),
             )
         }
         Err(inner_result) => Err(inner_result),
@@ -371,9 +371,9 @@ pub(crate) fn iterator_close<T>(
     // 7. If innerResult.[[Value]] is not an Object, throw a TypeError exception.
     if !inner_result.is_object() {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "Invalid iterator 'return' method return value",
+            gc.nogc(),
         ));
     }
     // 8. Return ? completion.
@@ -389,9 +389,9 @@ pub(crate) fn iterator_close<T>(
 /// state.
 pub(crate) fn try_iterator_close<T>(
     agent: &mut Agent,
-    gc: NoGcScope<'_, '_>,
     iterator_record: &IteratorRecord,
     completion: JsResult<T>,
+    gc: NoGcScope<'_, '_>,
 ) -> Option<JsResult<T>> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -399,9 +399,9 @@ pub(crate) fn try_iterator_close<T>(
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
     let inner_result = try_get_method(
         agent,
-        gc,
         iterator.into_value(),
         BUILTIN_STRING_MEMORY.r#return.into(),
+        gc,
     )?;
     // 4. If innerResult.[[Type]] is normal, then
     match inner_result {
@@ -433,14 +433,14 @@ pub(crate) fn try_iterator_close<T>(
 #[inline(always)]
 pub(crate) fn if_abrupt_close_iterator<T>(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     value: JsResult<T>,
     iterator_record: &IteratorRecord,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<T> {
     // 1. Assert: value is a Completion Record.
     // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
     if value.is_err() {
-        iterator_close(agent, gc, iterator_record, value)
+        iterator_close(agent, iterator_record, value, gc)
     } else {
         // 3. Else, set value to value.[[Value]].
         value
@@ -456,9 +456,9 @@ pub(crate) fn if_abrupt_close_iterator<T>(
 /// completed state.
 pub(crate) fn async_iterator_close(
     _agent: &mut Agent,
-    _gc: GcScope<'_, '_>,
     _iterator_record: &IteratorRecord,
     _completion: JsResult<Value>,
+    _gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
@@ -508,8 +508,8 @@ pub(crate) fn create_iter_result_object(agent: &mut Agent, value: Value, done: b
 /// successive elements of list.
 pub(crate) fn create_list_iterator_record(
     _agent: &mut Agent,
-    _gc: GcScope<'_, '_>,
     _list: &[Value],
+    _gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
     // a. For each element E of list, do
@@ -527,8 +527,8 @@ pub(crate) fn create_list_iterator_record(
 /// of ECMAScript language values or a throw completion.
 pub(crate) fn iterator_to_list(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     iterator_record: &IteratorRecord,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Vec<Value>> {
     // 1. Let values be a new empty List.
     let mut values = Vec::new();
@@ -537,10 +537,10 @@ pub(crate) fn iterator_to_list(
     // 3. Repeat, while next is not false,
     // a. Set next to ? IteratorStep(iteratorRecord).
     // b. If next is not false, then
-    while let Some(next) = iterator_step(agent, gc.reborrow(), iterator_record)? {
+    while let Some(next) = iterator_step(agent, iterator_record, gc.reborrow())? {
         // i. Let nextValue be ? IteratorValue(next).
         // ii. Append nextValue to values.
-        values.push(iterator_value(agent, gc.reborrow(), next)?);
+        values.push(iterator_value(agent, next, gc.reborrow())?);
     }
 
     // 4. Return values.
