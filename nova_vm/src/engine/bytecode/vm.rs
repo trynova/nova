@@ -23,7 +23,7 @@ use crate::{
                 copy_data_properties_into_object, create_data_property_or_throw,
                 define_property_or_throw, get_method, has_property, ordinary_has_instance, set,
                 try_copy_data_properties_into_object, try_create_data_property,
-                try_create_data_property_or_throw, try_define_property_or_throw, try_get,
+                try_create_data_property_or_throw, try_define_property_or_throw,
             },
             testing_and_comparison::{
                 is_callable, is_constructor, is_less_than, is_loosely_equal, is_strictly_equal,
@@ -41,7 +41,7 @@ use crate::{
             OrdinaryFunctionCreateParams,
         },
         execution::{
-            agent::{resolve_binding, try_resolve_binding, ExceptionType, JsError},
+            agent::{resolve_binding, ExceptionType, JsError},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
             JsResult, ProtoIntrinsics,
@@ -121,7 +121,7 @@ pub(crate) struct Vm {
     ip: usize,
     stack: Vec<Value>,
     reference_stack: Vec<Reference<'static>>,
-    iterator_stack: Vec<VmIterator<'static>>,
+    iterator_stack: Vec<VmIterator>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
@@ -143,7 +143,7 @@ pub(crate) struct SuspendedVm {
     /// Note: Iterator stack is non-empty only if the code awaits inside a
     /// for-in or for-of loop. This means that often no heap data clone is
     /// required.
-    iterator_stack: Box<[VmIterator<'static>]>,
+    iterator_stack: Box<[VmIterator]>,
     /// Note: Exception jump stack is non-empty only if the code awaits inside
     /// a try block. This means that often no heap data clone is required.
     exception_jump_target_stack: Box<[ExceptionJumpTarget]>,
@@ -203,7 +203,7 @@ impl<'a> Vm {
                 )
             },
             iterator_stack: unsafe {
-                std::mem::transmute::<Box<[VmIterator<'a>]>, Box<[VmIterator<'static>]>>(
+                std::mem::transmute::<Box<[VmIterator]>, Box<[VmIterator]>>(
                     self.iterator_stack.into_boxed_slice(),
                 )
             },
@@ -1851,9 +1851,8 @@ impl<'a> Vm {
                     // Var binding, var [] = a;
                     None
                 };
-                let gc = gc.into_nogc();
-                let iterator = vm.iterator_stack.pop().unwrap().bind(gc);
-                execute_simple_array_binding(agent, gc, vm, executable, iterator, env)?
+                let iterator = vm.iterator_stack.pop().unwrap().bind(gc.nogc());
+                execute_simple_array_binding(agent, gc.reborrow(), vm, executable, iterator, env)?
             }
             Instruction::BeginSimpleObjectBindingPattern => {
                 let lexical = instr.args[0].unwrap() == 1;
@@ -1871,9 +1870,8 @@ impl<'a> Vm {
                     // Var binding, var {} = a;
                     None
                 };
-                let gc = gc.into_nogc();
-                let object = to_object(agent, gc, vm.stack.pop().unwrap())?;
-                execute_simple_object_binding(agent, gc, vm, executable, object, env)?
+                let object = to_object(agent, gc.nogc(), vm.stack.pop().unwrap())?;
+                execute_simple_object_binding(agent, gc.reborrow(), vm, executable, object, env)?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
@@ -1989,7 +1987,7 @@ impl<'a> Vm {
             Instruction::GetIteratorSync => {
                 let expr_value = vm.result.take().unwrap();
                 vm.iterator_stack
-                    .push(VmIterator::from_value(agent, gc.nogc(), expr_value)?.unbind());
+                    .push(VmIterator::from_value(agent, gc.reborrow(), expr_value)?.unbind());
             }
             Instruction::GetIteratorAsync => {
                 todo!();
@@ -1999,8 +1997,9 @@ impl<'a> Vm {
                     .iterator_stack
                     .last_mut()
                     .unwrap()
-                    .bind_mut(gc.nogc())
-                    .step_value(agent, gc.nogc());
+                    // TODO: Handle potential GC.
+                    // .bind_mut(gc.nogc())
+                    .step_value(agent, gc.reborrow());
                 if let Ok(result) = result {
                     vm.result = result;
                     if result.is_none() {
@@ -2014,8 +2013,10 @@ impl<'a> Vm {
                 }
             }
             Instruction::IteratorStepValueOrUndefined => {
-                let iterator = vm.iterator_stack.last_mut().unwrap().bind_mut(gc.nogc());
-                let result = iterator.step_value(agent, gc.nogc());
+                // TODO: Handle potential GC.
+                let iterator = vm.iterator_stack.last_mut().unwrap();
+                // .bind_mut(gc.nogc());
+                let result = iterator.step_value(agent, gc.reborrow());
                 if let Ok(result) = result {
                     vm.result = Some(result.unwrap_or(Value::Undefined));
                     if result.is_none() {
@@ -2034,7 +2035,7 @@ impl<'a> Vm {
                 let array = array_create(agent, gc.nogc(), 0, capacity, None)?;
 
                 let mut idx: u32 = 0;
-                while let Some(value) = iterator.step_value(agent, gc.nogc())? {
+                while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
                     let key = PropertyKey::Integer(idx.into());
                     try_create_data_property(agent, gc.nogc(), array, key, value).unwrap();
                     idx += 1;
