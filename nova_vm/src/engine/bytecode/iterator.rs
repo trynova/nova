@@ -33,7 +33,7 @@ impl VmIterator {
     /// the VmIterator as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> VmIterator {
-        unsafe { std::mem::transmute::<VmIterator, VmIterator>(self) }
+        self
     }
 
     // Bind this VmIterator to the garbage collection lifetime. This enables Rust's
@@ -45,12 +45,8 @@ impl VmIterator {
     // let number = number.bind(&gc);
     // ```
     // to make sure that the unbound VmIterator cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> VmIterator {
-        unsafe { std::mem::transmute::<VmIterator, VmIterator>(self) }
-    }
-
-    pub fn bind_mut<'gc>(&mut self, _: NoGcScope<'gc, '_>) -> &'gc mut VmIterator {
-        unsafe { std::mem::transmute::<&mut VmIterator, &'gc mut VmIterator>(self) }
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> VmIterator {
+        self
     }
 
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)

@@ -202,11 +202,7 @@ impl<'a> Vm {
                     self.reference_stack.into_boxed_slice(),
                 )
             },
-            iterator_stack: unsafe {
-                std::mem::transmute::<Box<[VmIterator]>, Box<[VmIterator]>>(
-                    self.iterator_stack.into_boxed_slice(),
-                )
-            },
+            iterator_stack: self.iterator_stack.into_boxed_slice(),
             exception_jump_target_stack: self.exception_jump_target_stack.into_boxed_slice(),
         }
     }
@@ -1998,7 +1994,6 @@ impl<'a> Vm {
                     .last_mut()
                     .unwrap()
                     // TODO: Handle potential GC.
-                    // .bind_mut(gc.nogc())
                     .step_value(agent, gc.reborrow());
                 if let Ok(result) = result {
                     vm.result = result;
@@ -2015,7 +2010,6 @@ impl<'a> Vm {
             Instruction::IteratorStepValueOrUndefined => {
                 // TODO: Handle potential GC.
                 let iterator = vm.iterator_stack.last_mut().unwrap();
-                // .bind_mut(gc.nogc());
                 let result = iterator.step_value(agent, gc.reborrow());
                 if let Ok(result) = result {
                     vm.result = Some(result.unwrap_or(Value::Undefined));
