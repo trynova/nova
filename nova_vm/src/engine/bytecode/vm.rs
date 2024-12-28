@@ -320,7 +320,7 @@ impl<'a> Vm {
                         .vm_stack
                         // SAFETY: Pointer to self is never null.
                         .push(vm);
-                    heap_gc(agent, gc.reborrow(), &mut root_realms);
+                    heap_gc(agent, &mut root_realms, gc.reborrow());
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                 }
