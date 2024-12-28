@@ -19,8 +19,8 @@ use crate::{
 
 pub(crate) fn base_class_default_constructor(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     new_target: Object,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
     // ii. If NewTarget is undefined, throw a TypeError exception.
     // Note: We've already checked this at an earlier level.
@@ -34,12 +34,12 @@ pub(crate) fn base_class_default_constructor(
     // 2. Let result be ? OrdinaryCreateFromConstructor(NewTarget, "%Object.prototype%").
     let result = ordinary_create_from_constructor(
         agent,
-        gc.reborrow(),
         Function::try_from(new_target).unwrap(),
         ProtoIntrinsics::Object,
+        gc.reborrow(),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, gc, result, f)?;
+    initialize_instance_elements(agent, result, f, gc)?;
 
     // vii. Return result.
     Ok(result)
@@ -47,9 +47,9 @@ pub(crate) fn base_class_default_constructor(
 
 pub(crate) fn derived_class_default_constructor(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     args: ArgumentsList,
     new_target: Object,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
     // i. Let args be the List of arguments that was passed to this function by [[Call]] or [[Construct]].
     // ii. If NewTarget is undefined, throw a TypeError exception.
@@ -69,21 +69,21 @@ pub(crate) fn derived_class_default_constructor(
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "Expected callable function",
+            gc.nogc(),
         ));
     };
     // 4. Let result be ? Construct(func, args, NewTarget).
     let result = construct(
         agent,
-        gc.reborrow(),
         func,
         Some(args),
         Some(Function::try_from(new_target).unwrap()),
+        gc.reborrow(),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, gc, result, f)?;
+    initialize_instance_elements(agent, result, f, gc)?;
 
     // vii. Return result.
     Ok(result)

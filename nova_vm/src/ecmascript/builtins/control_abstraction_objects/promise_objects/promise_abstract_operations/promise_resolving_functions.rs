@@ -121,8 +121,8 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        _gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         Some(function_internal_get_own_property(
             self,
@@ -134,86 +134,86 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         Some(function_internal_define_own_property(
             self,
             agent,
-            gc,
             property_key,
             property_descriptor,
+            gc,
         ))
     }
 
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_has_property(self, agent, gc, property_key)
+        function_try_has_property(self, agent, property_key, gc)
     }
 
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_has_property(self, agent, gc, property_key)
+        function_internal_has_property(self, agent, property_key, gc)
     }
 
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
-        function_try_get(self, agent, gc, property_key, receiver)
+        function_try_get(self, agent, property_key, receiver, gc)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc, property_key, receiver)
+        function_internal_get(self, agent, property_key, receiver, gc)
     }
 
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_set(self, agent, gc, property_key, value, receiver)
+        function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc, property_key, value, receiver)
+        function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        Some(function_internal_delete(self, agent, gc, property_key))
+        Some(function_internal_delete(self, agent, property_key, gc))
     }
 
     fn try_own_property_keys<'a>(
@@ -227,14 +227,14 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let arg = args.get(0);
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {
-            PromiseResolvingFunctionType::Resolve => promise_capability.resolve(agent, gc, arg),
+            PromiseResolvingFunctionType::Resolve => promise_capability.resolve(agent, arg, gc),
             PromiseResolvingFunctionType::Reject => promise_capability.reject(agent, arg),
         };
         Ok(Value::Undefined)

@@ -28,10 +28,10 @@ impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
 impl AggregateErrorConstructor {
     fn behaviour(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }

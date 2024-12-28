@@ -58,34 +58,34 @@ impl ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Constructor ArrayBuffer requires 'new'",
+                gc.nogc(),
             ));
         };
         // 2. Let byteLength be ? ToIndex(length).
-        let byte_length = to_index(agent, gc.reborrow(), arguments.get(0))? as u64;
+        let byte_length = to_index(agent, arguments.get(0), gc.reborrow())? as u64;
         // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
         let requested_max_byte_length = if arguments.len() > 1 {
-            get_array_buffer_max_byte_length_option(agent, gc.reborrow(), arguments.get(1))?
+            get_array_buffer_max_byte_length_option(agent, arguments.get(1), gc.reborrow())?
         } else {
             None
         };
         // 4. Return ? AllocateArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_array_buffer(
             agent,
-            gc.nogc(),
             Function::try_from(new_target).unwrap(),
             byte_length,
             requested_max_byte_length,
+            gc.nogc(),
         )
         .map(|ab| ab.into_value())
     }
@@ -93,9 +93,9 @@ impl ArrayBufferConstructor {
     /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
     fn is_view(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. If arg is not an Object, return false.
         // 2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
@@ -131,9 +131,9 @@ impl ArrayBufferConstructor {
     /// > `%Symbol.species%` property.
     fn species(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Return the this value.
         // The value of the "name" property of this function is "get [Symbol.species]".
@@ -161,8 +161,8 @@ impl ArrayBufferConstructor {
 /// completion.
 fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     options: Value,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Option<u64>> {
     // 1. If options is not an Object, return empty.
     let Ok(options) = Object::try_from(options) else {
@@ -171,15 +171,15 @@ fn get_array_buffer_max_byte_length_option(
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
     let max_byte_length = get(
         agent,
-        gc.reborrow(),
         options,
         BUILTIN_STRING_MEMORY.maxByteLength.into(),
+        gc.reborrow(),
     )?;
     // 3. If maxByteLength is undefined, return empty.
     if max_byte_length.is_undefined() {
         Ok(None)
     } else {
         // 4. Return ? ToIndex(maxByteLength).
-        Ok(Some(to_index(agent, gc, max_byte_length)? as u64))
+        Ok(Some(to_index(agent, max_byte_length, gc)? as u64))
     }
 }

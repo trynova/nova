@@ -42,8 +42,8 @@ impl Generator {
     pub(crate) fn resume(
         mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         value: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -52,9 +52,9 @@ impl Generator {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The generator is currently running",
+                    gc.nogc(),
                 ))
             }
             GeneratorState::Completed => {
@@ -82,16 +82,16 @@ impl Generator {
         // execution context.
         agent.execution_context_stack.push(execution_context);
 
-        let saved = Scoped::new(agent, gc.nogc(), self);
+        let saved = Scoped::new(agent, self, gc.nogc());
 
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
         let execution_result = match vm_or_args {
             VmOrArguments::Arguments(args) => {
-                Vm::execute(agent, gc.reborrow(), executable, Some(&args))
+                Vm::execute(agent, executable, Some(&args), gc.reborrow())
             }
-            VmOrArguments::Vm(vm) => vm.resume(agent, gc.reborrow(), executable, value),
+            VmOrArguments::Vm(vm) => vm.resume(agent, executable, value, gc.reborrow()),
         };
 
         self = saved.get(agent);
@@ -156,8 +156,8 @@ impl Generator {
     pub(crate) fn resume_throw(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         value: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
@@ -182,9 +182,9 @@ impl Generator {
             }
             GeneratorState::Executing => {
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::TypeError,
                     "The generator is currently running",
+                    gc.nogc(),
                 ));
             }
             GeneratorState::Completed => {
@@ -216,7 +216,7 @@ impl Generator {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume_throw(agent, gc.reborrow(), executable, value);
+        let execution_result = vm.resume_throw(agent, executable, value, gc.reborrow());
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running

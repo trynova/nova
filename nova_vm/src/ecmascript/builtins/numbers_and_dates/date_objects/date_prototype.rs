@@ -300,427 +300,427 @@ const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
 impl DatePrototype {
     fn get_date(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_day(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_full_year(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_hours(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_milliseconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_minutes(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_month(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_seconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_time(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_timezone_offset(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_date(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_day(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_full_year(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_hours(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_milliseconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_minutes(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_month(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn get_utc_seconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_date(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_full_year(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_hours(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_milliseconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_minutes(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_month(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_seconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_time(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_date(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_full_year(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_hours(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_milliseconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_minutes(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_month(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn set_utc_seconds(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn to_date_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn to_iso_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn to_json(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn to_locale_date_string(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn to_locale_string(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn to_locale_time_string(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn to_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn to_time_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn to_utc_string(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let _date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
 
     fn value_of(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let date_object = check_date_object(agent, gc.nogc(), this_value)?;
+        let date_object = check_date_object(agent, this_value, gc.nogc())?;
         let data = &agent[date_object].date;
         match data {
             Some(system_time) => {
@@ -771,9 +771,9 @@ impl DatePrototype {
     /// equivalent to "number".
     fn to_primitive(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let hint = arguments.get(0);
         // 1. Let O be the this value.
@@ -783,7 +783,7 @@ impl DatePrototype {
                 "{} is not an object",
                 this_value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
         // 3. If hint is either "string" or "default", then
         let try_first = if hint == BUILTIN_STRING_MEMORY.string.into_value()
@@ -802,10 +802,10 @@ impl DatePrototype {
                 "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
                 hint.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
-        ordinary_to_primitive(agent, gc.reborrow(), o, try_first).map(|result| result.into_value())
+        ordinary_to_primitive(agent, o, try_first, gc.reborrow()).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -867,13 +867,13 @@ impl DatePrototype {
 }
 
 #[inline(always)]
-fn check_date_object(agent: &mut Agent, gc: NoGcScope, this_value: Value) -> JsResult<Date> {
+fn check_date_object(agent: &mut Agent, this_value: Value, gc: NoGcScope) -> JsResult<Date> {
     match this_value {
         Value::Date(date) => Ok(date),
         _ => Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::TypeError,
             "this is not a Date object.",
+            gc,
         )),
     }
 }

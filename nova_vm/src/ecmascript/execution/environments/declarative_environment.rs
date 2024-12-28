@@ -253,10 +253,10 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope,
         name: String,
         value: Value,
         mut is_strict: bool,
+        gc: NoGcScope,
     ) -> JsResult<()> {
         let env_rec = &mut agent[self];
         // 1. If envRec does not have a binding for N, then
@@ -265,9 +265,9 @@ impl DeclarativeEnvironmentIndex {
             if is_strict {
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
                 return Err(agent.throw_exception(
-                    gc,
                     ExceptionType::ReferenceError,
                     error_message,
+                    gc,
                 ));
             }
 
@@ -293,7 +293,7 @@ impl DeclarativeEnvironmentIndex {
                 "Identifier '{}' has not been initialized.",
                 name.as_str(agent)
             );
-            return Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message));
+            return Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc));
         }
 
         // 4. Else if the binding for N in envRec is a mutable binding, then
@@ -312,7 +312,7 @@ impl DeclarativeEnvironmentIndex {
                     "Cannot assign to immutable identifier '{}' in strict mode.",
                     name.as_str(agent)
                 );
-                return Err(agent.throw_exception(gc, ExceptionType::TypeError, error_message));
+                return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc));
             }
         }
 
@@ -331,9 +331,9 @@ impl DeclarativeEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        gc: NoGcScope,
         name: String,
         is_strict: bool,
+        gc: NoGcScope,
     ) -> JsResult<Value> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
@@ -342,7 +342,7 @@ impl DeclarativeEnvironmentIndex {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
-                Err(agent.throw_exception(gc, ExceptionType::ReferenceError, error_message))
+                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
             },
             Ok,
         )

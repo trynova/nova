@@ -109,8 +109,8 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn try_has_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         n: String,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -118,7 +118,7 @@ impl ObjectEnvironmentIndex {
         let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from(n);
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
-        let found_binding = try_has_property(agent, gc, binding_object, name)?;
+        let found_binding = try_has_property(agent, binding_object, name, gc)?;
         // 3. If foundBinding is false, return false.
         if !found_binding {
             return Some(false);
@@ -130,14 +130,14 @@ impl ObjectEnvironmentIndex {
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
         let unscopables = try_get(
             agent,
-            gc,
             binding_object,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
+            gc,
         )?;
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = try_get(agent, gc, unscopables, name)?;
+            let blocked = try_get(agent, unscopables, name, gc)?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Some(!blocked)
@@ -156,8 +156,8 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn has_binding(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         n: String,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -165,7 +165,7 @@ impl ObjectEnvironmentIndex {
         let is_with_environment = env_rec.is_with_environment;
         let name = PropertyKey::from(n);
         // 2. Let foundBinding be ? HasProperty(bindingObject, N).
-        let found_binding = has_property(agent, gc.reborrow(), binding_object, name)?;
+        let found_binding = has_property(agent, binding_object, name, gc.reborrow())?;
         // 3. If foundBinding is false, return false.
         if !found_binding {
             return Ok(false);
@@ -177,14 +177,14 @@ impl ObjectEnvironmentIndex {
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
         let unscopables = get(
             agent,
-            gc.reborrow(),
             binding_object,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Unscopables.into()),
+            gc.reborrow(),
         )?;
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = get(agent, gc.reborrow(), unscopables, name)?;
+            let blocked = get(agent, unscopables, name, gc.reborrow())?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Ok(!blocked)
@@ -206,9 +206,9 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn try_create_mutable_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         n: String,
         d: bool,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -218,7 +218,6 @@ impl ObjectEnvironmentIndex {
         let n = PropertyKey::from(n);
         try_define_property_or_throw(
             agent,
-            gc,
             binding_object,
             n,
             PropertyDescriptor {
@@ -229,6 +228,7 @@ impl ObjectEnvironmentIndex {
                 enumerable: Some(true),
                 configurable: Some(d),
             },
+            gc,
         )
         // NOTE
         // Normally envRec will not have a binding for N but if it does, the
@@ -249,9 +249,9 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn create_mutable_binding(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         n: String,
         d: bool,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -260,7 +260,6 @@ impl ObjectEnvironmentIndex {
         let n = PropertyKey::from(n);
         define_property_or_throw(
             agent,
-            gc,
             binding_object,
             n,
             PropertyDescriptor {
@@ -271,6 +270,7 @@ impl ObjectEnvironmentIndex {
                 enumerable: Some(true),
                 configurable: Some(d),
             },
+            gc,
         )?;
         // 3. Return UNUSED.
         Ok(())
@@ -296,13 +296,13 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn try_initialize_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         n: String,
         v: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<JsResult<()>> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
-        self.try_set_mutable_binding(agent, gc, n, v, false)
+        self.try_set_mutable_binding(agent, n, v, false, gc)
         // NOTE
         // In this specification, all uses of CreateMutableBinding for Object
         // Environment Records are immediately followed by a call to
@@ -321,12 +321,12 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn initialize_binding(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         n: String,
         v: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
-        self.set_mutable_binding(agent, gc, n, v, false)?;
+        self.set_mutable_binding(agent, n, v, false, gc)?;
         // 2. Return UNUSED.
         Ok(())
         // NOTE
@@ -350,17 +350,17 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn try_set_mutable_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         n: String,
         v: Value,
         s: bool,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let n = PropertyKey::from(n);
-        let still_exists = try_has_property(agent, gc, binding_object, n)?;
+        let still_exists = try_has_property(agent, binding_object, n, gc)?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
             let error_message = format!(
@@ -368,14 +368,14 @@ impl ObjectEnvironmentIndex {
                 n.as_display(agent)
             );
             Some(Err(agent.throw_exception(
-                gc,
                 ExceptionType::ReferenceError,
                 error_message,
+                gc,
             )))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
             // 5. Return UNUSED.
-            try_set(agent, gc, binding_object, n, v, s)
+            try_set(agent, binding_object, n, v, s, gc)
         }
     }
 
@@ -392,17 +392,17 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn set_mutable_binding(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         n: String,
         v: Value,
         s: bool,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         // 2. Let stillExists be ? HasProperty(bindingObject, N).
         let n = PropertyKey::from(n);
-        let still_exists = has_property(agent, gc.reborrow(), binding_object, n)?;
+        let still_exists = has_property(agent, binding_object, n, gc.reborrow())?;
         // 3. If stillExists is false and S is true, throw a ReferenceError exception.
         if !still_exists && s {
             let binding_object_repr = binding_object
@@ -413,10 +413,10 @@ impl ObjectEnvironmentIndex {
                 n.as_display(agent),
                 binding_object_repr.as_str(agent)
             );
-            Err(agent.throw_exception(gc.nogc(), ExceptionType::ReferenceError, error_message))
+            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
         } else {
             // 4. Perform ? Set(bindingObject, N, V, S).
-            set(agent, gc, binding_object, n, v, s)?;
+            set(agent, binding_object, n, v, s, gc)?;
             // 5. Return UNUSED.
             Ok(())
         }
@@ -433,16 +433,16 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn try_get_binding_value(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         n: String,
         s: bool,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<JsResult<Value>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(n);
         // 2. Let value be ? HasProperty(bindingObject, N).
-        let value = try_has_property(agent, gc, binding_object, name)?;
+        let value = try_has_property(agent, binding_object, name, gc)?;
         // 3. If value is false, then
         if !value {
             // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
@@ -454,14 +454,14 @@ impl ObjectEnvironmentIndex {
                     name.as_display(agent)
                 );
                 Some(Err(agent.throw_exception(
-                    gc,
                     ExceptionType::ReferenceError,
                     error_message,
+                    gc,
                 )))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
-            try_get(agent, gc, binding_object, name).map(Ok)
+            try_get(agent, binding_object, name, gc).map(Ok)
         }
     }
 
@@ -476,16 +476,16 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn get_binding_value(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         n: String,
         s: bool,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(n);
         // 2. Let value be ? HasProperty(bindingObject, N).
-        let value = has_property(agent, gc.reborrow(), binding_object, name)?;
+        let value = has_property(agent, binding_object, name, gc.reborrow())?;
         // 3. If value is false, then
         if !value {
             // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
@@ -500,11 +500,11 @@ impl ObjectEnvironmentIndex {
                     name.as_display(agent),
                     binding_object_repr.as_str(agent)
                 );
-                Err(agent.throw_exception(gc.nogc(), ExceptionType::ReferenceError, error_message))
+                Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
-            get(agent, gc, binding_object, name)
+            get(agent, binding_object, name, gc)
         }
     }
 
@@ -518,15 +518,15 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn try_delete_binding(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         name: String,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
         let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
-        binding_object.try_delete(agent, gc, name)
+        binding_object.try_delete(agent, name, gc)
     }
 
     /// ### [9.1.1.2.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-object-environment-records-deletebinding-n)
@@ -539,15 +539,15 @@ impl ObjectEnvironmentIndex {
     pub(crate) fn delete_binding(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         name: String,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_boject = env_rec.binding_object;
         let name = PropertyKey::from(name);
         // 2. Return ? bindingObject.[[Delete]](N).
-        binding_boject.internal_delete(agent, gc, name)
+        binding_boject.internal_delete(agent, name, gc)
     }
 
     /// ### [9.1.1.2.8 HasThisBinding ( )](https://tc39.es/ecma262/#sec-object-environment-records-hasthisbinding)

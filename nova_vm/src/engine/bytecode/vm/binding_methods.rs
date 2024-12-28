@@ -23,11 +23,11 @@ use crate::{
 
 pub(super) fn execute_simple_array_binding(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     vm: &mut Vm,
     executable: Executable,
     mut iterator: VmIterator,
     environment: Option<EnvironmentIndex>,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<()> {
     let mut iterator_is_done = false;
 
@@ -50,20 +50,20 @@ pub(super) fn execute_simple_array_binding(
             Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
                 break_after_bind = true;
                 if iterator_is_done {
-                    array_create(agent, gc.nogc(), 0, 0, None)
+                    array_create(agent, 0, 0, None, gc.nogc())
                         .unwrap()
                         .into_value()
                 } else {
                     let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                    let rest = array_create(agent, gc.nogc(), 0, capacity, None).unwrap();
+                    let rest = array_create(agent, 0, capacity, None, gc.nogc()).unwrap();
                     let mut idx = 0u32;
                     while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
                         try_create_data_property_or_throw(
                             agent,
-                            gc.nogc(),
                             rest,
                             PropertyKey::from(idx),
                             result,
+                            gc.nogc(),
                         )
                         .unwrap()
                         .unwrap();
@@ -83,27 +83,24 @@ pub(super) fn execute_simple_array_binding(
                 let binding_id =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 let lhs = {
-                    let binding_id = binding_id.unbind();
-                    resolve_binding(agent, gc.reborrow(), binding_id, environment)?
+                    resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
                         .unbind()
                         .bind(gc.nogc())
                 };
                 if environment.is_none() {
-                    let lhs = lhs.unbind();
-                    put_value(agent, gc.reborrow(), &lhs, value)?;
+                    put_value(agent, &lhs.unbind(), value, gc.reborrow())?;
                 } else {
-                    let lhs = lhs.unbind();
-                    initialize_referenced_binding(agent, gc.reborrow(), lhs, value)?;
+                    initialize_referenced_binding(agent, lhs.unbind(), value, gc.reborrow())?;
                 }
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
                 execute_nested_simple_binding(
                     agent,
-                    gc.reborrow(),
                     vm,
                     executable,
                     value,
                     environment,
+                    gc.reborrow(),
                 )?;
             }
             _ => unreachable!(),
@@ -120,7 +117,7 @@ pub(super) fn execute_simple_array_binding(
     // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
     if !iterator_is_done {
         if let VmIterator::GenericIterator(iterator_record) = iterator {
-            iterator_close(agent, gc.reborrow(), &iterator_record, Ok(Value::Undefined))?;
+            iterator_close(agent, &iterator_record, Ok(Value::Undefined), gc.reborrow())?;
         }
     }
 
@@ -129,11 +126,11 @@ pub(super) fn execute_simple_array_binding(
 
 pub(super) fn execute_simple_object_binding(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     vm: &mut Vm,
     executable: Executable,
     object: Object,
     environment: Option<EnvironmentIndex>,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<()> {
     let mut excluded_names = AHashSet::new();
 
@@ -150,37 +147,37 @@ pub(super) fn execute_simple_object_binding(
                         executable.fetch_constant(agent, instr.args[1].unwrap() as usize);
                     PropertyKey::try_from(key_value).unwrap()
                 };
-                let property_key = property_key.unbind();
-                excluded_names.insert(property_key);
 
-                let lhs = {
-                    let binding_id = binding_id.unbind();
-                    resolve_binding(agent, gc.reborrow(), binding_id, environment)?.unbind()
-                };
-                let v = get(agent, gc.reborrow(), object, property_key)?;
+                excluded_names.insert(property_key.unbind());
+
+                // TODO: Properly handle potential GC.
+                let property_key = property_key.unbind();
+                let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
+                    .unbind();
+                let v = get(agent, object, property_key.unbind(), gc.reborrow())?;
                 if environment.is_none() {
-                    put_value(agent, gc.reborrow(), &lhs, v)?;
+                    put_value(agent, &lhs, v, gc.reborrow())?;
                 } else {
-                    initialize_referenced_binding(agent, gc.reborrow(), lhs, v)?;
+                    initialize_referenced_binding(agent, lhs, v, gc.reborrow())?;
                 }
             }
             Instruction::BindingPatternGetValueNamed => {
                 let property_key = PropertyKey::from_value(
                     agent,
-                    gc.nogc(),
                     executable.fetch_constant(agent, instr.args[0].unwrap() as usize),
+                    gc.nogc(),
                 )
                 .unwrap();
-                let property_key = property_key.unbind();
-                excluded_names.insert(property_key);
-                let v = get(agent, gc.reborrow(), object, property_key)?;
+
+                excluded_names.insert(property_key.unbind());
+                let v = get(agent, object, property_key.unbind(), gc.reborrow())?;
                 execute_nested_simple_binding(
                     agent,
-                    gc.reborrow(),
                     vm,
                     executable,
                     v,
                     environment,
+                    gc.reborrow(),
                 )?;
             }
             Instruction::BindingPatternBindRest => {
@@ -188,24 +185,24 @@ pub(super) fn execute_simple_object_binding(
                 let binding_id =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 let lhs = {
-                    let binding_id = binding_id.unbind();
-                    resolve_binding(agent, gc.reborrow(), binding_id, environment)?.unbind()
+                    resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
+                        .unbind()
                 };
                 // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                 // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                 let rest_obj = copy_data_properties_into_object(
                     agent,
-                    gc.reborrow(),
                     object,
                     &excluded_names,
+                    gc.reborrow(),
                 )?
                 .into_value();
                 // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                 // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                 if environment.is_none() {
-                    put_value(agent, gc.reborrow(), &lhs, rest_obj)?;
+                    put_value(agent, &lhs, rest_obj, gc.reborrow())?;
                 } else {
-                    initialize_referenced_binding(agent, gc.reborrow(), lhs, rest_obj)?;
+                    initialize_referenced_binding(agent, lhs, rest_obj, gc.reborrow())?;
                 }
                 break;
             }
@@ -218,28 +215,28 @@ pub(super) fn execute_simple_object_binding(
 
 pub(super) fn execute_nested_simple_binding(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     vm: &mut Vm,
     executable: Executable,
     value: Value,
     environment: Option<EnvironmentIndex>,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
     match instr.kind {
         Instruction::BeginSimpleArrayBindingPattern => {
-            let new_iterator = VmIterator::from_value(agent, gc.reborrow(), value)?;
+            let new_iterator = VmIterator::from_value(agent, value, gc.reborrow())?;
             execute_simple_array_binding(
                 agent,
-                gc.reborrow(),
                 vm,
                 executable,
                 new_iterator,
                 environment,
+                gc.reborrow(),
             )
         }
         Instruction::BeginSimpleObjectBindingPattern => {
-            let object = to_object(agent, gc.nogc(), value)?;
-            execute_simple_object_binding(agent, gc.reborrow(), vm, executable, object, environment)
+            let object = to_object(agent, value, gc.nogc())?;
+            execute_simple_object_binding(agent, vm, executable, object, environment, gc.reborrow())
         }
         _ => unreachable!(),
     }

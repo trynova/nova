@@ -57,27 +57,27 @@ impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let iterable = arguments.get(0);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Cannot call Set as a function",
+                gc.nogc(),
             ));
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
         let new_target = Function::try_from(new_target).unwrap();
         let set = Set::try_from(ordinary_create_from_constructor(
             agent,
-            gc.reborrow(),
             new_target,
             ProtoIntrinsics::Set,
+            gc.reborrow(),
         )?)
         .unwrap();
         // 3. Set set.[[SetData]] to a new empty List.
@@ -86,13 +86,13 @@ impl SetConstructor {
             return Ok(set.into_value());
         }
         // 5. Let adder be ? Get(set, "add").
-        let adder = get(agent, gc.reborrow(), set, BUILTIN_STRING_MEMORY.add.into())?;
+        let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into(), gc.reborrow())?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "Invalid adder function",
+                gc.nogc(),
             ));
         };
         if let Value::Array(iterable) = iterable {
@@ -100,9 +100,9 @@ impl SetConstructor {
                 && iterable.is_dense(agent)
                 && get_method(
                     agent,
-                    gc.reborrow(),
                     iterable.into_value(),
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
+                    gc.reborrow(),
                 )? == Some(
                     agent
                         .current_realm()
@@ -169,11 +169,11 @@ impl SetConstructor {
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, gc.reborrow(), iterable, false)?;
+        let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, gc.reborrow(), &mut iterator_record)?;
+            let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(set.into_value());
@@ -181,21 +181,21 @@ impl SetConstructor {
             // c. Let status be Completion(Call(adder, set, « next »)).
             let status = call_function(
                 agent,
-                gc.reborrow(),
                 adder,
                 set.into_value(),
                 Some(ArgumentsList(&[next])),
+                gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, gc.reborrow(), status, &iterator_record)?;
+            let _ = if_abrupt_close_iterator(agent, status, &iterator_record, gc.reborrow())?;
         }
     }
 
     fn get_species(
         _: &mut Agent,
-        _gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         Ok(this_value)
     }

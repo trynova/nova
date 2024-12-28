@@ -59,10 +59,10 @@ impl Builtin for StringRaw {
 impl StringConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. If value is not present, then
         let s = if arguments.is_empty() {
@@ -78,7 +78,7 @@ impl StringConstructor {
                 }
             }
             // b. Let s be ? ToString(value).
-            to_string(agent, gc.reborrow(), value)?
+            to_string(agent, value, gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc())
         };
@@ -90,9 +90,9 @@ impl StringConstructor {
         let value = s.scope(agent, gc.nogc());
         let prototype = get_prototype_from_constructor(
             agent,
-            gc.reborrow(),
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::String,
+            gc.reborrow(),
         )?;
         // StringCreate: Returns a String exotic object.
         // 1. Let S be MakeBasicObject(« [[Prototype]], [[Extensible]], [[StringData]] »).
@@ -125,9 +125,9 @@ impl StringConstructor {
     /// the rest parameter `codeUnits`.
     fn from_char_code(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         code_units: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
         // 2. For each element next of codeUnits, do
@@ -155,7 +155,7 @@ impl StringConstructor {
         }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        Ok(String::from_string(agent, gc.nogc(), result).into())
+        Ok(String::from_string(agent, result, gc.nogc()).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
@@ -164,9 +164,9 @@ impl StringConstructor {
     /// the rest parameter `codePoints`.
     fn from_code_point(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
         // 2. For each element next of codePoints, do
@@ -182,9 +182,9 @@ impl StringConstructor {
 
     fn raw(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }

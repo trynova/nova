@@ -55,9 +55,9 @@ impl Builtin for PromisePrototypeThen {
 impl PromisePrototype {
     fn catch(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
@@ -66,35 +66,35 @@ impl PromisePrototype {
         let on_rejected = args.get(0);
         invoke(
             agent,
-            gc,
             this_value,
             BUILTIN_STRING_MEMORY.then.into(),
             Some(ArgumentsList(&[Value::Undefined, on_rejected])),
+            gc,
         )
     }
 
     fn finally(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }
 
     fn then(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_value: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "'this' is not a promise",
+                gc.nogc(),
             ));
         };
 

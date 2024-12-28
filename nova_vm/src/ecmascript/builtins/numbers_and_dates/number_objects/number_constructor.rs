@@ -72,10 +72,10 @@ impl Builtin for NumberIsSafeInteger {
 impl NumberConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
 
@@ -93,12 +93,12 @@ impl NumberConstructor {
                     let b = b.mathematical_value(agent, gc.nogc());
                     match b {
                         BigIntMathematicalValue::Integer(i) => {
-                            Number::from_i64(agent, gc.nogc(), i)
+                            Number::from_i64(agent, i, gc.nogc())
                         }
-                        BigIntMathematicalValue::Number(f) => Number::from_f64(agent, gc.nogc(), f),
+                        BigIntMathematicalValue::Number(f) => Number::from_f64(agent, f, gc.nogc()),
                     }
                 }
-                Numeric::SmallBigInt(b) => Number::from_i64(agent, gc.nogc(), b.into_i64()),
+                Numeric::SmallBigInt(b) => Number::from_i64(agent, b.into_i64(), gc.nogc()),
                 Numeric::Number(n) => n.into(),
                 Numeric::Integer(i) => i.into(),
                 Numeric::SmallF64(f) => f.into(),
@@ -123,9 +123,9 @@ impl NumberConstructor {
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
-            gc.reborrow(),
             new_target,
             ProtoIntrinsics::Number,
+            gc.reborrow(),
         )?)
         .unwrap();
         let n = n.get(agent).unbind();
@@ -142,9 +142,9 @@ impl NumberConstructor {
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
     fn is_finite(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
@@ -161,22 +161,22 @@ impl NumberConstructor {
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
     fn is_integer(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
-        Ok(is_integral_number(agent, gc.reborrow(), maybe_number).into())
+        Ok(is_integral_number(agent, maybe_number, gc.reborrow()).into())
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
     fn is_nan(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
@@ -193,9 +193,9 @@ impl NumberConstructor {
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
     fn is_safe_integer(
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
@@ -207,7 +207,7 @@ impl NumberConstructor {
         Ok((matches!(maybe_number, Value::Integer(_)) || maybe_number.is_neg_zero(agent)).into())
     }
 
-    pub(crate) fn create_intrinsic(agent: &mut Agent, gc: NoGcScope, realm: RealmIdentifier) {
+    pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let number_prototype = intrinsics.number_prototype();
         let parse_float = intrinsics.parse_float().into_value();
@@ -218,7 +218,7 @@ impl NumberConstructor {
             .with_property(|builder| {
                 // 21.1.2.1 Number.EPSILON
                 // https://tc39.es/ecma262/#sec-number.epsilon
-                let value = Value::from_f64(builder.agent, gc, f64::EPSILON);
+                let value = Value::from_f64(builder.agent, f64::EPSILON, gc);
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.EPSILON.into())
                     .with_value_readonly(value)

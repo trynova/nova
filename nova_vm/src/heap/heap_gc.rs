@@ -70,8 +70,8 @@ use crate::{
 
 pub fn heap_gc(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     root_realms: &mut [Option<RealmIdentifier>],
+    gc: GcScope<'_, '_>,
 ) {
     let Agent {
         heap,
@@ -994,14 +994,14 @@ pub fn heap_gc(
         });
     }
 
-    sweep(agent, gc, &bits, root_realms);
+    sweep(agent, &bits, root_realms, gc);
 }
 
 fn sweep(
     agent: &mut Agent,
-    _: GcScope<'_, '_>,
     bits: &HeapBits,
     root_realms: &mut [Option<RealmIdentifier>],
+    _: GcScope<'_, '_>,
 ) {
     let compactions = CompactionLists::create_from_bits(bits);
 
@@ -1527,7 +1527,7 @@ fn test_heap_gc() {
     let obj = HeapRootData::Object(agent.heap.create_null_object(&[]));
     println!("Object: {:#?}", obj);
     agent.heap.globals.borrow_mut().push(Some(obj));
-    heap_gc(&mut agent, gc.reborrow(), &mut []);
+    heap_gc(&mut agent, &mut [], gc.reborrow());
     println!("Objects: {:#?}", agent.heap.objects);
     assert_eq!(agent.heap.objects.len(), 1);
     assert_eq!(agent.heap.elements.e2pow4.values.len(), 0);

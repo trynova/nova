@@ -106,7 +106,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     ) {
         let identifier = match property_key {
             ast::PropertyKey::StaticIdentifier(identifier_name) => {
-                String::from_str(self.agent, self.gc, identifier_name.name.as_str())
+                String::from_str(self.agent, identifier_name.name.as_str(), self.gc)
             }
             ast::PropertyKey::PrivateIdentifier(_private_identifier) => todo!(),
             ast::PropertyKey::BooleanLiteral(_boolean_literal) => todo!(),
@@ -249,7 +249,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         if let Some(existing) = existing {
             existing
         } else {
-            String::from_str(self.agent, self.gc, atom.as_str())
+            String::from_str(self.agent, atom.as_str(), self.gc)
         }
     }
 
@@ -538,21 +538,21 @@ impl CompileEvaluation for ast::NullLiteral {
 
 impl CompileEvaluation for ast::StringLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let constant = String::from_str(ctx.agent, ctx.gc, self.value.as_str());
+        let constant = String::from_str(ctx.agent, self.value.as_str(), ctx.gc);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
     }
 }
 
 impl CompileEvaluation for ast::IdentifierReference<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let identifier = String::from_str(ctx.agent, ctx.gc, self.name.as_str());
+        let identifier = String::from_str(ctx.agent, self.name.as_str(), ctx.gc);
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
 
 impl CompileEvaluation for ast::BindingIdentifier<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        let identifier = String::from_str(ctx.agent, ctx.gc, self.name.as_str());
+        let identifier = String::from_str(ctx.agent, self.name.as_str(), ctx.gc);
         ctx.add_instruction_with_identifier(Instruction::ResolveBinding, identifier);
     }
 }
@@ -1011,7 +1011,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                     );
                                 }
                             } else {
-                                let identifier = PropertyKey::from_str(ctx.agent, ctx.gc, &id.name);
+                                let identifier = PropertyKey::from_str(ctx.agent, &id.name, ctx.gc);
                                 ctx.add_instruction_with_constant(
                                     Instruction::StoreConstant,
                                     identifier,
@@ -1020,7 +1020,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                         }
                         ast::PropertyKey::StaticMemberExpression(init) => init.compile(ctx),
                         ast::PropertyKey::StringLiteral(init) => {
-                            let identifier = PropertyKey::from_str(ctx.agent, ctx.gc, &init.value);
+                            let identifier = PropertyKey::from_str(ctx.agent, &init.value, ctx.gc);
                             ctx.add_instruction_with_constant(
                                 Instruction::StoreConstant,
                                 identifier,
@@ -1429,7 +1429,7 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
         }
 
         // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, IdentifierName, strict).
-        let identifier = String::from_str(ctx.agent, ctx.gc, self.property.name.as_str());
+        let identifier = String::from_str(ctx.agent, self.property.name.as_str(), ctx.gc);
         ctx.add_instruction_with_identifier(
             Instruction::EvaluatePropertyAccessWithIdentifierKey,
             identifier,
@@ -1579,7 +1579,7 @@ impl CompileEvaluation for ast::RegExpLiteral<'_> {
             // We probably shouldn't be getting parsed RegExps?
             ast::RegExpPattern::Pattern(_) => unreachable!(),
         };
-        let pattern = String::from_str(ctx.agent, ctx.gc, pattern);
+        let pattern = String::from_str(ctx.agent, pattern, ctx.gc);
         let regexp = reg_exp_create(ctx.agent, pattern, Some(self.regex.flags)).unwrap();
         ctx.add_instruction_with_constant(Instruction::StoreConstant, regexp);
     }
@@ -1610,11 +1610,11 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
         if self.is_no_substitution_template() {
             let constant = String::from_str(
                 ctx.agent,
-                ctx.gc,
                 self.quasi()
                     .as_ref()
                     .expect("Invalid escape sequence in template literal")
                     .as_str(),
+                ctx.gc,
             );
             ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
         } else {
@@ -1626,8 +1626,8 @@ impl CompileEvaluation for ast::TemplateLiteral<'_> {
                 // 1. Let head be the TV of TemplateHead as defined in 12.9.6.
                 let head = String::from_str(
                     ctx.agent,
-                    ctx.gc,
                     head.value.cooked.as_ref().unwrap().as_str(),
+                    ctx.gc,
                 );
                 ctx.add_instruction_with_constant(Instruction::LoadConstant, head);
                 count += 1;
@@ -2068,18 +2068,18 @@ fn simple_object_pattern(
         } else {
             let key_string = match &ele.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
-                    PropertyKey::from_str(ctx.agent, ctx.gc, &identifier.name).into_value()
+                    PropertyKey::from_str(ctx.agent, &identifier.name, ctx.gc).into_value()
                 }
                 ast::PropertyKey::NumericLiteral(literal) => {
-                    let numeric_value = Number::from_f64(ctx.agent, ctx.gc, literal.value);
+                    let numeric_value = Number::from_f64(ctx.agent, literal.value, ctx.gc);
                     if let Number::Integer(_) = numeric_value {
                         numeric_value.into_value()
                     } else {
-                        Number::to_string_radix_10(ctx.agent, ctx.gc, numeric_value).into_value()
+                        Number::to_string_radix_10(ctx.agent, numeric_value, ctx.gc).into_value()
                     }
                 }
                 ast::PropertyKey::StringLiteral(literal) => {
-                    PropertyKey::from_str(ctx.agent, ctx.gc, &literal.value).into_value()
+                    PropertyKey::from_str(ctx.agent, &literal.value, ctx.gc).into_value()
                 }
                 _ => unreachable!(),
             };
@@ -2289,7 +2289,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // 1. Let bindingId be StringValue of BindingIdentifier.
                     // 2. Let lhs be ? ResolveBinding(bindingId).
                     let identifier_string =
-                        String::from_str(ctx.agent, ctx.gc, identifier.name.as_str());
+                        String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
                     ctx.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
                         identifier_string,
@@ -2347,7 +2347,7 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
 
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
                     let identifier_string =
-                        String::from_str(ctx.agent, ctx.gc, identifier.name.as_str());
+                        String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
                     ctx.add_instruction_with_identifier(
                         Instruction::ResolveBinding,
                         identifier_string,
@@ -2430,7 +2430,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                     if decl.kind.is_const() {
                         decl.id.bound_names(&mut |name| {
                             let identifier =
-                                String::from_str(ctx.agent, ctx.gc, name.name.as_str());
+                                String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
                             ctx.add_instruction_with_identifier(
                                 Instruction::CreateImmutableBinding,
                                 identifier,
@@ -2439,7 +2439,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                     } else if decl.kind.is_lexical() {
                         decl.id.bound_names(&mut |name| {
                             let identifier =
-                                String::from_str(ctx.agent, ctx.gc, name.name.as_str());
+                                String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
                             ctx.add_instruction_with_identifier(
                                 Instruction::CreateMutableBinding,
                                 identifier,
@@ -2450,7 +2450,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 LexicallyScopedDeclaration::Function(decl) => {
                     // TODO: InstantiateFunctionObject and InitializeBinding
                     decl.bound_names(&mut |name| {
-                        let identifier = String::from_str(ctx.agent, ctx.gc, name.name.as_str());
+                        let identifier = String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
                         ctx.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
                             identifier,
@@ -2459,7 +2459,7 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
                 }
                 LexicallyScopedDeclaration::Class(decl) => {
                     decl.bound_names(&mut |name| {
-                        let identifier = String::from_str(ctx.agent, ctx.gc, name.name.as_str());
+                        let identifier = String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
                         ctx.add_instruction_with_identifier(
                             Instruction::CreateMutableBinding,
                             identifier,
@@ -2542,7 +2542,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                             init.bound_names(&mut |dn| {
                                 // i. Perform ! loopEnv.CreateImmutableBinding(dn, true).
                                 let identifier =
-                                    String::from_str(ctx.agent, ctx.gc, dn.name.as_str());
+                                    String::from_str(ctx.agent, dn.name.as_str(), ctx.gc);
                                 ctx.add_instruction_with_identifier(
                                     Instruction::CreateImmutableBinding,
                                     identifier,
@@ -2553,7 +2553,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                             // i. Perform ! loopEnv.CreateMutableBinding(dn, false).
                             init.bound_names(&mut |dn| {
                                 let identifier =
-                                    String::from_str(ctx.agent, ctx.gc, dn.name.as_str());
+                                    String::from_str(ctx.agent, dn.name.as_str(), ctx.gc);
                                 // 9. If isConst is false, let perIterationLets
                                 // be boundNames; otherwise let perIterationLets
                                 // be a new empty List.
@@ -2795,7 +2795,7 @@ impl CompileEvaluation for ast::TryStatement<'_> {
                 todo!("{:?}", exception_param.pattern.kind);
             };
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-            let identifier_string = String::from_str(ctx.agent, ctx.gc, identifier.name.as_str());
+            let identifier_string = String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
             ctx.add_instruction_with_identifier(Instruction::CreateCatchBinding, identifier_string);
         }
         catch_clause.body.compile(ctx);

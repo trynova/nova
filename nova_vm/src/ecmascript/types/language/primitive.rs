@@ -180,7 +180,7 @@ impl<'a> Primitive<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Primitive<'static>> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
     pub fn is_boolean(self) -> bool {

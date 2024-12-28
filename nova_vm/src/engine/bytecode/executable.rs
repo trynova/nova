@@ -108,8 +108,8 @@ pub(crate) struct ExecutableHeapData {
 impl Executable {
     pub(crate) fn compile_script(
         agent: &mut Agent,
-        gc: NoGcScope,
         script: ScriptIdentifier,
+        gc: NoGcScope,
     ) -> Self {
         if agent.options.print_internals {
             eprintln!();
@@ -129,8 +129,8 @@ impl Executable {
 
     pub(crate) fn compile_function_body(
         agent: &mut Agent,
-        gc: NoGcScope,
         data: CompileFunctionBodyData<'_>,
+        gc: NoGcScope,
     ) -> Self {
         let mut ctx = CompileContext::new(agent, gc);
 
@@ -145,7 +145,7 @@ impl Executable {
         ctx.finish()
     }
 
-    pub(crate) fn compile_eval_body(agent: &mut Agent, gc: NoGcScope, body: &[Statement]) -> Self {
+    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement], gc: NoGcScope) -> Self {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Eval Body ===");

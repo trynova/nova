@@ -48,15 +48,15 @@ fn reg_exp_alloc_intrinsic(agent: &mut Agent) -> RegExp {
 /// completion.
 pub(crate) fn reg_exp_alloc(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     new_target: Function,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<RegExp> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
         agent,
-        gc,
         new_target,
         ProtoIntrinsics::RegExp,
+        gc,
     )?)
     .unwrap();
     // 2. Perform ! DefinePropertyOrThrow(obj, "lastIndex", PropertyDescriptor { [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).

@@ -29,9 +29,9 @@ fn object_prototype_tests() {
     let realm = agent.create_default_realm();
     agent.run_in_realm(&realm, |agent, mut gc| {
         let realm = agent.current_realm_id();
-        let source_text = String::from_string(agent, gc.nogc(), contents);
-        let script = parse_script(agent, gc.nogc(), source_text, realm, false, None).unwrap();
-        let _ = script_evaluation(agent, gc.reborrow(), script).unwrap_or_else(|err| {
+        let source_text = String::from_string(agent, contents, gc.nogc());
+        let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
+        let _ = script_evaluation(agent, script, gc.reborrow()).unwrap_or_else(|err| {
             panic!(
                 "Test '{}' failed: {:?}",
                 d.display(),

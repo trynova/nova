@@ -62,34 +62,34 @@ impl<'a> PropertyKey<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, PropertyKey<'static>> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
     // FIXME: This API is not necessarily in the right place.
-    pub fn from_str(agent: &mut Agent, gc: NoGcScope<'a, '_>, str: &str) -> Self {
+    pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Self {
         parse_string_to_integer_property_key(str)
-            .unwrap_or_else(|| String::from_str(agent, gc, str).into())
+            .unwrap_or_else(|| String::from_str(agent, str, gc).into())
     }
 
-    pub fn from_static_str(agent: &mut Agent, gc: NoGcScope<'a, '_>, str: &'static str) -> Self {
+    pub fn from_static_str(agent: &mut Agent, str: &'static str, gc: NoGcScope<'a, '_>) -> Self {
         parse_string_to_integer_property_key(str)
-            .unwrap_or_else(|| String::from_static_str(agent, gc, str).into())
+            .unwrap_or_else(|| String::from_static_str(agent, str, gc).into())
     }
 
     pub fn from_string(
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
         string: std::string::String,
+        gc: NoGcScope<'a, '_>,
     ) -> Self {
         parse_string_to_integer_property_key(&string)
-            .unwrap_or_else(|| String::from_string(agent, gc, string).into())
+            .unwrap_or_else(|| String::from_string(agent, string, gc).into())
     }
 
     pub fn into_value(self) -> Value {
         self.into()
     }
 
-    pub fn from_value(agent: &Agent, _: NoGcScope<'a, '_>, value: Value) -> Option<Self> {
+    pub fn from_value(agent: &Agent, value: Value, _: NoGcScope<'a, '_>) -> Option<Self> {
         if let Ok(string) = String::try_from(value) {
             if let Some(pk) = parse_string_to_integer_property_key(string.as_str(agent)) {
                 return Some(pk);
@@ -155,8 +155,8 @@ pub fn bind_property_keys<'a>(
 #[inline]
 pub fn scope_property_keys<'a>(
     agent: &mut Agent,
-    gc: NoGcScope<'_, 'a>,
     keys: Vec<PropertyKey<'_>>,
+    gc: NoGcScope<'_, 'a>,
 ) -> Vec<Scoped<'a, PropertyKey<'static>>> {
     keys.into_iter()
         .map(|k| k.scope(agent, gc))

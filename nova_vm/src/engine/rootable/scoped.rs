@@ -30,7 +30,7 @@ pub struct Scoped<'a, T: 'static + Rootable> {
 }
 
 impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
-    pub fn new(agent: &Agent, _gc: NoGcScope<'_, 'scope>, value: T) -> Self {
+    pub fn new(agent: &Agent, value: T, _gc: NoGcScope<'_, 'scope>) -> Self {
         let value = match T::to_root_repr(value) {
             Ok(stack_repr) => {
                 // The value doesn't need rooting.
@@ -106,9 +106,9 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
 
     pub fn from_scoped<U: 'static + Rootable>(
         agent: &Agent,
-        gc: NoGcScope<'_, 'scope>,
         scoped: Scoped<'scope, U>,
         value: T,
+        gc: NoGcScope<'_, 'scope>,
     ) -> Self {
         let heap_data = match T::to_root_repr(value) {
             Ok(stack_repr) => {
@@ -124,7 +124,7 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
         let Err(heap_root_ref) = U::from_root_repr(&scoped.inner) else {
             // Previous Scoped is an on-stack value, we can't reuse its heap
             // slot.
-            return Self::new(agent, gc, value);
+            return Self::new(agent, value, gc);
         };
         // Previous Scoped had a heap slot, we can reuse it.
         let mut stack_refs_borrow = agent.stack_refs.borrow_mut();

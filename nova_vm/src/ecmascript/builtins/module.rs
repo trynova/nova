@@ -148,8 +148,8 @@ impl InternalMethods for Module {
     fn try_set_prototype_of(
         self,
         _: &mut Agent,
-        _: NoGcScope<'_, '_>,
         prototype: Option<Object>,
+        _: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         // This is what it all comes down to in the end.
         Some(prototype.is_none())
@@ -168,8 +168,8 @@ impl InternalMethods for Module {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -193,7 +193,7 @@ impl InternalMethods for Module {
                     Some(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.try_get(agent, gc, property_key, self.into_value())?;
+                    let value = self.try_get(agent, property_key, self.into_value(), gc)?;
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Some(Some(PropertyDescriptor {
                         value: Some(value),
@@ -212,10 +212,10 @@ impl InternalMethods for Module {
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(result) = self.try_get_own_property(agent, gc.nogc(), property_key) {
+        if let Some(result) = self.try_get_own_property(agent, property_key, gc.nogc()) {
             return Ok(result);
         }
         match property_key {
@@ -238,7 +238,7 @@ impl InternalMethods for Module {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.internal_get(agent, gc, property_key, self.into_value())?;
+                    let value = self.internal_get(agent, property_key, self.into_value(), gc)?;
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
                         value: Some(value),
@@ -257,9 +257,9 @@ impl InternalMethods for Module {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -267,16 +267,16 @@ impl InternalMethods for Module {
                 Some(self.get_backing_object(agent).map_or(false, |object| {
                     ordinary_try_define_own_property(
                         agent,
-                        gc,
                         object,
                         property_key,
                         property_descriptor,
+                        gc,
                     )
                 }))
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
-                let current = self.try_get_own_property(agent, gc, property_key)?;
+                let current = self.try_get_own_property(agent, property_key, gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return Some(false);
@@ -312,9 +312,9 @@ impl InternalMethods for Module {
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -322,16 +322,16 @@ impl InternalMethods for Module {
                 Ok(self.get_backing_object(agent).map_or(false, |object| {
                     ordinary_try_define_own_property(
                         agent,
-                        gc.into_nogc(),
                         object,
                         property_key,
                         property_descriptor,
+                        gc.into_nogc(),
                     )
                 }))
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 // 2. Let current be ? O.[[GetOwnProperty]](P).
-                let current = self.internal_get_own_property(agent, gc, property_key)?;
+                let current = self.internal_get_own_property(agent, property_key, gc)?;
                 // 3. If current is undefined, return false.
                 let Some(current) = current else {
                     return Ok(false);
@@ -367,8 +367,8 @@ impl InternalMethods for Module {
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match property_key {
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -391,7 +391,7 @@ impl InternalMethods for Module {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
                 Some(self.get_backing_object(agent).map_or(false, |object| {
-                    ordinary_try_has_property(agent, gc, object, property_key).unwrap()
+                    ordinary_try_has_property(agent, object, property_key, gc).unwrap()
                 }))
             }
         }
@@ -401,9 +401,9 @@ impl InternalMethods for Module {
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
@@ -418,7 +418,7 @@ impl InternalMethods for Module {
                 Some(
                     self.get_backing_object(agent)
                         .map_or(Value::Undefined, |object| {
-                            ordinary_try_get(agent, gc, object, property_key, receiver).unwrap()
+                            ordinary_try_get(agent, object, property_key, receiver, gc).unwrap()
                         }),
                 )
             }
@@ -475,9 +475,9 @@ impl InternalMethods for Module {
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
@@ -492,7 +492,7 @@ impl InternalMethods for Module {
                 Ok(self
                     .get_backing_object(agent)
                     .map_or(Value::Undefined, |object| {
-                        ordinary_get(agent, gc.reborrow(), object, property_key, receiver).unwrap()
+                        ordinary_get(agent, object, property_key, receiver, gc.reborrow()).unwrap()
                     }))
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -534,9 +534,9 @@ impl InternalMethods for Module {
                     // 11. If targetEnv is EMPTY, throw a ReferenceError exception.
                     match target_env {
                         None => Err(agent.throw_exception(
-                            gc.nogc(),
                             ExceptionType::ReferenceError,
                             format!("Could not resolve module '{}'.", key.as_str(agent)),
+                            gc.nogc(),
                         )),
                         Some(_target_env) => {
                             // 12. Return ? targetEnv.GetBindingValue(binding.[[BindingName]], true).
@@ -552,10 +552,10 @@ impl InternalMethods for Module {
     fn try_set(
         self,
         _: &mut Agent,
-        _: NoGcScope<'_, '_>,
         _: PropertyKey,
         _: Value,
         _: Value,
+        _: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         Some(false)
     }
@@ -564,15 +564,15 @@ impl InternalMethods for Module {
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
                 Some(self.get_backing_object(agent).map_or(true, |object| {
-                    ordinary_delete(agent, gc, object, property_key)
+                    ordinary_delete(agent, object, property_key, gc)
                 }))
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -609,7 +609,7 @@ impl InternalMethods for Module {
         let exports_count = exports.len();
         // 2. Let symbolKeys be OrdinaryOwnPropertyKeys(O).
         let symbol_keys = self.get_backing_object(agent).map_or(vec![], |object| {
-            ordinary_own_property_keys(agent, gc, object)
+            ordinary_own_property_keys(agent, object, gc)
         });
         let symbol_keys_count = symbol_keys.len();
         // 3. Return the list-concatenation of exports and symbolKeys.

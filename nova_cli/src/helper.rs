@@ -7,13 +7,13 @@ use nova_vm::engine::context::GcScope;
 use oxc_diagnostics::OxcDiagnostic;
 
 /// Initialize the global object with the built-in functions.
-pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, global: Object) {
+pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcScope<'_, '_>) {
     // `print` function
     fn print(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if args.len() == 0 {
             println!();
@@ -25,40 +25,39 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
     // 'readTextFile' function
     fn read_text_file(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _: Value,
         args: ArgumentsList,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if args.len() != 1 {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::Error,
                 "Expected 1 argument",
+                gc.nogc(),
             ));
         }
         let Ok(path) = String::try_from(args.get(0)) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::Error,
                 "Expected a string argument",
+                gc.nogc(),
             ));
         };
 
         let file = std::fs::read_to_string(path.as_str(agent))
-            .map_err(|e| agent.throw_exception(gc.nogc(), ExceptionType::Error, e.to_string()))?;
-        Ok(String::from_string(agent, gc.nogc(), file).into_value())
+            .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string(), gc.nogc()))?;
+        Ok(String::from_string(agent, file, gc.nogc()).into_value())
     }
     let function = create_builtin_function(
         agent,
-        gc.nogc(),
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
+        gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print").unbind();
+    let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc()).unbind();
     global
         .internal_define_own_property(
             agent,
-            gc.reborrow(),
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
@@ -67,20 +66,20 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
                 configurable: Some(true),
                 ..Default::default()
             },
+            gc.reborrow(),
         )
         .unwrap();
 
     let function = create_builtin_function(
         agent,
-        gc.nogc(),
         Behaviour::Regular(read_text_file),
         BuiltinFunctionArgs::new(1, "readTextFile", agent.current_realm_id()),
+        gc.nogc(),
     );
-    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "readTextFile").unbind();
+    let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc()).unbind();
     global
         .internal_define_own_property(
             agent,
-            gc.reborrow(),
             property_key,
             PropertyDescriptor {
                 value: Some(function.into_value()),
@@ -89,6 +88,7 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
                 configurable: Some(true),
                 ..Default::default()
             },
+            gc.reborrow(),
         )
         .unwrap();
 }

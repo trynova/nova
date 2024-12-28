@@ -347,8 +347,8 @@ impl InternalMethods for ECMAScriptFunction {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        _gc: NoGcScope<'_, '_>,
     ) -> Option<Option<PropertyDescriptor>> {
         Some(function_internal_get_own_property(
             self,
@@ -360,86 +360,86 @@ impl InternalMethods for ECMAScriptFunction {
     fn try_define_own_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
         Some(function_internal_define_own_property(
             self,
             agent,
-            gc,
             property_key,
             property_descriptor,
+            gc,
         ))
     }
 
     fn try_has_property(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_has_property(self, agent, gc, property_key)
+        function_try_has_property(self, agent, property_key, gc)
     }
 
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_has_property(self, agent, gc, property_key)
+        function_internal_has_property(self, agent, property_key, gc)
     }
 
     fn try_get(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<Value> {
-        function_try_get(self, agent, gc, property_key, receiver)
+        function_try_get(self, agent, property_key, receiver, gc)
     }
 
     fn internal_get(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        function_internal_get(self, agent, gc, property_key, receiver)
+        function_internal_get(self, agent, property_key, receiver, gc)
     }
 
     fn try_set(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        function_try_set(self, agent, gc, property_key, value, receiver)
+        function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn internal_set(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        function_internal_set(self, agent, gc, property_key, value, receiver)
+        function_internal_set(self, agent, property_key, value, receiver, gc)
     }
 
     fn try_delete(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
         property_key: PropertyKey,
+        gc: NoGcScope<'_, '_>,
     ) -> Option<bool> {
-        Some(function_internal_delete(self, agent, gc, property_key))
+        Some(function_internal_delete(self, agent, property_key, gc))
     }
 
     fn try_own_property_keys<'a>(
@@ -460,9 +460,9 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_call(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         this_argument: Value,
         arguments_list: ArgumentsList<'_>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
@@ -486,9 +486,9 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Let error be a newly created TypeError object.
             // b. NOTE: error is created in calleeContext with F's associated Realm Record.
             let error = agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "class constructors must be invoked with 'new'",
+                gc.nogc(),
             );
             // c. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
             agent.execution_context_stack.pop();
@@ -499,9 +499,9 @@ impl InternalMethods for ECMAScriptFunction {
         let EnvironmentIndex::Function(local_env) = local_env else {
             panic!("localEnv is not a Function Environment Record");
         };
-        ordinary_call_bind_this(agent, gc.nogc(), self, local_env, this_argument);
+        ordinary_call_bind_this(agent, self, local_env, this_argument, gc.nogc());
         // 6. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(agent, gc, self, arguments_list);
+        let result = ordinary_call_evaluate_body(agent, self, arguments_list, gc);
         // 7. Remove calleeContext from the execution context stack and restore callerContext as the running execution context.
         // NOTE: calleeContext must not be destroyed if it is suspended and retained for later resumption by an accessible Generator.
         agent.execution_context_stack.pop();
@@ -514,9 +514,9 @@ impl InternalMethods for ECMAScriptFunction {
     fn internal_construct(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         arguments_list: ArgumentsList,
         new_target: Function,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self]
@@ -528,9 +528,9 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
             Some(ordinary_create_from_constructor(
                 agent,
-                gc.reborrow(),
                 new_target,
                 ProtoIntrinsics::Object,
+                gc.reborrow(),
             )?)
         } else {
             None
@@ -555,10 +555,10 @@ impl InternalMethods for ECMAScriptFunction {
             // a. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
             ordinary_call_bind_this(
                 agent,
-                gc.nogc(),
                 self,
                 constructor_env,
                 this_argument.unwrap().into_value(),
+                gc.nogc(),
             );
             // b. Let initializeResult be Completion(InitializeInstanceElements(thisArgument, F)).
             // c. If initializeResult is an abrupt completion, then
@@ -569,7 +569,7 @@ impl InternalMethods for ECMAScriptFunction {
         }
 
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(agent, gc.reborrow(), self, arguments_list);
+        let result = ordinary_call_evaluate_body(agent, self, arguments_list, gc.reborrow());
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
         agent.execution_context_stack.pop();
@@ -592,7 +592,7 @@ impl InternalMethods for ECMAScriptFunction {
                 "derived class constructor returned invalid value {}",
                 value.string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            let message = String::from_string(agent, gc.nogc(), message);
+            let message = String::from_string(agent, message, gc.nogc());
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
         } else {
             // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
@@ -667,10 +667,10 @@ pub(crate) fn prepare_for_ordinary_call(
 /// truly used for.
 pub(crate) fn ordinary_call_bind_this(
     agent: &mut Agent,
-    gc: NoGcScope,
     f: ECMAScriptFunction,
     local_env: FunctionEnvironmentIndex,
     this_argument: Value,
+    gc: NoGcScope,
 ) {
     let function_heap_data = &agent[f].ecmascript_function;
     // 1. Let thisMode be F.[[ThisMode]].
@@ -699,7 +699,7 @@ pub(crate) fn ordinary_call_bind_this(
         } else {
             // b. Else,
             // i. Let thisValue be ! ToObject(thisArgument).
-            to_object(agent, gc, this_argument).unwrap().into_value()
+            to_object(agent, this_argument, gc).unwrap().into_value()
             // ii. NOTE: ToObject produces wrapper objects using calleeRealm.
         }
     };
@@ -710,7 +710,7 @@ pub(crate) fn ordinary_call_bind_this(
         ThisBindingStatus::Initialized
     );
     // 9. Perform ! localEnv.BindThisValue(thisValue).
-    local_env.bind_this_value(agent, gc, this_value).unwrap();
+    local_env.bind_this_value(agent, this_value, gc).unwrap();
     // 10. Return UNUSED.
 }
 
@@ -722,9 +722,9 @@ pub(crate) fn ordinary_call_bind_this(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_body(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
@@ -735,7 +735,7 @@ pub(crate) fn evaluate_body(
             // AsyncConciseBody : ExpressionBody
             // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
             Ok(
-                evaluate_async_function_body(agent, gc, function_object, arguments_list)
+                evaluate_async_function_body(agent, function_object, arguments_list, gc)
                     .into_value(),
             )
         }
@@ -755,12 +755,12 @@ pub(crate) fn evaluate_body(
             // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
             // ConciseBody : ExpressionBody
             // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
-            evaluate_function_body(agent, gc, function_object, arguments_list)
+            evaluate_function_body(agent, function_object, arguments_list, gc)
         }
         (true, false) => {
             // GeneratorBody : FunctionBody
             // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
-            evaluate_generator_body(agent, gc, function_object, arguments_list)
+            evaluate_generator_body(agent, function_object, arguments_list, gc)
         }
         // AsyncGeneratorBody : FunctionBody
         // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
@@ -792,12 +792,12 @@ pub(crate) fn evaluate_body(
 /// ECMAScript language value or an abrupt completion.
 pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
-    evaluate_body(agent, gc, f, arguments_list)
+    evaluate_body(agent, f, arguments_list, gc)
 }
 
 /// ### [10.2.3 OrdinaryFunctionCreate ( functionPrototype, sourceText, ParameterList, Body, thisMode, env, privateEnv )](https://tc39.es/ecma262/#sec-ordinaryfunctioncreate)
@@ -814,8 +814,8 @@ pub(crate) fn ordinary_call_evaluate_body(
 /// the syntactic definition of the function to be created.
 pub(crate) fn ordinary_function_create<'agent, 'program>(
     agent: &'agent mut Agent,
-    gc: NoGcScope,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
+    gc: NoGcScope,
 ) -> ECMAScriptFunction {
     let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
         (source_code, false)
@@ -914,7 +914,7 @@ pub(crate) fn ordinary_function_create<'agent, 'program>(
         .filter(|par| !par.pattern.kind.is_assignment_pattern())
         .count();
     // 22. Perform SetFunctionLength(F, len).
-    set_ecmascript_function_length(agent, gc, &mut function, len).unwrap();
+    set_ecmascript_function_length(agent, &mut function, len, gc).unwrap();
     // 23. Return F.
     agent.heap.create(function)
 }
@@ -1017,10 +1017,10 @@ pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object:
 /// prefix (a String) and returns UNUSED. It adds a "name" property to F.
 pub(crate) fn set_function_name(
     agent: &mut Agent,
-    gc: NoGcScope,
     function: impl IntoFunction,
     name: PropertyKey,
     _prefix: Option<String>,
+    gc: NoGcScope,
 ) {
     // 2. If name is a Symbol, then
     let name: String = match name {
@@ -1033,14 +1033,14 @@ pub(crate) fn set_function_name(
                 .descriptor
                 .map_or(String::EMPTY_STRING, |descriptor| {
                     let descriptor = descriptor.as_str(agent);
-                    String::from_string(agent, gc, format!("[{}]", descriptor))
+                    String::from_string(agent, format!("[{}]", descriptor), gc)
                 })
         }
         // TODO: Private Name
         // 3. Else if name is a Private Name, then
         // a. Set name to name.[[Description]].
         PropertyKey::Integer(integer) => {
-            String::from_string(agent, gc, integer.into_i64().to_string())
+            String::from_string(agent, integer.into_i64().to_string(), gc)
         }
         PropertyKey::SmallString(str) => str.into(),
         PropertyKey::String(str) => str.into(),
@@ -1078,18 +1078,18 @@ pub(crate) fn set_function_name(
 /// ### [10.2.10 SetFunctionLength ( F, length )](https://tc39.es/ecma262/#sec-setfunctionlength)
 fn set_ecmascript_function_length(
     agent: &mut Agent,
-    gc: NoGcScope,
     function: &mut ECMAScriptFunctionHeapData,
     length: usize,
+    gc: NoGcScope,
 ) -> JsResult<()> {
     // TODO: 1. Assert: F is an extensible object that does not have a "length" own property.
 
     // 2. Perform ! DefinePropertyOrThrow(F, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: true }).
     if length > u8::MAX as usize {
         return Err(agent.throw_exception_with_static_message(
-            gc,
             SyntaxError,
             "Too many arguments in function call (only 255 allowed)",
+            gc,
         ));
     }
     function.length = length as u8;

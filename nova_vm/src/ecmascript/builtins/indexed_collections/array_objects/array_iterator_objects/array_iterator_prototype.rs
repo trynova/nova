@@ -37,17 +37,17 @@ impl Builtin for ArrayIteratorPrototypeNext {
 impl ArrayIteratorPrototype {
     fn next(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         _arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "ArrayIterator expected",
+                gc.nogc(),
             ));
         };
 
@@ -75,7 +75,7 @@ impl ArrayIteratorPrototype {
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),
-            _ => length_of_array_like(agent, gc.reborrow(), array)?,
+            _ => length_of_array_like(agent, array, gc.reborrow())?,
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).
@@ -110,7 +110,7 @@ impl ArrayIteratorPrototype {
                 };
                 match fast_path_result {
                     Some(result) => result,
-                    None => get(agent, gc.reborrow(), array, PropertyKey::from(index))?,
+                    None => get(agent, array, PropertyKey::from(index), gc.reborrow())?,
                 }
             }
             // 4. Else,
@@ -127,11 +127,11 @@ impl ArrayIteratorPrototype {
                 };
                 let value = match fast_path_result {
                     Some(result) => result,
-                    None => get(agent, gc.reborrow(), array, PropertyKey::from(index))?,
+                    None => get(agent, array, PropertyKey::from(index), gc.reborrow())?,
                 };
                 // a. Assert: kind is key+value.
                 // b. Let result be CreateArrayFromList(« indexNumber, elementValue »).
-                create_array_from_list(agent, gc.nogc(), &[Value::Integer(index), value])
+                create_array_from_list(agent, &[Value::Integer(index), value], gc.nogc())
                     .into_value()
             }
         };

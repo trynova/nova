@@ -62,50 +62,50 @@ impl Builtin for BigIntAsUintN {
 impl BigIntConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "BigInt is not a constructor",
+                gc.nogc(),
             ));
         }
         let value = arguments.get(0);
-        let prim = to_primitive(agent, gc.reborrow(), value, Some(PreferredType::Number))?;
+        let prim = to_primitive(agent, value, Some(PreferredType::Number), gc.reborrow())?;
         if let Ok(prim) = Number::try_from(prim) {
             if !prim.is_integer(agent) {
                 return Err(agent.throw_exception_with_static_message(
-                    gc.nogc(),
                     ExceptionType::RangeError,
                     "Can't convert number to BigInt because it isn't an integer",
+                    gc.nogc(),
                 ));
             }
 
             Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into_value())
         } else {
-            to_big_int(agent, gc.reborrow(), value).map(|result| result.into_value())
+            to_big_int(agent, value, gc.reborrow()).map(|result| result.into_value())
         }
     }
 
     fn as_int_n(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
+        let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asIntN",
+                gc.nogc(),
             ));
         };
-        let bigint = to_big_int(agent, gc.reborrow(), arguments.get(1))?;
+        let bigint = to_big_int(agent, arguments.get(1), gc.reborrow())?;
         if bits == 0 {
             return Ok(BigInt::zero().into_value());
         }
@@ -171,19 +171,19 @@ impl BigIntConstructor {
 
     fn as_uint_n(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let bits = to_index(agent, gc.reborrow(), arguments.get(0))?;
+        let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::RangeError,
                 "Ridiculous bits value for BigInt.asUintN",
+                gc.nogc(),
             ));
         };
-        let bigint = to_big_int(agent, gc.reborrow(), arguments.get(1))?;
+        let bigint = to_big_int(agent, arguments.get(1), gc.reborrow())?;
         match bigint {
             BigInt::BigInt(_) => todo!(),
             BigInt::SmallBigInt(int) => {
@@ -209,14 +209,14 @@ impl BigIntConstructor {
 
 fn number_to_big_int<'a>(
     agent: &mut Agent,
-    mut gc: GcScope<'a, '_>,
     value: Number<'a>,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<BigInt<'a>> {
-    if !is_integral_number(agent, gc.reborrow(), value) {
+    if !is_integral_number(agent, value, gc.reborrow()) {
         Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::RangeError,
             "Not an integer",
+            gc.nogc(),
         ))
     } else {
         match value {

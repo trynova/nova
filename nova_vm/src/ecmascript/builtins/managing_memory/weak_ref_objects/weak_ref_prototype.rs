@@ -25,9 +25,9 @@ impl Builtin for WeakRefPrototypeDeref {
 impl WeakRefPrototype {
     fn deref(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
     }

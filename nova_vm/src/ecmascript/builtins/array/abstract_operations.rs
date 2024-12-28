@@ -28,17 +28,17 @@ use super::{data::SealableElementsVector, Array, ArrayHeapData};
 /// It is used to specify the creation of new Arrays.
 pub fn array_create(
     agent: &mut Agent,
-    gc: NoGcScope,
     length: usize,
     capacity: usize,
     proto: Option<Object>,
+    gc: NoGcScope,
 ) -> JsResult<Array> {
     // 1. If length > 2**32 - 1, throw a RangeError exception.
     if length > (2usize.pow(32) - 1) {
         return Err(agent.throw_exception_with_static_message(
-            gc,
             ExceptionType::RangeError,
             "invalid array length",
+            gc,
         ));
     }
     // 2. If proto is not present, set proto to %Array.prototype%.
@@ -92,23 +92,23 @@ pub fn array_create(
 /// > that now are defined using ArraySpeciesCreate.
 pub(crate) fn array_species_create(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     original_array: Object,
     length: usize,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
     // 1. Let isArray be ? IsArray(originalArray).
     let original_is_array = is_array(agent, original_array.into_value())?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
-        let new_array = array_create(agent, gc.nogc(), length, length, None)?;
+        let new_array = array_create(agent, length, length, None, gc.nogc())?;
         return Ok(new_array.into_object());
     }
     // 3. Let C be ? Get(originalArray, "constructor").
     let mut c = get(
         agent,
-        gc.reborrow(),
         original_array,
         BUILTIN_STRING_MEMORY.constructor.into(),
+        gc.reborrow(),
     )?;
     // 4. If IsConstructor(C) is true, then
     if let Some(c_func) = is_constructor(agent, c) {
@@ -129,9 +129,9 @@ pub(crate) fn array_species_create(
         // a. Set C to ? Get(C, @@species).
         c = get(
             agent,
-            gc.reborrow(),
             c_obj,
             WellKnownSymbolIndexes::Species.into(),
+            gc.reborrow(),
         )?;
         // b. If C is null, set C to undefined.
         if c.is_null() {
@@ -140,20 +140,20 @@ pub(crate) fn array_species_create(
     }
     // 6. If C is undefined, return ? ArrayCreate(length).
     if c.is_undefined() {
-        let new_array = array_create(agent, gc.nogc(), length, length, None)?;
+        let new_array = array_create(agent, length, length, None, gc.nogc())?;
         return Ok(new_array.into_object());
     }
     // 7. If IsConstructor(C) is false, throw a TypeError exception.
     let Some(c) = is_constructor(agent, c) else {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::TypeError,
             "Not a constructor",
+            gc.nogc(),
         ));
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
-    let length = Value::from_f64(agent, gc.nogc(), length as f64);
-    construct(agent, gc, c, Some(ArgumentsList(&[length])), None)
+    let length = Value::from_f64(agent, length as f64, gc.nogc());
+    construct(agent, c, Some(ArgumentsList(&[length])), None, gc)
 }
 
 /// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)
@@ -161,9 +161,9 @@ pub(crate) fn array_species_create(
 /// The abstract operation ArraySetLength takes arguments A (an Array) and Desc (a Property Descriptor) and returns either a normal completion containing a Boolean or a throw completion.
 pub(crate) fn array_set_length(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     a: Array,
     desc: PropertyDescriptor,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<bool> {
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
@@ -193,15 +193,15 @@ pub(crate) fn array_set_length(
     let new_len_writable = desc.writable.unwrap_or(true);
     // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
-    let new_len = to_uint32(agent, gc.reborrow(), desc_value)?;
+    let new_len = to_uint32(agent, desc_value, gc.reborrow())?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
-    let number_len = to_number(agent, gc.reborrow(), desc_value)?;
+    let number_len = to_number(agent, desc_value, gc.reborrow())?;
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
         return Err(agent.throw_exception_with_static_message(
-            gc.nogc(),
             ExceptionType::RangeError,
             "invalid array length",
+            gc.nogc(),
         ));
     }
     // 6. Set newLenDesc.[[Value]] to newLen.

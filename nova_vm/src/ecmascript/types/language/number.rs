@@ -291,10 +291,10 @@ impl<'a> Number<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Number<'static>> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
-    pub fn from_f64(agent: &mut Agent, gc: NoGcScope<'a, '_>, value: f64) -> Self {
+    pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
         } else {
@@ -305,7 +305,7 @@ impl<'a> Number<'a> {
         }
     }
 
-    pub fn from_i64(agent: &mut Agent, gc: NoGcScope<'a, '_>, value: i64) -> Self {
+    pub fn from_i64(agent: &mut Agent, value: i64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
         } else {
@@ -455,7 +455,7 @@ impl<'a> Number<'a> {
                 agent.heap.create(n)
             }
             Number::Integer(_) => self,
-            Number::SmallF64(n) => Number::from_f64(agent, gc, n.into_f64().trunc()),
+            Number::SmallF64(n) => Number::from_f64(agent, n.into_f64().trunc(), gc),
         }
     }
 
@@ -784,7 +784,7 @@ impl<'a> Number<'a> {
     ///
     /// > NOTE: Finite-precision multiplication is commutative, but not always
     /// > associative.
-    pub fn multiply(agent: &mut Agent, gc: NoGcScope<'a, '_>, x: Self, y: Self) -> Self {
+    pub fn multiply(agent: &mut Agent, x: Self, y: Self, gc: NoGcScope<'a, '_>) -> Self {
         // Nonstandard fast path: If both numbers are integers, use integer
         // multiplication and try to return a safe integer as integer.
         if let (Self::Integer(x), Self::Integer(y)) = (x, y) {
@@ -795,9 +795,9 @@ impl<'a> Number<'a> {
                 if let Ok(result) = SmallInteger::try_from(result) {
                     return result.into();
                 }
-                return Self::from_f64(agent, gc, result as f64);
+                return Self::from_f64(agent, result as f64, gc);
             }
-            return Self::from_f64(agent, gc, x as f64 * y as f64);
+            return Self::from_f64(agent, x as f64 * y as f64, gc);
         }
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
@@ -856,7 +856,7 @@ impl<'a> Number<'a> {
             return Self::neg_zero();
         }
         // 6. Return 𝔽(ℝ(x) × ℝ(y)).
-        Self::from_f64(agent, gc, x.to_real(agent) * y.to_real(agent))
+        Self::from_f64(agent, x.to_real(agent) * y.to_real(agent), gc)
     }
 
     /// ### [6.1.6.1.5 Number::divide ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-divide)
@@ -866,7 +866,7 @@ impl<'a> Number<'a> {
     /// the rules of IEEE 754-2019 binary double-precision arithmetic,
     /// producing the quotient of x and y where x is the dividend and y is the
     /// divisor.
-    pub fn divide(agent: &mut Agent, gc: NoGcScope<'a, '_>, x: Self, y: Self) -> Self {
+    pub fn divide(agent: &mut Agent, x: Self, y: Self, gc: NoGcScope<'a, '_>) -> Self {
         // 1. If x is NaN or y is NaN, return NaN.
         if x.is_nan(agent) || y.is_nan(agent) {
             return Number::nan();
@@ -943,7 +943,7 @@ impl<'a> Number<'a> {
         }
         // 8. Return 𝔽(ℝ(x) / ℝ(y)).
         let result = x.to_real(agent) / y.to_real(agent);
-        Number::from_f64(agent, gc, result)
+        Number::from_f64(agent, result, gc)
     }
 
     /// ### [6.1.6.1.6 Number::remainder ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-remainder)
@@ -952,7 +952,7 @@ impl<'a> Number<'a> {
     /// and d (a Number) and returns a Number. It yields the remainder from an
     /// implied division of its operands where n is the dividend and d is the
     /// divisor.
-    pub fn remainder(agent: &mut Agent, gc: NoGcScope<'a, '_>, n: Self, d: Self) -> Self {
+    pub fn remainder(agent: &mut Agent, n: Self, d: Self, gc: NoGcScope<'a, '_>) -> Self {
         // 1. If n is NaN or d is NaN, return NaN.
         if n.is_nan(agent) || d.is_nan(agent) {
             return Self::nan();
@@ -999,7 +999,7 @@ impl<'a> Number<'a> {
         }
 
         // 11. Return 𝔽(r).
-        Self::from_f64(agent, gc, r)
+        Self::from_f64(agent, r, gc)
     }
 
     /// ### [6.1.6.1.7 Number::add ( x, y )](https://tc39.es/ecma262/#sec-numeric-types-number-add)
@@ -1315,22 +1315,22 @@ impl<'a> Number<'a> {
     // ### [6.1.6.1.20 Number::toString ( x, radix )](https://tc39.es/ecma262/#sec-numeric-types-number-tostring)
     pub(crate) fn to_string_radix_10<'gc>(
         agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
         x: Self,
+        gc: NoGcScope<'gc, '_>,
     ) -> String<'gc> {
         match x {
             Number::Number(_) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, gc, buffer.format(x.into_f64(agent)).to_string())
+                String::from_string(agent, buffer.format(x.into_f64(agent)).to_string(), gc)
                     .bind(gc)
             }
             Number::Integer(x) => {
                 let x = x.into_i64();
-                String::from_string(agent, gc, format!("{x}")).bind(gc)
+                String::from_string(agent, format!("{x}"), gc).bind(gc)
             }
             Number::SmallF64(x) => {
                 let mut buffer = ryu_js::Buffer::new();
-                String::from_string(agent, gc, buffer.format(x.into_f64()).to_string()).bind(gc)
+                String::from_string(agent, buffer.format(x.into_f64()).to_string(), gc).bind(gc)
             }
         }
     }

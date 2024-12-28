@@ -19,7 +19,6 @@ const runFunction = (start) => {
     if (!start) {
         start = new Array(256);
     }
-    
     for (var i = 0; i < start.length; i++) {
         start[i] = { type: "None", value: 0 };
         if (i % 15 === 0) {

@@ -30,45 +30,45 @@ impl ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
     fn to_string(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         this_value: Value,
         _: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
-                gc.nogc(),
                 ExceptionType::TypeError,
                 "'this' is not an object",
+                gc.nogc(),
             ));
         };
         // 3. Let name be ? Get(O, "name").
         let name = get(
             agent,
-            gc.reborrow(),
             o,
             PropertyKey::from(BUILTIN_STRING_MEMORY.name),
+            gc.reborrow(),
         )?;
         // 4. If name is undefined, set name to "Error"; otherwise set name to ? ToString(name).
         let name = if name.is_undefined() {
             None
         } else {
             Some(
-                to_string(agent, gc.reborrow(), name)?
+                to_string(agent, name, gc.reborrow())?
                     .unbind()
                     .scope(agent, gc.nogc()),
             )
         };
         // 5. Let msg be ? Get(O, "message").
         let key = PropertyKey::from(BUILTIN_STRING_MEMORY.message);
-        let msg = get(agent, gc.reborrow(), o, key)?;
+        let msg = get(agent, o, key, gc.reborrow())?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
             None
         } else {
             Some(
-                to_string(agent, gc.reborrow(), msg)?
+                to_string(agent, msg, gc.reborrow())?
                     .unbind()
                     .scope(agent, gc.nogc()),
             )
@@ -92,7 +92,7 @@ impl ErrorPrototype {
         } else {
             // 9. Return the string-concatenation of name, the code unit 0x003A (COLON), the code unit 0x0020 (SPACE), and msg.
             let result = format!("{}: {}", name.as_str(agent), msg.as_str(agent));
-            Ok(String::from_string(agent, gc, result).into_value())
+            Ok(String::from_string(agent, result, gc).into_value())
         }
     }
 

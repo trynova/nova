@@ -28,9 +28,9 @@ impl Builtin for StringIteratorPrototypeNext {
 impl StringIteratorPrototype {
     fn next(
         _agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
         _this_value: Value,
         _arguments: ArgumentsList,
+        _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!();
     }

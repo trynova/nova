@@ -95,17 +95,17 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 /// Record or null) and returns an ECMAScript function object.
 pub(crate) fn instantiate_ordinary_function_object(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
+    gc: GcScope<'_, '_>,
 ) -> ECMAScriptFunction {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
     let pk_name = if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
         let name = &id.name;
         // 4. Perform SetFunctionName(F, name).
-        PropertyKey::from_str(agent, gc.nogc(), name)
+        PropertyKey::from_str(agent, name, gc.nogc())
     } else {
         // 3. Perform SetFunctionName(F, "default").
         PropertyKey::from(BUILTIN_STRING_MEMORY.default)
@@ -127,10 +127,10 @@ pub(crate) fn instantiate_ordinary_function_object(
         env,
         private_env,
     };
-    let f = ordinary_function_create(agent, gc.nogc(), params);
+    let f = ordinary_function_create(agent, params, gc.nogc());
 
     // 4. Perform SetFunctionName(F, name).
-    set_function_name(agent, gc.nogc(), f, pk_name, None);
+    set_function_name(agent, f, pk_name, None, gc.nogc());
     // 5. Perform MakeConstructor(F).
     if !function.r#async && !function.generator {
         make_constructor(agent, f, None, None);
@@ -155,7 +155,6 @@ pub(crate) fn instantiate_ordinary_function_object(
         // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
         define_property_or_throw(
             agent,
-            gc,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
@@ -166,6 +165,7 @@ pub(crate) fn instantiate_ordinary_function_object(
                 enumerable: Some(false),
                 configurable: Some(false),
             },
+            gc,
         )
         .unwrap();
     }
@@ -181,9 +181,9 @@ pub(crate) fn instantiate_ordinary_function_object(
 
 pub(crate) fn instantiate_ordinary_function_expression(
     agent: &mut Agent,
-    gc: NoGcScope,
     function: &FunctionExpression,
     name: Option<String>,
+    gc: NoGcScope,
 ) -> ECMAScriptFunction {
     if let Some(_identifier) = function.identifier {
         todo!();
@@ -217,10 +217,10 @@ pub(crate) fn instantiate_ordinary_function_expression(
             env: lexical_environment,
             private_env: private_environment,
         };
-        let closure = ordinary_function_create(agent, gc, params);
+        let closure = ordinary_function_create(agent, params, gc);
         // 6. Perform SetFunctionName(closure, name).
         let name = PropertyKey::from(name);
-        set_function_name(agent, gc, closure, name, None);
+        set_function_name(agent, closure, name, None, gc);
         // 7. Perform MakeConstructor(closure).
         if !function.expression.get().r#async && !function.expression.get().generator {
             make_constructor(agent, closure, None, None);
@@ -265,9 +265,9 @@ impl CompileFunctionBodyData<'static> {
 /// containing an ECMAScript language value or an abrupt completion.
 pub(crate) fn evaluate_function_body(
     agent: &mut Agent,
-    gc: GcScope<'_, '_>,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -276,19 +276,19 @@ pub(crate) fn evaluate_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, gc.nogc(), data);
+        let exe = Executable::compile_function_body(agent, data, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
-    Vm::execute(agent, gc, exe, Some(arguments_list.0)).into_js_result()
+    Vm::execute(agent, exe, Some(arguments_list.0), gc).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
 pub(crate) fn evaluate_async_function_body(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
+    mut gc: GcScope<'_, '_>,
 ) -> Promise {
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
     let promise_capability = PromiseCapability::new(agent);
@@ -304,21 +304,21 @@ pub(crate) fn evaluate_async_function_body(
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, gc.nogc(), data);
+        let exe = Executable::compile_function_body(agent, data, gc.nogc());
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
-    match Vm::execute(agent, gc.reborrow(), exe, Some(arguments_list.0)) {
+    match Vm::execute(agent, exe, Some(arguments_list.0), gc.reborrow()) {
         ExecutionResult::Return(result) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability.resolve(agent, gc, result);
+            promise_capability.resolve(agent, result, gc);
         }
         ExecutionResult::Throw(err) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -340,7 +340,7 @@ pub(crate) fn evaluate_async_function_body(
                 return_promise_capability: promise_capability,
             }));
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let promise = Promise::resolve(agent, gc, awaited_value);
+            let promise = Promise::resolve(agent, awaited_value, gc);
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
             inner_promise_then(agent, promise, handler, handler, None);
         }
@@ -359,9 +359,9 @@ pub(crate) fn evaluate_async_function_body(
 /// completion.
 pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
+    mut gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -372,9 +372,9 @@ pub(crate) fn evaluate_generator_body(
     // 3. Set G.[[GeneratorBrand]] to empty.
     let generator = ordinary_create_from_constructor(
         agent,
-        gc.reborrow(),
         function_object.into_function(),
         ProtoIntrinsics::Generator,
+        gc.reborrow(),
     )?;
     let Object::Generator(generator) = generator else {
         unreachable!()
@@ -383,7 +383,7 @@ pub(crate) fn evaluate_generator_body(
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, function_object);
-    let executable = Executable::compile_function_body(agent, gc.nogc(), data);
+    let executable = Executable::compile_function_body(agent, data, gc.nogc());
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,

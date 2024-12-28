@@ -68,7 +68,7 @@ impl<'a> Numeric<'a> {
         agent: &mut Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Numeric<'static>> {
-        Scoped::new(agent, gc, self.unbind())
+        Scoped::new(agent, self.unbind(), gc)
     }
 
     pub fn is_bigint(self) -> bool {

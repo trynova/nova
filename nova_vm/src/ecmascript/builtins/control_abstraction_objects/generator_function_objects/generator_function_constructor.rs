@@ -38,10 +38,10 @@ impl BuiltinIntrinsicConstructor for GeneratorFunctionConstructor {
 impl GeneratorFunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -59,11 +59,11 @@ impl GeneratorFunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, generator, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
-            gc.reborrow(),
             constructor,
             DynamicFunctionKind::Generator,
             parameter_args,
             body_arg,
+            gc.reborrow(),
         )?;
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 30. If kind is generator, then
@@ -82,7 +82,6 @@ impl GeneratorFunctionConstructor {
         //   b. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
         define_property_or_throw(
             agent,
-            gc,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
@@ -93,6 +92,7 @@ impl GeneratorFunctionConstructor {
                 enumerable: Some(false),
                 configurable: Some(false),
             },
+            gc,
         )
         .unwrap();
 

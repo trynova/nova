@@ -31,10 +31,10 @@ impl BuiltinIntrinsicConstructor for AsyncFunctionConstructor {
 impl AsyncFunctionConstructor {
     fn behaviour(
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -51,11 +51,11 @@ impl AsyncFunctionConstructor {
         // 3. Return ? CreateDynamicFunction(C, NewTarget, async, parameterArgs, bodyArg).
         Ok(create_dynamic_function(
             agent,
-            gc,
             constructor,
             DynamicFunctionKind::Async,
             parameter_args,
             body_arg,
+            gc,
         )?
         .into_value())
     }

@@ -364,11 +364,11 @@ impl Viewable for f64 {
     const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
 
     fn into_be_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from_f64(agent, gc, Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()), gc).into_numeric()
     }
 
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
-        Number::from_f64(agent, gc, Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
     }
 
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
@@ -567,14 +567,14 @@ impl DataBlock {
     /// The abstract operation CreateByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Data Block or a throw completion.
-    pub fn create_byte_data_block(agent: &mut Agent, gc: NoGcScope, size: u64) -> JsResult<Self> {
+    pub fn create_byte_data_block(agent: &mut Agent, size: u64, gc: NoGcScope) -> JsResult<Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
             Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::RangeError,
                 "Not a safe integer",
+                gc,
             ))
         } else if let Ok(size) = usize::try_from(size) {
             // 2. Let db be a new Data Block value consisting of size bytes.
@@ -585,9 +585,9 @@ impl DataBlock {
             // 2. cont: If it is impossible to create such a Data Block, throw a RangeError exception.
             // TODO: throw a RangeError exception
             Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::RangeError,
                 "Invalid Data Block length",
+                gc,
             ))
         }
     }
@@ -599,8 +599,8 @@ impl DataBlock {
     /// a Shared Data Block or a throw completion.
     pub fn create_shared_byte_data_block(
         agent: &mut Agent,
-        gc: NoGcScope,
         size: u64,
+        gc: NoGcScope,
     ) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = usize::try_from(size) {
@@ -612,9 +612,9 @@ impl DataBlock {
             Ok(Self::new(size))
         } else {
             Err(agent.throw_exception_with_static_message(
-                gc,
                 ExceptionType::TypeError,
                 "Invalid Shared Data Block length",
+                gc,
             ))
         }
         // 6. Return db.
