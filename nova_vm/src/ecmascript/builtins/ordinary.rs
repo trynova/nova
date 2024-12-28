@@ -1035,10 +1035,11 @@ pub(crate) fn ordinary_delete(
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(
+pub(crate) fn ordinary_own_property_keys<'a>(
     agent: &Agent,
+    _: NoGcScope<'a, '_>,
     object: OrdinaryObject,
-) -> Vec<PropertyKey> {
+) -> Vec<PropertyKey<'a>> {
     let object_keys = agent[object].keys;
     // 1. Let keys be a new empty List.
     let mut integer_keys = vec![];

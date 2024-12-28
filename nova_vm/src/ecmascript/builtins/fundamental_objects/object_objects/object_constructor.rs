@@ -2,7 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    create_array_from_scoped_list, try_define_property_or_throw, try_get,
+};
+use crate::ecmascript::types::{bind_property_keys, scope_property_keys, unbind_property_keys};
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -323,11 +327,15 @@ impl ObjectConstructor {
             // i. Let from be ! ToObject(nextSource).
             let from = to_object(agent, gc.nogc(), *next_source)?;
             // ii. Let keys be ? from.[[OwnPropertyKeys]]().
-            let keys = from.internal_own_property_keys(agent, gc.reborrow())?;
+            let keys = unbind_property_keys(from.internal_own_property_keys(agent, gc.reborrow())?);
+            let keys = scope_property_keys(agent, gc.nogc(), keys);
             // iii. For each element nextKey of keys, do
             for next_key in keys {
                 // 1. Let desc be ? from.[[GetOwnProperty]](nextKey).
-                let desc = from.internal_get_own_property(agent, gc.reborrow(), next_key)?;
+                let desc = {
+                    let next_key = next_key.get(agent);
+                    from.internal_get_own_property(agent, gc.reborrow(), next_key)?
+                };
                 // 2. If desc is not undefined and desc.[[Enumerable]] is true, then
                 let Some(desc) = desc else {
                     continue;
@@ -336,8 +344,12 @@ impl ObjectConstructor {
                     continue;
                 }
                 // a. Let propValue be ? Get(from, nextKey).
-                let prop_value = get(agent, gc.reborrow(), from, next_key)?;
+                let prop_value = {
+                    let next_key = next_key.get(agent);
+                    get(agent, gc.reborrow(), from, next_key)?
+                };
                 // b. Perform ? Set(to, nextKey, propValue, true).
+                let next_key = next_key.get(agent);
                 set(agent, gc.reborrow(), to, next_key, prop_value, true)?;
             }
         }
@@ -417,11 +429,13 @@ impl ObjectConstructor {
             return Err(agent.throw_exception(gc.nogc(), ExceptionType::TypeError, error_message));
         };
         // 2. Let key be ? ToPropertyKey(P).
-        let key = to_property_key(agent, gc.reborrow(), p)?;
+        let key = to_property_key(agent, gc.reborrow(), p)?
+            .unbind()
+            .scope(agent, gc.nogc());
         // 3. Let desc be ? ToPropertyDescriptor(Attributes).
         let desc = PropertyDescriptor::to_property_descriptor(agent, gc.reborrow(), attributes)?;
         // 4. Perform ? DefinePropertyOrThrow(O, key, desc).
-        define_property_or_throw(agent, gc.reborrow(), o, key, desc)?;
+        define_property_or_throw(agent, gc.reborrow(), o, key.get(agent), desc)?;
         // 5. Return O.
         Ok(o.into_value())
     }
@@ -538,7 +552,7 @@ impl ObjectConstructor {
                         };
                     let key_value_elements = &agent[agent[entry_element_array].elements];
                     let key = key_value_elements.first().unwrap().unwrap();
-                    let key = to_property_key_simple(agent, key);
+                    let key = to_property_key_simple(agent, gc.nogc(), key);
                     let Some(key) = key else {
                         valid = false;
                         break;
@@ -601,9 +615,14 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let key be ? ToPropertyKey(P).
-        let key = to_property_key(agent, gc.reborrow(), p)?;
+        let key = to_property_key(agent, gc.reborrow(), p)?
+            .unbind()
+            .bind(gc.nogc());
         // 3. Let desc be ? obj.[[GetOwnProperty]](key).
-        let desc = obj.internal_get_own_property(agent, gc.reborrow(), key)?;
+        let desc = {
+            let key = key.unbind();
+            obj.internal_get_own_property(agent, gc.reborrow(), key)?
+        };
         // 4. Return FromPropertyDescriptor(desc).
         Ok(PropertyDescriptor::from_property_descriptor(desc, agent)
             .map_or(Value::Undefined, |obj| obj.into_value()))
@@ -620,19 +639,26 @@ impl ObjectConstructor {
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let ownKeys be ? obj.[[OwnPropertyKeys]]().
-        let own_keys = obj.internal_own_property_keys(agent, gc.reborrow())?;
+        let mut own_keys = bind_property_keys(
+            unbind_property_keys(obj.internal_own_property_keys(agent, gc.reborrow())?),
+            gc.nogc(),
+        );
 
         let mut descriptors = Vec::with_capacity(own_keys.len());
         // 4. For each element key of ownKeys, do
-        for key in own_keys {
+        let mut i = 0;
+        for &key in own_keys.iter() {
             // a. Let desc be ? obj.[[GetOwnProperty]](key).
-            let desc = obj.internal_get_own_property(agent, gc.reborrow(), key)?;
+            let Some(desc) = obj.try_get_own_property(agent, gc.nogc(), key) else {
+                break;
+            };
             // b. Let descriptor be FromPropertyDescriptor(desc).
             let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent);
             // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
             if let Some(descriptor) = descriptor {
                 descriptors.push(ObjectEntry::new_data_entry(key, descriptor.into_value()));
             }
+            i += 1;
         }
         // 3. Let descriptors be OrdinaryObjectCreate(%Object.prototype%).
         let descriptors = agent.heap.create_object_with_prototype(
@@ -643,8 +669,14 @@ impl ObjectConstructor {
                 .into_object(),
             &descriptors,
         );
-        // 5. Return descriptors.
-        Ok(descriptors.into_value())
+        if i < own_keys.len() {
+            let _ = own_keys.drain(..i);
+            let own_keys = unbind_property_keys(own_keys);
+            get_own_property_descriptors_slow(agent, gc, obj, own_keys, descriptors)
+        } else {
+            // 5. Return descriptors.
+            Ok(descriptors.into_value())
+        }
     }
 
     /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
@@ -708,10 +740,16 @@ impl ObjectConstructor {
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         for g in groups {
             // a. Let elements be CreateArrayFromList(g.[[Elements]]).
-            let elements = create_array_from_list(agent, gc.nogc(), &g.elements).into_value();
+            let elements = create_array_from_scoped_list(agent, gc.nogc(), g.elements).into_value();
 
             // b. Perform ! CreateDataPropertyOrThrow(obj, g.[[Key]], elements).
-            create_data_property_or_throw(agent, gc.reborrow(), object, g.key, elements)?;
+            create_data_property_or_throw(
+                agent,
+                gc.reborrow(),
+                object,
+                g.key.get(agent),
+                elements,
+            )?;
         }
 
         // 4. Return obj.
@@ -725,7 +763,10 @@ impl ObjectConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let obj = to_object(agent, gc.nogc(), arguments.get(0))?;
-        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?;
+        let key = to_property_key(agent, gc.reborrow(), arguments.get(1))?
+            .unbind()
+            .bind(gc.nogc());
+        let key = key.unbind();
         has_own_property(agent, gc.reborrow(), obj, key).map(|result| result.into())
     }
 
@@ -788,7 +829,6 @@ impl ObjectConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = arguments.get(0);
-        println!("key target: {:?}", o);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
@@ -963,13 +1003,18 @@ fn object_define_properties<T: InternalMethods>(
     // 1. Let props be ? ToObject(Properties).
     let props = to_object(agent, gc.nogc(), properties)?;
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
-    let keys = props.internal_own_property_keys(agent, gc.reborrow())?;
+    let keys = bind_property_keys(
+        unbind_property_keys(props.internal_own_property_keys(agent, gc.reborrow())?),
+        gc.nogc(),
+    );
+    let keys = scope_property_keys(agent, gc.nogc(), keys);
     // 3. Let descriptors be a new empty List.
     let mut descriptors = Vec::with_capacity(keys.len());
     // 4. For each element nextKey of keys, do
     for next_key in keys {
         // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
-        let prop_desc = props.internal_get_own_property(agent, gc.reborrow(), next_key)?;
+        let prop_desc =
+            props.internal_get_own_property(agent, gc.reborrow(), next_key.get(agent))?;
         // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
         let Some(prop_desc) = prop_desc else {
             continue;
@@ -978,19 +1023,80 @@ fn object_define_properties<T: InternalMethods>(
             continue;
         }
         // i. Let descObj be ? Get(props, nextKey).
-        let desc_obj = get(agent, gc.reborrow(), props, next_key)?;
+        let desc_obj = get(agent, gc.reborrow(), props, next_key.get(agent))?;
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
-        let desc = PropertyDescriptor::to_property_descriptor(agent, gc.reborrow(), desc_obj)?;
+        let desc = PropertyDescriptor::to_property_descriptor(agent, gc.reborrow(), desc_obj)?
+            .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
         descriptors.push((next_key, desc));
     }
     // 5. For each element property of descriptors, do
     for (property_key, property_descriptor) in descriptors {
         // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
-        define_property_or_throw(agent, gc.reborrow(), o, property_key, property_descriptor)?;
+        define_property_or_throw(
+            agent,
+            gc.reborrow(),
+            o,
+            property_key.get(agent),
+            property_descriptor.into_property_descriptor(agent),
+        )?;
     }
     // 6. Return O.
     Ok(o)
+}
+
+fn try_object_define_properties<T: InternalMethods>(
+    agent: &mut Agent,
+    gc: NoGcScope<'_, '_>,
+    o: T,
+    properties: Value,
+) -> Option<JsResult<T>> {
+    // 1. Let props be ? ToObject(Properties).
+    let props = match to_object(agent, gc, properties) {
+        Ok(props) => props,
+        Err(err) => {
+            return Some(Err(err));
+        }
+    };
+    // 2. Let keys be ? props.[[OwnPropertyKeys]]().
+    let keys = props.try_own_property_keys(agent, gc)?;
+    // 3. Let descriptors be a new empty List.
+    let mut descriptors = Vec::with_capacity(keys.len());
+    // 4. For each element nextKey of keys, do
+    for next_key in keys {
+        // a. Let propDesc be ? props.[[GetOwnProperty]](nextKey).
+        let prop_desc = props.try_get_own_property(agent, gc, next_key)?;
+        // b. If propDesc is not undefined and propDesc.[[Enumerable]] is true, then
+        let Some(prop_desc) = prop_desc else {
+            continue;
+        };
+        if prop_desc.enumerable != Some(true) {
+            continue;
+        }
+        // i. Let descObj be ? Get(props, nextKey).
+        let desc_obj = try_get(agent, gc, props, next_key)?;
+        // ii. Let desc be ? ToPropertyDescriptor(descObj).
+        let desc = PropertyDescriptor::try_to_property_descriptor(agent, gc, desc_obj)?;
+        let desc = match desc {
+            Ok(desc) => desc,
+            Err(err) => {
+                return Some(Err(err));
+            }
+        };
+        // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
+        descriptors.push((next_key, desc));
+    }
+    // 5. For each element property of descriptors, do
+    for (property_key, property_descriptor) in descriptors {
+        // a. Perform ? DefinePropertyOrThrow(O, property.[[Key]], property.[[Descriptor]]).
+        if let Err(err) =
+            try_define_property_or_throw(agent, gc, o, property_key, property_descriptor)?
+        {
+            return Some(Err(err));
+        }
+    }
+    // 6. Return O.
+    Some(Ok(o))
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -1052,7 +1158,7 @@ pub fn add_entries_from_iterable_from_entries(
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         {
             // a. Let propertyKey be ? ToPropertyKey(key).
-            let property_key = to_property_key(agent, gc.reborrow(), k);
+            let property_key = to_property_key(agent, gc.reborrow(), k).map(|pk| pk.unbind());
             // i. IfAbruptCloseIterator(status, iteratorRecord).
             let property_key =
                 if_abrupt_close_iterator(agent, gc.reborrow(), property_key, &iterator_record)?;
@@ -1083,7 +1189,9 @@ fn get_own_string_property_keys(
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, gc.nogc(), o)?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
-    let keys = obj.internal_own_property_keys(agent, gc.reborrow())?;
+    let keys = unbind_property_keys(obj.internal_own_property_keys(agent, gc.reborrow())?);
+    let gc = gc.into_nogc();
+    let keys = bind_property_keys(keys, gc);
     // 3. Let nameList be a new empty List.
     let mut name_list = Vec::with_capacity(keys.len());
     // 4. For each element nextKey of keys, do
@@ -1093,10 +1201,10 @@ fn get_own_string_property_keys(
             // i. Append nextKey to nameList.
             PropertyKey::Integer(next_key) => {
                 let next_key = next_key.into_i64().to_string();
-                name_list.push(Value::from_string(agent, gc.nogc(), next_key));
+                name_list.push(Value::from_string(agent, gc, next_key));
             }
             PropertyKey::SmallString(next_key) => name_list.push(Value::SmallString(next_key)),
-            PropertyKey::String(next_key) => name_list.push(Value::String(next_key)),
+            PropertyKey::String(next_key) => name_list.push(Value::String(next_key.unbind())),
             PropertyKey::Symbol(_) => {}
         }
     }
@@ -1125,3 +1233,32 @@ fn get_own_symbol_property_keys(
     // 5. Return nameList.
     Ok(name_list)
 }
+
+fn get_own_property_descriptors_slow(
+    agent: &mut Agent,
+    mut gc: GcScope<'_, '_>,
+    obj: Object,
+    own_keys: Vec<PropertyKey<'_>>,
+    descriptors: OrdinaryObject,
+) -> JsResult<Value> {
+    let own_keys = scope_property_keys(agent, gc.nogc(), own_keys);
+    for key in own_keys {
+        // a. Let desc be ? obj.[[GetOwnProperty]](key).
+        let desc = obj.internal_get_own_property(agent, gc.reborrow(), key.get(agent))?;
+        // b. Let descriptor be FromPropertyDescriptor(desc).
+        let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent);
+        // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
+        if let Some(descriptor) = descriptor {
+            create_data_property_or_throw(
+                agent,
+                gc.reborrow(),
+                obj,
+                key.get(agent),
+                descriptor.into_value(),
+            )?;
+        }
+    }
+    Ok(descriptors.into_value())
+}
+
+fn object_define_properties_slow() {}

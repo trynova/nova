@@ -363,7 +363,7 @@ pub(crate) enum WellKnownSymbolIndexes {
 }
 
 impl WellKnownSymbolIndexes {
-    pub const fn to_property_key(self) -> PropertyKey {
+    pub const fn to_property_key(self) -> PropertyKey<'static> {
         PropertyKey::Symbol(Symbol(SymbolIndex::from_u32_index(self as u32)))
     }
 }
@@ -386,7 +386,7 @@ impl From<WellKnownSymbolIndexes> for Value {
     }
 }
 
-impl From<WellKnownSymbolIndexes> for PropertyKey {
+impl From<WellKnownSymbolIndexes> for PropertyKey<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         PropertyKey::Symbol(value.into())
     }

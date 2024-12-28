@@ -4,7 +4,9 @@
 
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property;
+use crate::ecmascript::types::IntoValue;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -112,11 +114,11 @@ impl JSONObject {
         // 5. NOTE: The early error rules defined in 13.2.5.1 have special handling for the above invocation of ParseText.
         // 6. Assert: script is a Parse Node.
         // 7. Let completion be Completion(Evaluation of script).
-        let completion = value_from_json(agent, gc.reborrow(), &json_value);
+        let completion = value_from_json(agent, gc.nogc(), &json_value);
 
         // 8. NOTE: The PropertyDefinitionEvaluation semantics defined in 13.2.5.5 have special handling for the above evaluation.
         // 9. Let unfiltered be completion.[[Value]].
-        let unfiltered = completion?;
+        let unfiltered = completion;
 
         // 10. Assert: unfiltered is either a String, a Number, a Boolean, an Object that is defined by either an ArrayLiteral or an ObjectLiteral, or null.
         assert!(
@@ -274,39 +276,35 @@ pub(crate) fn internalize_json_property(
 
 pub(crate) fn value_from_json(
     agent: &mut Agent,
-    mut gc: GcScope<'_, '_>,
+    gc: NoGcScope<'_, '_>,
     json: &sonic_rs::Value,
-) -> JsResult<Value> {
+) -> Value {
     match json.get_type() {
-        sonic_rs::JsonType::Null => Ok(Value::Null),
-        sonic_rs::JsonType::Boolean => Ok(Value::Boolean(json.is_true())),
-        sonic_rs::JsonType::Number => {
-            Ok(Number::from_f64(agent, gc.nogc(), json.as_f64().unwrap()).into())
-        }
-        sonic_rs::JsonType::String => {
-            Ok(String::from_str(agent, gc.nogc(), json.as_str().unwrap()).into())
-        }
+        sonic_rs::JsonType::Null => Value::Null,
+        sonic_rs::JsonType::Boolean => Value::Boolean(json.is_true()),
+        sonic_rs::JsonType::Number => Number::from_f64(agent, gc, json.as_f64().unwrap()).into(),
+        sonic_rs::JsonType::String => String::from_str(agent, gc, json.as_str().unwrap()).into(),
         sonic_rs::JsonType::Array => {
             let json_array = json.as_array().unwrap();
             let len = json_array.len();
-            let array_obj = array_create(agent, gc.nogc(), len, len, None)?;
+            let array_obj = array_create(agent, gc, len, len, None).unwrap();
             for (i, value) in json_array.iter().enumerate() {
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
-                let js_value = value_from_json(agent, gc.reborrow(), value)?;
-                create_data_property(agent, gc.reborrow(), array_obj, prop, js_value)?;
+                let js_value = value_from_json(agent, gc, value);
+                try_create_data_property(agent, gc, array_obj, prop, js_value).unwrap();
             }
-            Ok(array_obj.into())
+            array_obj.into_value()
         }
         sonic_rs::JsonType::Object => {
             let json_object = json.as_object().unwrap();
             let object =
                 ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
             for (key, value) in json_object.iter() {
-                let prop = PropertyKey::from_str(agent, gc.nogc(), key);
-                let js_value = value_from_json(agent, gc.reborrow(), value)?;
-                create_data_property(agent, gc.reborrow(), object, prop, js_value)?;
+                let prop = PropertyKey::from_str(agent, gc, key);
+                let js_value = value_from_json(agent, gc, value);
+                try_create_data_property(agent, gc, object, prop, js_value).unwrap();
             }
-            Ok(object.into())
+            object.into()
         }
     }
 }

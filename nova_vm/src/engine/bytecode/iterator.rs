@@ -4,14 +4,13 @@
 
 use std::collections::VecDeque;
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_iterator_from_method;
+use crate::ecmascript::abstract_operations::operations_on_objects::{call, get, get_method};
+use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::{
-            operations_on_iterator_objects::{get_iterator_from_method, IteratorRecord},
-            operations_on_objects::{call, get, get_method},
-            type_conversion::to_boolean,
-        },
+        abstract_operations::operations_on_iterator_objects::IteratorRecord,
         builtins::Array,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
@@ -30,6 +29,26 @@ pub(super) enum VmIterator {
 }
 
 impl VmIterator {
+    /// Unbind this VmIterator from its current lifetime. This is necessary to use
+    /// the VmIterator as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> VmIterator {
+        self
+    }
+
+    // Bind this VmIterator to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your VmIterators cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound VmIterator cannot be used after binding.
+    pub const fn bind(self, _: NoGcScope<'_, '_>) -> VmIterator {
+        self
+    }
+
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
     ///
     /// While not exactly equal to the IteratorStepValue method in usage, this
@@ -50,14 +69,14 @@ impl VmIterator {
                             Value::from_string(agent, gc.nogc(), int.into_i64().to_string())
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
-                        PropertyKey::String(data) => Value::String(data),
+                        PropertyKey::String(data) => Value::String(data.unbind()),
                         _ => unreachable!(),
                     }))
                 } else {
                     Ok(None)
                 }
             }
-            VmIterator::ArrayValues(iter) => iter.next(agent, gc.reborrow()),
+            VmIterator::ArrayValues(iter) => iter.next(agent, gc),
             VmIterator::GenericIterator(iter) => {
                 let result = call(
                     agent,
@@ -118,6 +137,13 @@ impl VmIterator {
         }
     }
 
+    /// ### [7.4.4 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
+    ///
+    /// The abstract operation GetIterator takes arguments obj (an ECMAScript
+    /// language value) and returns either a normal completion containing an
+    /// Iterator Record or a throw completion.
+    ///
+    /// This method version performs the SYNC version of the method.
     pub(super) fn from_value(
         agent: &mut Agent,
         mut gc: GcScope<'_, '_>,
@@ -130,8 +156,8 @@ impl VmIterator {
             value,
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
         )?;
+        // 3. If method is undefined, throw a TypeError exception.
         let Some(method) = method else {
-            // 3. If method is undefined, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 gc.nogc(),
                 ExceptionType::TypeError,
@@ -141,19 +167,15 @@ impl VmIterator {
 
         // 4. Return ? GetIteratorFromMethod(obj, method).
         match value {
+            // Optimisation: Check if we're using the Array values iterator on
+            // an Array.
             Value::Array(array)
-                if get_method(
-                    agent,
-                    gc.reborrow(),
-                    value,
-                    PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
-                )? == Some(
-                    agent
+                if method
+                    == agent
                         .current_realm()
                         .intrinsics()
                         .array_prototype_values()
-                        .into(),
-                ) =>
+                        .into() =>
             {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
@@ -169,8 +191,8 @@ impl VmIterator {
 pub(super) struct ObjectPropertiesIterator {
     object: Object,
     object_was_visited: bool,
-    visited_keys: Vec<PropertyKey>,
-    remaining_keys: VecDeque<PropertyKey>,
+    visited_keys: Vec<PropertyKey<'static>>,
+    remaining_keys: VecDeque<PropertyKey<'static>>,
 }
 
 impl ObjectPropertiesIterator {
@@ -183,11 +205,11 @@ impl ObjectPropertiesIterator {
         }
     }
 
-    pub(super) fn next(
+    pub(super) fn next<'a>(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Option<PropertyKey>> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<Option<PropertyKey<'a>>> {
         loop {
             let object = self.object;
             if !self.object_was_visited {
@@ -196,7 +218,8 @@ impl ObjectPropertiesIterator {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
                     } else {
-                        self.remaining_keys.push_back(key);
+                        // TODO: Properly handle potential GC.
+                        self.remaining_keys.push_back(key.unbind());
                     }
                 }
                 self.object_was_visited = true;
@@ -205,6 +228,7 @@ impl ObjectPropertiesIterator {
                 if self.visited_keys.contains(&r) {
                     continue;
                 }
+                // TODO: Properly handle potential GC.
                 let desc = object.internal_get_own_property(agent, gc.reborrow(), r)?;
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
@@ -213,13 +237,8 @@ impl ObjectPropertiesIterator {
                     }
                 }
             }
-            let got_prototype = object.try_get_prototype_of(agent, gc.nogc());
-            let prototype = if let Some(prototype) = got_prototype {
-                prototype
-            } else {
-                // Note: We should be probably be rooting some values here.
-                object.internal_get_prototype_of(agent, gc.reborrow())?
-            };
+            // TODO: Properly handle potential GC.
+            let prototype = object.internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
                 self.object = prototype;
@@ -248,7 +267,7 @@ impl ArrayValuesIterator {
     pub(super) fn next(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Value>> {
         // b. Repeat,
         let array = self.array;
@@ -269,7 +288,8 @@ impl ArrayValuesIterator {
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
-        let element_value = get(agent, gc.reborrow(), self.array, index.into())?;
+        // TODO: Properly handle potential GC.
+        let element_value = get(agent, gc, self.array, index.into())?;
         // a. Let result be elementValue.
         // vii. Perform ? GeneratorYield(CreateIterResultObject(result, false)).
         Ok(Some(element_value))

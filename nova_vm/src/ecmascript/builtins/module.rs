@@ -596,11 +596,11 @@ impl InternalMethods for Module {
     }
 
     /// ### [10.4.6.11 \[\[OwnPropertyKeys\]\] ( )])(https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-ownpropertykeys)
-    fn try_own_property_keys(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        _: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> Option<Vec<PropertyKey<'gc>>> {
         // 1. Let exports be O.[[Exports]].
         let exports = agent[self]
             .exports
@@ -608,9 +608,9 @@ impl InternalMethods for Module {
             .map(|string| PropertyKey::from(*string));
         let exports_count = exports.len();
         // 2. Let symbolKeys be OrdinaryOwnPropertyKeys(O).
-        let symbol_keys = self
-            .get_backing_object(agent)
-            .map_or(vec![], |object| ordinary_own_property_keys(agent, object));
+        let symbol_keys = self.get_backing_object(agent).map_or(vec![], |object| {
+            ordinary_own_property_keys(agent, gc, object)
+        });
         let symbol_keys_count = symbol_keys.len();
         // 3. Return the list-concatenation of exports and symbolKeys.
         let mut own_property_keys = Vec::with_capacity(exports_count + symbol_keys_count);

@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
@@ -23,7 +24,7 @@ use agent::{Agent, JsResult};
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
 #[derive(Debug)]
-pub struct Reference {
+pub struct Reference<'a> {
     /// ### \[\[Base]]
     ///
     /// The value or Environment Record which holds the binding. A \[\[Base]]
@@ -34,7 +35,7 @@ pub struct Reference {
     ///
     /// The name of the binding. Always a String if \[\[Base]] value is an
     /// Environment Record.
-    pub(crate) referenced_name: PropertyKey,
+    pub(crate) referenced_name: PropertyKey<'a>,
 
     /// ### \[\[Strict]]
     ///
@@ -50,6 +51,28 @@ pub struct Reference {
     /// that case, the \[\[ThisValue]] field holds the this value at the time
     /// the Reference Record was created.
     pub(crate) this_value: Option<Value>,
+}
+
+impl<'a> Reference<'a> {
+    /// Unbind this Reference from its current lifetime. This is necessary to use
+    /// the Reference as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Reference<'static> {
+        unsafe { std::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
+    }
+
+    // Bind this Reference to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your References cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound Reference cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Reference<'gc> {
+        unsafe { std::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
+    }
 }
 
 /// ### [6.2.5.1 IsPropertyReference ( V )](https://tc39.es/ecma262/#sec-ispropertyreference)
@@ -293,6 +316,97 @@ pub(crate) fn put_value(
     // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.
 }
 
+/// ### [6.2.5.6 PutValue ( V, W )](https://tc39.es/ecma262/#sec-putvalue)
+///
+/// The abstract operation PutValue takes arguments V (a Reference Record or an
+/// ECMAScript language value) and W (an ECMAScript language value) and returns
+/// either a normal completion containing UNUSED or an abrupt completion.
+pub(crate) fn try_put_value<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    v: &Reference<'a>,
+    w: Value,
+) -> Option<JsResult<()>> {
+    // 1. If V is not a Reference Record, throw a ReferenceError exception.
+    // 2. If IsUnresolvableReference(V) is true, then
+    if is_unresolvable_reference(v) {
+        if v.strict {
+            // a. If V.[[Strict]] is true, throw a ReferenceError exception.
+            let error_message = format!(
+                "Cannot assign to undeclared variable '{}'.",
+                v.referenced_name.as_display(agent)
+            );
+            return Some(Err(agent.throw_exception(
+                gc,
+                ExceptionType::ReferenceError,
+                error_message,
+            )));
+        }
+        // b. Let globalObj be GetGlobalObject().
+        let global_obj = get_global_object(agent);
+        // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
+        let referenced_name = v.referenced_name;
+        if let Err(err) = try_set(agent, gc, global_obj, referenced_name, w, false)? {
+            return Some(Err(err));
+        };
+        // d. Return UNUSED.
+        Some(Ok(()))
+    } else if is_property_reference(v) {
+        // 3. If IsPropertyReference(V) is true, then
+        // a. Let baseObj be ? ToObject(V.[[Base]]).
+        let base = match v.base {
+            Base::Value(value) => value,
+            Base::Environment(_) | Base::Unresolvable => unreachable!(),
+        };
+        let base_obj = match to_object(agent, gc, base) {
+            Ok(base_obj) => base_obj,
+            Err(err) => return Some(Err(err)),
+        };
+        // b. If IsPrivateReference(V) is true, then
+        if is_private_reference(v) {
+            // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
+            todo!();
+        }
+        // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
+        let this_value = get_this_value(v);
+        let referenced_name = v.referenced_name;
+        let succeeded = base_obj.try_set(agent, gc, referenced_name, w, this_value)?;
+        if !succeeded && v.strict {
+            // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
+            let base_obj_repr = base_obj.into_value().try_string_repr(agent, gc)?;
+            let error_message = format!(
+                "Could not set property '{}' of {}.",
+                referenced_name.as_display(agent),
+                base_obj_repr.as_str(agent)
+            );
+            return Some(Err(agent.throw_exception(
+                gc,
+                ExceptionType::TypeError,
+                error_message,
+            )));
+        }
+        // e. Return UNUSED.
+        Some(Ok(()))
+    } else {
+        // 4. Else,
+        // a. Let base be V.[[Base]].
+        let base = &v.base;
+        // b. Assert: base is an Environment Record.
+        let Base::Environment(base) = base else {
+            unreachable!()
+        };
+        // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
+        let referenced_name = match &v.referenced_name {
+            PropertyKey::String(data) => String::String(*data),
+            PropertyKey::SmallString(data) => String::SmallString(*data),
+            _ => unreachable!(),
+        };
+        base.try_set_mutable_binding(agent, gc, referenced_name, w, v.strict)
+    }
+    // NOTE
+    // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.
+}
+
 /// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
 /// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
 /// (an ECMAScript language value) and returns either a normal completion containing unused or an
@@ -320,6 +434,33 @@ pub(crate) fn initialize_referenced_binding(
     base.initialize_binding(agent, gc.reborrow(), referenced_name, w)
 }
 
+/// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
+/// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
+/// (an ECMAScript language value) and returns either a normal completion containing unused or an
+/// abrupt completion.
+pub(crate) fn try_initialize_referenced_binding<'a>(
+    agent: &mut Agent,
+    gc: NoGcScope<'a, '_>,
+    v: Reference<'a>,
+    w: Value,
+) -> Option<JsResult<()>> {
+    // 1. Assert: IsUnresolvableReference(V) is false.
+    debug_assert!(!is_unresolvable_reference(&v));
+    // 2. Let base be V.[[Base]].
+    let base = v.base;
+    // 3. Assert: base is an Environment Record.
+    let Base::Environment(base) = base else {
+        unreachable!()
+    };
+    let referenced_name = match v.referenced_name {
+        PropertyKey::String(data) => String::String(data),
+        PropertyKey::SmallString(data) => String::SmallString(data),
+        _ => unreachable!(),
+    };
+    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+    base.try_initialize_binding(agent, gc, referenced_name, w)
+}
+
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
 /// The abstract operation GetThisValue takes argument V (a Reference Record)
 /// and returns an ECMAScript language value.
@@ -342,7 +483,7 @@ pub(crate) enum Base {
     Unresolvable,
 }
 
-impl HeapMarkAndSweep for Reference {
+impl HeapMarkAndSweep for Reference<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             base,

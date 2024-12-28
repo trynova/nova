@@ -242,7 +242,7 @@ impl IntoPrimitive<'static> for SmallString {
     }
 }
 
-impl String<'_> {
+impl<'a> String<'a> {
     pub const EMPTY_STRING: String<'static> = String::from_small_string("");
 
     /// Unbind this String from its current lifetime. This is necessary to use
@@ -277,14 +277,14 @@ impl String<'_> {
         self == Self::EMPTY_STRING
     }
 
-    pub const fn to_property_key(self) -> PropertyKey {
+    pub const fn to_property_key(self) -> PropertyKey<'a> {
         match self {
             String::String(data) => PropertyKey::String(data.unbind()),
             String::SmallString(data) => PropertyKey::SmallString(data),
         }
     }
 
-    pub const fn from_small_string(message: &'static str) -> Self {
+    pub const fn from_small_string(message: &'static str) -> String<'static> {
         assert!(
             message.len() < 8
                 && (message.is_empty() || message.as_bytes()[message.as_bytes().len() - 1] != 0)

@@ -31,7 +31,8 @@ pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
-    InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey,
+    bind_property_keys, scope_property_keys, unbind_property_keys, InternalMethods, InternalSlots,
+    IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey,
 };
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;

@@ -407,24 +407,24 @@ where
     /// method cannot be completed without calling into JavaScript, then `None`
     /// is returned. It is preferable to call this method first and only call
     /// the main method if this returns None.
-    fn try_own_property_keys(
+    fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
-    ) -> Option<Vec<PropertyKey>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Vec<PropertyKey<'a>>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
         match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_own_property_keys(agent, backing_object)),
+            Some(backing_object) => Some(ordinary_own_property_keys(agent, gc, backing_object)),
             None => Some(vec![]),
         }
     }
 
     /// ## \[\[OwnPropertyKeys\]\]
-    fn internal_own_property_keys(
+    fn internal_own_property_keys<'a>(
         self,
         agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Vec<PropertyKey>> {
+        gc: GcScope<'a, '_>,
+    ) -> JsResult<Vec<PropertyKey<'a>>> {
         Ok(self.try_own_property_keys(agent, gc.into_nogc()).unwrap())
     }
 

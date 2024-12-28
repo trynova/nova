@@ -50,7 +50,13 @@ pub struct CreatorBehaviour(Behaviour);
 pub struct NoProperties;
 
 #[derive(Clone)]
-pub struct CreatorProperties(Vec<(PropertyKey, Option<ElementDescriptor>, Option<Value>)>);
+pub struct CreatorProperties(
+    Vec<(
+        PropertyKey<'static>,
+        Option<ElementDescriptor>,
+        Option<Value>,
+    )>,
+);
 
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
@@ -275,7 +281,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
 }
 
 impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
-    pub(crate) fn get_name(&self) -> String {
+    pub(crate) fn get_name(&self) -> String<'static> {
         self.name.0
     }
 }
@@ -317,7 +323,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     #[must_use]
     pub fn with_data_property(
         self,
-        key: PropertyKey,
+        key: PropertyKey<'static>,
         value: Value,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
@@ -355,7 +361,11 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         self,
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+        ) -> (
+            PropertyKey<'static>,
+            Option<ElementDescriptor>,
+            Option<Value>,
+        ),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
@@ -396,7 +406,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     #[must_use]
     pub fn with_data_property(
         mut self,
-        key: PropertyKey,
+        key: PropertyKey<'static>,
         value: Value,
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         self.properties.0.push((key, None, Some(value)));
@@ -418,7 +428,11 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         mut self,
         creator: impl FnOnce(
             PropertyBuilder<'_, property_builder::NoKey, property_builder::NoDefinition>,
-        ) -> (PropertyKey, Option<ElementDescriptor>, Option<Value>),
+        ) -> (
+            PropertyKey<'static>,
+            Option<ElementDescriptor>,
+            Option<Value>,
+        ),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         let builder = PropertyBuilder::new(self.agent);
         let property = creator(builder);

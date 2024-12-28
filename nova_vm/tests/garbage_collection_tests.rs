@@ -39,7 +39,7 @@ fn initialize_global_object(agent: &mut Agent, gc: GcScope<'_, '_>, global: Obje
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
     );
-    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print");
+    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print").unbind();
     global
         .internal_define_own_property(
             agent,

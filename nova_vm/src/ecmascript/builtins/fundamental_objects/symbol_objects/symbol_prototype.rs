@@ -21,7 +21,8 @@ struct SymbolPrototypeGetDescription;
 impl Builtin for SymbolPrototypeGetDescription {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.get_description;
 
-    const KEY: Option<PropertyKey> = Some(BUILTIN_STRING_MEMORY.description.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.description.to_property_key());
 
     const LENGTH: u8 = 0;
 
@@ -54,7 +55,8 @@ struct SymbolPrototypeToPrimitive;
 impl Builtin for SymbolPrototypeToPrimitive {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY._Symbol_toPrimitive_;
 
-    const KEY: Option<PropertyKey> = Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
+    const KEY: Option<PropertyKey<'static>> =
+        Some(WellKnownSymbolIndexes::ToPrimitive.to_property_key());
 
     const LENGTH: u8 = 1;
 
