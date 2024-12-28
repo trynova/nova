@@ -26,7 +26,7 @@ use super::try_copy_data_properties_into_object;
 pub(super) fn execute_simple_array_binding<'a>(
     agent: &mut Agent,
     gc: NoGcScope<'a, '_>,
-    vm: &mut Vm<'a>,
+    vm: &mut Vm,
     executable: Executable,
     mut iterator: VmIterator<'a>,
     environment: Option<EnvironmentIndex>,
@@ -96,7 +96,7 @@ pub(super) fn execute_simple_array_binding<'a>(
                 } else {
                     let lhs = lhs.unbind();
                     try_initialize_referenced_binding(agent, gc, lhs, value)
-                        .expect("TODO: Interleaved GC in simple array binding");
+                        .expect("TODO: Interleaved GC in simple array binding")?;
                 }
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
@@ -117,17 +117,17 @@ pub(super) fn execute_simple_array_binding<'a>(
     if !iterator_is_done {
         if let VmIterator::GenericIterator(iterator_record) = iterator {
             try_iterator_close(agent, gc, &iterator_record, Ok(Value::Undefined))
-                .expect("TODO: Interleaved GC in simple array binding");
+                .expect("TODO: Interleaved GC in simple array binding")?;
         }
     }
 
     Ok(())
 }
 
-pub(super) fn execute_simple_object_binding<'a>(
+pub(super) fn execute_simple_object_binding(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
-    vm: &mut Vm<'a>,
+    gc: NoGcScope<'_, '_>,
+    vm: &mut Vm,
     executable: Executable,
     object: Object,
     environment: Option<EnvironmentIndex>,
@@ -168,10 +168,10 @@ pub(super) fn execute_simple_object_binding<'a>(
                 excluded_names.insert(property_key);
                 if environment.is_none() {
                     try_put_value(agent, gc, &lhs, v)
-                        .expect("TODO: Interleaved GC in simple object binding");
+                        .expect("TODO: Interleaved GC in simple object binding")?;
                 } else {
                     try_initialize_referenced_binding(agent, gc, lhs, v)
-                        .expect("TODO: Interleaved GC in simple object binding");
+                        .expect("TODO: Interleaved GC in simple object binding")?;
                 }
             }
             Instruction::BindingPatternGetValueNamed => {
@@ -205,10 +205,10 @@ pub(super) fn execute_simple_object_binding<'a>(
                 // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                 if environment.is_none() {
                     try_put_value(agent, gc, &lhs, rest_obj)
-                        .expect("TODO: Interleaved GC in simple object binding");
+                        .expect("TODO: Interleaved GC in simple object binding")?;
                 } else {
                     try_initialize_referenced_binding(agent, gc, lhs, rest_obj)
-                        .expect("TODO: Interleaved GC in simple object binding");
+                        .expect("TODO: Interleaved GC in simple object binding")?;
                 }
                 break;
             }
@@ -219,10 +219,10 @@ pub(super) fn execute_simple_object_binding<'a>(
     Ok(())
 }
 
-pub(super) fn execute_nested_simple_binding<'a>(
+pub(super) fn execute_nested_simple_binding(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
-    vm: &mut Vm<'a>,
+    gc: NoGcScope<'_, '_>,
+    vm: &mut Vm,
     executable: Executable,
     value: Value,
     environment: Option<EnvironmentIndex>,

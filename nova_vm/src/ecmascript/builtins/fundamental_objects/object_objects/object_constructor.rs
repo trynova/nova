@@ -1256,7 +1256,7 @@ fn get_own_property_descriptors_slow(
                 obj,
                 key.get(agent),
                 descriptor.into_value(),
-            );
+            )?;
         }
     }
     Ok(descriptors.into_value())

@@ -54,7 +54,7 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
         Behaviour::Regular(print),
         BuiltinFunctionArgs::new(1, "print", agent.current_realm_id()),
     );
-    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print");
+    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "print").unbind();
     global
         .internal_define_own_property(
             agent,
@@ -76,7 +76,7 @@ pub fn initialize_global_object(agent: &mut Agent, mut gc: GcScope<'_, '_>, glob
         Behaviour::Regular(read_text_file),
         BuiltinFunctionArgs::new(1, "readTextFile", agent.current_realm_id()),
     );
-    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "readTextFile");
+    let property_key = PropertyKey::from_static_str(agent, gc.nogc(), "readTextFile").unbind();
     global
         .internal_define_own_property(
             agent,

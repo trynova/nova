@@ -346,7 +346,9 @@ pub(crate) fn try_put_value<'a>(
         let global_obj = get_global_object(agent);
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = v.referenced_name;
-        try_set(agent, gc, global_obj, referenced_name, w, false)?;
+        if let Err(err) = try_set(agent, gc, global_obj, referenced_name, w, false)? {
+            return Some(Err(err));
+        };
         // d. Return UNUSED.
         Some(Ok(()))
     } else if is_property_reference(v) {

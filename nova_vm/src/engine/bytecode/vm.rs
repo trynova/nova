@@ -61,7 +61,7 @@ use crate::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
         },
-        context::{GcScope, NoGcScope},
+        context::GcScope,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -116,16 +116,16 @@ struct ExceptionJumpTarget {
 /// - This is inspired by and/or copied from Kiesel engine:
 ///   Copyright (c) 2023-2024 Linus Groh
 #[derive(Debug)]
-pub(crate) struct Vm<'a> {
+pub(crate) struct Vm {
     /// Instruction pointer.
     ip: usize,
     stack: Vec<Value>,
-    reference_stack: Vec<Reference<'a>>,
-    iterator_stack: Vec<VmIterator<'a>>,
+    reference_stack: Vec<Reference<'static>>,
+    iterator_stack: Vec<VmIterator<'static>>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
     exception: Option<Value>,
-    reference: Option<Reference<'a>>,
+    reference: Option<Reference<'static>>,
 }
 
 #[derive(Debug)]
@@ -179,15 +179,7 @@ impl SuspendedVm {
     }
 }
 
-impl<'a> Vm<'a> {
-    pub fn unbind_mut(&mut self, _: NoGcScope<'a, '_>) -> &'static mut Vm<'static> {
-        unsafe { std::mem::transmute::<&mut Self, &'static mut Vm<'static>>(self) }
-    }
-
-    pub fn bind_mut<'b>(&mut self, _: NoGcScope<'a, '_>) -> &'b mut Vm<'a> {
-        unsafe { std::mem::transmute::<&mut Self, &'b mut Vm<'a>>(self) }
-    }
-
+impl<'a> Vm {
     fn new() -> Self {
         Self {
             ip: 0,
@@ -338,7 +330,7 @@ impl<'a> Vm<'a> {
                 }
             }
             let temp = &mut self;
-            let temp_self = unsafe { std::mem::transmute::<&mut Vm<'a>, &mut Vm<'static>>(temp) };
+            let temp_self = unsafe { std::mem::transmute::<&mut Vm, &mut Vm>(temp) };
             match Self::execute_instruction(agent, gc.reborrow(), temp_self, executable, &instr) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
@@ -390,7 +382,7 @@ impl<'a> Vm<'a> {
     fn execute_instruction(
         agent: &mut Agent,
         mut gc: GcScope<'a, '_>,
-        vm: &mut Vm<'a>,
+        vm: &mut Vm,
         executable: Executable,
         instr: &Instr,
     ) -> JsResult<ContinuationKind> {
@@ -2099,9 +2091,9 @@ impl<'a> Vm<'a> {
 /// returns either a normal completion containing either a String, a BigInt,
 /// or a Number, or a throw completion.
 #[inline]
-fn apply_string_or_numeric_binary_operator<'a>(
+fn apply_string_or_numeric_binary_operator(
     agent: &mut Agent,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope<'_, '_>,
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
@@ -2365,9 +2357,9 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 /// > that did not use a @@hasInstance method to define the instanceof operator
 /// > semantics. If an object does not define or inherit @@hasInstance it uses
 /// > the default instanceof semantics.
-pub(crate) fn instanceof_operator<'a>(
+pub(crate) fn instanceof_operator(
     agent: &mut Agent,
-    mut gc: GcScope<'a, '_>,
+    mut gc: GcScope<'_, '_>,
     value: impl IntoValue,
     target: impl IntoValue,
 ) -> JsResult<bool> {
@@ -2435,7 +2427,7 @@ impl HeapMarkAndSweep for ExceptionJumpTarget {
     }
 }
 
-impl HeapMarkAndSweep for Vm<'static> {
+impl HeapMarkAndSweep for Vm {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Vm {
             ip: _,

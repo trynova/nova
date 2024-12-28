@@ -387,9 +387,9 @@ pub(crate) fn iterator_close<T>(
 /// Completion Record. It is used to notify an iterator that it should perform
 /// any actions it would normally perform when it has reached its completed
 /// state.
-pub(crate) fn try_iterator_close<'a, T>(
+pub(crate) fn try_iterator_close<T>(
     agent: &mut Agent,
-    gc: NoGcScope<'a, '_>,
+    gc: NoGcScope<'_, '_>,
     iterator_record: &IteratorRecord,
     completion: JsResult<T>,
 ) -> Option<JsResult<T>> {

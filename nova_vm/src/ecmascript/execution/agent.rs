@@ -265,7 +265,7 @@ pub struct Agent {
     /// Realm a particular stack value points to.
     pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
     /// Temporary storage for on-stack VMs.
-    pub(crate) vm_stack: Vec<NonNull<Vm<'static>>>,
+    pub(crate) vm_stack: Vec<NonNull<Vm>>,
 }
 
 impl Agent {

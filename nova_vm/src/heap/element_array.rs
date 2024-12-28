@@ -1899,7 +1899,7 @@ impl ElementArrays {
         let mut keys: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut values: Vec<Option<Value>> = Vec::with_capacity(length);
         let mut descriptors: Option<AHashMap<u32, ElementDescriptor>> = None;
-        for (index, entry) in entries.into_iter().enumerate() {
+        for (index, entry) in entries.iter().enumerate() {
             let ObjectEntry { key, value } = entry;
             let (maybe_descriptor, maybe_value) =
                 ElementDescriptor::from_object_entry_property_descriptor(value);

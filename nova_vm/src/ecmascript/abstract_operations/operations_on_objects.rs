@@ -909,7 +909,7 @@ pub(crate) fn create_array_from_scoped_list(
         // SAFETY: This is dirty and dangerous, but loosely speaking okay:
         // Slice only keeps a live borrow on agent.heap.elements, while el.get
         // only accesses agent.stack_refs. The two borrows never alias.
-        let agent = unsafe { &*(agent_ptr as *const Agent) };
+        let agent = unsafe { &*agent_ptr };
         for (target, el) in slice {
             *target = Some(el.get(agent));
         }
