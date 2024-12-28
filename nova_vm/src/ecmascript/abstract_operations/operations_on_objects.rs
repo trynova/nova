@@ -1227,7 +1227,15 @@ pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
         } else {
             // 2. Else,
             // a. Let value be ? Get(O, key).
-            let Some(value) = try_get(agent, gc.nogc(), o, key) else {
+
+            // Optimisation: If [[GetOwnProperty]] has returned us a Value, we
+            // shouldn't need to call [[Get]]... Well, except if the object is
+            // a Proxy. TODO: Check for that.
+            let value = if let Some(value) = desc.value {
+                value
+            } else if let Some(value) = try_get(agent, gc.nogc(), o, key) {
+                value
+            } else {
                 broke = true;
                 break;
             };

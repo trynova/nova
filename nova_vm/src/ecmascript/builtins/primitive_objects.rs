@@ -30,7 +30,9 @@ use crate::{
 };
 use small_string::SmallString;
 
-use super::ordinary::ordinary_own_property_keys;
+use super::ordinary::{
+    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
+};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
@@ -267,10 +269,46 @@ impl InternalMethods for PrimitiveObject {
         ))
     }
 
+    fn try_has_property(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+    ) -> Option<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if string
+                .get_property_descriptor(agent, property_key)
+                .is_some()
+            {
+                return Some(true);
+            }
+        }
+
+        // 1. Return ? OrdinaryHasProperty(O, P).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                ordinary_try_has_property(agent, gc, backing_object, property_key)
+            }
+            None => {
+                // 3. Let parent be ? O.[[GetPrototypeOf]]().
+                let parent = self.try_get_prototype_of(agent, gc).unwrap();
+
+                // 4. If parent is not null, then
+                if let Some(parent) = parent {
+                    // a. Return ? parent.[[HasProperty]](P).
+                    parent.try_has_property(agent, gc, property_key)
+                } else {
+                    // 5. Return false.
+                    Some(false)
+                }
+            }
+        }
+    }
+
     fn internal_has_property(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
     ) -> JsResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -287,7 +325,7 @@ impl InternalMethods for PrimitiveObject {
             Some(backing_object) => ordinary_has_property(agent, gc, backing_object, property_key),
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
+                let parent = self.try_get_prototype_of(agent, gc.nogc()).unwrap();
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
@@ -301,10 +339,41 @@ impl InternalMethods for PrimitiveObject {
         }
     }
 
+    fn try_get(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        receiver: Value,
+    ) -> Option<Value> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
+                return Some(string_desc.value.unwrap());
+            }
+        }
+
+        // 1. Return ? OrdinaryGet(O, P, Receiver).
+        match self.get_backing_object(agent) {
+            Some(backing_object) => {
+                ordinary_try_get(agent, gc, backing_object, property_key, receiver)
+            }
+            None => {
+                // a. Let parent be ? O.[[GetPrototypeOf]]().
+                let Some(parent) = self.try_get_prototype_of(agent, gc).unwrap() else {
+                    // b. If parent is null, return undefined.
+                    return Some(Value::Undefined);
+                };
+
+                // c. Return ? parent.[[Get]](P, Receiver).
+                parent.try_get(agent, gc, property_key, receiver)
+            }
+        }
+    }
+
     fn internal_get(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
         property_key: PropertyKey,
         receiver: Value,
     ) -> JsResult<Value> {
@@ -319,7 +388,7 @@ impl InternalMethods for PrimitiveObject {
             Some(backing_object) => ordinary_get(agent, gc, backing_object, property_key, receiver),
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
-                let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
+                let Some(parent) = self.try_get_prototype_of(agent, gc.nogc()).unwrap() else {
                     // b. If parent is null, return undefined.
                     return Ok(Value::Undefined);
                 };
@@ -328,6 +397,27 @@ impl InternalMethods for PrimitiveObject {
                 parent.internal_get(agent, gc, property_key, receiver)
             }
         }
+    }
+
+    fn try_set(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, '_>,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+    ) -> Option<bool> {
+        if let Ok(string) = String::try_from(agent[self].data) {
+            if string
+                .get_property_descriptor(agent, property_key)
+                .is_some()
+            {
+                return Some(false);
+            }
+        }
+
+        // 1. Return ? OrdinarySet(O, P, V, Receiver).
+        ordinary_try_set(agent, gc, self.into_object(), property_key, value, receiver)
     }
 
     fn internal_set(
@@ -375,17 +465,6 @@ impl InternalMethods for PrimitiveObject {
             Some(backing_object) => Some(ordinary_delete(agent, gc, backing_object, property_key)),
             None => Some(true),
         }
-    }
-
-    fn internal_delete(
-        self,
-        agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-        property_key: PropertyKey,
-    ) -> JsResult<bool> {
-        Ok(self
-            .try_delete(agent, gc.into_nogc(), property_key)
-            .unwrap())
     }
 
     fn try_own_property_keys<'a>(

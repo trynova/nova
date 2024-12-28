@@ -829,7 +829,6 @@ impl ObjectConstructor {
         arguments: ArgumentsList,
     ) -> JsResult<Value> {
         let o = arguments.get(0);
-        println!("key target: {:?}", o);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, gc.nogc(), o)?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
