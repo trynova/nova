@@ -84,8 +84,11 @@ use crate::{
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
-    engine::context::GcScope,
-    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
+    engine::{
+        context::GcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        TryResult,
+    },
     heap::{
         indexes::{ArrayIndex, ObjectIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -1007,7 +1010,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<Object>> {
+    ) -> TryResult<Option<Object>> {
         match self {
             Object::Object(data) => data.try_get_prototype_of(agent, gc),
             Object::Array(data) => data.try_get_prototype_of(agent, gc),
@@ -1200,7 +1203,7 @@ impl InternalMethods for Object {
         agent: &mut Agent,
         prototype: Option<Object>,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Object::Object(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Array(data) => data.try_set_prototype_of(agent, prototype, gc),
@@ -1401,7 +1404,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> Option<bool> {
+    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> TryResult<bool> {
         match self {
             Object::Object(data) => data.try_is_extensible(agent, gc),
             Object::Array(data) => data.try_is_extensible(agent, gc),
@@ -1573,7 +1576,7 @@ impl InternalMethods for Object {
         }
     }
 
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> Option<bool> {
+    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> TryResult<bool> {
         match self {
             Object::Object(data) => data.try_prevent_extensions(agent, gc),
             Object::Array(data) => data.try_prevent_extensions(agent, gc),
@@ -1764,7 +1767,7 @@ impl InternalMethods for Object {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<PropertyDescriptor>> {
+    ) -> TryResult<Option<PropertyDescriptor>> {
         match self {
             Object::Object(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Array(data) => data.try_get_own_property(agent, property_key, gc),
@@ -1978,7 +1981,7 @@ impl InternalMethods for Object {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Object::Object(idx) => {
                 idx.try_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2319,7 +2322,7 @@ impl InternalMethods for Object {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Object::Object(data) => data.try_has_property(agent, property_key, gc),
             Object::Array(data) => data.try_has_property(agent, property_key, gc),
@@ -2524,7 +2527,7 @@ impl InternalMethods for Object {
         property_key: PropertyKey,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Value> {
+    ) -> TryResult<Value> {
         match self {
             Object::Object(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Array(data) => data.try_get(agent, property_key, receiver, gc),
@@ -2733,7 +2736,7 @@ impl InternalMethods for Object {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Object::Object(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Array(data) => data.try_set(agent, property_key, value, receiver, gc),
@@ -2989,7 +2992,7 @@ impl InternalMethods for Object {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Object::Object(data) => data.try_delete(agent, property_key, gc),
             Object::Array(data) => data.try_delete(agent, property_key, gc),
@@ -3188,7 +3191,7 @@ impl InternalMethods for Object {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Vec<PropertyKey<'a>>> {
+    ) -> TryResult<Vec<PropertyKey<'a>>> {
         match self {
             Object::Object(data) => data.try_own_property_keys(agent, gc),
             Object::Array(data) => data.try_own_property_keys(agent, gc),

@@ -7,6 +7,7 @@ use super::{
 };
 use crate::ecmascript::types::OrdinaryObject;
 use crate::engine::context::NoGcScope;
+use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
@@ -466,7 +467,7 @@ impl FunctionEnvironmentIndex {
         // 3. Assert: home is an ordinary object.
         let home = OrdinaryObject::try_from(home).unwrap();
         // 4. Return ! home.[[GetPrototypeOf]]().
-        Some(home.try_get_prototype_of(agent, gc).unwrap())
+        Some(unwrap_try(home.try_get_prototype_of(agent, gc)))
     }
 }
 

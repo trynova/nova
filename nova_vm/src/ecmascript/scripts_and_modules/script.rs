@@ -578,6 +578,7 @@ pub(crate) fn global_declaration_instantiation(
 #[cfg(test)]
 mod test {
     use crate::engine::context::GcScope;
+    use crate::engine::unwrap_try;
     use crate::{
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,
@@ -1570,9 +1571,7 @@ mod test {
         };
         let instance = Object::try_from(result).unwrap();
         assert_eq!(
-            instance
-                .try_get_prototype_of(&mut agent, gc.nogc())
-                .unwrap(),
+            unwrap_try(instance.try_get_prototype_of(&mut agent, gc.nogc())),
             Some(foo_prototype)
         );
     }

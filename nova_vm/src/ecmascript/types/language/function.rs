@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::{context::{GcScope, NoGcScope}, Scoped};
+use crate::engine::{context::{GcScope, NoGcScope}, Scoped, TryResult};
 use crate::{
     ecmascript::{
         builtins::{
@@ -272,7 +272,7 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<Object>> {
+    ) -> TryResult<Option<Object>> {
         match self {
             Function::BoundFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinFunction(x) => x.try_get_prototype_of(agent, gc),
@@ -290,7 +290,7 @@ impl InternalMethods for Function {
         agent: &mut Agent,
         prototype: Option<Object>,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
             Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
@@ -305,7 +305,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> Option<bool> {
+    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinFunction(x) => x.try_is_extensible(agent, gc),
@@ -318,7 +318,7 @@ impl InternalMethods for Function {
         }
     }
 
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> Option<bool> {
+    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinFunction(x) => x.try_prevent_extensions(agent, gc),
@@ -336,7 +336,7 @@ impl InternalMethods for Function {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<PropertyDescriptor>> {
+    ) -> TryResult<Option<PropertyDescriptor>> {
         match self {
             Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),
@@ -359,7 +359,7 @@ impl InternalMethods for Function {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => {
                 x.try_define_own_property(agent, property_key, property_descriptor, gc)
@@ -387,7 +387,7 @@ impl InternalMethods for Function {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_has_property(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, gc),
@@ -430,7 +430,7 @@ impl InternalMethods for Function {
         property_key: PropertyKey,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Value> {
+    ) -> TryResult<Value> {
         match self {
             Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
             Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, gc),
@@ -475,7 +475,7 @@ impl InternalMethods for Function {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
             Function::BuiltinFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
@@ -525,7 +525,7 @@ impl InternalMethods for Function {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
             Function::BuiltinFunction(x) => x.try_delete(agent, property_key, gc),
@@ -542,7 +542,7 @@ impl InternalMethods for Function {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Vec<PropertyKey<'a>>> {
+    ) -> TryResult<Vec<PropertyKey<'a>>> {
         match self {
             Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),

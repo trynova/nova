@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -471,7 +471,7 @@ pub(crate) fn try_resolve_binding<'a>(
     name: String<'a>,
     env: Option<EnvironmentIndex>,
     gc: NoGcScope<'a, '_>,
-) -> Option<Reference<'a>> {
+) -> TryResult<Reference<'a>> {
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
         //    a. Set env to the running execution context's LexicalEnvironment.

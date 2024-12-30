@@ -4,6 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
@@ -326,7 +327,7 @@ pub(crate) fn try_put_value<'a>(
     v: &Reference<'a>,
     w: Value,
     gc: NoGcScope<'a, '_>,
-) -> Option<JsResult<()>> {
+) -> TryResult<JsResult<()>> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
@@ -336,7 +337,7 @@ pub(crate) fn try_put_value<'a>(
                 "Cannot assign to undeclared variable '{}'.",
                 v.referenced_name.as_display(agent)
             );
-            return Some(Err(agent.throw_exception(
+            return TryResult::Continue(Err(agent.throw_exception(
                 ExceptionType::ReferenceError,
                 error_message,
                 gc,
@@ -347,10 +348,10 @@ pub(crate) fn try_put_value<'a>(
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = v.referenced_name;
         if let Err(err) = try_set(agent, global_obj, referenced_name, w, false, gc)? {
-            return Some(Err(err));
+            return TryResult::Continue(Err(err));
         };
         // d. Return UNUSED.
-        Some(Ok(()))
+        TryResult::Continue(Ok(()))
     } else if is_property_reference(v) {
         // 3. If IsPropertyReference(V) is true, then
         // a. Let baseObj be ? ToObject(V.[[Base]]).
@@ -360,7 +361,7 @@ pub(crate) fn try_put_value<'a>(
         };
         let base_obj = match to_object(agent, base, gc) {
             Ok(base_obj) => base_obj,
-            Err(err) => return Some(Err(err)),
+            Err(err) => return TryResult::Continue(Err(err)),
         };
         // b. If IsPrivateReference(V) is true, then
         if is_private_reference(v) {
@@ -379,14 +380,14 @@ pub(crate) fn try_put_value<'a>(
                 referenced_name.as_display(agent),
                 base_obj_repr.as_str(agent)
             );
-            return Some(Err(agent.throw_exception(
+            return TryResult::Continue(Err(agent.throw_exception(
                 ExceptionType::TypeError,
                 error_message,
                 gc,
             )));
         }
         // e. Return UNUSED.
-        Some(Ok(()))
+        TryResult::Continue(Ok(()))
     } else {
         // 4. Else,
         // a. Let base be V.[[Base]].
@@ -443,7 +444,7 @@ pub(crate) fn try_initialize_referenced_binding<'a>(
     v: Reference<'a>,
     w: Value,
     gc: NoGcScope<'a, '_>,
-) -> Option<JsResult<()>> {
+) -> TryResult<JsResult<()>> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     debug_assert!(!is_unresolvable_reference(&v));
     // 2. Let base be V.[[Base]].

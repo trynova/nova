@@ -8,6 +8,7 @@ use small_string::SmallString;
 
 use crate::ecmascript::abstract_operations::type_conversion::try_to_string;
 use crate::engine::context::GcScope;
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -3852,7 +3853,7 @@ fn compare_array_elements(
         Ok(x.into_f64(agent).total_cmp(&y.into_f64(agent)))
     } else {
         // 5. Let xString be ? ToString(x).
-        let (x, y) = if let Some(x) = try_to_string(agent, x, gc.nogc()) {
+        let (x, y) = if let TryResult::Continue(x) = try_to_string(agent, x, gc.nogc()) {
             (x?, y)
         } else {
             let y = y.scope(agent, gc.nogc());
@@ -3860,7 +3861,7 @@ fn compare_array_elements(
             (x, y.get(agent))
         };
         // 6. Let yString be ? ToString(y).
-        let (x, y) = if let Some(y) = try_to_string(agent, y, gc.nogc()) {
+        let (x, y) = if let TryResult::Continue(y) = try_to_string(agent, y, gc.nogc()) {
             (x, y?)
         } else {
             let x = x.scope(agent, gc.nogc());

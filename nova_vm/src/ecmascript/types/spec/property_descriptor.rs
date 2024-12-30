@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{try_get, try_has_property};
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::Scoped;
+use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -383,10 +383,10 @@ impl PropertyDescriptor {
         agent: &mut Agent,
         obj: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<Self>> {
+    ) -> TryResult<JsResult<Self>> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
-            return Some(Err(agent.throw_exception_with_static_message(
+            return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Property descriptor must be an object",
                 gc,
@@ -446,7 +446,7 @@ impl PropertyDescriptor {
             // throw a TypeError exception.
             if !getter.is_undefined() {
                 let Some(getter) = is_callable(getter) else {
-                    return Some(Err(agent.throw_exception_with_static_message(
+                    return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "getter is not callable",
                         gc,
@@ -466,7 +466,7 @@ impl PropertyDescriptor {
             // throw a TypeError exception.
             if !setter.is_undefined() {
                 let Some(setter) = is_callable(setter) else {
-                    return Some(Err(agent.throw_exception_with_static_message(
+                    return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "setter is not callable",
                         gc,
@@ -481,7 +481,7 @@ impl PropertyDescriptor {
             // a. If desc has a [[Value]] field or desc has a [[Writable]]
             // field, throw a TypeError exception.
             if desc.writable.is_some() || desc.writable.is_some() {
-                return Some(Err(agent.throw_exception_with_static_message(
+                return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Over-defined property descriptor",
                     gc,
@@ -489,7 +489,7 @@ impl PropertyDescriptor {
             }
         }
         // 16. Return desc.
-        Some(Ok(desc))
+        TryResult::Continue(Ok(desc))
     }
 
     pub fn is_fully_populated(&self) -> bool {

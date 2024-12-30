@@ -27,7 +27,10 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{GcScope, NoGcScope},
+        unwrap_try,
+    },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
@@ -867,7 +870,7 @@ impl TypedArrayPrototype {
                 ),
             };
             // i. Let S be ! ToString(element).
-            let s = try_to_string(agent, element, gc.nogc()).unwrap().unwrap();
+            let s = unwrap_try(try_to_string(agent, element, gc.nogc())).unwrap();
             // ii. Set R to the string-concatenation of R and S.
             r.push_str(s.as_str(agent));
             // d. Set k to k + 1.

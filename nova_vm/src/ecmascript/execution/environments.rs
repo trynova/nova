@@ -43,6 +43,7 @@ pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -223,10 +224,10 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self {
-            EnvironmentIndex::Declarative(idx) => Some(idx.has_binding(agent, name)),
-            EnvironmentIndex::Function(idx) => Some(idx.has_binding(agent, name)),
+            EnvironmentIndex::Declarative(idx) => TryResult::Continue(idx.has_binding(agent, name)),
+            EnvironmentIndex::Function(idx) => TryResult::Continue(idx.has_binding(agent, name)),
             EnvironmentIndex::Global(idx) => idx.try_has_binding(agent, name, gc),
             EnvironmentIndex::Object(idx) => idx.try_has_binding(agent, name, gc),
         }
@@ -261,18 +262,18 @@ impl EnvironmentIndex {
         name: String,
         is_deletable: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.create_mutable_binding(agent, name, is_deletable);
-                Some(Ok(()))
+                TryResult::Continue(Ok(()))
             }
             EnvironmentIndex::Function(idx) => {
                 idx.create_mutable_binding(agent, name, is_deletable);
-                Some(Ok(()))
+                TryResult::Continue(Ok(()))
             }
             EnvironmentIndex::Global(idx) => {
-                Some(idx.create_mutable_binding(agent, name, is_deletable, gc))
+                TryResult::Continue(idx.create_mutable_binding(agent, name, is_deletable, gc))
             }
             EnvironmentIndex::Object(idx) => {
                 idx.try_create_mutable_binding(agent, name, is_deletable, gc)
@@ -355,15 +356,15 @@ impl EnvironmentIndex {
         name: String,
         value: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.initialize_binding(agent, name, value);
-                Some(Ok(()))
+                TryResult::Continue(Ok(()))
             }
             EnvironmentIndex::Function(idx) => {
                 idx.initialize_binding(agent, name, value);
-                Some(Ok(()))
+                TryResult::Continue(Ok(()))
             }
             EnvironmentIndex::Global(idx) => idx.try_initialize_binding(agent, name, value, gc),
             EnvironmentIndex::Object(idx) => idx.try_initialize_binding(agent, name, value, gc),
@@ -411,13 +412,13 @@ impl EnvironmentIndex {
         value: Value,
         is_strict: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                Some(idx.set_mutable_binding(agent, name, value, is_strict, gc))
+                TryResult::Continue(idx.set_mutable_binding(agent, name, value, is_strict, gc))
             }
             EnvironmentIndex::Function(idx) => {
-                Some(idx.set_mutable_binding(agent, name, value, is_strict, gc))
+                TryResult::Continue(idx.set_mutable_binding(agent, name, value, is_strict, gc))
             }
             EnvironmentIndex::Global(idx) => {
                 idx.try_set_mutable_binding(agent, name, value, is_strict, gc)
@@ -474,13 +475,13 @@ impl EnvironmentIndex {
         name: String,
         is_strict: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<Value>> {
+    ) -> TryResult<JsResult<Value>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                Some(idx.get_binding_value(agent, name, is_strict, gc))
+                TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
             }
             EnvironmentIndex::Function(idx) => {
-                Some(idx.get_binding_value(agent, name, is_strict, gc))
+                TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
             }
             EnvironmentIndex::Global(idx) => idx.try_get_binding_value(agent, name, is_strict, gc),
             EnvironmentIndex::Object(idx) => idx.try_get_binding_value(agent, name, is_strict, gc),
@@ -526,12 +527,18 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<bool>> {
+    ) -> TryResult<JsResult<bool>> {
         match self {
-            EnvironmentIndex::Declarative(idx) => Some(Ok(idx.delete_binding(agent, name))),
-            EnvironmentIndex::Function(idx) => Some(Ok(idx.delete_binding(agent, name))),
+            EnvironmentIndex::Declarative(idx) => {
+                TryResult::Continue(Ok(idx.delete_binding(agent, name)))
+            }
+            EnvironmentIndex::Function(idx) => {
+                TryResult::Continue(Ok(idx.delete_binding(agent, name)))
+            }
             EnvironmentIndex::Global(idx) => idx.try_delete_binding(agent, name, gc),
-            EnvironmentIndex::Object(idx) => idx.try_delete_binding(agent, name, gc).map(Ok),
+            EnvironmentIndex::Object(idx) => {
+                TryResult::Continue(Ok(idx.try_delete_binding(agent, name, gc)?))
+            }
         }
     }
 
@@ -648,11 +655,11 @@ pub(crate) fn try_get_identifier_reference<'a>(
     name: String<'a>,
     strict: bool,
     gc: NoGcScope<'a, '_>,
-) -> Option<Reference<'a>> {
+) -> TryResult<Reference<'a>> {
     // 1. If env is null, then
     let Some(env) = env else {
         // a. Return the Reference Record {
-        return Some(Reference {
+        return TryResult::Continue(Reference {
             // [[Base]]: UNRESOLVABLE,
             base: Base::Unresolvable,
             // [[ReferencedName]]: name,
@@ -671,7 +678,7 @@ pub(crate) fn try_get_identifier_reference<'a>(
     // 3. If exists is true, then
     if exists {
         // a. Return the Reference Record {
-        Some(Reference {
+        TryResult::Continue(Reference {
             // [[Base]]: env,
             base: Base::Environment(env),
             // [[ReferencedName]]: name,
@@ -724,14 +731,15 @@ pub(crate) fn get_identifier_reference<'a, 'b>(
     };
 
     // 2. Let exists be ? env.HasBinding(name).
-    let (name, exists) = if let Some(result) = env.try_has_binding(agent, name, gc.nogc()) {
-        (name, result)
-    } else {
-        let name_scoped = name.scope(agent, gc.nogc());
-        let result = env.has_binding(agent, name.unbind(), gc.reborrow())?;
-        let name = name_scoped.get(agent);
-        (name, result)
-    };
+    let (name, exists) =
+        if let TryResult::Continue(result) = env.try_has_binding(agent, name, gc.nogc()) {
+            (name, result)
+        } else {
+            let name_scoped = name.scope(agent, gc.nogc());
+            let result = env.has_binding(agent, name.unbind(), gc.reborrow())?;
+            let name = name_scoped.get(agent);
+            (name, result)
+        };
 
     // 3. If exists is true, then
     if exists {

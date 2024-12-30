@@ -57,7 +57,7 @@ use crate::{
         context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
-        Scoped,
+        Scoped, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
     SmallInteger, SmallString,
@@ -552,7 +552,7 @@ impl Value {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> Option<JsResult<String<'gc>>> {
+    ) -> TryResult<JsResult<String<'gc>>> {
         try_to_string(agent, self, gc)
     }
 
@@ -579,17 +579,17 @@ impl Value {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'gc, '_>,
-    ) -> Option<String<'gc>> {
+    ) -> TryResult<String<'gc>> {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return Some(symbol_idx.descriptive_string(agent, gc));
+            return TryResult::Continue(symbol_idx.descriptive_string(agent, gc));
         };
         match self.try_to_string(agent, gc)? {
-            Ok(result) => Some(result),
+            Ok(result) => TryResult::Continue(result),
             Err(_) => {
                 debug_assert!(self.is_object());
-                Some(BUILTIN_STRING_MEMORY.Object)
+                TryResult::Continue(BUILTIN_STRING_MEMORY.Object)
             }
         }
     }

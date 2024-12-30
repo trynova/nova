@@ -6,6 +6,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     to_property_key_complex, to_property_key_simple,
 };
 use crate::engine::context::GcScope;
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -259,7 +260,7 @@ impl ReflectObject {
         };
 
         // 3. Let desc be ? ToPropertyDescriptor(attributes).
-        let desc = if let Some(desc) =
+        let desc = if let TryResult::Continue(desc) =
             PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc())
         {
             desc?

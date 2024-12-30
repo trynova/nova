@@ -18,6 +18,7 @@ use crate::{
             VmIterator,
         },
         context::GcScope,
+        unwrap_try,
     },
 };
 
@@ -58,14 +59,13 @@ pub(super) fn execute_simple_array_binding(
                     let rest = array_create(agent, 0, capacity, None, gc.nogc()).unwrap();
                     let mut idx = 0u32;
                     while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
-                        try_create_data_property_or_throw(
+                        unwrap_try(try_create_data_property_or_throw(
                             agent,
                             rest,
                             PropertyKey::from(idx),
                             result,
                             gc.nogc(),
-                        )
-                        .unwrap()
+                        ))
                         .unwrap();
                         idx += 1;
                     }
