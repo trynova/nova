@@ -7,6 +7,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_define_property_or_throw, try_get, try_has_property, try_set,
 };
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -111,7 +112,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -121,11 +122,11 @@ impl ObjectEnvironmentIndex {
         let found_binding = try_has_property(agent, binding_object, name, gc)?;
         // 3. If foundBinding is false, return false.
         if !found_binding {
-            return Some(false);
+            return TryResult::Continue(false);
         }
         // 4. If envRec.[[IsWithEnvironment]] is false, return true.
         if !is_with_environment {
-            return Some(true);
+            return TryResult::Continue(true);
         }
         // 5. Let unscopables be ? Get(bindingObject, @@unscopables).
         let unscopables = try_get(
@@ -140,10 +141,10 @@ impl ObjectEnvironmentIndex {
             let blocked = try_get(agent, unscopables, name, gc)?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
-            Some(!blocked)
+            TryResult::Continue(!blocked)
         } else {
             // 7. Return true.
-            Some(true)
+            TryResult::Continue(true)
         }
     }
 
@@ -209,7 +210,7 @@ impl ObjectEnvironmentIndex {
         n: String,
         d: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -299,7 +300,7 @@ impl ObjectEnvironmentIndex {
         n: String,
         v: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
         self.try_set_mutable_binding(agent, n, v, false, gc)
@@ -354,7 +355,7 @@ impl ObjectEnvironmentIndex {
         v: Value,
         s: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -367,7 +368,7 @@ impl ObjectEnvironmentIndex {
                 "Property '{}' does not exist in object.",
                 n.as_display(agent)
             );
-            Some(Err(agent.throw_exception(
+            TryResult::Continue(Err(agent.throw_exception(
                 ExceptionType::ReferenceError,
                 error_message,
                 gc,
@@ -436,7 +437,7 @@ impl ObjectEnvironmentIndex {
         n: String,
         s: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<Value>> {
+    ) -> TryResult<JsResult<Value>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -447,13 +448,13 @@ impl ObjectEnvironmentIndex {
         if !value {
             // a. If S is false, return undefined; otherwise throw a ReferenceError exception.
             if !s {
-                Some(Ok(Value::Undefined))
+                TryResult::Continue(Ok(Value::Undefined))
             } else {
                 let error_message = format!(
                     "Property '{}' does not exist in object.",
                     name.as_display(agent)
                 );
-                Some(Err(agent.throw_exception(
+                TryResult::Continue(Err(agent.throw_exception(
                     ExceptionType::ReferenceError,
                     error_message,
                     gc,
@@ -461,7 +462,7 @@ impl ObjectEnvironmentIndex {
             }
         } else {
             // 4. Return ? Get(bindingObject, N).
-            try_get(agent, binding_object, name, gc).map(Ok)
+            TryResult::Continue(Ok(try_get(agent, binding_object, name, gc)?))
         }
     }
 
@@ -520,7 +521,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;

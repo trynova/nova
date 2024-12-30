@@ -12,7 +12,10 @@ use crate::{
             PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{GcScope, NoGcScope},
+        unwrap_try, TryResult,
+    },
     heap::{CreateHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
 };
 
@@ -112,9 +115,7 @@ pub(crate) fn function_internal_define_own_property(
     let backing_object = func
         .get_backing_object(agent)
         .unwrap_or_else(|| func.create_backing_object(agent));
-    backing_object
-        .try_define_own_property(agent, property_key, property_descriptor, gc)
-        .unwrap()
+    unwrap_try(backing_object.try_define_own_property(agent, property_key, property_descriptor, gc))
 }
 
 pub(crate) fn function_try_has_property(
@@ -122,16 +123,16 @@ pub(crate) fn function_try_has_property(
     agent: &mut Agent,
     property_key: PropertyKey,
     gc: NoGcScope<'_, '_>,
-) -> Option<bool> {
+) -> TryResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_has_property(agent, property_key, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
-        Some(true)
+        TryResult::Continue(true)
     } else {
-        let parent = func.try_get_prototype_of(agent, gc).unwrap();
-        parent.map_or(Some(false), |parent| {
+        let parent = unwrap_try(func.try_get_prototype_of(agent, gc));
+        parent.map_or(TryResult::Continue(false), |parent| {
             parent.try_has_property(agent, property_key, gc)
         })
     }
@@ -150,7 +151,7 @@ pub(crate) fn function_internal_has_property(
     {
         Ok(true)
     } else {
-        let parent = func.try_get_prototype_of(agent, gc.nogc()).unwrap();
+        let parent = unwrap_try(func.try_get_prototype_of(agent, gc.nogc()));
         parent.map_or(Ok(false), |parent| {
             parent.internal_has_property(agent, property_key, gc)
         })
@@ -163,16 +164,16 @@ pub(crate) fn function_try_get(
     property_key: PropertyKey,
     receiver: Value,
     gc: NoGcScope<'_, '_>,
-) -> Option<Value> {
+) -> TryResult<Value> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_get(agent, property_key, receiver, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
-        Some(func.get_length(agent).into())
+        TryResult::Continue(func.get_length(agent).into())
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        Some(func.get_name(agent).into_value())
+        TryResult::Continue(func.get_name(agent).into_value())
     } else {
-        let parent = func.try_get_prototype_of(agent, gc).unwrap();
-        parent.map_or(Some(Value::Undefined), |parent| {
+        let parent = unwrap_try(func.try_get_prototype_of(agent, gc));
+        parent.map_or(TryResult::Continue(Value::Undefined), |parent| {
             parent.try_get(agent, property_key, receiver, gc)
         })
     }
@@ -206,14 +207,14 @@ pub(crate) fn function_try_set(
     value: Value,
     receiver: Value,
     gc: NoGcScope<'_, '_>,
-) -> Option<bool> {
+) -> TryResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_set(agent, property_key, value, receiver, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         // length and name are not writable
-        Some(false)
+        TryResult::Continue(false)
     } else {
         func.create_backing_object(agent)
             .try_set(agent, property_key, value, receiver, gc)
@@ -248,12 +249,12 @@ pub(crate) fn function_internal_delete(
     gc: NoGcScope<'_, '_>,
 ) -> bool {
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.try_delete(agent, property_key, gc).unwrap()
+        unwrap_try(backing_object.try_delete(agent, property_key, gc))
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         let backing_object = func.create_backing_object(agent);
-        backing_object.try_delete(agent, property_key, gc).unwrap()
+        unwrap_try(backing_object.try_delete(agent, property_key, gc))
     } else {
         // Non-existing property
         true

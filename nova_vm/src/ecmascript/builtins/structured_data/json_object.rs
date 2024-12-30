@@ -7,6 +7,7 @@ use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property;
 use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -291,7 +292,9 @@ pub(crate) fn value_from_json(
             for (i, value) in json_array.iter().enumerate() {
                 let prop = PropertyKey::from(SmallInteger::try_from(i as i64).unwrap());
                 let js_value = value_from_json(agent, value, gc);
-                try_create_data_property(agent, array_obj, prop, js_value, gc).unwrap();
+                unwrap_try(try_create_data_property(
+                    agent, array_obj, prop, js_value, gc,
+                ));
             }
             array_obj.into_value()
         }
@@ -302,7 +305,7 @@ pub(crate) fn value_from_json(
             for (key, value) in json_object.iter() {
                 let prop = PropertyKey::from_str(agent, key, gc);
                 let js_value = value_from_json(agent, value, gc);
-                try_create_data_property(agent, object, prop, js_value, gc).unwrap();
+                unwrap_try(try_create_data_property(agent, object, prop, js_value, gc));
             }
             object.into()
         }

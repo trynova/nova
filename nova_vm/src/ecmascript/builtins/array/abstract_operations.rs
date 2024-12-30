@@ -4,6 +4,7 @@
 
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -270,28 +271,28 @@ pub(crate) fn array_try_set_length(
     agent: &mut Agent,
     a: Array,
     desc: PropertyDescriptor,
-) -> Option<bool> {
+) -> TryResult<bool> {
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
         if !desc.has_fields() {
-            return Some(true);
+            return TryResult::Continue(true);
         }
         if desc.configurable == Some(true) || desc.enumerable == Some(true) {
-            return Some(false);
+            return TryResult::Continue(false);
         }
         if !desc.is_generic_descriptor() && desc.is_accessor_descriptor() {
-            return Some(false);
+            return TryResult::Continue(false);
         }
         if !agent[a].elements.len_writable {
             // Length is already frozen.
             if desc.writable == Some(true) {
-                return Some(false);
+                return TryResult::Continue(false);
             }
         } else if desc.writable == Some(false) {
             agent[a].elements.len_writable = false;
         }
-        return Some(true);
+        return TryResult::Continue(true);
     };
     // 2. Let newLenDesc be a copy of Desc.
     // 13. If newLenDesc does not have a [[Writable]] field or newLenDesc.[[Writable]] is true, then
@@ -301,12 +302,12 @@ pub(crate) fn array_try_set_length(
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let Ok(number_len) = Number::try_from(desc_value) else {
-        return None;
+        return TryResult::Break(());
     };
     let new_len = to_uint32_number(agent, number_len);
     // 5. If SameValueZero(newLen, numberLen) is false, throw a RangeError exception.
     if !Number::same_value_zero(agent, number_len, new_len.into()) {
-        return None;
+        return TryResult::Break(());
     }
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
@@ -321,12 +322,12 @@ pub(crate) fn array_try_set_length(
     );
     // 12. If oldLenDesc.[[Writable]] is false, return false.
     if !old_len_writable {
-        return Some(false);
+        return TryResult::Continue(false);
     }
     // Optimization: check OrdinaryDefineOwnProperty conditions for failing early on.
     if desc.configurable == Some(true) || desc.enumerable == Some(true) {
         // 16. If succeeded is false, return false.
-        return Some(false);
+        return TryResult::Continue(false);
     }
     // 11. If newLen ≥ oldLen, then
     if new_len >= old_len {
@@ -334,7 +335,7 @@ pub(crate) fn array_try_set_length(
         array_heap_data.elements.reserve(elements, new_len);
         array_heap_data.elements.len = new_len;
         array_heap_data.elements.len_writable = new_len_writable;
-        return Some(true);
+        return TryResult::Continue(true);
     }
     // 15. Let succeeded be ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
     let old_elements = array_heap_data.elements;
@@ -356,7 +357,7 @@ pub(crate) fn array_try_set_length(
             array_heap_data.elements.len_writable &= new_len_writable;
             // iii. Perform ! OrdinaryDefineOwnProperty(A, "length", newLenDesc).
             // iv. Return false.
-            return Some(false);
+            return TryResult::Continue(false);
         }
     }
     // 18. If newWritable is false, then
@@ -367,5 +368,5 @@ pub(crate) fn array_try_set_length(
         array_heap_data.elements.len_writable &= new_len_writable;
     }
     // 19. Return true.
-    Some(true)
+    TryResult::Continue(true)
 }

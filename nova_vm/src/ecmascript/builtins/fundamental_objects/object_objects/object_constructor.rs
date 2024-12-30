@@ -7,6 +7,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 };
 use crate::ecmascript::types::{bind_property_keys, scope_property_keys, unbind_property_keys};
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -646,7 +647,7 @@ impl ObjectConstructor {
         let mut i = 0;
         for &key in own_keys.iter() {
             // a. Let desc be ? obj.[[GetOwnProperty]](key).
-            let Some(desc) = obj.try_get_own_property(agent, key, gc.nogc()) else {
+            let TryResult::Continue(desc) = obj.try_get_own_property(agent, key, gc.nogc()) else {
                 break;
             };
             // b. Let descriptor be FromPropertyDescriptor(desc).
@@ -1046,12 +1047,12 @@ fn try_object_define_properties<T: InternalMethods>(
     o: T,
     properties: Value,
     gc: NoGcScope<'_, '_>,
-) -> Option<JsResult<T>> {
+) -> TryResult<JsResult<T>> {
     // 1. Let props be ? ToObject(Properties).
     let props = match to_object(agent, properties, gc) {
         Ok(props) => props,
         Err(err) => {
-            return Some(Err(err));
+            return TryResult::Continue(Err(err));
         }
     };
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
@@ -1076,7 +1077,7 @@ fn try_object_define_properties<T: InternalMethods>(
         let desc = match desc {
             Ok(desc) => desc,
             Err(err) => {
-                return Some(Err(err));
+                return TryResult::Continue(Err(err));
             }
         };
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
@@ -1088,11 +1089,11 @@ fn try_object_define_properties<T: InternalMethods>(
         if let Err(err) =
             try_define_property_or_throw(agent, o, property_key, property_descriptor, gc)?
         {
-            return Some(Err(err));
+            return TryResult::Continue(Err(err));
         }
     }
     // 6. Return O.
-    Some(Ok(o))
+    TryResult::Continue(Ok(o))
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)

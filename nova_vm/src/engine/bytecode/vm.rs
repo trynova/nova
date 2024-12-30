@@ -62,6 +62,7 @@ use crate::{
             NamedEvaluationParameter,
         },
         context::GcScope,
+        unwrap_try, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -536,9 +537,14 @@ impl<'a> Vm {
                 let object = *vm.stack.last().unwrap();
                 let object = Object::try_from(object).unwrap();
 
-                try_create_data_property_or_throw(agent, object, key.unbind(), value, gc.nogc())
-                    .unwrap()
-                    .unwrap();
+                unwrap_try(try_create_data_property_or_throw(
+                    agent,
+                    object,
+                    key.unbind(),
+                    value,
+                    gc.nogc(),
+                ))
+                .unwrap();
             }
             Instruction::ObjectDefineMethod => {
                 let FunctionExpression { expression, .. } =
@@ -871,7 +877,7 @@ impl<'a> Vm {
                     excluded_items.insert(reference.referenced_name);
                 }
 
-                if let Some(result) =
+                if let TryResult::Continue(result) =
                     try_copy_data_properties_into_object(agent, from, &excluded_items, gc.nogc())
                 {
                     vm.result = Some(result.into_value());
@@ -1038,7 +1044,7 @@ impl<'a> Vm {
                         ),
                     );
                     // 8. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
-                    try_define_property_or_throw(
+                    unwrap_try(try_define_property_or_throw(
                         agent,
                         function,
                         BUILTIN_STRING_MEMORY.prototype.to_property_key(),
@@ -1051,8 +1057,7 @@ impl<'a> Vm {
                             configurable: Some(false),
                         },
                         gc.nogc(),
-                    )
-                    .unwrap()
+                    ))
                     .unwrap();
                 }
 
@@ -1088,10 +1093,7 @@ impl<'a> Vm {
                 let proto = OrdinaryObject::try_from(*vm.stack.last().unwrap()).unwrap();
 
                 let is_null_derived_class = !has_constructor_parent
-                    && proto
-                        .try_get_prototype_of(agent, gc.nogc())
-                        .unwrap()
-                        .is_none();
+                    && unwrap_try(proto.try_get_prototype_of(agent, gc.nogc())).is_none();
 
                 let ECMAScriptCodeEvaluationState {
                     lexical_environment,
@@ -1758,9 +1760,7 @@ impl<'a> Vm {
                     .lexical_environment;
                 let name =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
-                lex_env
-                    .try_create_mutable_binding(agent, name, false, gc.nogc())
-                    .unwrap()
+                unwrap_try(lex_env.try_create_mutable_binding(agent, name, false, gc.nogc()))
                     .unwrap();
 
                 if let Err(result) = lex_env.initialize_binding(
@@ -2027,7 +2027,13 @@ impl<'a> Vm {
                 let mut idx: u32 = 0;
                 while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
                     let key = PropertyKey::Integer(idx.into());
-                    try_create_data_property(agent, array, key, value, gc.nogc()).unwrap();
+                    unwrap_try(try_create_data_property(
+                        agent,
+                        array,
+                        key,
+                        value,
+                        gc.nogc(),
+                    ));
                     idx += 1;
                 }
                 vm.result = Some(array.into_value());

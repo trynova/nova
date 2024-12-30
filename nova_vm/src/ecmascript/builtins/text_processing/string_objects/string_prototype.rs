@@ -14,6 +14,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
 };
 use crate::ecmascript::types::Primitive;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::SmallInteger;
 use crate::{
     ecmascript::{
@@ -420,7 +421,7 @@ impl StringPrototype {
         } else {
             // 1. Let O be ? RequireObjectCoercible(this value).
             let o = require_object_coercible(agent, this_value, nogc)?;
-            if let Some(s) = try_to_string(agent, o, nogc) {
+            if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
                 (s?, &args[..])
             } else {
                 // 2. Let S be ? ToString(O).
@@ -847,7 +848,7 @@ impl StringPrototype {
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
 
         // 2. Let S be ? ToString(O).
-        let mut s = if let Some(s) = try_to_string(agent, o, gc.nogc()) {
+        let mut s = if let TryResult::Continue(s) = try_to_string(agent, o, gc.nogc()) {
             s?
         } else {
             to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc())

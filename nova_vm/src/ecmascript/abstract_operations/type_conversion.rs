@@ -18,6 +18,7 @@ use num_bigint::Sign;
 
 use crate::ecmascript::types::IntoPrimitive;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         builtins::{
@@ -1043,12 +1044,12 @@ pub(crate) fn try_to_string<'gc>(
     agent: &mut Agent,
     argument: impl IntoValue,
     gc: NoGcScope<'gc, '_>,
-) -> Option<JsResult<String<'gc>>> {
+) -> TryResult<JsResult<String<'gc>>> {
     let argument = argument.into_value();
     if let Ok(argument) = Primitive::try_from(argument) {
-        Some(to_string_primitive(agent, argument, gc))
+        TryResult::Continue(to_string_primitive(agent, argument, gc))
     } else {
-        None
+        TryResult::Break(())
     }
 }
 

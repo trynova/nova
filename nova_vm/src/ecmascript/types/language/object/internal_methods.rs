@@ -18,7 +18,10 @@ use crate::{
         execution::{Agent, JsResult},
         types::{Function, PropertyDescriptor, Value},
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{GcScope, NoGcScope},
+        unwrap_try, TryResult,
+    },
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
@@ -37,11 +40,11 @@ where
         self,
         agent: &mut Agent,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<Object>> {
-        match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_get_prototype_of(agent, backing_object, gc)),
-            None => Some(self.internal_prototype(agent)),
-        }
+    ) -> TryResult<Option<Object>> {
+        TryResult::Continue(match self.get_backing_object(agent) {
+            Some(backing_object) => ordinary_get_prototype_of(agent, backing_object, gc),
+            None => self.internal_prototype(agent),
+        })
     }
 
     /// ## \[\[GetPrototypeOf\]\]
@@ -51,12 +54,10 @@ where
         // Note: Because of Proxies, this can trigger GC.
         gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Object>> {
-        Ok(self
-            .try_get_prototype_of(agent, gc.nogc())
-            // Note: We unwrap because we'd just call ordinary_get_prototype_of
-            // which cannot trigger GC: No object should ever have a try_proto
-            // method that can return None while also using this default impl.
-            .unwrap())
+        // Note: ordinary_get_prototype_of cannot call JS or trigger
+        // GC: No object should ever have a try_proto method that can
+        // return None while also using this default impl.
+        Ok(unwrap_try(self.try_get_prototype_of(agent, gc.nogc())))
     }
 
     /// ## Infallible \[\[SetPrototypeOf\]\]
@@ -71,8 +72,8 @@ where
         agent: &mut Agent,
         prototype: Option<Object>,
         _gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
-        Some(ordinary_set_prototype_of(
+    ) -> TryResult<bool> {
+        TryResult::Continue(ordinary_set_prototype_of(
             agent,
             self.into_object(),
             prototype,
@@ -87,9 +88,10 @@ where
         prototype: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        Ok(self
-            .try_set_prototype_of(agent, prototype, gc.into_nogc())
-            .unwrap())
+        match self.try_set_prototype_of(agent, prototype, gc.into_nogc()) {
+            TryResult::Continue(t) => Ok(t),
+            TryResult::Break(_) => unreachable!(),
+        }
     }
 
     /// ## Infallible \[\[IsExtensible\]\]
@@ -104,12 +106,12 @@ where
         agent: &mut Agent,
         // Note: Because of Proxies, this can call JS.
         _gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         // 1. Return OrdinaryIsExtensible(O).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_is_extensible(agent, backing_object)),
-            None => Some(self.internal_extensible(agent)),
-        }
+        TryResult::Continue(match self.get_backing_object(agent) {
+            Some(backing_object) => ordinary_is_extensible(agent, backing_object),
+            None => self.internal_extensible(agent),
+        })
     }
 
     /// ## \[\[IsExtensible\]\]
@@ -119,7 +121,7 @@ where
         // Note: Because of Proxies, this can call JS.
         gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        Ok(self.try_is_extensible(agent, gc.into_nogc()).unwrap())
+        Ok(unwrap_try(self.try_is_extensible(agent, gc.into_nogc())))
     }
 
     /// ## Infallible \[\[PreventExtensions\]\]
@@ -129,20 +131,22 @@ where
     /// method cannot be completed without calling into JavaScript, then `None`
     /// is returned. It is preferable to call this method first and only call
     /// the main method if this returns None.
-    fn try_prevent_extensions(self, agent: &mut Agent, _gc: NoGcScope<'_, '_>) -> Option<bool> {
+    fn try_prevent_extensions(self, agent: &mut Agent, _gc: NoGcScope<'_, '_>) -> TryResult<bool> {
         // 1. Return OrdinaryPreventExtensions(O).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_prevent_extensions(agent, backing_object)),
+        TryResult::Continue(match self.get_backing_object(agent) {
+            Some(backing_object) => ordinary_prevent_extensions(agent, backing_object),
             None => {
                 self.internal_set_extensible(agent, false);
-                Some(true)
+                true
             }
-        }
+        })
     }
 
     /// ## \[\[PreventExtensions\]\]
     fn internal_prevent_extensions(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<bool> {
-        Ok(self.try_prevent_extensions(agent, gc.into_nogc()).unwrap())
+        Ok(unwrap_try(
+            self.try_prevent_extensions(agent, gc.into_nogc()),
+        ))
     }
 
     /// ## Infallible \[\[GetOwnProperty\]\]
@@ -157,16 +161,12 @@ where
         agent: &mut Agent,
         property_key: PropertyKey,
         _gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<PropertyDescriptor>> {
+    ) -> TryResult<Option<PropertyDescriptor>> {
         // 1. Return OrdinaryGetOwnProperty(O, P).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_get_own_property(
-                agent,
-                backing_object,
-                property_key,
-            )),
-            None => Some(None),
-        }
+        TryResult::Continue(match self.get_backing_object(agent) {
+            Some(backing_object) => ordinary_get_own_property(agent, backing_object, property_key),
+            None => None,
+        })
     }
 
     /// ## \[\[GetOwnProperty\]\]
@@ -176,9 +176,11 @@ where
         property_key: PropertyKey,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        Ok(self
-            .try_get_own_property(agent, property_key, gc.into_nogc())
-            .unwrap())
+        Ok(unwrap_try(self.try_get_own_property(
+            agent,
+            property_key,
+            gc.into_nogc(),
+        )))
     }
 
     /// ## Infallible \[\[DefineOwnProperty\]\]
@@ -194,11 +196,11 @@ where
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        Some(ordinary_try_define_own_property(
+        TryResult::Continue(ordinary_try_define_own_property(
             agent,
             backing_object,
             property_key,
@@ -215,9 +217,12 @@ where
         property_descriptor: PropertyDescriptor,
         gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        Ok(self
-            .try_define_own_property(agent, property_key, property_descriptor, gc.into_nogc())
-            .unwrap())
+        Ok(unwrap_try(self.try_define_own_property(
+            agent,
+            property_key,
+            property_descriptor,
+            gc.into_nogc(),
+        )))
     }
 
     /// ## Infallible \[\[HasProperty\]\]
@@ -232,7 +237,7 @@ where
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -248,7 +253,7 @@ where
                     parent.try_has_property(agent, property_key, gc)
                 } else {
                     // 5. Return false.
-                    Some(false)
+                    TryResult::Continue(false)
                 }
             }
         }
@@ -293,7 +298,7 @@ where
         property_key: PropertyKey,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Value> {
+    ) -> TryResult<Value> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -303,7 +308,7 @@ where
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
                     // b. If parent is null, return undefined.
-                    return Some(Value::Undefined);
+                    return TryResult::Continue(Value::Undefined);
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
@@ -350,7 +355,7 @@ where
         value: Value,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
         ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
     }
@@ -380,12 +385,12 @@ where
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         // 1. Return ? OrdinaryDelete(O, P).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_delete(agent, backing_object, property_key, gc)),
-            None => Some(true),
-        }
+        TryResult::Continue(match self.get_backing_object(agent) {
+            Some(backing_object) => ordinary_delete(agent, backing_object, property_key, gc),
+            None => true,
+        })
     }
 
     /// ## \[\[Delete\]\]
@@ -395,9 +400,11 @@ where
         property_key: PropertyKey,
         gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        Ok(self
-            .try_delete(agent, property_key, gc.into_nogc())
-            .unwrap())
+        Ok(unwrap_try(self.try_delete(
+            agent,
+            property_key,
+            gc.into_nogc(),
+        )))
     }
 
     /// ## Infallible \[\[OwnPropertyKeys\]\]
@@ -411,12 +418,12 @@ where
         self,
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Vec<PropertyKey<'a>>> {
+    ) -> TryResult<Vec<PropertyKey<'a>>> {
         // 1. Return OrdinaryOwnPropertyKeys(O).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => Some(ordinary_own_property_keys(agent, backing_object, gc)),
-            None => Some(vec![]),
-        }
+        TryResult::Continue(match self.get_backing_object(agent) {
+            Some(backing_object) => ordinary_own_property_keys(agent, backing_object, gc),
+            None => vec![],
+        })
     }
 
     /// ## \[\[OwnPropertyKeys\]\]
@@ -425,7 +432,9 @@ where
         agent: &mut Agent,
         gc: GcScope<'a, '_>,
     ) -> JsResult<Vec<PropertyKey<'a>>> {
-        Ok(self.try_own_property_keys(agent, gc.into_nogc()).unwrap())
+        Ok(unwrap_try(
+            self.try_own_property_keys(agent, gc.into_nogc()),
+        ))
     }
 
     /// ## \[\[Call\]\]

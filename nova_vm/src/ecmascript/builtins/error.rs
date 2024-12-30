@@ -9,6 +9,7 @@ use std::ops::{Index, IndexMut};
 pub(crate) use data::ErrorHeapData;
 
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::{unwrap_try, TryResult};
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
@@ -168,7 +169,7 @@ impl InternalMethods for Error {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<PropertyDescriptor>> {
+    ) -> TryResult<Option<PropertyDescriptor>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get_own_property(agent, property_key, gc),
             None => {
@@ -180,7 +181,7 @@ impl InternalMethods for Error {
                     } else {
                         None
                     };
-                Some(property_value.map(|value| PropertyDescriptor {
+                TryResult::Continue(property_value.map(|value| PropertyDescriptor {
                     value: Some(value),
                     writable: Some(true),
                     get: None,
@@ -197,10 +198,10 @@ impl InternalMethods for Error {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_has_property(agent, property_key, gc),
-            None => Some(
+            None => TryResult::Continue(
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
                     agent[self].message.is_some()
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
@@ -238,7 +239,7 @@ impl InternalMethods for Error {
         property_key: PropertyKey,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Value> {
+    ) -> TryResult<Value> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get(agent, property_key, receiver, gc),
             None => {
@@ -251,12 +252,12 @@ impl InternalMethods for Error {
                         None
                     };
                 if let Some(property_value) = property_value {
-                    Some(property_value)
-                } else if let Some(parent) = self.try_get_prototype_of(agent, gc).unwrap() {
+                    TryResult::Continue(property_value)
+                } else if let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc)) {
                     // c. Return ? parent.[[Get]](P, Receiver).
                     parent.try_get(agent, property_key, receiver, gc)
                 } else {
-                    Some(Value::Undefined)
+                    TryResult::Continue(Value::Undefined)
                 }
             }
         }
@@ -282,7 +283,8 @@ impl InternalMethods for Error {
                     };
                 if let Some(property_value) = property_value {
                     Ok(property_value)
-                } else if let Some(parent) = self.try_get_prototype_of(agent, gc.nogc()).unwrap() {
+                } else if let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc.nogc()))
+                {
                     // Note: Error is never a prototype so [[GetPrototypeOf]]
                     // cannot call user code.
                     // c. Return ? parent.[[Get]](P, Receiver).
@@ -301,7 +303,7 @@ impl InternalMethods for Error {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
                 backing_object.try_set(agent, property_key, value, receiver, gc)
@@ -311,10 +313,10 @@ impl InternalMethods for Error {
                     && value.is_string()
                 {
                     agent[self].message = Some(String::try_from(value).unwrap());
-                    Some(true)
+                    TryResult::Continue(true)
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
                     agent[self].cause = Some(value);
-                    Some(true)
+                    TryResult::Continue(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);
                     backing_object.try_set(agent, property_key, value, receiver, gc)
@@ -357,18 +359,20 @@ impl InternalMethods for Error {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                Some(backing_object.try_delete(agent, property_key, gc).unwrap())
-            }
+            Some(backing_object) => TryResult::Continue(unwrap_try(backing_object.try_delete(
+                agent,
+                property_key,
+                gc,
+            ))),
             None => {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message) {
                     agent[self].message = None;
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
                     agent[self].cause = None;
                 }
-                Some(true)
+                TryResult::Continue(true)
             }
         }
     }
@@ -377,9 +381,11 @@ impl InternalMethods for Error {
         self,
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Vec<PropertyKey<'a>>> {
+    ) -> TryResult<Vec<PropertyKey<'a>>> {
         match self.get_backing_object(agent) {
-            Some(backing_object) => Some(backing_object.try_own_property_keys(agent, gc).unwrap()),
+            Some(backing_object) => {
+                TryResult::Continue(unwrap_try(backing_object.try_own_property_keys(agent, gc)))
+            }
             None => {
                 let mut property_keys = Vec::with_capacity(2);
                 if agent[self].message.is_some() {
@@ -388,7 +394,7 @@ impl InternalMethods for Error {
                 if agent[self].cause.is_some() {
                     property_keys.push(BUILTIN_STRING_MEMORY.cause.into());
                 }
-                Some(property_keys)
+                TryResult::Continue(property_keys)
             }
         }
     }

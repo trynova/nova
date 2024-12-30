@@ -7,6 +7,7 @@
 use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
 use crate::ecmascript::types::{Numeric, Primitive};
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult},
@@ -115,7 +116,7 @@ pub(crate) fn try_is_extensible(
     agent: &mut Agent,
     o: Object,
     gc: NoGcScope<'_, '_>,
-) -> Option<bool> {
+) -> TryResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.try_is_extensible(agent, gc)
 }

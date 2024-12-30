@@ -8,6 +8,7 @@ use oxc_span::Span;
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         execution::{
@@ -196,8 +197,8 @@ impl InternalMethods for BuiltinConstructorFunction {
         agent: &mut Agent,
         property_key: PropertyKey,
         _gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<PropertyDescriptor>> {
-        Some(function_internal_get_own_property(
+    ) -> TryResult<Option<PropertyDescriptor>> {
+        TryResult::Continue(function_internal_get_own_property(
             self,
             agent,
             property_key,
@@ -210,8 +211,8 @@ impl InternalMethods for BuiltinConstructorFunction {
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
-        Some(function_internal_define_own_property(
+    ) -> TryResult<bool> {
+        TryResult::Continue(function_internal_define_own_property(
             self,
             agent,
             property_key,
@@ -225,7 +226,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         function_try_has_property(self, agent, property_key, gc)
     }
 
@@ -244,7 +245,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         property_key: PropertyKey,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<Value> {
+    ) -> TryResult<Value> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
@@ -265,7 +266,7 @@ impl InternalMethods for BuiltinConstructorFunction {
         value: Value,
         receiver: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
 
@@ -285,16 +286,16 @@ impl InternalMethods for BuiltinConstructorFunction {
         agent: &mut Agent,
         property_key: PropertyKey,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
-        Some(function_internal_delete(self, agent, property_key, gc))
+    ) -> TryResult<bool> {
+        TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
     fn try_own_property_keys<'a>(
         self,
         agent: &mut Agent,
         gc: NoGcScope<'a, '_>,
-    ) -> Option<Vec<PropertyKey<'a>>> {
-        Some(function_internal_own_property_keys(self, agent, gc))
+    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
     /// ### [10.3.1 \[\[Call\]\] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-built-in-function-objects-call-thisargument-argumentslist)

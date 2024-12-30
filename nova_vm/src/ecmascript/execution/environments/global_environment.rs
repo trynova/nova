@@ -13,14 +13,20 @@ use crate::{
             },
             testing_and_comparison::{is_extensible, try_is_extensible},
         },
-        execution::environments::{
-            DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex,
-            ObjectEnvironment, ObjectEnvironmentIndex,
+        execution::{
+            agent::ExceptionType,
+            environments::{
+                DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex,
+                ObjectEnvironment, ObjectEnvironmentIndex,
+            },
+            Agent, JsResult,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{GcScope, NoGcScope},
+        TryResult,
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -152,12 +158,12 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
         if env_rec.declarative_record.has_binding(agent, name) {
-            return Some(true);
+            return TryResult::Continue(true);
         }
 
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
@@ -267,7 +273,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         value: Value,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -275,7 +281,7 @@ impl GlobalEnvironmentIndex {
         if dcl_rec.has_binding(agent, name) {
             // a. Return ! DclRec.InitializeBinding(N, V).
             dcl_rec.initialize_binding(agent, name, value);
-            Some(Ok(()))
+            TryResult::Continue(Ok(()))
         } else {
             // 3. Assert: If the binding exists, it must be in the Object Environment Record.
             // 4. Let ObjRec be envRec.[[ObjectRecord]].
@@ -334,14 +340,14 @@ impl GlobalEnvironmentIndex {
         value: Value,
         is_strict: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ? DclRec.SetMutableBinding(N, V, S).
-            Some(dcl_rec.set_mutable_binding(agent, name, value, is_strict, gc))
+            TryResult::Continue(dcl_rec.set_mutable_binding(agent, name, value, is_strict, gc))
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -399,14 +405,14 @@ impl GlobalEnvironmentIndex {
         n: String,
         s: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<Value>> {
+    ) -> TryResult<JsResult<Value>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, n) {
             // a. Return ? DclRec.GetBindingValue(N, S).
-            Some(dcl_rec.get_binding_value(agent, n, s, gc))
+            TryResult::Continue(dcl_rec.get_binding_value(agent, n, s, gc))
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
@@ -458,14 +464,14 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<bool>> {
+    ) -> TryResult<JsResult<bool>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, name) {
             // a. Return ! DclRec.DeleteBinding(N).
-            return Some(Ok(dcl_rec.delete_binding(agent, name)));
+            return TryResult::Continue(Ok(dcl_rec.delete_binding(agent, name)));
         }
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -487,10 +493,10 @@ impl GlobalEnvironmentIndex {
                 }
             }
             // c. Return status.
-            Some(Ok(status))
+            TryResult::Continue(Ok(status))
         } else {
             // 7. Return true.
-            Some(Ok(true))
+            TryResult::Continue(Ok(true))
         }
     }
 
@@ -626,7 +632,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -637,11 +643,11 @@ impl GlobalEnvironmentIndex {
         let existing_prop = global_object.try_get_own_property(agent, n, gc)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
-            return Some(false);
+            return TryResult::Continue(false);
         };
         // 5. If existingProp.[[Configurable]] is true, return false.
         // 6. Return true.
-        Some(existing_prop.configurable != Some(true))
+        TryResult::Continue(existing_prop.configurable != Some(true))
     }
 
     /// ### [9.1.1.4.14 HasRestrictedGlobalProperty ( N )](https://tc39.es/ecma262/#sec-hasrestrictedglobalproperty)
@@ -687,7 +693,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -698,7 +704,7 @@ impl GlobalEnvironmentIndex {
         let has_property = try_has_own_property(agent, global_object, n, gc)?;
         // 4. If hasProperty is true, return true.
         if has_property {
-            Some(true)
+            TryResult::Continue(true)
         } else {
             // 5. Return ? IsExtensible(globalObject).
             try_is_extensible(agent, global_object, gc)
@@ -748,7 +754,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<bool> {
+    ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -768,10 +774,10 @@ impl GlobalEnvironmentIndex {
                 && existing_prop.enumerable == Some(true)
         {
             // 6. If IsDataDescriptor(existingProp) is true and existingProp has attribute values { [[Writable]]: true, [[Enumerable]]: true }, true.
-            Some(true)
+            TryResult::Continue(true)
         } else {
             // 7. Return false.
-            Some(false)
+            TryResult::Continue(false)
         }
     }
 
@@ -829,7 +835,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         is_deletable: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -844,11 +850,11 @@ impl GlobalEnvironmentIndex {
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
             if let Err(err) = obj_rec.try_create_mutable_binding(agent, name, is_deletable, gc)? {
-                return Some(Err(err));
+                return TryResult::Continue(Err(err));
             }
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
             if let Err(err) = obj_rec.try_initialize_binding(agent, name, Value::Undefined, gc)? {
-                return Some(Err(err));
+                return TryResult::Continue(Err(err));
             }
         }
 
@@ -858,7 +864,7 @@ impl GlobalEnvironmentIndex {
         env_rec.var_names.insert(name.unbind());
 
         // 7. Return UNUSED.
-        Some(Ok(()))
+        TryResult::Continue(Ok(()))
     }
 
     /// ### [9.1.1.4.17 CreateGlobalVarBinding ( N, D )](https://tc39.es/ecma262/#sec-createglobalvarbinding)
@@ -920,7 +926,7 @@ impl GlobalEnvironmentIndex {
         value: Value,
         d: bool,
         gc: NoGcScope<'_, '_>,
-    ) -> Option<JsResult<()>> {
+    ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
@@ -954,18 +960,18 @@ impl GlobalEnvironmentIndex {
         };
         // 6. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
         if let Err(err) = try_define_property_or_throw(agent, global_object, n, desc, gc)? {
-            return Some(Err(err));
+            return TryResult::Continue(Err(err));
         }
         // 7. Perform ? Set(globalObject, N, V, false).
         if let Err(err) = try_set(agent, global_object, n, value, false, gc)? {
-            return Some(Err(err));
+            return TryResult::Continue(Err(err));
         }
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
         let env_rec = &mut agent[self];
         env_rec.var_names.insert(name.unbind());
         // 9. Return UNUSED.
-        Some(Ok(()))
+        TryResult::Continue(Ok(()))
         // NOTE
         // Global function declarations are always represented as own
         // properties of the global object. If possible, an existing own

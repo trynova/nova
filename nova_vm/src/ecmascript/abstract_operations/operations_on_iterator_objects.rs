@@ -14,7 +14,10 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{GcScope, NoGcScope},
+        TryResult,
+    },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
@@ -392,7 +395,7 @@ pub(crate) fn try_iterator_close<T>(
     iterator_record: &IteratorRecord,
     completion: JsResult<T>,
     gc: NoGcScope<'_, '_>,
-) -> Option<JsResult<T>> {
+) -> TryResult<JsResult<T>> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     let iterator = iterator_record.iterator;
@@ -410,17 +413,17 @@ pub(crate) fn try_iterator_close<T>(
             match return_function {
                 // c. Set innerResult to Completion(Call(return, iterator)).
                 // Can't call functions in NoGcScope.
-                Some(_) => None,
+                Some(_) => TryResult::Break(()),
                 // b. If return is undefined, return ? completion.
-                None => Some(completion),
+                None => TryResult::Continue(completion),
             }
         }
         Err(inner_result) => {
             match completion {
                 // 6. If innerResult.[[Type]] is throw, return ? innerResult.
-                Ok(_) => Some(Err(inner_result)),
+                Ok(_) => TryResult::Continue(Err(inner_result)),
                 // 5. If completion.[[Type]] is throw, return ? completion.
-                Err(err) => Some(Err(err)),
+                Err(err) => TryResult::Continue(Err(err)),
             }
         }
     }
