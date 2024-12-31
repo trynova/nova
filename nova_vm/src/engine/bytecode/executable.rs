@@ -7,7 +7,9 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use super::{instructions::Instr, CompileContext, Instruction, NamedEvaluationParameter};
+use super::{
+    instructions::Instr, CompileContext, CompileEvaluation, Instruction, NamedEvaluationParameter,
+};
 use crate::{
     ecmascript::{
         execution::Agent,
@@ -18,7 +20,7 @@ use crate::{
     engine::context::NoGcScope,
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
-use oxc_ast::ast::{self, Statement};
+use oxc_ast::ast::{self, Program, Statement};
 
 #[derive(Debug)]
 /// A `Send` and `Sync` wrapper over a `&'static T` where `T` might not itself
@@ -145,7 +147,7 @@ impl Executable {
         ctx.finish()
     }
 
-    pub(crate) fn compile_eval_body(agent: &mut Agent, body: &[Statement], gc: NoGcScope) -> Self {
+    pub(crate) fn compile_eval_body(agent: &mut Agent, program: &Program, gc: NoGcScope) -> Self {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Compiling Eval Body ===");
@@ -153,7 +155,16 @@ impl Executable {
         }
         let mut ctx = CompileContext::new(agent, gc);
 
-        ctx.compile_statements(body);
+        // eval('"asd"') is parsed into an empty body with a single directive.
+        // Multiple directives are also possible, but only the last one is
+        // really relevant to us as storing constants cannot be observed.
+        if program.body.is_empty() {
+            if let Some(directive) = program.directives.last() {
+                directive.expression.compile(&mut ctx);
+            }
+        } else {
+            ctx.compile_statements(&program.body);
+        }
         ctx.do_implicit_return();
         ctx.finish()
     }
