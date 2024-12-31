@@ -115,7 +115,7 @@ struct ExceptionJumpTarget {
 /// ## Notes
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
-///   Copyright (c) 2023-2024 Linus Groh
+///   Copyright (c) 2023-2025 Linus Groh
 #[derive(Debug)]
 pub(crate) struct Vm {
     /// Instruction pointer.

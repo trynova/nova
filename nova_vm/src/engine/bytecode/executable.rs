@@ -95,7 +95,7 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 /// ## Notes
 ///
 /// - This is inspired by and/or copied from Kiesel engine:
-///   Copyright (c) 2023-2024 Linus Groh
+///   Copyright (c) 2023-2025 Linus Groh
 #[derive(Debug, Clone)]
 pub(crate) struct ExecutableHeapData {
     pub instructions: Box<[u8]>,
