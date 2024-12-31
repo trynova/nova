@@ -1582,12 +1582,22 @@ impl StringPrototype {
     }
 
     fn to_locale_upper_case(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        // 2. Let S be ? ToString(O).
+        let s = to_string(agent, o, gc.reborrow())?;
+
+        // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
+        // 4. Let upperText be toUppercase(sText), according to the Unicode Default Case Conversion algorithm.
+        // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
+        // 6. Return L.
+        let upper_case_string = s.as_str(agent).to_uppercase();
+        Ok(String::from_string(agent, upper_case_string, gc.nogc()).into_value())
     }
 
     /// > NOTE: The implementation might not reflect the spec.
