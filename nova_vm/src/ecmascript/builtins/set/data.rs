@@ -19,7 +19,7 @@ use std::{
 
 #[derive(Debug, Default)]
 pub struct SetHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     set_data: SetData,
     // TODO: When an non-terminal (start or end) iterator exists for the Set,
     // the items in the set cannot be compacted.

@@ -31,33 +31,26 @@ impl PropertyStorage {
         self.into_object().into_value()
     }
 
-    pub fn has(self, agent: &mut Agent, key: PropertyKey) -> bool {
+    pub fn has(self, agent: &Agent, key: PropertyKey) -> bool {
         let object = self.into_value();
 
+        // SAFETY: Key is only used to compare with other keys.
+        let key = unsafe { key.into_value_unchecked() };
         match object {
-            Value::Object(object) => agent
-                .heap
-                .elements
-                .has(agent[object].keys, key.into_value()),
+            Value::Object(object) => agent.heap.elements.has(agent[object].keys, key),
             Value::Array(array) => {
-                if key.equals(agent, PropertyKey::from(BUILTIN_STRING_MEMORY.length)) {
+                if key == BUILTIN_STRING_MEMORY.length.into_value() {
                     return true;
                 }
 
                 let array = &agent[array];
 
-                if key.is_array_index() {
-                    return agent
-                        .heap
-                        .elements
-                        .has(array.elements.into(), key.into_value());
+                if key.is_integer() {
+                    return agent.heap.elements.has(array.elements.into(), key);
                 }
 
                 if let Some(object) = array.object_index {
-                    agent
-                        .heap
-                        .elements
-                        .has(agent[object].keys, key.into_value())
+                    agent.heap.elements.has(agent[object].keys, key)
                 } else {
                     false
                 }
@@ -69,11 +62,12 @@ impl PropertyStorage {
         }
     }
 
-    pub fn get(self, agent: &mut Agent, key: PropertyKey) -> Option<PropertyDescriptor> {
+    pub fn get(self, agent: &Agent, key: PropertyKey) -> Option<PropertyDescriptor> {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
-                let key = key.into_value();
+                // SAFETY: Key is only used to compare with other keys.
+                let key = unsafe { key.into_value_unchecked() };
                 let result = agent
                     .heap
                     .elements
@@ -96,7 +90,8 @@ impl PropertyStorage {
         match self.0 {
             Object::Object(object) => {
                 let ObjectHeapData { keys, values, .. } = agent[object];
-                let property_key = property_key.into_value();
+                // SAFETY: Key is only used to compare with other keys.
+                let property_key = unsafe { property_key.into_value_unchecked() };
 
                 let value = descriptor.value;
                 let element_descriptor = ElementDescriptor::from_property_descriptor(descriptor);
@@ -142,7 +137,8 @@ impl PropertyStorage {
     pub fn remove(self, agent: &mut Agent, property_key: PropertyKey) {
         match self.0 {
             Object::Object(object) => {
-                let property_key = property_key.into_value();
+                // SAFETY: Key is only used to compare with other keys.
+                let property_key = unsafe { property_key.into_value_unchecked() };
 
                 let result = agent
                     .heap

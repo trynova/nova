@@ -33,7 +33,7 @@ where
     Self: IntoObject + IntoFunction + InternalSlots + InternalMethods,
 {
     /// Value of the 'name' property.
-    fn get_name(self, agent: &Agent) -> String;
+    fn get_name(self, agent: &Agent) -> String<'static>;
 
     /// Value of the 'length' property.
     fn get_length(self, agent: &Agent) -> u8;
@@ -42,7 +42,7 @@ where
 pub(crate) fn function_create_backing_object(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
-) -> OrdinaryObject {
+) -> OrdinaryObject<'static> {
     assert!(func.get_backing_object(agent).is_none());
     let prototype = func.internal_prototype(agent);
     let length_entry = ObjectEntry {
@@ -142,19 +142,22 @@ pub(crate) fn function_internal_has_property(
     func: impl FunctionInternalProperties,
     agent: &mut Agent,
     property_key: PropertyKey,
-    mut gc: GcScope<'_, '_>,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<bool> {
+    let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_has_property(agent, property_key, gc.reborrow())
+        backing_object.internal_has_property(agent, property_key.unbind(), gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         Ok(true)
     } else {
         let parent = unwrap_try(func.try_get_prototype_of(agent, gc.nogc()));
-        parent.map_or(Ok(false), |parent| {
-            parent.internal_has_property(agent, property_key, gc)
-        })
+        if let Some(parent) = parent {
+            parent.internal_has_property(agent, property_key.unbind(), gc)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -184,19 +187,23 @@ pub(crate) fn function_internal_get(
     agent: &mut Agent,
     property_key: PropertyKey,
     receiver: Value,
-    mut gc: GcScope<'_, '_>,
+    gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
+    let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_get(agent, property_key, receiver, gc)
+        backing_object.internal_get(agent, property_key.unbind(), receiver, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Ok(func.get_length(agent).into())
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
         Ok(func.get_name(agent).into_value())
     } else {
-        let parent = func.internal_get_prototype_of(agent, gc.reborrow())?;
-        parent.map_or(Ok(Value::Undefined), |parent| {
-            parent.internal_get(agent, property_key, receiver, gc)
-        })
+        // Note: Getting a function's prototype never calls JavaScript.
+        let parent = unwrap_try(func.try_get_prototype_of(agent, gc.nogc()));
+        if let Some(parent) = parent {
+            parent.internal_get(agent, property_key.unbind(), receiver, gc)
+        } else {
+            Ok(Value::Undefined)
+        }
     }
 }
 
@@ -229,16 +236,22 @@ pub(crate) fn function_internal_set(
     receiver: Value,
     gc: GcScope<'_, '_>,
 ) -> JsResult<bool> {
+    let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
-        backing_object.internal_set(agent, property_key, value, receiver, gc)
+        backing_object.internal_set(agent, property_key.unbind(), value, receiver, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length)
         || property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name)
     {
         // length and name are not writable
         Ok(false)
     } else {
-        func.create_backing_object(agent)
-            .internal_set(agent, property_key, value, receiver, gc)
+        func.create_backing_object(agent).internal_set(
+            agent,
+            property_key.unbind(),
+            value,
+            receiver,
+            gc,
+        )
     }
 }
 

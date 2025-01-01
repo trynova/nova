@@ -19,7 +19,7 @@ use std::{
 
 #[derive(Debug, Default)]
 pub struct MapHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     map_data: MapData,
     // TODO: When an non-terminal (start or end) iterator exists for the Map,
     // the items in the map cannot be compacted.

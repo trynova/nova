@@ -48,10 +48,10 @@ pub(crate) fn require_object_coercible(
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
+pub(crate) fn is_array(_agent: &Agent, argument: impl IntoValue) -> JsResult<bool> {
     // 1. If argument is not an Object, return false.
     // 2. If argument is an Array exotic object, return true.
-    Ok(matches!(argument, Value::Array(_)))
+    Ok(matches!(argument.into_value(), Value::Array(_)))
     // TODO: Proxy
     // 3. If argument is a Proxy exotic object, then
     // a. Perform ? ValidateNonRevokedProxy(argument).

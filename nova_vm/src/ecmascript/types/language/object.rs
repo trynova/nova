@@ -110,7 +110,7 @@ pub use property_storage::PropertyStorage;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Object {
-    Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
+    Object(OrdinaryObject<'static>) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
@@ -122,7 +122,7 @@ pub enum Object {
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject) = PRIMITIVE_OBJECT_DISCRIMINANT,
-    Arguments(OrdinaryObject) = ARGUMENTS_DISCRIMINANT,
+    Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
@@ -180,7 +180,7 @@ pub enum Object {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OrdinaryObject(pub(crate) ObjectIndex);
+pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
 
 impl IntoValue for Object {
     fn into_value(self) -> Value {
@@ -263,37 +263,37 @@ impl IntoObject for Object {
     }
 }
 
-impl IntoObject for OrdinaryObject {
+impl IntoObject for OrdinaryObject<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl IntoValue for OrdinaryObject {
+impl IntoValue for OrdinaryObject<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl From<OrdinaryObject> for Object {
-    fn from(value: OrdinaryObject) -> Self {
-        Self::Object(value)
+impl From<OrdinaryObject<'_>> for Object {
+    fn from(value: OrdinaryObject<'_>) -> Self {
+        Self::Object(value.unbind())
     }
 }
 
-impl From<ObjectIndex> for OrdinaryObject {
-    fn from(value: ObjectIndex) -> Self {
+impl<'a> From<ObjectIndex<'a>> for OrdinaryObject<'a> {
+    fn from(value: ObjectIndex<'a>) -> Self {
         OrdinaryObject(value)
     }
 }
 
-impl From<OrdinaryObject> for Value {
-    fn from(value: OrdinaryObject) -> Self {
-        Self::Object(value)
+impl From<OrdinaryObject<'_>> for Value {
+    fn from(value: OrdinaryObject<'_>) -> Self {
+        Self::Object(value.unbind())
     }
 }
 
-impl TryFrom<Value> for OrdinaryObject {
+impl TryFrom<Value> for OrdinaryObject<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -304,7 +304,7 @@ impl TryFrom<Value> for OrdinaryObject {
     }
 }
 
-impl TryFrom<Object> for OrdinaryObject {
+impl TryFrom<Object> for OrdinaryObject<'_> {
     type Error = ();
 
     #[inline]
@@ -316,42 +316,70 @@ impl TryFrom<Object> for OrdinaryObject {
     }
 }
 
-impl InternalSlots for OrdinaryObject {
+impl InternalSlots for OrdinaryObject<'_> {
     #[inline(always)]
-    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
-        Some(self)
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject<'static>> {
+        Some(self.unbind())
     }
 
-    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
         unreachable!();
     }
 
-    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!();
     }
 
     fn internal_extensible(self, agent: &Agent) -> bool {
-        agent[self].extensible
+        agent[self.unbind()].extensible
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
-        agent[self].extensible = value;
+        agent[self.unbind()].extensible = value;
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object> {
-        agent[self].prototype
+        agent[self.unbind()].prototype
     }
 
     fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        agent[self].prototype = prototype;
+        agent[self.unbind()].prototype = prototype;
     }
 }
 
-impl OrdinaryObject {
+impl<'a> OrdinaryObject<'a> {
+    /// Unbind this OrdinaryObject from its current lifetime. This is necessary to use
+    /// the OrdinaryObject as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> OrdinaryObject<'static> {
+        unsafe { std::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'static>>(self) }
+    }
+
+    // Bind this OrdinaryObject to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your OrdinaryObjects cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound OrdinaryObject cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> OrdinaryObject<'gc> {
+        unsafe { std::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, OrdinaryObject<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(ObjectIndex::from_u32_index(0))
     }
-    pub(crate) const fn new(value: ObjectIndex) -> Self {
+    pub(crate) const fn new(value: ObjectIndex<'a>) -> Self {
         Self(value)
     }
 
@@ -360,9 +388,10 @@ impl OrdinaryObject {
     }
 }
 
-impl From<ObjectIndex> for Object {
-    fn from(value: ObjectIndex) -> Self {
-        Object::Object(value.into())
+impl<'a> From<ObjectIndex<'a>> for Object {
+    fn from(value: ObjectIndex<'a>) -> Self {
+        let value: OrdinaryObject<'a> = value.into();
+        Object::Object(value.unbind())
     }
 }
 
@@ -650,15 +679,15 @@ impl Hash for Object {
 }
 
 impl InternalSlots for Object {
-    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, _: &Agent) -> Option<OrdinaryObject<'static>> {
         unreachable!("Object should not try to access its backing object");
     }
 
-    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
         unreachable!("Object should not try to create its backing object");
     }
 
-    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!("Object should not try to create its backing object");
     }
 
@@ -3565,10 +3594,33 @@ impl HeapMarkAndSweep for Object {
     }
 }
 
-impl CreateHeapData<ObjectHeapData, OrdinaryObject> for Heap {
-    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject {
+impl CreateHeapData<ObjectHeapData, OrdinaryObject<'static>> for Heap {
+    fn create(&mut self, data: ObjectHeapData) -> OrdinaryObject<'static> {
         self.objects.push(Some(data));
         OrdinaryObject(ObjectIndex::last(&self.objects))
+    }
+}
+
+impl Rootable for OrdinaryObject<'static> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Object(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Object(object) => Some(object),
+            _ => None,
+        }
     }
 }
 

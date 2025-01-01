@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::type_conversion::{
     to_property_key_complex, to_property_key_simple,
 };
+use crate::ecmascript::types::{bind_property_keys, unbind_property_keys};
 use crate::engine::context::GcScope;
 use crate::engine::TryResult;
 use crate::{
@@ -19,7 +20,7 @@ use crate::{
         builtins::{ArgumentsList, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value,
+            InternalMethods, IntoValue, Object, PropertyDescriptor, String, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -394,7 +395,7 @@ impl ReflectObject {
         // 3. Let desc be ? target.[[GetOwnProperty]](key).
         let desc = target.internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
-        match PropertyDescriptor::from_property_descriptor(desc, agent) {
+        match PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc()) {
             Some(ret) => Ok(ret.into_value()),
             None => Ok(Value::Undefined),
         }
@@ -504,11 +505,13 @@ impl ReflectObject {
         // 2. Let keys be ? target.[[OwnPropertyKeys]]().
         // TODO: `PropertyKey::into_value` might not do the right thing for
         // integer keys.
-        let keys: Vec<Value> = target
-            .internal_own_property_keys(agent, gc.reborrow())?
-            .into_iter()
-            .map(PropertyKey::into_value)
-            .collect();
+        let keys: Vec<Value> = bind_property_keys(
+            unbind_property_keys(target.internal_own_property_keys(agent, gc.reborrow())?),
+            gc.nogc(),
+        )
+        .into_iter()
+        .map(|key| key.convert_to_value(agent, gc.nogc()))
+        .collect();
         // 3. Return CreateArrayFromList(keys).
         Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
     }

@@ -100,12 +100,15 @@ impl TryFrom<Object> for SetIterator {
 impl InternalSlots for SetIterator {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SetIterator;
 
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
     }
 }
 
@@ -164,7 +167,7 @@ impl HeapMarkAndSweep for SetIterator {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SetIteratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) set: Option<Set>,
     pub(crate) next_index: usize,
     pub(crate) kind: CollectionIteratorKind,

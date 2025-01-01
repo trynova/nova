@@ -39,7 +39,7 @@ pub struct CreatorProperties(
 
 pub struct OrdinaryObjectBuilder<'agent, P, Pr> {
     pub(crate) agent: &'agent mut Agent,
-    this: OrdinaryObject,
+    this: OrdinaryObject<'static>,
     realm: RealmIdentifier,
     prototype: P,
     extensible: bool,
@@ -65,7 +65,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     pub(crate) fn new_intrinsic_object(
         agent: &'agent mut Agent,
         realm: RealmIdentifier,
-        this: OrdinaryObject,
+        this: OrdinaryObject<'static>,
     ) -> Self {
         Self {
             agent,
@@ -261,7 +261,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'static> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
             .agent
@@ -281,7 +281,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
 }
 
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, NoProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'static> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
             .agent
@@ -301,7 +301,7 @@ impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, N
 }
 
 impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'static> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {
             let slice = self.properties.0.as_slice();
@@ -337,7 +337,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
 }
 
 impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
-    pub fn build(self) -> OrdinaryObject {
+    pub fn build(self) -> OrdinaryObject<'static> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {
             let slice = self.properties.0.as_slice();

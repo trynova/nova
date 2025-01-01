@@ -3751,7 +3751,7 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     // 3. Repeat, while k < len,
     while k < len {
         // a. Let Pk be ! ToString(𝔽(k)).
-        let pk: PropertyKey = k.try_into().unwrap();
+        let pk: PropertyKey<'static> = k.try_into().unwrap();
         // b. If holes is skip-holes, then
         let k_read = if SKIP_HOLES {
             // i. Let kRead be ? HasProperty(obj, Pk).

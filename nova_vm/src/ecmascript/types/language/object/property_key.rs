@@ -54,15 +54,26 @@ impl<'a> PropertyKey<'a> {
     // ```
     // to make sure that the unbound PropertyKey cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<PropertyKey<'_>, Self>(self) }
+        unsafe { std::mem::transmute::<PropertyKey, Self>(self) }
     }
 
     pub fn scope<'scope>(
         self,
-        agent: &mut Agent,
+        agent: &Agent,
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, PropertyKey<'static>> {
         Scoped::new(agent, self.unbind(), gc)
+    }
+
+    pub const fn scope_static(self) -> Scoped<'static, PropertyKey<'static>> {
+        let key_root_repr = match self {
+            PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),
+            PropertyKey::SmallString(small_string) => {
+                PropertyKeyRootRepr::SmallString(small_string)
+            }
+            _ => panic!("PropertyKey required rooting"),
+        };
+        Scoped::from_root_repr(key_root_repr)
     }
 
     // FIXME: This API is not necessarily in the right place.
@@ -85,22 +96,69 @@ impl<'a> PropertyKey<'a> {
             .unwrap_or_else(|| String::from_string(agent, string, gc).into())
     }
 
-    pub fn into_value(self) -> Value {
-        self.into()
+    /// Convert a PropertyKey into a Value.
+    ///
+    /// This converts any integer keys into strings. This matches what the
+    /// ECMAScript specification expects.
+    pub fn convert_to_value(self, agent: &mut Agent, gc: NoGcScope) -> Value {
+        match self {
+            PropertyKey::Integer(small_integer) => {
+                Value::from_string(agent, format!("{}", small_integer.into_i64()), gc)
+            }
+            PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
+            PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
+            PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
+        }
     }
 
-    pub fn from_value(agent: &Agent, value: Value, _: NoGcScope<'a, '_>) -> Option<Self> {
-        if let Ok(string) = String::try_from(value) {
-            if let Some(pk) = parse_string_to_integer_property_key(string.as_str(agent)) {
-                return Some(pk);
-            }
+    /// Convert a PropertyKey into a Value directly.
+    ///
+    /// This does not convert integer keys into strings. This is not correct
+    /// from the specification point of view and should only be done when
+    /// used with other directly converted PropertyKeys.
+    ///
+    /// ## Safety
+    ///
+    /// If the resulting PropertyKey is mixed with normal JavaScript values or
+    /// passed to user code, the resulting JavaScript will not necessarily
+    /// correctly match the ECMAScript specification or user's expectations.
+    pub(crate) unsafe fn into_value_unchecked(self) -> Value {
+        match self {
+            PropertyKey::Integer(small_integer) => Value::Integer(small_integer),
+            PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
+            PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
+            PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
         }
-        Self::try_from(value).ok()
+    }
+
+    /// Reinterpret a Value as a PropertyKey directly.
+    ///
+    /// This does not check strings for being integer-like. This is problematic
+    /// from the engine point of view if an integer-string like Value gets
+    /// reinterpreted as a PropertyKey without the conversion.
+    ///
+    /// ## Safety
+    ///
+    /// If the source Value is an integer key string, then using the resulting
+    /// PropertyKey may not match the ECMAScript specification or user's
+    /// expectations.
+    ///
+    /// ## Panics
+    ///
+    /// If the passed-in Value is not a string, integer, or symbol, the method
+    /// will panic.
+    pub(crate) unsafe fn from_value_unchecked(value: Value) -> Self {
+        match value {
+            Value::Integer(small_integer) => PropertyKey::Integer(small_integer),
+            Value::SmallString(small_string) => PropertyKey::SmallString(small_string),
+            Value::String(heap_string) => PropertyKey::String(heap_string.unbind()),
+            Value::Symbol(symbol) => PropertyKey::Symbol(symbol.unbind()),
+            _ => unreachable!(),
+        }
     }
 
     pub fn is_array_index(self) -> bool {
-        // TODO: string check
-        matches!(self.into_value(), Value::Integer(_))
+        matches!(self, PropertyKey::Integer(_))
     }
 
     pub(self) fn is_str_eq_num(s: &str, n: i64) -> bool {
@@ -137,6 +195,22 @@ impl<'a> PropertyKey<'a> {
     ) -> DisplayablePropertyKey<'a, 'b, 'c> {
         DisplayablePropertyKey { key: self, agent }
     }
+
+    /// Returns true if the PropertyKey is a Symbol.
+    pub fn is_symbol(&self) -> bool {
+        matches!(self, PropertyKey::Symbol(_))
+    }
+
+    /// Returns true if the PropertyKey is a String according to the ECMAScript
+    /// specification.
+    ///
+    /// > Note: This returns true for Integer property keys as well.
+    pub fn is_string(&self) -> bool {
+        matches!(
+            self,
+            PropertyKey::String(_) | PropertyKey::SmallString(_) | PropertyKey::Integer(_)
+        )
+    }
 }
 
 #[inline(always)]
@@ -145,17 +219,14 @@ pub fn unbind_property_keys<'a>(vec: Vec<PropertyKey<'a>>) -> Vec<PropertyKey<'s
 }
 
 #[inline(always)]
-pub fn bind_property_keys<'a>(
-    vec: Vec<PropertyKey<'static>>,
-    _: NoGcScope<'a, '_>,
-) -> Vec<PropertyKey<'a>> {
-    unsafe { std::mem::transmute::<Vec<PropertyKey<'static>>, Vec<PropertyKey<'a>>>(vec) }
+pub fn bind_property_keys<'a>(vec: Vec<PropertyKey>, _: NoGcScope<'a, '_>) -> Vec<PropertyKey<'a>> {
+    unsafe { std::mem::transmute::<Vec<PropertyKey>, Vec<PropertyKey<'a>>>(vec) }
 }
 
 #[inline]
 pub fn scope_property_keys<'a>(
     agent: &mut Agent,
-    keys: Vec<PropertyKey<'_>>,
+    keys: Vec<PropertyKey>,
     gc: NoGcScope<'_, 'a>,
 ) -> Vec<Scoped<'a, PropertyKey<'static>>> {
     keys.into_iter()
@@ -228,13 +299,6 @@ impl From<SmallInteger> for PropertyKey<'static> {
     }
 }
 
-impl From<SmallString> for PropertyKey<'static> {
-    fn from(value: SmallString) -> Self {
-        parse_string_to_integer_property_key(value.as_str())
-            .unwrap_or(PropertyKey::SmallString(value))
-    }
-}
-
 impl<'a> From<Symbol<'a>> for PropertyKey<'a> {
     fn from(value: Symbol<'a>) -> Self {
         PropertyKey::Symbol(value)
@@ -251,46 +315,13 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
 }
 
 impl From<PropertyKey<'_>> for Value {
+    /// Note: You should not be using this conversion without thinking. Integer
+    /// keys don't actually become proper strings here, so converting a
+    /// PropertyKey into a Value using this and then comparing that with an
+    /// actual Value is unsound.
     fn from(value: PropertyKey) -> Self {
-        match value {
-            PropertyKey::Integer(x) => Value::Integer(x),
-            PropertyKey::SmallString(x) => Value::SmallString(x),
-            PropertyKey::String(x) => Value::String(x.unbind()),
-            PropertyKey::Symbol(x) => Value::Symbol(x.unbind()),
-        }
-    }
-}
-
-impl TryFrom<Value> for PropertyKey<'_> {
-    type Error = ();
-
-    #[inline(always)]
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        match value {
-            Value::Integer(x) => Ok(PropertyKey::Integer(x)),
-            Value::SmallF64(x) => {
-                let x = x.into_f64();
-                if x == -0.0 {
-                    Ok(PropertyKey::Integer(0.into()))
-                } else if x.fract() == 0.0
-                    && (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&(x as i64))
-                {
-                    unreachable!("Value::Float should not contain safe integers");
-                } else {
-                    Err(())
-                }
-            }
-            Value::SmallString(x) => Ok(PropertyKey::SmallString(x)),
-            Value::String(x) => Ok(PropertyKey::String(x)),
-            Value::Symbol(x) => Ok(PropertyKey::Symbol(x)),
-            Value::SmallBigInt(x)
-                if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER)
-                    .contains(&x.into_i64()) =>
-            {
-                Ok(PropertyKey::Integer(x.into_inner()))
-            }
-            _ => Err(()),
-        }
+        // SAFETY: Don't be silly!
+        unsafe { value.into_value_unchecked() }
     }
 }
 

@@ -7,10 +7,10 @@ use crate::{
     ecmascript::{
         builtins::{
             ordinary::{
-                ordinary_delete, ordinary_get, ordinary_get_own_property,
-                ordinary_get_prototype_of, ordinary_has_property, ordinary_is_extensible,
-                ordinary_own_property_keys, ordinary_prevent_extensions, ordinary_set,
-                ordinary_set_prototype_of, ordinary_try_define_own_property, ordinary_try_get,
+                ordinary_define_own_property, ordinary_delete, ordinary_get,
+                ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
+                ordinary_is_extensible, ordinary_own_property_keys, ordinary_prevent_extensions,
+                ordinary_set, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
             },
             ArgumentsList,
@@ -200,7 +200,7 @@ where
         let backing_object = self
             .get_backing_object(agent)
             .unwrap_or_else(|| self.create_backing_object(agent));
-        TryResult::Continue(ordinary_try_define_own_property(
+        TryResult::Continue(ordinary_define_own_property(
             agent,
             backing_object,
             property_key,
@@ -266,17 +266,21 @@ where
         property_key: PropertyKey,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
+        let property_key = property_key.bind(gc.nogc());
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_has_property(agent, backing_object, property_key, gc),
+            Some(backing_object) => {
+                ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
+            }
             None => {
+                let property_key = property_key.scope(agent, gc.nogc());
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
                 let parent = self.internal_get_prototype_of(agent, gc.reborrow())?;
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, property_key, gc)
+                    parent.internal_has_property(agent, property_key.get(agent), gc)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -325,10 +329,14 @@ where
         receiver: Value,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
+        let property_key = property_key.bind(gc.nogc());
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get(agent, backing_object, property_key, receiver, gc),
+            Some(backing_object) => {
+                ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
+            }
             None => {
+                let property_key = property_key.scope(agent, gc.nogc());
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
                     // b. If parent is null, return undefined.
@@ -336,7 +344,7 @@ where
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, property_key, receiver, gc)
+                parent.internal_get(agent, property_key.get(agent), receiver, gc)
             }
         }
     }

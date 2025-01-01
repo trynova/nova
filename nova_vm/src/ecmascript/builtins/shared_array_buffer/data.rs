@@ -9,7 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone, Default)]
 pub struct SharedArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
 }
 
 impl HeapMarkAndSweep for SharedArrayBufferHeapData {

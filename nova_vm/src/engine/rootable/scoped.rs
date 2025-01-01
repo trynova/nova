@@ -21,12 +21,23 @@ use crate::{
 /// current call context. This type is intended for cheap rooting of JavaScript
 /// Values that need to be used after calling into functions that may trigger
 /// garbage collection.
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash, Clone)]
 #[repr(transparent)]
 pub struct Scoped<'a, T: 'static + Rootable> {
     pub(crate) inner: T::RootRepr,
     _marker: PhantomData<T>,
     _scope: PhantomData<&'a ()>,
+}
+
+impl<T: 'static + Rootable> Scoped<'static, T> {
+    #[inline(always)]
+    pub const fn from_root_repr(value: T::RootRepr) -> Scoped<'static, T> {
+        Self {
+            inner: value,
+            _marker: PhantomData,
+            _scope: PhantomData,
+        }
+    }
 }
 
 impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
@@ -66,6 +77,22 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
                 value
             }
         }
+    }
+
+    // TODO: Make this const once from_root_repr can be made const.
+    // For now the inline(always) is our way to hope that this works equally.
+    /// Unwrap the Scoped wrapper, exposing the on-stack value contained
+    /// within.
+    ///
+    /// ## Panics
+    ///
+    /// If the contained value is a heap reference, the method panics.
+    #[inline(always)]
+    pub fn unwrap(&self) -> T {
+        let Ok(value) = T::from_root_repr(&self.inner) else {
+            unreachable!("Scoped value was a heap reference")
+        };
+        value
     }
 
     pub fn replace(&mut self, agent: &Agent, value: T) {

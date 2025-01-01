@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(Debug, Clone, Default)]
 pub struct PromiseHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) promise_state: PromiseState,
 }
 

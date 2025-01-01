@@ -9,7 +9,7 @@ use crate::{
 
 #[derive(Debug, Clone, Default)]
 pub struct WeakMapHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     // TODO: This isn't even close to a hashmap; HashMap won't allow inserting
     // Value as key; f32 isn't hashable. And our f64s are found on the Heap and
     // require fetching; What we actually should do is more like:

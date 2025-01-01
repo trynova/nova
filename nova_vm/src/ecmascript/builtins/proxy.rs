@@ -76,15 +76,15 @@ impl From<Proxy> for Object {
 
 impl InternalSlots for Proxy {
     #[inline(always)]
-    fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
         todo!()
     }
 
-    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
         todo!()
     }
 
-    fn create_backing_object(self, _agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _agent: &mut Agent) -> OrdinaryObject<'static> {
         todo!()
     }
 

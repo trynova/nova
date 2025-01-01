@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct DataViewHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     // TODO: Add a helper function for a u32::MAX value which signifies an a under-construction value:
     // See https://github.com/trynova/nova/pull/447#discussion_r1806247107 for reference.
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-dataview-instances)

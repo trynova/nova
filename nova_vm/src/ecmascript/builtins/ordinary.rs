@@ -11,7 +11,7 @@ use crate::{
     ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        unwrap_try, Scoped, TryResult,
     },
 };
 use crate::{
@@ -63,24 +63,24 @@ use super::{
     weak_set::data::WeakSetHeapData,
 };
 
-impl Index<OrdinaryObject> for Agent {
+impl Index<OrdinaryObject<'_>> for Agent {
     type Output = ObjectHeapData;
 
-    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+    fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
         &self.heap.objects[index]
     }
 }
 
-impl IndexMut<OrdinaryObject> for Agent {
-    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+impl IndexMut<OrdinaryObject<'_>> for Agent {
+    fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
         &mut self.heap.objects[index]
     }
 }
 
-impl Index<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
+impl Index<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
     type Output = ObjectHeapData;
 
-    fn index(&self, index: OrdinaryObject) -> &Self::Output {
+    fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
         self.get(index.get_index())
             .expect("Object out of bounds")
             .as_ref()
@@ -88,8 +88,8 @@ impl Index<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
     }
 }
 
-impl IndexMut<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
-    fn index_mut(&mut self, index: OrdinaryObject) -> &mut Self::Output {
+impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
+    fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Object out of bounds")
             .as_mut()
@@ -98,7 +98,7 @@ impl IndexMut<OrdinaryObject> for Vec<Option<ObjectHeapData>> {
 }
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl InternalMethods for OrdinaryObject {}
+impl InternalMethods for OrdinaryObject<'_> {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
 pub(crate) fn ordinary_get_prototype_of(
@@ -189,7 +189,7 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObj
 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property(
-    agent: &mut Agent,
+    agent: &Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
 ) -> Option<PropertyDescriptor> {
@@ -233,45 +233,19 @@ pub(crate) fn ordinary_get_own_property(
 }
 
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
-pub(crate) fn ordinary_try_define_own_property(
-    agent: &mut Agent,
-    object: OrdinaryObject,
-    property_key: PropertyKey,
-    descriptor: PropertyDescriptor,
-    gc: NoGcScope<'_, '_>,
-) -> bool {
-    // 1. Let current be ! O.[[GetOwnProperty]](P).
-    let current = unwrap_try(object.try_get_own_property(agent, property_key, gc));
-
-    // 2. Let extensible be ! IsExtensible(O).
-    let extensible = object.internal_extensible(agent);
-
-    // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
-    validate_and_apply_property_descriptor(
-        agent,
-        Some(object),
-        property_key,
-        extensible,
-        descriptor,
-        current,
-    )
-}
-
-/// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> bool {
-    // 1. Let current be ? O.[[GetOwnProperty]](P).
-    // Note: OrdinaryDefineOwnProperty is only used by objects that use
-    // OrdinaryGetOwnProperty, which never calls JavaScript: The try method
-    // always returns a Continue.
+    // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
+    // meaning that we know that this method cannot call into JavaScript.
+    // 1. Let current be ! O.[[GetOwnProperty]](P).
     let current = unwrap_try(object.try_get_own_property(agent, property_key, gc));
 
-    // 2. Let extensible be ? IsExtensible(O).
+    // 2. Let extensible be ! IsExtensible(O).
     let extensible = object.internal_extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
@@ -542,7 +516,7 @@ pub(crate) fn ordinary_try_has_property(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<bool> {
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
     // Note: ? means that if we'd call a Proxy's GetOwnProperty trap then we'll
@@ -576,7 +550,7 @@ pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
@@ -618,7 +592,7 @@ pub(crate) fn ordinary_try_get(
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<Value> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
@@ -667,7 +641,7 @@ pub(crate) fn ordinary_get(
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
@@ -733,7 +707,7 @@ pub(crate) fn ordinary_try_set(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<bool> {
     let property_key = property_key.bind(gc);
 
@@ -760,16 +734,21 @@ pub(crate) fn ordinary_set(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
+    let property_key = property_key.bind(gc.nogc());
+    // Note: We scope here because it's likely we've already tried.
+    let scoped_property_key = property_key.scope(agent, gc.nogc());
+
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor = object.internal_get_own_property(agent, property_key, gc.reborrow())?;
+    let own_descriptor =
+        object.internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
     ordinary_set_with_own_descriptor(
         agent,
         object,
-        property_key,
+        scoped_property_key,
         value,
         receiver,
         own_descriptor,
@@ -778,14 +757,14 @@ pub(crate) fn ordinary_set(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
-pub(crate) fn ordinary_try_set_with_own_descriptor(
+fn ordinary_try_set_with_own_descriptor(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<bool> {
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
@@ -886,15 +865,16 @@ pub(crate) fn ordinary_try_set_with_own_descriptor(
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
-pub(crate) fn ordinary_set_with_own_descriptor(
+fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     object: Object,
-    property_key: PropertyKey,
+    scoped_property_key: Scoped<'_, PropertyKey>,
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
+    let property_key = scoped_property_key.get(agent).bind(gc.nogc());
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
@@ -907,7 +887,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
             // Note: Prototype might be a Proxy or contain a setter.
-            return parent.internal_set(agent, property_key, value, receiver, gc);
+            return parent.internal_set(agent, property_key.unbind(), value, receiver, gc);
         }
         // c. Else,
         else {
@@ -937,17 +917,11 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor = if matches!(
-            receiver,
-            Object::Proxy(_) | Object::Module(_) | Object::EmbedderObject(_)
-        ) {
-            // TODO: Handle rooting.
-            receiver.internal_get_own_property(agent, property_key, gc.reborrow())?
-        } else {
-            // Note: Only Proxy, Module, and Embedder objects cannot fail
-            // getting own property.
-            unwrap_try(receiver.try_get_own_property(agent, property_key, gc.nogc()))
-        };
+        let existing_descriptor = receiver.internal_get_own_property(
+            agent,
+            scoped_property_key.get(agent),
+            gc.reborrow(),
+        )?;
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
@@ -970,7 +944,7 @@ pub(crate) fn ordinary_set_with_own_descriptor(
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
             return receiver.internal_define_own_property(
                 agent,
-                property_key,
+                scoped_property_key.get(agent).unbind(),
                 value_descriptor,
                 gc,
             );
@@ -978,13 +952,19 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
-            debug_assert!(receiver
-                .internal_get_own_property(agent, property_key, gc.reborrow())
-                .unwrap()
-                .is_none());
+            // Note: Kiesel and Ladybird check receiver object's property
+            // storage here. Boa does nothing. We cannot test property storage
+            // as only ordinary objects really have one, other objects at most
+            // set up some partial property storage.
 
             // ii. Return ? CreateDataProperty(Receiver, P, V).
-            return create_data_property(agent, receiver, property_key, value, gc);
+            return create_data_property(
+                agent,
+                receiver,
+                scoped_property_key.get(agent),
+                value,
+                gc,
+            );
         }
     }
 
@@ -1009,7 +989,7 @@ pub(crate) fn ordinary_delete(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     // We're guaranteed to always get a result here.
@@ -1039,7 +1019,7 @@ pub(crate) fn ordinary_delete(
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
 pub(crate) fn ordinary_own_property_keys<'a>(
     agent: &Agent,
-    object: OrdinaryObject,
+    object: OrdinaryObject<'a>,
     _: NoGcScope<'a, '_>,
 ) -> Vec<PropertyKey<'a>> {
     let object_keys = agent[object].keys;
@@ -1051,8 +1031,9 @@ pub(crate) fn ordinary_own_property_keys<'a>(
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
     for key in agent[object_keys].iter() {
-        // SAFETY: Keys are all property keys
-        let key = PropertyKey::try_from(key.unwrap()).unwrap();
+        // SAFETY: Keys are all PropertyKeys reinterpreted as Values without
+        // conversion.
+        let key = unsafe { PropertyKey::from_value_unchecked(key.unwrap()) };
         match key {
             PropertyKey::Integer(integer_key) => {
                 let key_value = integer_key.into_i64();
@@ -1333,7 +1314,7 @@ pub(crate) fn ordinary_create_from_constructor(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<Object> {
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
@@ -1369,7 +1350,7 @@ pub(crate) fn get_prototype_from_constructor(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<Option<Object>> {
     let function_realm = get_function_realm(agent, constructor);
     // NOTE: %Constructor%.prototype is an immutable property; we can thus
@@ -1502,7 +1483,7 @@ pub(crate) fn set_immutable_prototype(
     agent: &mut Agent,
     o: Module,
     v: Option<Object>,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Let current be ? O.[[GetPrototypeOf]]().
     let current = unwrap_try(o.try_get_prototype_of(agent, gc));
@@ -1511,7 +1492,7 @@ pub(crate) fn set_immutable_prototype(
     v == current
 }
 
-impl HeapMarkAndSweep for OrdinaryObject {
+impl HeapMarkAndSweep for OrdinaryObject<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.objects.push(*self);
     }

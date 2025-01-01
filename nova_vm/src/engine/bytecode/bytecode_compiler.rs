@@ -2068,7 +2068,11 @@ fn simple_object_pattern(
         } else {
             let key_string = match &ele.key {
                 ast::PropertyKey::StaticIdentifier(identifier) => {
-                    PropertyKey::from_str(ctx.agent, &identifier.name, ctx.gc).into_value()
+                    // SAFETY: We'll use this value as a PropertyKey directly later.
+                    unsafe {
+                        PropertyKey::from_str(ctx.agent, &identifier.name, ctx.gc)
+                            .into_value_unchecked()
+                    }
                 }
                 ast::PropertyKey::NumericLiteral(literal) => {
                     let numeric_value = Number::from_f64(ctx.agent, literal.value, ctx.gc);
@@ -2079,7 +2083,11 @@ fn simple_object_pattern(
                     }
                 }
                 ast::PropertyKey::StringLiteral(literal) => {
-                    PropertyKey::from_str(ctx.agent, &literal.value, ctx.gc).into_value()
+                    // SAFETY: We'll use this value as a PropertyKey directly later.
+                    unsafe {
+                        PropertyKey::from_str(ctx.agent, &literal.value, ctx.gc)
+                            .into_value_unchecked()
+                    }
                 }
                 _ => unreachable!(),
             };

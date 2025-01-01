@@ -25,19 +25,19 @@ where
     /// found in the heap data as the `object_index` or `backing_object`.
     ///
     /// > NOTE: This should be marked `#[inline(always)]`
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject>;
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>>;
 
     /// ### \[\[BackingObject\]\]
     ///
     /// This sets the custom "internal slot" \[\[BackingObject]].
     /// If the backing object is already set, this should panic.
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject);
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>);
 
     /// ### \[\[BackingObject\]\]
     ///
     /// Creates the custom \[\[BackingObject]] object data. This is called when
     /// the item's object features are required but the backing object is None.
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         assert!(self.get_backing_object(agent).is_none());
         let prototype = self.internal_prototype(agent);
         let backing_object = agent.heap.create(ObjectHeapData {

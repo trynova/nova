@@ -142,10 +142,11 @@ impl PropertyDescriptor {
     ///
     /// The abstract operation FromPropertyDescriptor takes argument Desc (a
     /// Property Descriptor or undefined) and returns an Object or undefined.
-    pub fn from_property_descriptor(
+    pub fn from_property_descriptor<'a>(
         desc: Option<Self>,
         agent: &mut Agent,
-    ) -> Option<OrdinaryObject> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<OrdinaryObject<'a>> {
         // 1. If Desc is undefined, return undefined.
         let desc = desc?;
 
@@ -219,7 +220,7 @@ impl PropertyDescriptor {
         );
 
         // 10. Return obj.
-        Some(obj)
+        Some(obj.bind(gc))
     }
 
     /// ### [6.2.6.5 ToPropertyDescriptor ( Obj )](https://tc39.es/ecma262/#sec-topropertydescriptor)
