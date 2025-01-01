@@ -374,7 +374,10 @@ impl Heap {
         HeapNumber(NumberIndex::last(&self.numbers))
     }
 
-    pub(crate) fn create_null_object(&mut self, entries: &[ObjectEntry]) -> OrdinaryObject {
+    pub(crate) fn create_null_object(
+        &mut self,
+        entries: &[ObjectEntry],
+    ) -> OrdinaryObject<'static> {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,
@@ -390,7 +393,7 @@ impl Heap {
         &mut self,
         prototype: Object,
         entries: &[ObjectEntry],
-    ) -> OrdinaryObject {
+    ) -> OrdinaryObject<'static> {
         let (keys, values) = self.elements.create_object_entries(entries);
         let object_data = ObjectHeapData {
             extensible: true,

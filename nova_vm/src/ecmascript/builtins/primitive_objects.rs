@@ -164,12 +164,15 @@ impl PrimitiveObject {
 
 impl InternalSlots for PrimitiveObject {
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
     }
 
     fn internal_prototype(
@@ -312,6 +315,7 @@ impl InternalMethods for PrimitiveObject {
         property_key: PropertyKey,
         gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
+        let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -323,15 +327,18 @@ impl InternalMethods for PrimitiveObject {
 
         // 1. Return ? OrdinaryHasProperty(O, P).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_has_property(agent, backing_object, property_key, gc),
+            Some(backing_object) => {
+                ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
+            }
             None => {
                 // 3. Let parent be ? O.[[GetPrototypeOf]]().
+                // Note: Primitive objects never call into JS from GetPrototypeOf.
                 let parent = unwrap_try(self.try_get_prototype_of(agent, gc.nogc()));
 
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, property_key, gc)
+                    parent.internal_has_property(agent, property_key.unbind(), gc)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -378,6 +385,7 @@ impl InternalMethods for PrimitiveObject {
         receiver: Value,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
+        let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
                 return Ok(string_desc.value.unwrap());
@@ -386,7 +394,9 @@ impl InternalMethods for PrimitiveObject {
 
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
-            Some(backing_object) => ordinary_get(agent, backing_object, property_key, receiver, gc),
+            Some(backing_object) => {
+                ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
+            }
             None => {
                 // a. Let parent be ? O.[[GetPrototypeOf]]().
                 let Some(parent) = unwrap_try(self.try_get_prototype_of(agent, gc.nogc())) else {
@@ -395,7 +405,7 @@ impl InternalMethods for PrimitiveObject {
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, property_key, receiver, gc)
+                parent.internal_get(agent, property_key.unbind(), receiver, gc)
             }
         }
     }
@@ -429,6 +439,7 @@ impl InternalMethods for PrimitiveObject {
         receiver: Value,
         gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
+        let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
                 .get_property_descriptor(agent, property_key)
@@ -439,7 +450,14 @@ impl InternalMethods for PrimitiveObject {
         }
 
         // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+        ordinary_set(
+            agent,
+            self.into_object(),
+            property_key.unbind(),
+            value,
+            receiver,
+            gc,
+        )
     }
 
     fn try_delete(
@@ -586,7 +604,7 @@ impl TryFrom<PrimitiveObjectData> for Symbol<'_> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PrimitiveObjectHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) data: PrimitiveObjectData,
 }
 

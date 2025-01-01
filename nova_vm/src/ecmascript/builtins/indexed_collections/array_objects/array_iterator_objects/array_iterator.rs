@@ -100,12 +100,15 @@ impl TryFrom<Object> for ArrayIterator {
 impl InternalSlots for ArrayIterator {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayIterator;
 
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
     }
 }
 
@@ -172,7 +175,7 @@ pub(crate) enum CollectionIteratorKind {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayIteratorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) array: Option<Object>,
     pub(crate) next_index: i64,
     pub(crate) kind: CollectionIteratorKind,

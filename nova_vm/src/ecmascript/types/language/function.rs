@@ -218,16 +218,16 @@ impl Function {
 impl InternalSlots for Function {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
-    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
         unreachable!("Function should not try to create backing object");
     }
 
-    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject) {
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
         unreachable!("Function should not try to set backing object");
     }
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         match self {
             Function::BoundFunction(d) => agent[d].object_index,
             Function::BuiltinFunction(d) => agent[d].object_index,

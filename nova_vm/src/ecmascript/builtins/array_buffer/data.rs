@@ -147,7 +147,7 @@ impl InternalBuffer {
 
 #[derive(Debug)]
 pub struct ArrayBufferHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(super) buffer: InternalBuffer,
     // detach_key
 }

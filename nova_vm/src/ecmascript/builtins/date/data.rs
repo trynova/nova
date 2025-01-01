@@ -10,7 +10,7 @@ use std::time::SystemTime;
 
 #[derive(Debug, Clone, Copy)]
 pub struct DateHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) date: Option<SystemTime>,
 }
 

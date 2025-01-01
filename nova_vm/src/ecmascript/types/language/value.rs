@@ -124,7 +124,7 @@ pub enum Value {
     SmallBigInt(SmallBigInt),
 
     /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
-    Object(OrdinaryObject),
+    Object(OrdinaryObject<'static>),
 
     // Functions
     BoundFunction(BoundFunction),
@@ -152,7 +152,7 @@ pub enum Value {
     ///
     /// An unmapped arguments object is an ordinary object with an additional
     /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
-    Arguments(OrdinaryObject),
+    Arguments(OrdinaryObject<'static>),
     // TODO: MappedArguments(MappedArgumentsObject),
     Array(Array),
     #[cfg(feature = "array-buffer")]

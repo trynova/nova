@@ -143,7 +143,7 @@ mod private {
     impl RootableSealed for Number<'_> {}
     impl RootableSealed for Numeric<'_> {}
     impl RootableSealed for Object {}
-    impl RootableSealed for OrdinaryObject {}
+    impl RootableSealed for OrdinaryObject<'_> {}
     impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject {}
     impl RootableSealed for Promise {}
@@ -172,7 +172,7 @@ pub use global::Global;
 pub use scoped::Scoped;
 
 pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
-    type RootRepr: Sized + std::fmt::Debug;
+    type RootRepr: Sized + Clone + std::fmt::Debug;
 
     /// Convert a rootable value to a root representation directly if the value
     /// does not need to be rooted, or return its heap root representation as
@@ -214,7 +214,7 @@ pub enum HeapRootData {
     Symbol(Symbol<'static>) = SYMBOL_DISCRIMINANT,
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
-    Object(OrdinaryObject) = OBJECT_DISCRIMINANT,
+    Object(OrdinaryObject<'static>) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
@@ -226,7 +226,7 @@ pub enum HeapRootData {
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject),
-    Arguments(OrdinaryObject) = ARGUMENTS_DISCRIMINANT,
+    Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,

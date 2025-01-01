@@ -302,15 +302,18 @@ impl InternalSlots for ECMAScriptFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
     }
 
@@ -337,7 +340,7 @@ impl InternalSlots for ECMAScriptFunction {
 }
 
 impl FunctionInternalProperties for ECMAScriptFunction {
-    fn get_name(self, agent: &Agent) -> String {
+    fn get_name(self, agent: &Agent) -> String<'static> {
         agent[self].name.unwrap_or(String::EMPTY_STRING)
     }
 

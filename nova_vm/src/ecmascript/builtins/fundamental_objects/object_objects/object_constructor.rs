@@ -3,11 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{
-    create_array_from_scoped_list, try_define_property_or_throw, try_get,
+    create_array_from_scoped_list, try_create_data_property, try_define_property_or_throw, try_get,
 };
 use crate::ecmascript::types::{bind_property_keys, scope_property_keys, unbind_property_keys};
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::TryResult;
+use crate::engine::{unwrap_try, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -622,8 +622,10 @@ impl ObjectConstructor {
         // 3. Let desc be ? obj.[[GetOwnProperty]](key).
         let desc = obj.internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
-        Ok(PropertyDescriptor::from_property_descriptor(desc, agent)
-            .map_or(Value::Undefined, |obj| obj.into_value()))
+        Ok(
+            PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc())
+                .map_or(Value::Undefined, |obj| obj.into_value()),
+        )
     }
 
     /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
@@ -651,7 +653,7 @@ impl ObjectConstructor {
                 break;
             };
             // b. Let descriptor be FromPropertyDescriptor(desc).
-            let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent);
+            let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc());
             // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
             if let Some(descriptor) = descriptor {
                 descriptors.push(ObjectEntry::new_data_entry(key, descriptor.into_value()));
@@ -1115,12 +1117,13 @@ fn try_object_define_properties<T: InternalMethods>(
 /// This is a specialization for the `Object.fromEntries` use case where we
 /// know what adder does and that it is never seen from JavaScript: As such it
 /// does not need to be defined as a JavaScript function.
-pub fn add_entries_from_iterable_from_entries(
+pub fn add_entries_from_iterable_from_entries<'a>(
     agent: &mut Agent,
-    target: OrdinaryObject,
+    target: OrdinaryObject<'_>,
     iterable: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<OrdinaryObject> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<OrdinaryObject<'a>> {
+    let target = target.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
     let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
 
@@ -1130,7 +1133,7 @@ pub fn add_entries_from_iterable_from_entries(
         let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
-            return Ok(target);
+            return Ok(target.get(agent).bind(gc.into_nogc()));
         };
         // c. If next is not an Object, then
         let Ok(next) = Object::try_from(next) else {
@@ -1142,7 +1145,7 @@ pub fn add_entries_from_iterable_from_entries(
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).
             iterator_close(agent, &iterator_record, Err(error), gc.reborrow())?;
-            return Ok(target);
+            return Ok(target.get(agent).bind(gc.into_nogc()));
         };
         // d. Let k be Completion(Get(next, "0")).
         let k = get(agent, next, 0.into(), gc.reborrow());
@@ -1161,9 +1164,10 @@ pub fn add_entries_from_iterable_from_entries(
                 if_abrupt_close_iterator(agent, property_key, &iterator_record, gc.reborrow())?;
             // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
             target
+                .get(agent)
                 .internal_define_own_property(
                     agent,
-                    property_key,
+                    property_key.unbind(),
                     PropertyDescriptor::new_data_descriptor(v),
                     gc.reborrow(),
                 )
@@ -1234,28 +1238,30 @@ fn get_own_symbol_property_keys(
 fn get_own_property_descriptors_slow(
     agent: &mut Agent,
     obj: Object,
-    own_keys: Vec<PropertyKey<'_>>,
+    own_keys: Vec<PropertyKey>,
     descriptors: OrdinaryObject,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
+    let descriptors = descriptors.scope(agent, gc.nogc());
     let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
     for key in own_keys {
         // a. Let desc be ? obj.[[GetOwnProperty]](key).
         let desc = obj.internal_get_own_property(agent, key.get(agent), gc.reborrow())?;
         // b. Let descriptor be FromPropertyDescriptor(desc).
-        let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent);
+        let descriptor = PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc());
         // c. If descriptor is not undefined, perform ! CreateDataPropertyOrThrow(descriptors, key, descriptor).
         if let Some(descriptor) = descriptor {
-            create_data_property_or_throw(
+            let gc = gc.nogc();
+            assert!(unwrap_try(try_create_data_property(
                 agent,
-                obj,
-                key.get(agent),
-                descriptor.into_value(),
-                gc.reborrow(),
-            )?;
+                descriptors.get(agent).bind(gc),
+                key.get(agent).bind(gc),
+                descriptor.unbind().into_value(),
+                gc,
+            )));
         }
     }
-    Ok(descriptors.into_value())
+    Ok(descriptors.get(agent).into_value())
 }
 
 fn object_define_properties_slow() {}

@@ -34,7 +34,7 @@ pub(crate) enum PromiseResolvingFunctionType {
 /// The "length" property of a promise reject function is 1𝔽.
 #[derive(Debug, Clone, Copy)]
 pub struct PromiseResolvingFunctionHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) promise_capability: PromiseCapability,
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
@@ -92,7 +92,7 @@ impl IntoValue for BuiltinPromiseResolvingFunction {
 }
 
 impl FunctionInternalProperties for BuiltinPromiseResolvingFunction {
-    fn get_name(self, _: &Agent) -> String {
+    fn get_name(self, _: &Agent) -> String<'static> {
         String::EMPTY_STRING
     }
 
@@ -105,15 +105,18 @@ impl InternalSlots for BuiltinPromiseResolvingFunction {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<crate::ecmascript::types::OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
     }
 
-    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject {
+    fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
         function_create_backing_object(self, agent)
     }
 }

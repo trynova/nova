@@ -4,18 +4,20 @@
 
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
-use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property;
-use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    length_of_array_like, try_create_data_property, try_create_data_property_or_throw,
+};
+use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
+use crate::ecmascript::types::{IntoObject, IntoValue};
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::unwrap_try;
+use crate::engine::{unwrap_try, Scoped};
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_data_property, create_data_property_or_throw,
-                enumerable_own_properties, enumerable_properties_kind, get, length_of_array_like,
+                call_function, create_data_property, get, scoped_enumerable_own_keys,
             },
-            testing_and_comparison::{is_array, is_callable},
+            testing_and_comparison::is_callable,
             type_conversion::to_string,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -133,17 +135,27 @@ impl JSONObject {
         // 11. If IsCallable(reviver) is true, then
         if let Some(reviver) = is_callable(reviver) {
             // a. Let root be OrdinaryObjectCreate(%Object.prototype%).
-            let root =
-                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
+            let Object::Object(root) =
+                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None)
+            else {
+                unreachable!()
+            };
 
             // b. Let rootName be the empty String.
-            let root_name = String::EMPTY_STRING.to_property_key();
+            let root_name = String::EMPTY_STRING.to_property_key().scope_static();
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
-            create_data_property_or_throw(agent, root, root_name, unfiltered, gc.reborrow())
-                .unwrap();
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                root,
+                root_name.unwrap(),
+                unfiltered,
+                gc.nogc(),
+            ))
+            .unwrap();
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
+            let root = root.into_object().scope(agent, gc.nogc());
             return internalize_json_property(agent, root, root_name, reviver, gc.reborrow());
         }
 
@@ -197,41 +209,57 @@ impl JSONObject {
 /// > Note 2
 /// > In the case where there are duplicate name Strings within an object,
 /// > lexically preceding values for the same key shall be overwritten.
-pub(crate) fn internalize_json_property(
+fn internalize_json_property<'a>(
     agent: &mut Agent,
-    holder: Object,
-    name: PropertyKey,
+    holder: Scoped<'a, Object>,
+    name: Scoped<'a, PropertyKey<'static>>,
     reviver: Function,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope<'_, 'a>,
 ) -> JsResult<Value> {
     // 1. Let val be ? Get(holder, name).
-    let val = get(agent, holder, name, gc.reborrow())?;
+    let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())?;
     // 2. If val is an Object, then
     if let Ok(val) = Object::try_from(val) {
         // a. Let isArray be ? IsArray(val).
         // b. If isArray is true, then
-        if is_array(agent, val.into_value())? {
+        let scoped_val = val.scope(agent, gc.nogc());
+        if is_array(agent, val)? {
             // i. Let len be ? LengthOfArrayLike(val).
             let len = length_of_array_like(agent, val, gc.reborrow())?;
+            // let val = val.scope(agent, gc.nogc());
             // ii. Let I be 0.
             let mut i = 0;
             // iii. Repeat, while I < len,
             while i < len {
                 // 1. Let prop be ! ToString(𝔽(I)).
-                let prop = PropertyKey::from(SmallInteger::try_from(i).unwrap());
+                let prop = PropertyKey::from(SmallInteger::try_from(i).unwrap()).scope_static();
 
                 // 2. Let newElement be ? InternalizeJSONProperty(val, prop, reviver).
-                let new_element =
-                    internalize_json_property(agent, val, prop, reviver, gc.reborrow())?;
+                let new_element = internalize_json_property(
+                    agent,
+                    scoped_val.clone(),
+                    prop.clone(),
+                    reviver,
+                    gc.reborrow(),
+                )?;
 
                 // 3. If newElement is undefined, then
                 if new_element.is_undefined() {
                     // a. Perform ? val.[[Delete]](prop).
-                    val.internal_delete(agent, prop, gc.reborrow())?;
+                    // Note: Deleting from an Array never calls into JavaScript.
+                    val.internal_delete(agent, prop.unwrap(), gc.reborrow())?;
                 } else {
                     // 4. Else,
                     // a. Perform ? CreateDataProperty(val, prop, newElement).
-                    create_data_property(agent, val, prop, new_element, gc.reborrow())?;
+                    // Note: Defining a property on an Array never calls into
+                    // JavaScript.
+                    create_data_property(
+                        agent,
+                        scoped_val.get(agent),
+                        prop.unwrap(),
+                        new_element,
+                        gc.reborrow(),
+                    )?;
                 }
 
                 // 5. Set I to I + 1.
@@ -239,38 +267,50 @@ pub(crate) fn internalize_json_property(
             }
         } else {
             // c. Else,
-            // i. Let keys be ? EnumerableOwnProperties(val, key).
-            let keys = enumerable_own_properties::<enumerable_properties_kind::EnumerateKeys>(
-                agent,
-                val,
-                gc.reborrow(),
-            )?;
+            // i. Let keys be ? EnumerableOwnProperties(val, KEY).
+            let keys = scoped_enumerable_own_keys(agent, scoped_val.clone(), gc.reborrow())?;
 
             // ii. For each String P of keys, do
             for p in keys {
-                let p = PropertyKey::try_from(p).unwrap();
                 // 1. Let newElement be ? InternalizeJSONProperty(val, P, reviver).
-                let new_element = internalize_json_property(agent, val, p, reviver, gc.reborrow())?;
+                let new_element = internalize_json_property(
+                    agent,
+                    scoped_val.clone(),
+                    p.clone(),
+                    reviver,
+                    gc.reborrow(),
+                )?;
 
                 // 2. If newElement is undefined, then
                 if new_element.is_undefined() {
                     // a. Perform ? val.[[Delete]](P).
-                    val.internal_delete(agent, p, gc.reborrow())?;
+                    scoped_val
+                        .get(agent)
+                        .internal_delete(agent, p.get(agent), gc.reborrow())?;
                 } else {
                     // 3. Else,
                     // a. Perform ? CreateDataProperty(val, P, newElement).
-                    create_data_property(agent, val, p, new_element, gc.reborrow())?;
+                    create_data_property(
+                        agent,
+                        scoped_val.get(agent),
+                        p.get(agent),
+                        new_element,
+                        gc.reborrow(),
+                    )?;
                 }
             }
         }
     }
 
     // 3. Return ? Call(reviver, holder, « name, val »).
+    // Note: Because this call gets holder as `this`, it can do dirty things to
+    // it, such as `holder[other_key] = new Proxy()`.
+    let name = name.get(agent).convert_to_value(agent, gc.nogc());
     call_function(
         agent,
         reviver,
-        holder.into_value(),
-        Some(ArgumentsList(&[name.into_value(), val])),
+        holder.get(agent).into_value(),
+        Some(ArgumentsList(&[name, val])),
         gc.reborrow(),
     )
 }
@@ -300,8 +340,11 @@ pub(crate) fn value_from_json(
         }
         sonic_rs::JsonType::Object => {
             let json_object = json.as_object().unwrap();
-            let object =
-                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
+            let Object::Object(object) =
+                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None)
+            else {
+                unreachable!()
+            };
             for (key, value) in json_object.iter() {
                 let prop = PropertyKey::from_str(agent, key, gc);
                 let js_value = value_from_json(agent, value, gc);

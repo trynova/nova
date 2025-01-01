@@ -19,7 +19,7 @@ use crate::{
         },
         builtins::{
             array::abstract_operations::{array_set_length, array_try_set_length},
-            ordinary::ordinary_try_define_own_property,
+            ordinary::ordinary_define_own_property,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
@@ -132,15 +132,19 @@ impl Array {
         receiver: Value,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
+        let property_key = property_key.bind(gc.nogc());
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
-            object_index.internal_get(agent, property_key, receiver, gc)
+            object_index.internal_get(agent, property_key.unbind(), receiver, gc)
         } else {
             // If backing object doesn't exist, then we might still have
             // properties in the prototype.
-            self.internal_prototype(agent)
-                .unwrap()
-                .internal_get(agent, property_key, receiver, gc)
+            self.internal_prototype(agent).unwrap().internal_get(
+                agent,
+                property_key.unbind(),
+                receiver,
+                gc,
+            )
         }
     }
 
@@ -213,12 +217,15 @@ impl InternalSlots for Array {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]
-    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject> {
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
-    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject) {
-        assert!(agent[self].object_index.replace(backing_object).is_none());
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
@@ -324,7 +331,7 @@ impl InternalMethods for Array {
                 let backing_object = self
                     .get_backing_object(agent)
                     .unwrap_or_else(|| self.create_backing_object(agent));
-                return TryResult::Continue(ordinary_try_define_own_property(
+                return TryResult::Continue(ordinary_define_own_property(
                     agent,
                     backing_object,
                     property_key,
@@ -382,7 +389,7 @@ impl InternalMethods for Array {
             let backing_object = self
                 .get_backing_object(agent)
                 .unwrap_or_else(|| self.create_backing_object(agent));
-            TryResult::Continue(ordinary_try_define_own_property(
+            TryResult::Continue(ordinary_define_own_property(
                 agent,
                 backing_object,
                 property_key,

@@ -128,7 +128,7 @@ pub(crate) fn get_value(
     reference: &Reference,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
-    let referenced_name = reference.referenced_name;
+    let referenced_name = reference.referenced_name.bind(gc.nogc());
     match reference.base {
         Base::Value(value) => {
             // 3. If IsPropertyReference(V) is true, then
@@ -144,7 +144,7 @@ pub(crate) fn get_value(
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
                 Ok(object.internal_get(
                     agent,
-                    referenced_name,
+                    referenced_name.unbind(),
                     get_this_value(reference),
                     gc.reborrow(),
                 )?)
@@ -177,7 +177,7 @@ pub(crate) fn get_value(
                         .current_realm()
                         .intrinsics()
                         .boolean_prototype()
-                        .internal_get(agent, referenced_name, value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
                     Value::String(_) | Value::SmallString(_) => {
                         let string = String::try_from(value).unwrap();
                         if let Some(prop_desc) =
@@ -189,24 +189,24 @@ pub(crate) fn get_value(
                                 .current_realm()
                                 .intrinsics()
                                 .string_prototype()
-                                .internal_get(agent, referenced_name, value, gc.reborrow())
+                                .internal_get(agent, referenced_name.unbind(), value, gc.reborrow())
                         }
                     }
                     Value::Symbol(_) => agent
                         .current_realm()
                         .intrinsics()
                         .symbol_prototype()
-                        .internal_get(agent, referenced_name, value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
                     Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
                         .current_realm()
                         .intrinsics()
                         .number_prototype()
-                        .internal_get(agent, referenced_name, value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
                     Value::BigInt(_) | Value::SmallBigInt(_) => agent
                         .current_realm()
                         .intrinsics()
                         .big_int_prototype()
-                        .internal_get(agent, referenced_name, value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
                     _ => unreachable!(),
                 }
             }

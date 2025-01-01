@@ -17,7 +17,7 @@ use super::Module;
 
 #[derive(Debug, Clone)]
 pub struct ModuleHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) module: ModuleRecord,
     pub(crate) exports: Box<[String<'static>]>,
 }

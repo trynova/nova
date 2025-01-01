@@ -19,7 +19,7 @@ use super::Function;
 
 #[derive(Debug, Clone)]
 pub struct BoundFunctionHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) length: u8,
     /// ### \[\[BoundTargetFunction\]\]
     ///
@@ -40,7 +40,7 @@ pub struct BoundFunctionHeapData {
 
 #[derive(Debug, Clone)]
 pub struct BuiltinFunctionHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) length: u8,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
@@ -55,7 +55,7 @@ pub struct BuiltinFunctionHeapData {
 
 #[derive(Debug, Clone)]
 pub struct BuiltinConstructorHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     /// #### \[\[Realm]]
     /// A Realm Record that represents the realm in which the function was
     /// created.
@@ -87,7 +87,7 @@ pub struct BuiltinConstructorHeapData {
 
 #[derive(Debug)]
 pub struct ECMAScriptFunctionHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) length: u8,
     pub(crate) ecmascript_function: ECMAScriptFunctionObjectHeapData,
     /// Stores the compiled bytecode of an ECMAScript function.

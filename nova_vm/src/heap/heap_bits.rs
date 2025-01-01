@@ -163,7 +163,7 @@ pub(crate) struct WorkQueues {
     pub modules: Vec<Module>,
     pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironmentIndex>,
-    pub objects: Vec<OrdinaryObject>,
+    pub objects: Vec<OrdinaryObject<'static>>,
     pub primitive_objects: Vec<PrimitiveObject>,
     pub promises: Vec<Promise>,
     pub promise_reaction_records: Vec<PromiseReaction>,

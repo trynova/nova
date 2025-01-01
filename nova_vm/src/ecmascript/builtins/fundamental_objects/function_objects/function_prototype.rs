@@ -432,7 +432,7 @@ impl ThrowTypeError {
 fn create_throw_type_error_backing_object(
     agent: &mut Agent,
     realm: RealmIdentifier,
-) -> OrdinaryObject {
+) -> OrdinaryObject<'static> {
     let prototype = agent
         .get_realm(realm)
         .intrinsics()

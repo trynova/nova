@@ -61,7 +61,7 @@ pub struct CreatorProperties(
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
     this: BuiltinFunction,
-    object_index: Option<OrdinaryObject>,
+    object_index: Option<OrdinaryObject<'static>>,
     realm: RealmIdentifier,
     prototype: P,
     length: L,

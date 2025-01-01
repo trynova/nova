@@ -59,7 +59,7 @@ impl From<Option<usize>> for TypedArrayArrayLength {
 
 #[derive(Debug, Clone)]
 pub struct TypedArrayHeapData {
-    pub(crate) object_index: Option<OrdinaryObject>,
+    pub(crate) object_index: Option<OrdinaryObject<'static>>,
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) viewed_array_buffer: ArrayBuffer,
     /// ### [\[\[ByteLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
@@ -71,9 +71,9 @@ pub struct TypedArrayHeapData {
 }
 
 impl TypedArrayHeapData {
-    pub fn new(object_index: Option<OrdinaryObject>) -> Self {
+    pub fn new(object_index: Option<OrdinaryObject<'_>>) -> Self {
         Self {
-            object_index,
+            object_index: object_index.map(|o| o.unbind()),
             viewed_array_buffer: ArrayBuffer::_def(),
             byte_length: Default::default(),
             byte_offset: Default::default(),
