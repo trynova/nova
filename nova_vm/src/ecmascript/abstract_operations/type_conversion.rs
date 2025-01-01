@@ -477,7 +477,6 @@ impl IntegerOrInfinity {
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
-// TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
 pub(crate) fn to_integer_or_infinity(
     agent: &mut Agent,
     argument: Value,
@@ -489,30 +488,42 @@ pub(crate) fn to_integer_or_infinity(
         return Ok(int);
     }
     // 1. Let number be ? ToNumber(argument).
-    let number = to_number(agent, argument, gc.reborrow())?.unbind();
+    let number = to_number(agent, argument, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
 
+    Ok(to_integer_or_infinity_number(agent, number, gc.nogc()))
+}
+
+/// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+///
+/// This implements steps from 2 onwards.
+pub(crate) fn to_integer_or_infinity_number(
+    agent: &Agent,
+    number: Number,
+    gc: NoGcScope,
+) -> IntegerOrInfinity {
     // Fast path: The value might've been eg. parsed into an integer.
     if let Number::Integer(int) = number {
         let int = IntegerOrInfinity(int.into_i64());
-        return Ok(int);
+        return int;
     }
 
-    let gc = gc.into_nogc();
     let number = number.bind(gc);
 
     // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
     if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
-        return Ok(IntegerOrInfinity(0));
+        return IntegerOrInfinity(0);
     }
 
     // 3. If number is +∞𝔽, return +∞.
     if number.is_pos_infinity(agent) {
-        return Ok(IntegerOrInfinity::POS_INFINITY);
+        return IntegerOrInfinity::POS_INFINITY;
     }
 
     // 4. If number is -∞𝔽, return -∞.
     if number.is_neg_infinity(agent) {
-        return Ok(IntegerOrInfinity::NEG_INFINITY);
+        return IntegerOrInfinity::NEG_INFINITY;
     }
 
     // 5. Return truncate(ℝ(number)).
@@ -526,11 +537,10 @@ pub(crate) fn to_integer_or_infinity(
     } else {
         number
     };
-    Ok(IntegerOrInfinity(number))
+    IntegerOrInfinity(number)
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
-// TODO: Should we add another [`Value`] newtype for IntegerOrInfinity?
 //
 // This version of the abstract operation attempts to convert the argument
 // Value into an integer or infinity without calling any JavaScript code. If
@@ -540,57 +550,25 @@ pub(crate) fn try_to_integer_or_infinity(
     agent: &mut Agent,
     argument: Value,
     gc: NoGcScope<'_, '_>,
-) -> Option<JsResult<IntegerOrInfinity>> {
+) -> TryResult<JsResult<IntegerOrInfinity>> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
         let int = IntegerOrInfinity(int.into_i64());
-        return Some(Ok(int));
+        return TryResult::Continue(Ok(int));
     }
     // 1. Let number be ? ToNumber(argument).
     let Ok(argument) = Primitive::try_from(argument) else {
         // Converting to Number would require calling into JavaScript code.
-        return None;
+        return TryResult::Break(());
     };
     let number = match to_number_primitive(agent, argument, gc) {
         Ok(number) => number,
         Err(err) => {
-            return Some(Err(err));
+            return TryResult::Continue(Err(err));
         }
     };
 
-    // Fast path: The value might've been eg. parsed into an integer.
-    if let Number::Integer(int) = number {
-        let int = IntegerOrInfinity(int.into_i64());
-        return Some(Ok(int));
-    }
-
-    // 2. If number is one of NaN, +0𝔽, or -0𝔽, return 0.
-    if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent) {
-        return Some(Ok(IntegerOrInfinity(0)));
-    }
-
-    // 3. If number is +∞𝔽, return +∞.
-    if number.is_pos_infinity(agent) {
-        return Some(Ok(IntegerOrInfinity::POS_INFINITY));
-    }
-
-    // 4. If number is -∞𝔽, return -∞.
-    if number.is_neg_infinity(agent) {
-        return Some(Ok(IntegerOrInfinity::NEG_INFINITY));
-    }
-
-    // 5. Return truncate(ℝ(number)).
-    let number = number.into_f64(agent).trunc() as i64;
-    // Note: Make sure converting the f64 didn't take us to our sentinel
-    // values.
-    let number = if number == i64::MAX {
-        i64::MAX - 1
-    } else if number == i64::MIN {
-        i64::MIN + 1
-    } else {
-        number
-    };
-    Some(Ok(IntegerOrInfinity(number)))
+    TryResult::Continue(Ok(to_integer_or_infinity_number(agent, number, gc)))
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)

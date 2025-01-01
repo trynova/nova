@@ -2,7 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    try_get, try_has_own_property,
+};
+use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity_number;
 use crate::engine::context::GcScope;
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -11,7 +16,6 @@ use crate::{
                 ordinary_has_instance,
             },
             testing_and_comparison::is_callable,
-            type_conversion::to_integer_or_infinity,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
@@ -158,33 +162,67 @@ impl FunctionPrototype {
         // 1. Let Target be the this value.
         let target = this_value;
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
-        let Some(target) = is_callable(target) else {
+        let Some(mut target) = is_callable(target) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Cannot bind a non-callable object",
                 gc.nogc(),
             ));
         };
+        let scoped_target = target.scope(agent, gc.nogc());
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
-        let f = bound_function_create(agent, target, this_arg, args, gc.reborrow())?;
+        let mut f = bound_function_create(agent, target, this_arg, args, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        target = scoped_target.get(agent);
+        let mut scoped_f = None;
         // 4. Let L be 0.
         let mut l = 0;
         // 5. Let targetHasLength be ? HasOwnProperty(Target, "length").
-        let target_has_length = has_own_property(
+        let target_has_length = if let TryResult::Continue(result) = try_has_own_property(
             agent,
-            target.into_object(),
+            scoped_target.get(agent).into_object(),
             BUILTIN_STRING_MEMORY.length.into(),
-            gc.reborrow(),
-        )?;
-        // 6. If targetHasLength is true, then
-        if target_has_length {
-            // a. Let targetLen be ? Get(Target, "length").
-            let target_len = get(
+            gc.nogc(),
+        ) {
+            result
+        } else {
+            scoped_f = Some(f.scope(agent, gc.nogc()));
+            let result = has_own_property(
                 agent,
-                target,
+                target.into_object(),
                 BUILTIN_STRING_MEMORY.length.into(),
                 gc.reborrow(),
             )?;
+            f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
+            target = scoped_target.get(agent);
+            result
+        };
+        // 6. If targetHasLength is true, then
+        if target_has_length {
+            // a. Let targetLen be ? Get(Target, "length").
+
+            let target_len = if let TryResult::Continue(result) = try_get(
+                agent,
+                target,
+                BUILTIN_STRING_MEMORY.length.into(),
+                gc.nogc(),
+            ) {
+                result
+            } else {
+                if scoped_f.is_none() {
+                    scoped_f = Some(f.scope(agent, gc.nogc()));
+                }
+                let result = get(
+                    agent,
+                    target,
+                    BUILTIN_STRING_MEMORY.length.into(),
+                    gc.reborrow(),
+                )?;
+                f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
+                target = scoped_target.get(agent);
+                result
+            };
             // b. If targetLen is a Number, then
             if let Ok(target_len) = Number::try_from(target_len) {
                 match target_len {
@@ -206,13 +244,9 @@ impl FunctionPrototype {
                         } else {
                             // iii. Else,
                             // 1. Let targetLenAsInt be ! ToIntegerOrInfinity(targetLen).
-                            let target_len_as_int = to_integer_or_infinity(
-                                agent,
-                                target_len.into_value(),
-                                gc.reborrow(),
-                            )
-                            .unwrap()
-                            .into_i64();
+                            let target_len_as_int =
+                                to_integer_or_infinity_number(agent, target_len, gc.nogc())
+                                    .into_i64();
                             // 2. Assert: targetLenAsInt is finite.
                             // 3. Let argCount be the number of elements in args.
                             let arg_count = args.len();
@@ -226,12 +260,23 @@ impl FunctionPrototype {
         // 7. Perform SetFunctionLength(F, L).
         agent[f].length = u8::try_from(l).unwrap_or(u8::MAX);
         // 8. Let targetName be ? Get(Target, "name").
-        let target_name = get(
-            agent,
-            target,
-            BUILTIN_STRING_MEMORY.name.into(),
-            gc.reborrow(),
-        )?;
+        let target_name = if let TryResult::Continue(result) =
+            try_get(agent, target, BUILTIN_STRING_MEMORY.name.into(), gc.nogc())
+        {
+            result
+        } else {
+            if scoped_f.is_none() {
+                scoped_f = Some(f.scope(agent, gc.nogc()));
+            }
+            let result = get(
+                agent,
+                target,
+                BUILTIN_STRING_MEMORY.name.into(),
+                gc.reborrow(),
+            )?;
+            f = scoped_f.unwrap().get(agent).bind(gc.nogc());
+            result
+        };
         // 9. If targetName is not a String, set targetName to the empty String.
         let target_name = String::try_from(target_name).unwrap_or(String::EMPTY_STRING);
         // 10. Perform SetFunctionName(F, targetName, "bound").

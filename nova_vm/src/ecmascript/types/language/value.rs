@@ -127,7 +127,7 @@ pub enum Value {
     Object(OrdinaryObject<'static>),
 
     // Functions
-    BoundFunction(BoundFunction),
+    BoundFunction(BoundFunction<'static>),
     BuiltinFunction(BuiltinFunction),
     ECMAScriptFunction(ECMAScriptFunction),
     // TODO: Figure out if all the special function types are wanted or if we'd

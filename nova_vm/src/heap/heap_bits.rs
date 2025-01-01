@@ -133,7 +133,7 @@ pub(crate) struct WorkQueues {
     pub array_iterators: Vec<ArrayIterator>,
     pub await_reactions: Vec<AwaitReactionIdentifier>,
     pub bigints: Vec<HeapBigInt<'static>>,
-    pub bound_functions: Vec<BoundFunction>,
+    pub bound_functions: Vec<BoundFunction<'static>>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction>,
     pub builtin_functions: Vec<BuiltinFunction>,
     #[cfg(feature = "array-buffer")]

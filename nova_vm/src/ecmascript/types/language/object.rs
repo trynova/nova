@@ -111,7 +111,7 @@ pub use property_storage::PropertyStorage;
 #[repr(u8)]
 pub enum Object {
     Object(OrdinaryObject<'static>) = OBJECT_DISCRIMINANT,
-    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
+    BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -401,9 +401,9 @@ impl From<ArrayIndex> for Object {
     }
 }
 
-impl From<BoundFunction> for Object {
+impl From<BoundFunction<'_>> for Object {
     fn from(value: BoundFunction) -> Self {
-        Object::BoundFunction(value)
+        Object::BoundFunction(value.unbind())
     }
 }
 
