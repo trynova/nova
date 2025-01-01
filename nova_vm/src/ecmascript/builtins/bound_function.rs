@@ -6,7 +6,8 @@ use std::ops::{Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::TryResult;
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -33,9 +34,37 @@ use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct BoundFunction(BoundFunctionIndex);
+pub struct BoundFunction<'a>(BoundFunctionIndex<'a>);
 
-impl BoundFunction {
+impl BoundFunction<'_> {
+    /// Unbind this BoundFunction from its current lifetime. This is necessary to use
+    /// the BoundFunction as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> BoundFunction<'static> {
+        unsafe { std::mem::transmute::<BoundFunction, BoundFunction<'static>>(self) }
+    }
+
+    // Bind this BoundFunction to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your BoundFunctions cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound BoundFunction cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BoundFunction<'gc> {
+        unsafe { std::mem::transmute::<BoundFunction, BoundFunction<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, BoundFunction<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         BoundFunction(BoundFunctionIndex::from_u32_index(0))
     }
@@ -51,21 +80,21 @@ impl BoundFunction {
     }
 }
 
-impl IntoValue for BoundFunction {
+impl IntoValue for BoundFunction<'_> {
     fn into_value(self) -> Value {
-        Value::BoundFunction(self)
+        Value::BoundFunction(self.unbind())
     }
 }
 
-impl IntoObject for BoundFunction {
+impl IntoObject for BoundFunction<'_> {
     fn into_object(self) -> Object {
-        Object::BoundFunction(self)
+        Object::BoundFunction(self.unbind())
     }
 }
 
-impl IntoFunction for BoundFunction {
+impl IntoFunction for BoundFunction<'_> {
     fn into_function(self) -> Function {
-        Function::BoundFunction(self)
+        Function::BoundFunction(self.unbind())
     }
 }
 
@@ -76,13 +105,13 @@ impl IntoFunction for BoundFunction {
 /// boundArgs (a List of ECMAScript language values) and returns either a
 /// normal completion containing a function object or a throw completion. It is
 /// used to specify the creation of new bound function exotic objects.
-pub(crate) fn bound_function_create(
+pub(crate) fn bound_function_create<'a>(
     agent: &mut Agent,
     target_function: Function,
     bound_this: Value,
     bound_args: &[Value],
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<BoundFunction> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<BoundFunction<'a>> {
     // 1. Let proto be ? targetFunction.[[GetPrototypeOf]]().
     let proto = target_function.internal_get_prototype_of(agent, gc.reborrow())?;
     // 2. Let internalSlotsList be the list-concatenation of « [[Prototype]],
@@ -119,7 +148,7 @@ pub(crate) fn bound_function_create(
     Ok(obj)
 }
 
-impl FunctionInternalProperties for BoundFunction {
+impl FunctionInternalProperties for BoundFunction<'_> {
     fn get_name(self, agent: &Agent) -> String<'static> {
         agent[self].name.unwrap_or(String::EMPTY_STRING)
     }
@@ -129,7 +158,7 @@ impl FunctionInternalProperties for BoundFunction {
     }
 }
 
-impl InternalSlots for BoundFunction {
+impl InternalSlots for BoundFunction<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -149,7 +178,7 @@ impl InternalSlots for BoundFunction {
     }
 }
 
-impl InternalMethods for BoundFunction {
+impl InternalMethods for BoundFunction<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -342,24 +371,24 @@ impl InternalMethods for BoundFunction {
     }
 }
 
-impl Index<BoundFunction> for Agent {
+impl<'a> Index<BoundFunction<'a>> for Agent {
     type Output = BoundFunctionHeapData;
 
-    fn index(&self, index: BoundFunction) -> &Self::Output {
+    fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
         &self.heap.bound_functions[index]
     }
 }
 
-impl IndexMut<BoundFunction> for Agent {
-    fn index_mut(&mut self, index: BoundFunction) -> &mut Self::Output {
+impl<'a> IndexMut<BoundFunction<'a>> for Agent {
+    fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
         &mut self.heap.bound_functions[index]
     }
 }
 
-impl Index<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
+impl<'a> Index<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData>> {
     type Output = BoundFunctionHeapData;
 
-    fn index(&self, index: BoundFunction) -> &Self::Output {
+    fn index(&self, index: BoundFunction<'a>) -> &Self::Output {
         self.get(index.get_index())
             .expect("BoundFunction out of bounds")
             .as_ref()
@@ -367,8 +396,8 @@ impl Index<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
     }
 }
 
-impl IndexMut<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
-    fn index_mut(&mut self, index: BoundFunction) -> &mut Self::Output {
+impl<'a> IndexMut<BoundFunction<'a>> for Vec<Option<BoundFunctionHeapData>> {
+    fn index_mut(&mut self, index: BoundFunction<'a>) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BoundFunction out of bounds")
             .as_mut()
@@ -376,14 +405,37 @@ impl IndexMut<BoundFunction> for Vec<Option<BoundFunctionHeapData>> {
     }
 }
 
-impl CreateHeapData<BoundFunctionHeapData, BoundFunction> for Heap {
-    fn create(&mut self, data: BoundFunctionHeapData) -> BoundFunction {
+impl CreateHeapData<BoundFunctionHeapData, BoundFunction<'static>> for Heap {
+    fn create(&mut self, data: BoundFunctionHeapData) -> BoundFunction<'static> {
         self.bound_functions.push(Some(data));
         BoundFunction(BoundFunctionIndex::last(&self.bound_functions))
     }
 }
 
-impl HeapMarkAndSweep for BoundFunction {
+impl Rootable for BoundFunction<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::BoundFunction(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BoundFunction(d) => Some(d),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for BoundFunction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.bound_functions.push(*self);
     }

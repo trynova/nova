@@ -123,7 +123,7 @@ mod private {
     impl RootableSealed for ArrayBuffer {}
     impl RootableSealed for ArrayIterator {}
     impl RootableSealed for BigInt<'_> {}
-    impl RootableSealed for BoundFunction {}
+    impl RootableSealed for BoundFunction<'_> {}
     impl RootableSealed for BuiltinConstructorFunction {}
     impl RootableSealed for BuiltinFunction {}
     impl RootableSealed for BuiltinPromiseResolvingFunction {}
@@ -215,7 +215,7 @@ pub enum HeapRootData {
     Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
     BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
     Object(OrdinaryObject<'static>) = OBJECT_DISCRIMINANT,
-    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
+    BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,

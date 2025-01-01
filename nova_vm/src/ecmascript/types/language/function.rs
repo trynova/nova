@@ -38,7 +38,7 @@ pub(crate) use into_function::{
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum Function {
-    BoundFunction(BoundFunction) = BOUND_FUNCTION_DISCRIMINANT,
+    BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -88,9 +88,9 @@ impl IntoFunction for Function {
     }
 }
 
-impl From<BoundFunction> for Function {
+impl From<BoundFunction<'_>> for Function {
     fn from(value: BoundFunction) -> Self {
-        Function::BoundFunction(value)
+        Function::BoundFunction(value.unbind())
     }
 }
 

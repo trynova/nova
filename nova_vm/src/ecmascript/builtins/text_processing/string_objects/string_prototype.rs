@@ -10,7 +10,7 @@ use unicode_normalization::{
 };
 
 use crate::ecmascript::abstract_operations::type_conversion::{
-    to_string_primitive, try_to_integer_or_infinity, try_to_string,
+    to_integer_or_infinity_number, to_string_primitive, try_to_integer_or_infinity, try_to_string,
 };
 use crate::ecmascript::types::Primitive;
 use crate::engine::context::{GcScope, NoGcScope};
@@ -762,9 +762,7 @@ impl StringPrototype {
                     usize::MAX
                 } else {
                     // otherwise, let pos be! ToIntegerOrInfinity(numPos).
-                    try_to_integer_or_infinity(agent, num_pos.into_value(), gc.nogc())
-                        .unwrap()
-                        .unwrap()
+                    to_integer_or_infinity_number(agent, num_pos, gc.nogc())
                         .into_i64()
                         .max(0) as usize
                 }
@@ -936,7 +934,8 @@ impl StringPrototype {
         let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
 
         // 3. Let n be ? ToIntegerOrInfinity(count).
-        let n = if let Some(n) = try_to_integer_or_infinity(agent, count, gc.nogc()) {
+        let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, count, gc.nogc())
+        {
             n?
         } else {
             let s_root = s.scope(agent, gc.nogc());
