@@ -5,31 +5,32 @@
 use std::ops::{Index, IndexMut};
 
 use abstract_operations::{validate_non_revoked_proxy, NonRevokedProxy};
+use data::ProxyHeapData;
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    call, call_function, get_object_method, try_get_object_method,
-};
-use crate::ecmascript::abstract_operations::testing_and_comparison::{is_extensible, same_value};
-use crate::ecmascript::builtins::ArgumentsList;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::types::Function;
-use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::TryResult;
 use crate::{
     ecmascript::{
-        execution::{Agent, JsResult},
-        types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+        abstract_operations::{
+            operations_on_objects::{
+                call, call_function, get_object_method, try_get_object_method,
+            },
+            testing_and_comparison::{is_extensible, same_value},
         },
+        builtins::ArgumentsList,
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{
+            Function, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+        },
+    },
+    engine::{
+        context::{GcScope, NoGcScope},
+        TryResult,
     },
     heap::{
         indexes::{BaseIndex, ProxyIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
     },
 };
-
-use self::data::ProxyHeapData;
 
 pub(crate) mod abstract_operations;
 pub mod data;
