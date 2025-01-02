@@ -12,6 +12,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 use crate::ecmascript::abstract_operations::testing_and_comparison::{is_extensible, same_value};
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::types::Function;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
@@ -117,10 +118,10 @@ impl InternalSlots for Proxy {
 impl InternalMethods for Proxy {
     fn try_get_prototype_of(
         self,
-        agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
+        _: &mut Agent,
+        _: NoGcScope<'_, '_>,
     ) -> TryResult<Option<Object>> {
-        TryResult::Continue(self.internal_prototype(agent))
+        TryResult::Break(())
     }
 
     fn internal_get_prototype_of(
@@ -212,6 +213,15 @@ impl InternalMethods for Proxy {
         Ok(handler_proto)
     }
 
+    fn try_set_prototype_of(
+        self,
+        _: &mut Agent,
+        _: Option<Object>,
+        _: NoGcScope,
+    ) -> TryResult<bool> {
+        TryResult::Break(())
+    }
+
     fn internal_set_prototype_of(
         self,
         _agent: &mut Agent,
@@ -221,17 +231,33 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent, _gc: GcScope<'_, '_>) -> JsResult<bool> {
-        Ok(self.internal_extensible(agent))
+    fn try_is_extensible(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
+        TryResult::Break(())
+    }
+
+    fn internal_is_extensible(self, _agent: &mut Agent, _gc: GcScope<'_, '_>) -> JsResult<bool> {
+        todo!();
+    }
+
+    fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
+        TryResult::Break(())
     }
 
     fn internal_prevent_extensions(
         self,
-        agent: &mut Agent,
+        _agent: &mut Agent,
         _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        self.internal_set_extensible(agent, false);
-        Ok(true)
+        todo!();
+    }
+
+    fn try_get_own_property(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: NoGcScope,
+    ) -> TryResult<Option<PropertyDescriptor>> {
+        TryResult::Break(())
     }
 
     fn internal_get_own_property(
@@ -241,6 +267,16 @@ impl InternalMethods for Proxy {
         _gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyDescriptor>> {
         todo!();
+    }
+
+    fn try_define_own_property(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: PropertyDescriptor,
+        _: NoGcScope,
+    ) -> TryResult<bool> {
+        TryResult::Break(())
     }
 
     fn internal_define_own_property(
@@ -253,6 +289,10 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
+    fn try_has_property(self, _: &mut Agent, _: PropertyKey, _: NoGcScope) -> TryResult<bool> {
+        TryResult::Break(())
+    }
+
     fn internal_has_property(
         self,
         _agent: &mut Agent,
@@ -260,6 +300,10 @@ impl InternalMethods for Proxy {
         _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
+    }
+
+    fn try_get(self, _: &mut Agent, _: PropertyKey, _: Value, _: NoGcScope) -> TryResult<Value> {
+        TryResult::Break(())
     }
 
     /// ### [10.5.8 [[Get]] ( P, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-get-p-receiver)
@@ -368,6 +412,17 @@ impl InternalMethods for Proxy {
         Ok(trap_result)
     }
 
+    fn try_set(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: Value,
+        _: NoGcScope,
+    ) -> TryResult<bool> {
+        TryResult::Break(())
+    }
+
     fn internal_set(
         self,
         _agent: &mut Agent,
@@ -379,6 +434,10 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
+    fn try_delete(self, _: &mut Agent, _: PropertyKey, _: NoGcScope) -> TryResult<bool> {
+        TryResult::Break(())
+    }
+
     fn internal_delete(
         self,
         _agent: &mut Agent,
@@ -386,6 +445,14 @@ impl InternalMethods for Proxy {
         _gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
         todo!();
+    }
+
+    fn try_own_property_keys<'a>(
+        self,
+        _: &mut Agent,
+        _: NoGcScope<'a, '_>,
+    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        TryResult::Break(())
     }
 
     fn internal_own_property_keys<'a>(
@@ -400,7 +467,7 @@ impl InternalMethods for Proxy {
         self,
         _agent: &mut Agent,
         _this_value: Value,
-        _arguments_list: super::ArgumentsList,
+        _arguments_list: ArgumentsList,
         _gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         todo!()
@@ -409,8 +476,8 @@ impl InternalMethods for Proxy {
     fn internal_construct(
         self,
         _agent: &mut Agent,
-        _arguments_list: super::ArgumentsList,
-        _new_target: crate::ecmascript::types::Function,
+        _arguments_list: ArgumentsList,
+        _new_target: Function,
         _gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
         todo!()
