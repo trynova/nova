@@ -481,21 +481,25 @@ pub(crate) fn try_get_method(
             return TryResult::Continue(Err(err));
         }
     };
-    // 2. If func is either undefined or null, return undefined.
-    if func.is_undefined() || func.is_null() {
-        return TryResult::Continue(Ok(None));
-    }
-    // 3. If IsCallable(func) is false, throw a TypeError exception.
-    let func = is_callable(func);
-    if func.is_none() {
-        return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Not a callable object",
-            gc,
-        )));
-    }
-    // 4. Return func.
-    TryResult::Continue(Ok(func))
+    TryResult::Continue(get_method_internal(agent, func, gc))
+}
+
+/// ### Try [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
+///
+/// The abstract operation GetMethod takes arguments V (an object) and P (a
+/// property key) and returns either a normal completion containing either a
+/// function object or undefined, or a throw completion. It is used to get the
+/// value of a specific property of an ECMAScript language value when the value
+/// of the property is expected to be a function.
+pub(crate) fn try_get_object_method(
+    agent: &mut Agent,
+    o: Object,
+    p: PropertyKey,
+    gc: NoGcScope,
+) -> TryResult<JsResult<Option<Function>>> {
+    // 1. Let func be ? GetV(V, P).
+    let func = o.try_get(agent, p, o.into_value(), gc)?;
+    TryResult::Continue(get_method_internal(agent, func, gc))
 }
 
 /// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
@@ -514,6 +518,33 @@ pub(crate) fn get_method(
     let p = p.bind(gc.nogc());
     // 1. Let func be ? GetV(V, P).
     let func = get_v(agent, v, p.unbind(), gc.reborrow())?;
+    get_method_internal(agent, func, gc.into_nogc())
+}
+
+/// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
+///
+/// The abstract operation GetMethod takes arguments V (an ECMAScript language
+/// value) and P (a property key) and returns either a normal completion
+/// containing either a function object or undefined, or a throw completion. It
+/// is used to get the value of a specific property of an ECMAScript language
+/// value when the value of the property is expected to be a function.
+pub(crate) fn get_object_method(
+    agent: &mut Agent,
+    o: Object,
+    p: PropertyKey,
+    mut gc: GcScope,
+) -> JsResult<Option<Function>> {
+    let p = p.bind(gc.nogc());
+    // 1. Let func be ? GetV(V, P).
+    let func = o.internal_get(agent, p.unbind(), o.into_value(), gc.reborrow())?;
+    get_method_internal(agent, func, gc.into_nogc())
+}
+
+fn get_method_internal(
+    agent: &mut Agent,
+    func: Value,
+    gc: NoGcScope,
+) -> JsResult<Option<Function>> {
     // 2. If func is either undefined or null, return undefined.
     if func.is_undefined() || func.is_null() {
         return Ok(None);
@@ -524,7 +555,7 @@ pub(crate) fn get_method(
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Not a callable object",
-            gc.into_nogc(),
+            gc,
         ));
     }
     // 4. Return func.

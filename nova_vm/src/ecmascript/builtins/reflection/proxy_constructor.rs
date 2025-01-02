@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::proxy::proxy_create;
+use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -35,14 +38,27 @@ impl Builtin for ProxyRevocable {
 }
 
 impl ProxyConstructor {
+    /// ### [28.2.1.1 Proxy ( target, handler )](https://tc39.es/ecma262/#sec-proxy-target-handler)
     fn behaviour(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _new_target: Option<Object>,
-        _gc: GcScope<'_, '_>,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        todo!()
+        let gc = gc.into_nogc();
+        let target = arguments.get(0);
+        let handler = arguments.get(1);
+        // 1. If NewTarget is undefined, throw a TypeError exception.
+        if new_target.is_none() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "calling a builtin Proxy constructor without new is forbidden",
+                gc,
+            ));
+        }
+        // 2. Return ? ProxyCreate(target, handler).
+        proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
     }
 
     fn revocable(
