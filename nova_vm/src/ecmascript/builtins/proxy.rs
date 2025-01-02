@@ -2,8 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use std::ops::{ControlFlow, Index, IndexMut};
 
+use abstract_operations::validate_non_revoked_proxy;
+
+use crate::ecmascript::abstract_operations::operations_on_objects::{call, get_method};
+use crate::ecmascript::abstract_operations::testing_and_comparison::{
+    same_value, try_is_extensible,
+};
+use crate::ecmascript::builtins::ArgumentsList;
+use crate::ecmascript::execution::agent::ExceptionType;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
@@ -11,7 +19,7 @@ use crate::{
         execution::{Agent, JsResult},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, Value,
+            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     heap::{
@@ -22,6 +30,7 @@ use crate::{
 
 use self::data::ProxyHeapData;
 
+pub(crate) mod abstract_operations;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -117,9 +126,95 @@ impl InternalMethods for Proxy {
     fn internal_get_prototype_of(
         self,
         agent: &mut Agent,
-        _gc: GcScope<'_, '_>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Option<Object>> {
-        Ok(self.internal_prototype(agent))
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        validate_non_revoked_proxy(agent, self, gc.nogc())?;
+
+        let proxy_data = &agent[self];
+
+        // 2. Let target be O.[[ProxyTarget]].
+        let target = proxy_data.target;
+
+        // 3. Let handler be O.[[ProxyHandler]].
+        let handler = proxy_data.handler;
+
+        // 4. Assert: handler is an Object.
+        assert!(Object::try_from(handler.unwrap()).is_ok());
+
+        // 5. Let trap be ? GetMethod(handler, "getPrototypeOf").
+        let trap = get_method(
+            agent,
+            handler.unwrap(),
+            BUILTIN_STRING_MEMORY.getPrototypeOf.into(),
+            gc.reborrow(),
+        )?;
+
+        // 6. If trap is undefined, then
+        if trap.is_none() {
+            // a. Return ? target.[[GetPrototypeOf]]().
+            return Ok(Object::internal_prototype(
+                Object::try_from(target.unwrap()).unwrap(),
+                agent,
+            ));
+        }
+
+        // 7. Let handlerProto be ? Call(trap, handler, « target »).
+        let handler_proto = call(
+            agent,
+            trap.into(),
+            handler.into(),
+            Some(ArgumentsList(&[target.into()])),
+            gc.reborrow(),
+        )?;
+
+        // 8. If handlerProto is not an Object and handlerProto is not null, throw a TypeError exception.
+        if !handler_proto.is_object() && !handler_proto.is_null() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Handler prototype must be an object or null",
+                gc.nogc(),
+            ));
+        }
+
+        // 9. Let extensibleTarget be ? IsExtensible(target).
+        let extensible_target = if let ControlFlow::Continue(result) =
+            try_is_extensible(agent, Object::try_from(target.unwrap()).unwrap(), gc.nogc())
+        {
+            result
+        } else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Unexpected break in ControlFlow",
+                gc.nogc(),
+            ));
+        };
+
+        // 10. If extensibleTarget is true, return handlerProto.
+        if extensible_target {
+            return Ok(Object::internal_prototype(
+                Object::try_from(handler_proto).unwrap(),
+                agent,
+            ));
+        }
+
+        // 11. Let targetProto be ? target.[[GetPrototypeOf]]().
+        let target_proto = Proxy::internal_get_prototype_of(self, agent, gc.reborrow())?;
+
+        // 12. If SameValue(handlerProto, targetProto) is false, throw a TypeError exception.
+        if !same_value(agent, handler_proto, target_proto) {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Unexpected break in ControlFlow",
+                gc.nogc(),
+            ));
+        }
+
+        // 13. Return handlerProto.
+        Ok(Object::internal_prototype(
+            Object::try_from(handler_proto).unwrap(),
+            agent,
+        ))
     }
 
     fn internal_set_prototype_of(

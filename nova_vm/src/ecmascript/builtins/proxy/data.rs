@@ -3,13 +3,15 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    ecmascript::types::OrdinaryObject,
+    ecmascript::types::{OrdinaryObject, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 #[derive(Debug, Clone)]
 pub struct ProxyHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
+    pub(crate) target: Option<Value>,
+    pub(crate) handler: Option<Value>,
 }
 
 impl HeapMarkAndSweep for ProxyHeapData {
