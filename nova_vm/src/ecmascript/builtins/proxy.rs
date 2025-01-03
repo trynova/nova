@@ -289,7 +289,7 @@ impl InternalMethods for Proxy {
         if boolean_trap_result != target_result {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "booleanTrapResult is not targetResult",
+                "proxy must report same extensiblitity as target",
                 gc.nogc(),
             ));
         };
@@ -363,7 +363,7 @@ impl InternalMethods for Proxy {
             if extensible_target {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
-                    "target is extensible",
+                    "proxy can't report an extensible object as non-extensible",
                     gc.nogc(),
                 ));
             }
