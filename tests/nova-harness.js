@@ -17,5 +17,6 @@
 // ES2020).
 
 globalThis.$262 = {
-    global: globalThis
+    global: globalThis,
+    detachArrayBuffer: detachArrayBuffer,
 };

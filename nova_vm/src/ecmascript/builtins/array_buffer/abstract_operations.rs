@@ -18,6 +18,8 @@ use crate::{
     Heap,
 };
 
+// TODO: Implement the contents of the `DetachKey` struct?
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct DetachKey {}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -119,20 +121,29 @@ pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bo
 /// ArrayBuffer) and optional argument *key* (anything) and returns either a
 /// normal completion containing UNUSED or a throw completion.
 pub(crate) fn detach_array_buffer(
-    array_buffer: ArrayBuffer,
     agent: &mut Agent,
-    _key: Option<DetachKey>,
-) {
+    array_buffer: ArrayBuffer,
+    key: Option<DetachKey>,
+    gc: NoGcScope<'_, '_>,
+) -> JsResult<()> {
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
     // TODO: SharedArrayBuffer that we can even take here.
+
     // 2. If key is not present, set key to undefined.
     // 3. If arrayBuffer.[[ArrayBufferDetachKey]] is not key, throw a TypeError exception.
-    // TODO: Implement DetachKey
+    if array_buffer.get_detach_key(agent) != key {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Mismatching array buffer detach keys",
+            gc,
+        ));
+    }
 
     // 4. Set arrayBuffer.[[ArrayBufferData]] to null.
     // 5. Set arrayBuffer.[[ArrayBufferByteLength]] to 0.
     agent[array_buffer].buffer.detach();
     // 6. Return UNUSED.
+    Ok(())
 }
 
 /// ### [25.1.3.5 CloneArrayBuffer ( srcBuffer, srcByteOffset, srcLength )](https://tc39.es/ecma262/#sec-clonearraybuffer)

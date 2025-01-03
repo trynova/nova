@@ -8,25 +8,27 @@ mod abstract_operations;
 mod data;
 use crate::{
     ecmascript::{
-        execution::{Agent, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::context::NoGcScope,
     heap::{
-        indexes::ArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        indexes::{ArrayBufferIndex, IntoBaseIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
+use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::{
     allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
-    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, Ordering,
+    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, DetachKey, Ordering,
 };
 pub use data::*;
 use std::ops::{Index, IndexMut};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ArrayBuffer(ArrayBufferIndex);
 
@@ -49,6 +51,29 @@ impl ArrayBuffer {
     #[inline]
     pub fn max_byte_length(self, agent: &Agent) -> usize {
         agent[self].max_byte_length()
+    }
+
+    #[inline]
+    pub fn get_detach_key(self, agent: &Agent) -> Option<DetachKey> {
+        agent.heap.array_buffer_detach_keys.get(&self).copied()
+    }
+
+    #[inline]
+    pub fn set_detach_key(self, agent: &mut Agent, key: Option<DetachKey>) {
+        if let Some(key) = key {
+            agent.heap.array_buffer_detach_keys.insert(self, key);
+        } else {
+            agent.heap.array_buffer_detach_keys.remove(&self);
+        }
+    }
+
+    pub fn detach(
+        self,
+        agent: &mut Agent,
+        key: Option<DetachKey>,
+        gc: NoGcScope<'_, '_>,
+    ) -> JsResult<()> {
+        detach_array_buffer(agent, self, key, gc)
     }
 
     /// Resize a Resizable ArrayBuffer.
@@ -123,6 +148,12 @@ impl TryFrom<Value> for ArrayBuffer {
 impl From<ArrayBufferIndex> for ArrayBuffer {
     fn from(value: ArrayBufferIndex) -> Self {
         ArrayBuffer(value)
+    }
+}
+
+impl IntoBaseIndex<'_, ArrayBufferHeapData> for ArrayBuffer {
+    fn into_base_index(self) -> ArrayBufferIndex {
+        self.0
     }
 }
 

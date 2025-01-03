@@ -48,6 +48,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
+            array_buffer::DetachKey,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::GeneratorHeapData,
@@ -70,7 +71,7 @@ use crate::{
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
             set::data::SetHeapData,
-            ArrayHeapData,
+            ArrayBuffer, ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
         scripts_and_modules::{
@@ -95,6 +96,8 @@ pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
+    #[cfg(feature = "array-buffer")]
+    pub array_buffer_detach_keys: AHashMap<ArrayBuffer, DetachKey>,
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
@@ -197,6 +200,8 @@ impl Heap {
         let mut heap = Heap {
             #[cfg(feature = "array-buffer")]
             array_buffers: Vec::with_capacity(1024),
+            #[cfg(feature = "array-buffer")]
+            array_buffer_detach_keys: AHashMap::with_capacity(0),
             arrays: Vec::with_capacity(1024),
             array_iterators: Vec::with_capacity(256),
             await_reactions: Vec::with_capacity(1024),
