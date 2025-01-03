@@ -136,7 +136,6 @@ pub(crate) fn try_is_extensible(
 ///
 /// The abstract operation IsRegExp takes argument
 /// argument (an ECMAScript language value) and returns either a normal completion containing a Boolean or a throw completion.
-/// It performs the following steps when called
 pub(crate) fn is_reg_exp(
     agent: &mut Agent,
     argument: Value,
