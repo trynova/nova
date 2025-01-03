@@ -1854,6 +1854,7 @@ pub(crate) fn initialize_instance_elements(
     constructor: BuiltinConstructorFunction,
     gc: GcScope,
 ) -> JsResult<()> {
+    let constructor = constructor.bind(gc.nogc());
     // 1. Let methods be the value of constructor.[[PrivateMethods]].
     // 2. For each PrivateElement method of methods, do
     // a. Perform ? PrivateMethodOrAccessorAdd(O, method).

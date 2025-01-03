@@ -135,8 +135,8 @@ pub enum Value {
     BuiltinGeneratorFunction,
     /// Default class constructor created in step 14 of
     /// [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
-    BuiltinConstructorFunction(BuiltinConstructorFunction),
-    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction),
+    BuiltinConstructorFunction(BuiltinConstructorFunction<'static>),
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'static>),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
 
