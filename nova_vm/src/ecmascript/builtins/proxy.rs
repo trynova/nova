@@ -515,8 +515,8 @@ pub(crate) fn proxy_create(
     };
     // 3. Let P be MakeBasicObject(« [[ProxyHandler]], [[ProxyTarget]] »).
     let p = agent.heap.create(ProxyHeapData {
-        target: Some(target),
-        handler: Some(handler),
+        proxy_target: Some(target),
+        proxy_handler: Some(handler),
     });
     // 4. Set P's essential internal methods, except for [[Call]] and
     // [[Construct]], to the definitions specified in 10.5.

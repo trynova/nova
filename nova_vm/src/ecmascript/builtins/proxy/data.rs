@@ -9,18 +9,20 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ProxyHeapData {
-    pub(crate) target: Option<Object>,
-    pub(crate) handler: Option<Object>,
+    /// [[ProxyTarget]]
+    pub(crate) proxy_target: Option<Object>,
+    /// [[ProxyHandler]]
+    pub(crate) proxy_handler: Option<Object>,
 }
 
 impl HeapMarkAndSweep for ProxyHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.target.mark_values(queues);
-        self.handler.mark_values(queues);
+        self.proxy_target.mark_values(queues);
+        self.proxy_handler.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.target.sweep_values(compactions);
-        self.handler.sweep_values(compactions);
+        self.proxy_target.sweep_values(compactions);
+        self.proxy_handler.sweep_values(compactions);
     }
 }

@@ -31,7 +31,7 @@ pub(crate) fn validate_non_revoked_proxy(
     let proxy_data = &agent[proxy];
 
     // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
-    let Some(target) = proxy_data.target else {
+    let Some(target) = proxy_data.proxy_target else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Proxy target is missing",
@@ -40,7 +40,7 @@ pub(crate) fn validate_non_revoked_proxy(
     };
 
     // 2. Assert: proxy.[[ProxyHandler]] is not null.
-    let Some(handler) = proxy_data.handler else {
+    let Some(handler) = proxy_data.proxy_handler else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Proxy handler is missing",
