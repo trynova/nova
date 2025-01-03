@@ -1,5 +1,7 @@
 use nova_vm::ecmascript::{
-    builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
+    builtins::{
+        array_buffer, create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs,
+    },
     execution::{agent::ExceptionType, Agent, JsResult},
     types::{InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value},
 };
@@ -22,6 +24,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         }
         Ok(Value::Undefined)
     }
+
     // 'readTextFile' function
     fn read_text_file(
         agent: &mut Agent,
@@ -48,6 +51,25 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
             .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string(), gc.nogc()))?;
         Ok(String::from_string(agent, file, gc.nogc()).into_value())
     }
+
+    // `detachArrayBuffer` function
+    fn detach_array_buffer(
+        agent: &mut Agent,
+        _this: Value,
+        args: ArgumentsList,
+        gc: GcScope<'_, '_>,
+    ) -> JsResult<Value> {
+        let Value::ArrayBuffer(array_buffer) = args.get(0) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::Error,
+                "Cannot detach non ArrayBuffer argument",
+                gc.nogc(),
+            ));
+        };
+        array_buffer::detach_array_buffer(agent, array_buffer, None);
+        Ok(Value::Undefined)
+    }
+
     let function = create_builtin_function(
         agent,
         Behaviour::Regular(print),
@@ -77,6 +99,28 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         gc.nogc(),
     );
     let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc()).unbind();
+    global
+        .internal_define_own_property(
+            agent,
+            property_key,
+            PropertyDescriptor {
+                value: Some(function.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            },
+            gc.reborrow(),
+        )
+        .unwrap();
+
+    let function = create_builtin_function(
+        agent,
+        Behaviour::Regular(detach_array_buffer),
+        BuiltinFunctionArgs::new(1, "detachArrayBuffer", agent.current_realm_id()),
+        gc.nogc(),
+    );
+    let property_key = PropertyKey::from_static_str(agent, "detachArrayBuffer", gc.nogc()).unbind();
     global
         .internal_define_own_property(
             agent,
