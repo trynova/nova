@@ -273,14 +273,14 @@ impl InternalMethods for Proxy {
         };
 
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
-        let argment = call_function(
+        let argument = call_function(
             agent,
             trap,
             handler.into_value(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
         )?;
-        let boolean_trap_result = to_boolean(agent, argment);
+        let boolean_trap_result = to_boolean(agent, argument);
 
         // 8. Let targetResult be ? IsExtensible(target).
         let target_result = is_extensible(agent, target.get(agent), gc.reborrow())?;
@@ -344,14 +344,14 @@ impl InternalMethods for Proxy {
         };
 
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
-        let argment = call_function(
+        let argument = call_function(
             agent,
             trap,
             handler.into_value(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
         )?;
-        let boolean_trap_result = to_boolean(agent, argment);
+        let boolean_trap_result = to_boolean(agent, argument);
 
         // 8. If booleanTrapResult is true, then
 
