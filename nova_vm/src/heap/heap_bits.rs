@@ -167,7 +167,7 @@ pub(crate) struct WorkQueues {
     pub primitive_objects: Vec<PrimitiveObject>,
     pub promises: Vec<Promise>,
     pub promise_reaction_records: Vec<PromiseReaction>,
-    pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction>,
+    pub promise_resolving_functions: Vec<BuiltinPromiseResolvingFunction<'static>>,
     pub proxys: Vec<Proxy>,
     pub realms: Vec<RealmIdentifier>,
     #[cfg(feature = "regexp")]

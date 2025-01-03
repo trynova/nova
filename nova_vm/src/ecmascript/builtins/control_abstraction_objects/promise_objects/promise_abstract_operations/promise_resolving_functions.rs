@@ -6,7 +6,8 @@ use std::ops::{Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::TryResult;
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability, ArgumentsList},
@@ -39,13 +40,51 @@ pub struct PromiseResolvingFunctionHeapData {
     pub(crate) resolve_type: PromiseResolvingFunctionType,
 }
 
-pub(crate) type BuiltinPromiseResolvingFunctionIndex =
-    BaseIndex<'static, PromiseResolvingFunctionHeapData>;
+pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
+    BaseIndex<'a, PromiseResolvingFunctionHeapData>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinPromiseResolvingFunction(pub(crate) BuiltinPromiseResolvingFunctionIndex);
+pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
 
-impl BuiltinPromiseResolvingFunction {
+impl BuiltinPromiseResolvingFunction<'_> {
+    /// Unbind this BuiltinPromiseResolvingFunction from its current lifetime. This is necessary to use
+    /// the BuiltinPromiseResolvingFunction as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> BuiltinPromiseResolvingFunction<'static> {
+        unsafe {
+            std::mem::transmute::<
+                BuiltinPromiseResolvingFunction,
+                BuiltinPromiseResolvingFunction<'static>,
+            >(self)
+        }
+    }
+
+    // Bind this BuiltinPromiseResolvingFunction to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your BuiltinPromiseResolvingFunctions cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound BuiltinPromiseResolvingFunction cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinPromiseResolvingFunction<'gc> {
+        unsafe {
+            std::mem::transmute::<
+                BuiltinPromiseResolvingFunction,
+                BuiltinPromiseResolvingFunction<'gc>,
+            >(self)
+        }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, BuiltinPromiseResolvingFunction<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -55,43 +94,43 @@ impl BuiltinPromiseResolvingFunction {
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction> for Function {
+impl From<BuiltinPromiseResolvingFunction<'_>> for Function {
     fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value)
+        Self::BuiltinPromiseResolvingFunction(value.unbind())
     }
 }
 
-impl IntoFunction for BuiltinPromiseResolvingFunction {
+impl IntoFunction for BuiltinPromiseResolvingFunction<'_> {
     fn into_function(self) -> Function {
         self.into()
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction> for Object {
+impl From<BuiltinPromiseResolvingFunction<'_>> for Object {
     fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value)
+        Self::BuiltinPromiseResolvingFunction(value.unbind())
     }
 }
 
-impl IntoObject for BuiltinPromiseResolvingFunction {
+impl IntoObject for BuiltinPromiseResolvingFunction<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction> for Value {
+impl From<BuiltinPromiseResolvingFunction<'_>> for Value {
     fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value)
+        Self::BuiltinPromiseResolvingFunction(value.unbind())
     }
 }
 
-impl IntoValue for BuiltinPromiseResolvingFunction {
+impl IntoValue for BuiltinPromiseResolvingFunction<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl FunctionInternalProperties for BuiltinPromiseResolvingFunction {
+impl FunctionInternalProperties for BuiltinPromiseResolvingFunction<'_> {
     fn get_name(self, _: &Agent) -> String<'static> {
         String::EMPTY_STRING
     }
@@ -101,7 +140,7 @@ impl FunctionInternalProperties for BuiltinPromiseResolvingFunction {
     }
 }
 
-impl InternalSlots for BuiltinPromiseResolvingFunction {
+impl InternalSlots for BuiltinPromiseResolvingFunction<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -121,7 +160,7 @@ impl InternalSlots for BuiltinPromiseResolvingFunction {
     }
 }
 
-impl InternalMethods for BuiltinPromiseResolvingFunction {
+impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -245,7 +284,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction {
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction> for Agent {
+impl Index<BuiltinPromiseResolvingFunction<'_>> for Agent {
     type Output = PromiseResolvingFunctionHeapData;
 
     fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
@@ -253,13 +292,13 @@ impl Index<BuiltinPromiseResolvingFunction> for Agent {
     }
 }
 
-impl IndexMut<BuiltinPromiseResolvingFunction> for Agent {
+impl IndexMut<BuiltinPromiseResolvingFunction<'_>> for Agent {
     fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
         &mut self.heap.promise_resolving_functions[index]
     }
 }
 
-impl Index<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunctionHeapData>> {
+impl Index<BuiltinPromiseResolvingFunction<'_>> for Vec<Option<PromiseResolvingFunctionHeapData>> {
     type Output = PromiseResolvingFunctionHeapData;
 
     fn index(&self, index: BuiltinPromiseResolvingFunction) -> &Self::Output {
@@ -270,7 +309,9 @@ impl Index<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunct
     }
 }
 
-impl IndexMut<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFunctionHeapData>> {
+impl IndexMut<BuiltinPromiseResolvingFunction<'_>>
+    for Vec<Option<PromiseResolvingFunctionHeapData>>
+{
     fn index_mut(&mut self, index: BuiltinPromiseResolvingFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinPromiseRejectFunction out of bounds")
@@ -279,17 +320,44 @@ impl IndexMut<BuiltinPromiseResolvingFunction> for Vec<Option<PromiseResolvingFu
     }
 }
 
-impl CreateHeapData<PromiseResolvingFunctionHeapData, BuiltinPromiseResolvingFunction> for Heap {
+impl Rootable for BuiltinPromiseResolvingFunction<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::BuiltinPromiseResolvingFunction(
+            value.unbind(),
+        ))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BuiltinPromiseResolvingFunction(d) => Some(d),
+            _ => None,
+        }
+    }
+}
+
+impl CreateHeapData<PromiseResolvingFunctionHeapData, BuiltinPromiseResolvingFunction<'static>>
+    for Heap
+{
     fn create(
         &mut self,
         data: PromiseResolvingFunctionHeapData,
-    ) -> BuiltinPromiseResolvingFunction {
+    ) -> BuiltinPromiseResolvingFunction<'static> {
         self.promise_resolving_functions.push(Some(data));
         BuiltinPromiseResolvingFunction(BaseIndex::last(&self.promise_resolving_functions))
     }
 }
 
-impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction {
+impl HeapMarkAndSweep for BuiltinPromiseResolvingFunction<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.promise_resolving_functions.push(*self);
     }

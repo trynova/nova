@@ -117,7 +117,7 @@ pub enum Object {
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction<'static>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
-    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction) =
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'static>) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
