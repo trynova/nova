@@ -247,7 +247,9 @@ impl ReflectObject {
         let mut scoped_target = None;
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let mut key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
+        let mut key = if let TryResult::Continue(key) =
+            to_property_key_simple(agent, property_key, gc.nogc())
+        {
             key
         } else {
             scoped_target = Some(target.scope(agent, gc.nogc()));
@@ -302,7 +304,9 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
+        let key = if let TryResult::Continue(key) =
+            to_property_key_simple(agent, property_key, gc.nogc())
+        {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
@@ -343,7 +347,9 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
+        let key = if let TryResult::Continue(key) =
+            to_property_key_simple(agent, property_key, gc.nogc())
+        {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
@@ -382,7 +388,9 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
+        let key = if let TryResult::Continue(key) =
+            to_property_key_simple(agent, property_key, gc.nogc())
+        {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
@@ -446,7 +454,9 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
+        let key = if let TryResult::Continue(key) =
+            to_property_key_simple(agent, property_key, gc.nogc())
+        {
             key
         } else {
             let scoped_target = target.scope(agent, gc.nogc());
@@ -565,7 +575,9 @@ impl ReflectObject {
         };
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
-        let key = if let Some(key) = to_property_key_simple(agent, property_key, gc.nogc()) {
+        let key = if let TryResult::Continue(key) =
+            to_property_key_simple(agent, property_key, gc.nogc())
+        {
             key.bind(gc.nogc())
         } else {
             let scoped_target = target.scope(agent, gc.nogc());

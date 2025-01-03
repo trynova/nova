@@ -2,10 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
 use crate::engine::context::GcScope;
+use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::define_property_or_throw,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ordinary::ordinary_object_create_with_intrinsics, ArgumentsList, Behaviour, Builtin,
@@ -64,7 +65,10 @@ impl GeneratorFunctionConstructor {
             parameter_args,
             body_arg,
             gc.reborrow(),
-        )?;
+        )?
+        .unbind();
+        let gc = gc.into_nogc();
+        let f = f.bind(gc);
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 30. If kind is generator, then
         //   a. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
@@ -80,7 +84,7 @@ impl GeneratorFunctionConstructor {
             ),
         );
         //   b. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
-        define_property_or_throw(
+        unwrap_try(try_define_property_or_throw(
             agent,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
@@ -93,7 +97,7 @@ impl GeneratorFunctionConstructor {
                 configurable: Some(false),
             },
             gc,
-        )
+        ))
         .unwrap();
 
         Ok(f.into_value())

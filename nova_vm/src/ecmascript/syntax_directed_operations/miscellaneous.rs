@@ -12,7 +12,7 @@ use crate::{
         execution::{Agent, EnvironmentIndex, PrivateEnvironmentIndex},
         syntax_directed_operations::function_definitions::instantiate_ordinary_function_object,
     },
-    engine::context::GcScope,
+    engine::context::NoGcScope,
 };
 use oxc_ast::ast;
 
@@ -21,13 +21,13 @@ use oxc_ast::ast;
 /// The syntax-directed operation InstantiateFunctionObject takes arguments env
 /// (an Environment Record) and privateEnv (a PrivateEnvironment Record or
 /// null) and returns an ECMAScript function object.
-pub(crate) fn instantiate_function_object(
+pub(crate) fn instantiate_function_object<'a>(
     agent: &mut Agent,
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
-    gc: GcScope<'_, '_>,
-) -> ECMAScriptFunction {
+    gc: NoGcScope<'a, '_>,
+) -> ECMAScriptFunction<'a> {
     // FunctionDeclaration :
     // function BindingIdentifier ( FormalParameters ) { FunctionBody }
     // function ( FormalParameters ) { FunctionBody }

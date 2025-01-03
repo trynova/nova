@@ -619,7 +619,7 @@ pub fn eval_declaration_instantiation(
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
         let fo =
-            instantiate_function_object(agent, f, lex_env, private_env, gc.reborrow()).into_value();
+            instantiate_function_object(agent, f, lex_env, private_env, gc.nogc()).into_value();
 
         // c. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {

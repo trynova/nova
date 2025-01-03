@@ -15,7 +15,8 @@ use crate::{
     ecmascript::types::{function_try_get, function_try_has_property, function_try_set},
     engine::{
         context::{GcScope, NoGcScope},
-        TryResult,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped, TryResult,
     },
 };
 use crate::{
@@ -56,39 +57,39 @@ use super::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ECMAScriptFunction(ECMAScriptFunctionIndex);
+pub struct ECMAScriptFunction<'a>(ECMAScriptFunctionIndex<'a>);
 
-impl From<ECMAScriptFunction> for ECMAScriptFunctionIndex {
-    fn from(val: ECMAScriptFunction) -> Self {
+impl<'a> From<ECMAScriptFunction<'a>> for ECMAScriptFunctionIndex<'a> {
+    fn from(val: ECMAScriptFunction<'a>) -> Self {
         val.0
     }
 }
 
-impl From<ECMAScriptFunctionIndex> for ECMAScriptFunction {
-    fn from(value: ECMAScriptFunctionIndex) -> Self {
+impl<'a> From<ECMAScriptFunctionIndex<'a>> for ECMAScriptFunction<'a> {
+    fn from(value: ECMAScriptFunctionIndex<'a>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for ECMAScriptFunction {
+impl IntoValue for ECMAScriptFunction<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for ECMAScriptFunction {
+impl IntoObject for ECMAScriptFunction<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl IntoFunction for ECMAScriptFunction {
+impl IntoFunction for ECMAScriptFunction<'_> {
     fn into_function(self) -> Function {
         self.into()
     }
 }
 
-impl TryFrom<Value> for ECMAScriptFunction {
+impl TryFrom<Value> for ECMAScriptFunction<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -100,7 +101,7 @@ impl TryFrom<Value> for ECMAScriptFunction {
     }
 }
 
-impl TryFrom<Object> for ECMAScriptFunction {
+impl TryFrom<Object> for ECMAScriptFunction<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -112,7 +113,7 @@ impl TryFrom<Object> for ECMAScriptFunction {
     }
 }
 
-impl TryFrom<Function> for ECMAScriptFunction {
+impl TryFrom<Function> for ECMAScriptFunction<'_> {
     type Error = ();
 
     fn try_from(value: Function) -> Result<Self, Self::Error> {
@@ -124,21 +125,21 @@ impl TryFrom<Function> for ECMAScriptFunction {
     }
 }
 
-impl From<ECMAScriptFunction> for Value {
+impl From<ECMAScriptFunction<'_>> for Value {
     fn from(val: ECMAScriptFunction) -> Self {
-        Value::ECMAScriptFunction(val)
+        Value::ECMAScriptFunction(val.unbind())
     }
 }
 
-impl From<ECMAScriptFunction> for Object {
+impl From<ECMAScriptFunction<'_>> for Object {
     fn from(val: ECMAScriptFunction) -> Self {
-        Object::ECMAScriptFunction(val)
+        Object::ECMAScriptFunction(val.unbind())
     }
 }
 
-impl From<ECMAScriptFunction> for Function {
+impl From<ECMAScriptFunction<'_>> for Function {
     fn from(val: ECMAScriptFunction) -> Self {
-        Function::ECMAScriptFunction(val)
+        Function::ECMAScriptFunction(val.unbind())
     }
 }
 
@@ -248,7 +249,7 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
     pub private_env: Option<PrivateEnvironmentIndex>,
 }
 
-impl Index<ECMAScriptFunction> for Agent {
+impl Index<ECMAScriptFunction<'_>> for Agent {
     type Output = ECMAScriptFunctionHeapData;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
@@ -256,13 +257,13 @@ impl Index<ECMAScriptFunction> for Agent {
     }
 }
 
-impl IndexMut<ECMAScriptFunction> for Agent {
+impl IndexMut<ECMAScriptFunction<'_>> for Agent {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
         &mut self.heap.ecmascript_functions[index]
     }
 }
 
-impl Index<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
+impl Index<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>> {
     type Output = ECMAScriptFunctionHeapData;
 
     fn index(&self, index: ECMAScriptFunction) -> &Self::Output {
@@ -273,7 +274,7 @@ impl Index<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     }
 }
 
-impl IndexMut<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
+impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>> {
     fn index_mut(&mut self, index: ECMAScriptFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ECMAScriptFunction out of bounds")
@@ -282,7 +283,35 @@ impl IndexMut<ECMAScriptFunction> for Vec<Option<ECMAScriptFunctionHeapData>> {
     }
 }
 
-impl ECMAScriptFunction {
+impl<'a> ECMAScriptFunction<'a> {
+    /// Unbind this ECMAScriptFunction from its current lifetime. This is necessary to use
+    /// the ECMAScriptFunction as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> ECMAScriptFunction<'static> {
+        unsafe { std::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'static>>(self) }
+    }
+
+    // Bind this ECMAScriptFunction to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your ECMAScriptFunctions cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound ECMAScriptFunction cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ECMAScriptFunction<'gc> {
+        unsafe { std::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, ECMAScriptFunction<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
     }
@@ -298,7 +327,7 @@ impl ECMAScriptFunction {
     }
 }
 
-impl InternalSlots for ECMAScriptFunction {
+impl InternalSlots for ECMAScriptFunction<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -339,7 +368,7 @@ impl InternalSlots for ECMAScriptFunction {
     }
 }
 
-impl FunctionInternalProperties for ECMAScriptFunction {
+impl FunctionInternalProperties for ECMAScriptFunction<'_> {
     fn get_name(self, agent: &Agent) -> String<'static> {
         agent[self].name.unwrap_or(String::EMPTY_STRING)
     }
@@ -349,7 +378,7 @@ impl FunctionInternalProperties for ECMAScriptFunction {
     }
 }
 
-impl InternalMethods for ECMAScriptFunction {
+impl InternalMethods for ECMAScriptFunction<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -620,11 +649,11 @@ impl InternalMethods for ECMAScriptFunction {
 /// The abstract operation PrepareForOrdinaryCall takes arguments `F` (an
 /// ECMAScript function object) and newTarget (an Object or undefined) and
 /// returns an execution context.
-pub(crate) fn prepare_for_ordinary_call(
-    agent: &mut Agent,
+pub(crate) fn prepare_for_ordinary_call<'a>(
+    agent: &'a mut Agent,
     f: ECMAScriptFunction,
     new_target: Option<Object>,
-) -> &ExecutionContext {
+) -> &'a ExecutionContext {
     let ecmascript_function_object = &agent[f].ecmascript_function;
     let private_environment = ecmascript_function_object.private_environment;
     let is_strict_mode = ecmascript_function_object.strict;
@@ -732,6 +761,7 @@ pub(crate) fn evaluate_body(
     arguments_list: ArgumentsList,
     gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
+    let function_object = function_object.bind(gc.nogc());
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
     match (heap_data.is_generator, heap_data.is_async) {
@@ -741,7 +771,7 @@ pub(crate) fn evaluate_body(
             // AsyncConciseBody : ExpressionBody
             // 1. Return ? EvaluateAsyncConciseBody of AsyncConciseBody with arguments functionObject and argumentsList.
             Ok(
-                evaluate_async_function_body(agent, function_object, arguments_list, gc)
+                evaluate_async_function_body(agent, function_object.unbind(), arguments_list, gc)
                     .into_value(),
             )
         }
@@ -761,12 +791,12 @@ pub(crate) fn evaluate_body(
             // 1. Return ? EvaluateFunctionBody of FunctionBody with arguments functionObject and argumentsList.
             // ConciseBody : ExpressionBody
             // 1. Return ? EvaluateConciseBody of ConciseBody with arguments functionObject and argumentsList.
-            evaluate_function_body(agent, function_object, arguments_list, gc)
+            evaluate_function_body(agent, function_object.unbind(), arguments_list, gc)
         }
         (true, false) => {
             // GeneratorBody : FunctionBody
             // 1. Return ? EvaluateGeneratorBody of GeneratorBody with arguments functionObject and argumentsList.
-            evaluate_generator_body(agent, function_object, arguments_list, gc)
+            evaluate_generator_body(agent, function_object.unbind(), arguments_list, gc)
         }
         // AsyncGeneratorBody : FunctionBody
         // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
@@ -818,11 +848,11 @@ pub(crate) fn ordinary_call_evaluate_body(
 /// \[\[Construct\]\] internal method (although one may be subsequently added
 /// by an operation such as MakeConstructor). sourceText is the source text of
 /// the syntactic definition of the function to be created.
-pub(crate) fn ordinary_function_create<'agent, 'program>(
+pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     agent: &'agent mut Agent,
     params: OrdinaryFunctionCreateParams<'agent, 'program>,
-    gc: NoGcScope,
-) -> ECMAScriptFunction {
+    gc: NoGcScope<'gc, '_>,
+) -> ECMAScriptFunction<'gc> {
     let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
         (source_code, false)
     } else {
@@ -1104,7 +1134,30 @@ fn set_ecmascript_function_length(
     Ok(())
 }
 
-impl HeapMarkAndSweep for ECMAScriptFunction {
+impl Rootable for ECMAScriptFunction<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::ECMAScriptFunction(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::ECMAScriptFunction(d) => Some(d),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for ECMAScriptFunction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.ecmascript_functions.push(*self);
     }
@@ -1114,8 +1167,8 @@ impl HeapMarkAndSweep for ECMAScriptFunction {
     }
 }
 
-impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction> for Heap {
-    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> ECMAScriptFunction {
+impl CreateHeapData<ECMAScriptFunctionHeapData, ECMAScriptFunction<'static>> for Heap {
+    fn create(&mut self, data: ECMAScriptFunctionHeapData) -> ECMAScriptFunction<'static> {
         self.ecmascript_functions.push(Some(data));
         ECMAScriptFunction(ECMAScriptFunctionIndex::last(&self.ecmascript_functions))
     }

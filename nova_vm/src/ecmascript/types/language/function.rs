@@ -40,7 +40,7 @@ pub(crate) use into_function::{
 pub enum Function {
     BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'static>) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction<'static>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,

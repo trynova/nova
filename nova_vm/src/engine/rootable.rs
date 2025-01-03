@@ -131,7 +131,7 @@ mod private {
     impl RootableSealed for DataView {}
     #[cfg(feature = "date")]
     impl RootableSealed for Date {}
-    impl RootableSealed for ECMAScriptFunction {}
+    impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject {}
     impl RootableSealed for Error {}
     impl RootableSealed for FinalizationRegistry {}
@@ -217,7 +217,7 @@ pub enum HeapRootData {
     Object(OrdinaryObject<'static>) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
     BuiltinFunction(BuiltinFunction<'static>) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction<'static>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
