@@ -295,7 +295,7 @@ impl InternalMethods for Proxy {
         };
 
         // 10. Return booleanTrapResult.
-        return Ok(boolean_trap_result);
+        Ok(boolean_trap_result)
     }
 
     fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
@@ -370,7 +370,7 @@ impl InternalMethods for Proxy {
         };
 
         // 9. Return booleanTrapResult.
-        return Ok(boolean_trap_result);
+        Ok(boolean_trap_result)
     }
 
     fn try_get_own_property(
