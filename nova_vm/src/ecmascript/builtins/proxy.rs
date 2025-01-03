@@ -10,9 +10,7 @@ use data::ProxyHeapData;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{
-                call, call_function, get_object_method, try_get_object_method,
-            },
+            operations_on_objects::{call_function, get_object_method, try_get_object_method},
             testing_and_comparison::{is_extensible, same_value},
         },
         builtins::ArgumentsList,
@@ -161,15 +159,15 @@ impl InternalMethods for Proxy {
         };
 
         // 6. If trap is undefined, then
-        if trap.is_none() {
+        let Some(trap) = trap else {
             // a. Return ? target.[[GetPrototypeOf]]().
             return target.get(agent).internal_get_prototype_of(agent, gc);
-        }
+        };
 
         // 7. Let handlerProto be ? Call(trap, handler, « target »).
-        let handler_proto = call(
+        let handler_proto = call_function(
             agent,
-            trap.into(),
+            trap,
             handler.into(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
