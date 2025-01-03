@@ -30,7 +30,7 @@ use crate::SmallString;
 pub struct StringConstructor;
 
 impl Builtin for StringConstructor {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.String;
 }
@@ -57,7 +57,7 @@ impl Builtin for StringRaw {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

@@ -25,7 +25,8 @@ impl Builtin for EvalErrorConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::eval_behaviour);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Constructor(NativeErrorConstructors::eval_error_constructor);
 }
 impl BuiltinIntrinsicConstructor for EvalErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::EvalError;
@@ -36,7 +37,8 @@ impl Builtin for RangeErrorConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::range_behaviour);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Constructor(NativeErrorConstructors::range_error_constructor);
 }
 impl BuiltinIntrinsicConstructor for RangeErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::RangeError;
@@ -48,7 +50,7 @@ impl Builtin for ReferenceErrorConstructor {
     const LENGTH: u8 = 1;
 
     const BEHAVIOUR: Behaviour =
-        Behaviour::Constructor(NativeErrorConstructors::reference_behaviour);
+        Behaviour::Constructor(NativeErrorConstructors::reference_error_constructor);
 }
 impl BuiltinIntrinsicConstructor for ReferenceErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::ReferenceError;
@@ -59,7 +61,8 @@ impl Builtin for SyntaxErrorConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::syntax_behaviour);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Constructor(NativeErrorConstructors::syntax_error_constructor);
 }
 impl BuiltinIntrinsicConstructor for SyntaxErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::SyntaxError;
@@ -70,7 +73,8 @@ impl Builtin for TypeErrorConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::type_behaviour);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Constructor(NativeErrorConstructors::type_error_constructor);
 }
 impl BuiltinIntrinsicConstructor for TypeErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::TypeError;
@@ -81,7 +85,8 @@ impl Builtin for URIErrorConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(NativeErrorConstructors::uri_behaviour);
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Constructor(NativeErrorConstructors::uri_error_constructor);
 }
 impl BuiltinIntrinsicConstructor for URIErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::URIError;
@@ -90,7 +95,7 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 pub(crate) struct NativeErrorConstructors;
 impl NativeErrorConstructors {
     #[inline(always)]
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         error_kind: ExceptionType,
         arguments: ArgumentsList,
@@ -144,34 +149,34 @@ impl NativeErrorConstructors {
         Ok(o.into_value())
     }
 
-    fn eval_behaviour(
+    fn eval_error_constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::EvalError, arguments, new_target, gc)
+        Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
 
-    fn range_behaviour(
+    fn range_error_constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::RangeError, arguments, new_target, gc)
+        Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
 
-    fn reference_behaviour(
+    fn reference_error_constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::behaviour(
+        Self::constructor(
             agent,
             ExceptionType::ReferenceError,
             arguments,
@@ -180,34 +185,34 @@ impl NativeErrorConstructors {
         )
     }
 
-    fn syntax_behaviour(
+    fn syntax_error_constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
+        Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
 
-    fn type_behaviour(
+    fn type_error_constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::TypeError, arguments, new_target, gc)
+        Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
 
-    fn uri_behaviour(
+    fn uri_error_constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        Self::behaviour(agent, ExceptionType::UriError, arguments, new_target, gc)
+        Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

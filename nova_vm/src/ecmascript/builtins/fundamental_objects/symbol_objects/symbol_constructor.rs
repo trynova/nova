@@ -32,7 +32,7 @@ impl Builtin for SymbolConstructor {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for SymbolConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Symbol;
@@ -59,7 +59,7 @@ impl Builtin for SymbolKeyFor {
 }
 
 impl SymbolConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

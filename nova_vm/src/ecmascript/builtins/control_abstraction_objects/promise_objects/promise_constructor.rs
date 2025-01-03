@@ -38,7 +38,7 @@ impl Builtin for PromiseConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(PromiseConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for PromiseConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Promise;
@@ -102,7 +102,7 @@ impl Builtin for PromiseGetSpecies {
 impl BuiltinGetter for PromiseGetSpecies {}
 
 impl PromiseConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,

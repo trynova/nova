@@ -22,7 +22,7 @@ impl Builtin for ProxyConstructor {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(ProxyConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for ProxyConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Proxy;
@@ -39,7 +39,7 @@ impl Builtin for ProxyRevocable {
 
 impl ProxyConstructor {
     /// ### [28.2.1.1 Proxy ( target, handler )](https://tc39.es/ecma262/#sec-proxy-target-handler)
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

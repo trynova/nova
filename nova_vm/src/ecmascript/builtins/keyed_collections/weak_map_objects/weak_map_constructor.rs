@@ -19,14 +19,14 @@ impl Builtin for WeakMapConstructor {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(WeakMapConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for WeakMapConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakMap;
 }
 
 impl WeakMapConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

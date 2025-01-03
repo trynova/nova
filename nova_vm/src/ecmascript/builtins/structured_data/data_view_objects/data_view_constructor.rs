@@ -32,7 +32,7 @@ impl Builtin for DataViewConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(DataViewConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for DataViewConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::DataView;
@@ -41,7 +41,7 @@ impl BuiltinIntrinsicConstructor for DataViewConstructor {
 /// ### [25.3.2 The DataView Constructor](https://tc39.es/ecma262/#sec-dataview-constructor)
 impl DataViewConstructor {
     /// ### [25.3.2.1 DataView ( buffer \[ , byteOffset \[ , byteLength \] \] )](https://tc39.es/ecma262/#sec-dataview-buffer-byteoffset-bytelength)
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

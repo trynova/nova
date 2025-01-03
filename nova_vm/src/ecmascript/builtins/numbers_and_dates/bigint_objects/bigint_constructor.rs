@@ -38,7 +38,7 @@ use crate::SmallInteger;
 pub struct BigIntConstructor;
 
 impl Builtin for BigIntConstructor {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.BigInt;
 }
@@ -60,7 +60,7 @@ impl Builtin for BigIntAsUintN {
 }
 
 impl BigIntConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

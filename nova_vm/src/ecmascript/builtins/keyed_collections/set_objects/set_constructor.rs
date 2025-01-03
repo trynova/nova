@@ -38,7 +38,7 @@ impl Builtin for SetConstructor {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(SetConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for SetConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Set;
@@ -55,7 +55,7 @@ impl BuiltinGetter for SetGetSpecies {}
 
 impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,

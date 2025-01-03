@@ -19,15 +19,14 @@ impl Builtin for AsyncGeneratorFunctionConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour =
-        Behaviour::Constructor(AsyncGeneratorFunctionConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for AsyncGeneratorFunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AsyncGeneratorFunction;
 }
 
 impl AsyncGeneratorFunctionConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

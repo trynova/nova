@@ -41,7 +41,7 @@ impl Builtin for MapConstructor {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(MapConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for MapConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Map;
@@ -63,7 +63,7 @@ impl Builtin for MapGetSpecies {
 impl BuiltinGetter for MapGetSpecies {}
 
 impl MapConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
