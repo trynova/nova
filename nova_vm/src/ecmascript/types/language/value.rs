@@ -129,7 +129,7 @@ pub enum Value {
     // Functions
     BoundFunction(BoundFunction<'static>),
     BuiltinFunction(BuiltinFunction<'static>),
-    ECMAScriptFunction(ECMAScriptFunction),
+    ECMAScriptFunction(ECMAScriptFunction<'static>),
     // TODO: Figure out if all the special function types are wanted or if we'd
     // prefer to just keep them as internal variants of the three above ones.
     BuiltinGeneratorFunction,

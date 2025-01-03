@@ -2,10 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_objects::define_property_or_throw,
         builtins::{
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
@@ -93,19 +94,19 @@ impl ContainsExpression for ast::ArrayPattern<'_> {
 /// The syntax-directed operation InstantiateOrdinaryFunctionObject takes
 /// arguments env (an Environment Record) and privateEnv (a PrivateEnvironment
 /// Record or null) and returns an ECMAScript function object.
-pub(crate) fn instantiate_ordinary_function_object(
+pub(crate) fn instantiate_ordinary_function_object<'a>(
     agent: &mut Agent,
     function: &ast::Function<'_>,
     env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
-    gc: GcScope<'_, '_>,
-) -> ECMAScriptFunction {
+    gc: NoGcScope<'a, '_>,
+) -> ECMAScriptFunction<'a> {
     // FunctionDeclaration : function BindingIdentifier ( FormalParameters ) { FunctionBody }
     let pk_name = if let Some(id) = &function.id {
         // 1. Let name be StringValue of BindingIdentifier.
         let name = &id.name;
         // 4. Perform SetFunctionName(F, name).
-        PropertyKey::from_str(agent, name, gc.nogc())
+        PropertyKey::from_str(agent, name, gc)
     } else {
         // 3. Perform SetFunctionName(F, "default").
         PropertyKey::from(BUILTIN_STRING_MEMORY.default)
@@ -127,10 +128,10 @@ pub(crate) fn instantiate_ordinary_function_object(
         env,
         private_env,
     };
-    let f = ordinary_function_create(agent, params, gc.nogc());
+    let f = ordinary_function_create(agent, params, gc);
 
     // 4. Perform SetFunctionName(F, name).
-    set_function_name(agent, f, pk_name, None, gc.nogc());
+    set_function_name(agent, f, pk_name, None, gc);
     // 5. Perform MakeConstructor(F).
     if !function.r#async && !function.generator {
         make_constructor(agent, f, None, None);
@@ -153,7 +154,7 @@ pub(crate) fn instantiate_ordinary_function_object(
             ),
         );
         // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
-        define_property_or_throw(
+        unwrap_try(try_define_property_or_throw(
             agent,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
@@ -166,25 +167,27 @@ pub(crate) fn instantiate_ordinary_function_object(
                 configurable: Some(false),
             },
             gc,
-        )
+        ))
         .unwrap();
     }
 
     // 6. Return F.
     f
     // NOTE
-    // An anonymous FunctionDeclaration can only occur as part of an export default declaration, and its function code is therefore always strict mode code.
+    // An anonymous FunctionDeclaration can only occur as part of an export
+    // default declaration, and its function code is therefore always strict
+    // mode code.
 }
 
 // 15.2.5 Runtime Semantics: InstantiateOrdinaryFunctionExpression
 // The syntax-directed operation InstantiateOrdinaryFunctionExpression takes optional argument name (a property key or a Private Name) and returns an ECMAScript function object. It is defined piecewise over the following productions:
 
-pub(crate) fn instantiate_ordinary_function_expression(
+pub(crate) fn instantiate_ordinary_function_expression<'a>(
     agent: &mut Agent,
     function: &FunctionExpression,
     name: Option<String>,
-    gc: NoGcScope,
-) -> ECMAScriptFunction {
+    gc: NoGcScope<'a, '_>,
+) -> ECMAScriptFunction<'a> {
     if let Some(_identifier) = function.identifier {
         todo!();
     } else {
@@ -269,6 +272,7 @@ pub(crate) fn evaluate_function_body(
     arguments_list: ArgumentsList,
     gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
+    let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
     // 2. Return ? Evaluation of FunctionStatementList.
@@ -290,6 +294,8 @@ pub(crate) fn evaluate_async_function_body(
     arguments_list: ArgumentsList,
     mut gc: GcScope<'_, '_>,
 ) -> Promise {
+    let function_object = function_object.bind(gc.nogc());
+    let scoped_function_object = function_object.scope(agent, gc.nogc());
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
     let promise_capability = PromiseCapability::new(agent);
     // 2. Let declResult be Completion(FunctionDeclarationInstantiation(functionObject, argumentsList)).
@@ -335,7 +341,7 @@ pub(crate) fn evaluate_async_function_body(
             // cloning it would mess up the execution context stack.
             let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
                 vm: Some(vm),
-                async_function: Some(function_object),
+                async_function: Some(scoped_function_object.get(agent)),
                 execution_context: Some(agent.running_execution_context().clone()),
                 return_promise_capability: promise_capability,
             }));
@@ -363,8 +369,14 @@ pub(crate) fn evaluate_generator_body(
     arguments_list: ArgumentsList,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
+    let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
+
+    // Note: Rooting here is 99% unnecessary: OrdinaryCreateFromConstructor
+    // [[Get]]'s the "prototype" property of the constructor which is very
+    // unlikely to be a getter. It's just easier this way.
+    let scoped_function_object = function_object.scope(agent, gc.nogc());
 
     // 2. Let G be ? OrdinaryCreateFromConstructor(functionObject,
     // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
@@ -382,7 +394,7 @@ pub(crate) fn evaluate_generator_body(
 
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
-    let data = CompileFunctionBodyData::new(agent, function_object);
+    let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
     let executable = Executable::compile_function_body(agent, data, gc.nogc());
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),

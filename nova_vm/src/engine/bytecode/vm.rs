@@ -30,7 +30,8 @@ use crate::{
             },
             type_conversion::{
                 to_boolean, to_number, to_numeric, to_numeric_primitive, to_object, to_primitive,
-                to_property_key, to_string, to_string_primitive,
+                to_property_key, to_property_key_complex, to_property_key_simple, to_string,
+                to_string_primitive,
             },
         },
         builtins::{
@@ -931,25 +932,35 @@ impl<'a> Vm {
                     env: lexical_environment,
                     private_env: private_environment,
                 };
-                let function = ordinary_function_create(agent, params, gc.nogc());
+                let mut function = ordinary_function_create(agent, params, gc.nogc());
                 let name = if let Some(parameter) = &identifier {
-                    match parameter {
+                    let mut pk_option = None;
+                    let pk_result = match parameter {
                         NamedEvaluationParameter::Result => {
-                            to_property_key(agent, vm.result.unwrap(), gc.reborrow())?
-                                .unbind()
-                                .bind(gc.nogc())
+                            pk_option = Some(vm.result.unwrap());
+                            to_property_key_simple(agent, pk_option.unwrap(), gc.nogc())
                         }
                         NamedEvaluationParameter::Stack => {
-                            to_property_key(agent, *vm.stack.last().unwrap(), gc.reborrow())?
-                                .unbind()
-                                .bind(gc.nogc())
+                            pk_option = Some(*vm.stack.last().unwrap());
+                            to_property_key_simple(agent, pk_option.unwrap(), gc.nogc())
                         }
                         NamedEvaluationParameter::Reference => {
-                            vm.reference.as_ref().unwrap().referenced_name
+                            TryResult::Continue(vm.reference.as_ref().unwrap().referenced_name)
                         }
                         NamedEvaluationParameter::ReferenceStack => {
-                            vm.reference_stack.last().unwrap().referenced_name
+                            TryResult::Continue(vm.reference_stack.last().unwrap().referenced_name)
                         }
+                    };
+                    if let TryResult::Continue(pk) = pk_result {
+                        pk.bind(gc.nogc())
+                    } else {
+                        let scoped_function = function.scope(agent, gc.nogc());
+                        let pk = pk_option.unwrap();
+                        let pk = to_property_key_complex(agent, pk, gc.reborrow())?
+                            .unbind()
+                            .bind(gc.nogc());
+                        function = scoped_function.get(agent).bind(gc.nogc());
+                        pk
                     }
                 } else {
                     String::EMPTY_STRING.into()
@@ -1067,9 +1078,16 @@ impl<'a> Vm {
                         PropertyKey::String(data) => data.unbind().into(),
                         _ => unreachable!("maybe?"),
                     };
-                    env.initialize_binding(agent, name, function.into_value(), gc.reborrow())
-                        .unwrap();
+
+                    unwrap_try(env.try_initialize_binding(
+                        agent,
+                        name,
+                        function.into_value(),
+                        gc.nogc(),
+                    ))
+                    .unwrap();
                 }
+
                 vm.result = Some(function.into_value());
             }
             Instruction::ClassDefineConstructor => {
@@ -1132,20 +1150,18 @@ impl<'a> Vm {
                         ConstructorStatus::BaseClass
                     };
 
-                proto
-                    .internal_define_own_property(
-                        agent,
-                        BUILTIN_STRING_MEMORY.constructor.into(),
-                        PropertyDescriptor {
-                            value: Some(function.into_value()),
-                            writable: Some(true),
-                            enumerable: Some(false),
-                            configurable: Some(true),
-                            ..Default::default()
-                        },
-                        gc.reborrow(),
-                    )
-                    .unwrap();
+                unwrap_try(proto.try_define_own_property(
+                    agent,
+                    BUILTIN_STRING_MEMORY.constructor.into(),
+                    PropertyDescriptor {
+                        value: Some(function.into_value()),
+                        writable: Some(true),
+                        enumerable: Some(false),
+                        configurable: Some(true),
+                        ..Default::default()
+                    },
+                    gc.nogc(),
+                ));
 
                 vm.result = Some(function.into_value());
             }

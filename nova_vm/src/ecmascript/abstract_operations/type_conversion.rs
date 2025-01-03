@@ -1189,7 +1189,7 @@ pub(crate) fn to_property_key<'a>(
     // Note: Fast path and non-standard special case combined. Usually the
     // argument is already a valid property key. We also need to parse integer
     // strings back into integer property keys.
-    if let Some(simple_result) = to_property_key_simple(agent, argument, gc.nogc()) {
+    if let TryResult::Continue(simple_result) = to_property_key_simple(agent, argument, gc.nogc()) {
         return Ok(simple_result.unbind().bind(gc.into_nogc()));
     }
 
@@ -1223,7 +1223,7 @@ pub(crate) fn to_property_key_simple<'a>(
     agent: &Agent,
     argument: impl IntoValue,
     _: NoGcScope<'a, '_>,
-) -> Option<PropertyKey<'a>> {
+) -> TryResult<PropertyKey<'a>> {
     let argument = argument.into_value();
     match argument {
         Value::String(_) | Value::SmallString(_) => {
@@ -1233,29 +1233,31 @@ pub(crate) fn to_property_key_simple<'a>(
                 _ => unreachable!(),
             };
             if let Some(key) = parse_string_to_integer_property_key(str) {
-                Some(key)
+                TryResult::Continue(key)
             } else {
-                Some(string_key)
+                TryResult::Continue(string_key)
             }
         }
-        Value::Integer(x) => Some(PropertyKey::Integer(x)),
-        Value::SmallF64(x) if x.into_f64() == -0.0 => Some(PropertyKey::Integer(0.into())),
-        Value::Symbol(x) => Some(PropertyKey::Symbol(x)),
+        Value::Integer(x) => TryResult::Continue(PropertyKey::Integer(x)),
+        Value::SmallF64(x) if x.into_f64() == -0.0 => {
+            TryResult::Continue(PropertyKey::Integer(0.into()))
+        }
+        Value::Symbol(x) => TryResult::Continue(PropertyKey::Symbol(x)),
         Value::SmallBigInt(x)
             if (SmallInteger::MIN_NUMBER..=SmallInteger::MAX_NUMBER).contains(&x.into_i64()) =>
         {
-            Some(PropertyKey::Integer(x.into_inner()))
+            TryResult::Continue(PropertyKey::Integer(x.into_inner()))
         }
-        Value::Undefined => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
-        Value::Null => Some(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
+        Value::Undefined => TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.undefined)),
+        Value::Null => TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.null)),
         Value::Boolean(bool) => {
             if bool {
-                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
+                TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.r#true))
             } else {
-                Some(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
+                TryResult::Continue(PropertyKey::from(BUILTIN_STRING_MEMORY.r#false))
             }
         }
-        _ => None,
+        _ => TryResult::Break(()),
     }
 }
 
@@ -1275,15 +1277,17 @@ pub(crate) fn to_property_key_complex<'a>(
     // If the property key was an object, it is now a primitive. We need to do
     // our non-standard parsing of integer strings back into integer property
     // keys here as well.
-    Ok(to_property_key_simple(agent, key, gc).unwrap_or_else(|| {
+    if let TryResult::Continue(key) = to_property_key_simple(agent, key, gc) {
+        Ok(key)
+    } else {
         // Key was still not simple: This mean it's a heap allocated f64,
         // BigInt, or non-negative-zero f32: These should never be safe
         // integers and thus will never be PropertyKey::Integer after
         // stringifying.
 
         // 3. Return ! ToString(key).
-        to_string_primitive(agent, key, gc).unwrap().into()
-    }))
+        Ok(to_string_primitive(agent, key, gc).unwrap().into())
+    }
 }
 
 pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<PropertyKey<'static>> {

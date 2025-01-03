@@ -125,14 +125,14 @@ impl DynamicFunctionKind {
 /// ### [20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )](https://tc39.es/ecma262/#sec-createdynamicfunction)
 ///
 /// NOTE: This implementation doesn't cover steps 30-32, those should be handled by the caller.
-pub(crate) fn create_dynamic_function(
+pub(crate) fn create_dynamic_function<'a>(
     agent: &mut Agent,
     constructor: Function,
     kind: DynamicFunctionKind,
     parameter_args: &[Value],
     body_arg: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<ECMAScriptFunction> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<ECMAScriptFunction<'a>> {
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
@@ -296,14 +296,15 @@ pub(crate) fn create_dynamic_function(
         env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
         private_env: None,
     };
-    let f = ordinary_function_create(agent, params, gc.nogc());
+    let gc = gc.into_nogc();
+    let f = ordinary_function_create(agent, params, gc);
 
     set_function_name(
         agent,
         f,
         BUILTIN_STRING_MEMORY.anonymous.to_property_key(),
         None,
-        gc.nogc(),
+        gc,
     );
     // NOTE: Skipping steps 30-32.
 

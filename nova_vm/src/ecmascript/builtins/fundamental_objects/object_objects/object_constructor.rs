@@ -554,7 +554,7 @@ impl ObjectConstructor {
                     let key_value_elements = &agent[agent[entry_element_array].elements];
                     let key = key_value_elements.first().unwrap().unwrap();
                     let key = to_property_key_simple(agent, key, gc.nogc());
-                    let Some(key) = key else {
+                    let TryResult::Continue(key) = key else {
                         valid = false;
                         break;
                     };

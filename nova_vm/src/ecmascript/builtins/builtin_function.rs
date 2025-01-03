@@ -424,6 +424,7 @@ pub(crate) fn builtin_call_or_construct(
     new_target: Option<Function>,
     gc: GcScope,
 ) -> JsResult<Value> {
+    let f = f.bind(gc.nogc());
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.

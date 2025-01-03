@@ -552,7 +552,7 @@ pub(crate) fn global_declaration_instantiation(
             f,
             EnvironmentIndex::Global(env),
             private_env,
-            gc.reborrow(),
+            gc.nogc(),
         );
         let function_name =
             String::from_str(agent, function_name.unwrap().as_str(), gc.nogc()).unbind();

@@ -168,7 +168,7 @@ impl HeapMarkAndSweep for AwaitReactionIdentifier {
 #[derive(Debug)]
 pub(crate) struct AwaitReaction {
     pub(crate) vm: Option<SuspendedVm>,
-    pub(crate) async_function: Option<ECMAScriptFunction>,
+    pub(crate) async_function: Option<ECMAScriptFunction<'static>>,
     pub(crate) execution_context: Option<ExecutionContext>,
     pub(crate) return_promise_capability: PromiseCapability,
 }

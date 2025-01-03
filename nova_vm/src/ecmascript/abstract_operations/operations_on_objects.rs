@@ -1507,10 +1507,7 @@ fn enumerable_own_properties_slow<Kind: EnumerablePropertiesKind>(
 /// The abstract operation GetFunctionRealm takes argument obj (a function
 /// object) and returns either a normal completion containing a Realm Record or
 /// a throw completion.
-pub(crate) fn get_function_realm(
-    agent: &mut Agent,
-    obj: impl IntoObject,
-) -> JsResult<RealmIdentifier> {
+pub(crate) fn get_function_realm(agent: &Agent, obj: impl IntoObject) -> JsResult<RealmIdentifier> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();
