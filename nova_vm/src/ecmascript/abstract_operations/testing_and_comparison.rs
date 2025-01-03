@@ -5,9 +5,10 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
 use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
-use crate::ecmascript::types::{Numeric, Primitive};
+use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult},
@@ -18,7 +19,10 @@ use crate::{
     heap::PrimitiveHeapIndexable,
 };
 
-use super::type_conversion::{string_to_big_int, string_to_number, to_primitive, PreferredType};
+use super::operations_on_objects::get;
+use super::type_conversion::{
+    string_to_big_int, string_to_number, to_boolean, to_primitive, PreferredType,
+};
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)
 ///
@@ -126,6 +130,43 @@ pub(crate) fn try_is_extensible(
 ) -> TryResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.try_is_extensible(agent, gc)
+}
+
+/// ### [7.2.6 IsRegExp ( argument )](https://tc39.es/ecma262/#sec-isregexp)
+///
+/// The abstract operation IsRegExp takes argument
+/// argument (an ECMAScript language value) and returns either a normal completion containing a Boolean or a throw completion.
+/// It performs the following steps when called
+pub(crate) fn is_reg_exp(
+    agent: &mut Agent,
+    argument: Value,
+    gc: GcScope<'_, '_>,
+) -> JsResult<bool> {
+    // 1. If argument is not an Object, return false.
+    if !argument.is_object() {
+        return Ok(false);
+    }
+
+    // 2. Let matcher be ? Get(argument, %Symbol.match%).
+    let matcher = get(
+        agent,
+        Object::internal_prototype(Object::try_from(argument).unwrap(), agent).unwrap(),
+        PropertyKey::Symbol(WellKnownSymbolIndexes::Match.into()),
+        gc,
+    )?;
+
+    // 3. If matcher is not undefined, return ToBoolean(matcher).
+    if matcher.is_undefined() {
+        return Ok(to_boolean(agent, matcher));
+    }
+
+    // 4. If argument has a [[RegExpMatcher]] internal slot, return true.
+    if let Value::RegExp(_) = argument {
+        return Ok(true);
+    }
+
+    // 5. Return false.
+    Ok(false)
 }
 
 /// ### [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
