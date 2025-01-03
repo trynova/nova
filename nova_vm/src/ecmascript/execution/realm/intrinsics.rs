@@ -157,7 +157,7 @@ pub(crate) struct Intrinsics {
     /// Array prototype object is an Array exotic object. It is the only one
     /// in the ECMAScript spec so we do not need to store the Array index base.
     pub(crate) array_prototype: Array,
-    pub(crate) builtin_function_index_base: BuiltinFunctionIndex,
+    pub(crate) builtin_function_index_base: BuiltinFunctionIndex<'static>,
 }
 
 /// Enumeration of intrinsics intended to be used as the \[\[Prototype\]\] value of
@@ -443,7 +443,7 @@ impl Intrinsics {
     pub(crate) fn intrinsic_function_index_to_builtin_function(
         &self,
         index: IntrinsicFunctionIndexes,
-    ) -> BuiltinFunction {
+    ) -> BuiltinFunction<'static> {
         index
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -452,7 +452,7 @@ impl Intrinsics {
     pub(crate) fn intrinsic_constructor_index_to_builtin_function(
         &self,
         index: IntrinsicConstructorIndexes,
-    ) -> BuiltinFunction {
+    ) -> BuiltinFunction<'static> {
         index
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -473,7 +473,7 @@ impl Intrinsics {
     }
 
     /// %AggregateError%
-    pub(crate) fn aggregate_error(&self) -> BuiltinFunction {
+    pub(crate) fn aggregate_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::AggregateError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -484,21 +484,21 @@ impl Intrinsics {
     }
 
     /// %Array.prototype.sort%
-    pub(crate) fn array_prototype_sort(&self) -> BuiltinFunction {
+    pub(crate) fn array_prototype_sort(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ArrayPrototypeSort
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %Array.prototype.toString%
-    pub(crate) fn array_prototype_to_string(&self) -> BuiltinFunction {
+    pub(crate) fn array_prototype_to_string(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ArrayPrototypeToString
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %Array.prototype.values%
-    pub(crate) fn array_prototype_values(&self) -> BuiltinFunction {
+    pub(crate) fn array_prototype_values(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ArrayPrototypeValues
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -517,7 +517,7 @@ impl Intrinsics {
     }
 
     /// %Array%
-    pub(crate) fn array(&self) -> BuiltinFunction {
+    pub(crate) fn array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -537,7 +537,7 @@ impl Intrinsics {
 
     #[cfg(feature = "array-buffer")]
     /// %ArrayBuffer%
-    pub(crate) fn array_buffer(&self) -> BuiltinFunction {
+    pub(crate) fn array_buffer(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::ArrayBuffer
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -570,7 +570,7 @@ impl Intrinsics {
     }
 
     /// %AsyncFunction%
-    pub(crate) fn async_function(&self) -> BuiltinFunction {
+    pub(crate) fn async_function(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::AsyncFunction
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -597,7 +597,7 @@ impl Intrinsics {
     }
 
     /// %AsyncGeneratorFunction%
-    pub(crate) fn async_generator_function(&self) -> BuiltinFunction {
+    pub(crate) fn async_generator_function(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::AsyncGeneratorFunction
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -637,7 +637,7 @@ impl Intrinsics {
     }
 
     /// %BigInt%
-    pub(crate) fn big_int(&self) -> BuiltinFunction {
+    pub(crate) fn big_int(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::BigInt
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -656,7 +656,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_int64_array(&self) -> BuiltinFunction {
+    pub(crate) fn big_int64_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::BigInt64Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -676,7 +676,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn big_uint64_array(&self) -> BuiltinFunction {
+    pub(crate) fn big_uint64_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::BigUint64Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -699,7 +699,7 @@ impl Intrinsics {
     }
 
     /// %Boolean%
-    pub(crate) fn boolean(&self) -> BuiltinFunction {
+    pub(crate) fn boolean(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Boolean
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -719,7 +719,7 @@ impl Intrinsics {
 
     /// %DataView%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn data_view(&self) -> BuiltinFunction {
+    pub(crate) fn data_view(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::DataView
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -732,7 +732,7 @@ impl Intrinsics {
 
     #[cfg(feature = "date")]
     /// %Date.prototype.toUTCString%
-    pub(crate) fn date_prototype_to_utcstring(&self) -> BuiltinFunction {
+    pub(crate) fn date_prototype_to_utcstring(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::DatePrototypeToUTCString
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -748,7 +748,7 @@ impl Intrinsics {
 
     #[cfg(feature = "date")]
     /// %Date%
-    pub(crate) fn date(&self) -> BuiltinFunction {
+    pub(crate) fn date(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Date
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -760,28 +760,28 @@ impl Intrinsics {
     }
 
     /// %decodeURI%
-    pub(crate) fn decode_uri(&self) -> BuiltinFunction {
+    pub(crate) fn decode_uri(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::DecodeURI
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %decodeURIComponent%
-    pub(crate) fn decode_uri_component(&self) -> BuiltinFunction {
+    pub(crate) fn decode_uri_component(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::DecodeURIComponent
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %encodeURI%
-    pub(crate) fn encode_uri(&self) -> BuiltinFunction {
+    pub(crate) fn encode_uri(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::EncodeURI
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %encodeURIComponent%
-    pub(crate) fn encode_uri_component(&self) -> BuiltinFunction {
+    pub(crate) fn encode_uri_component(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::EncodeURIComponent
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -795,7 +795,7 @@ impl Intrinsics {
     }
 
     /// %Error%
-    pub(crate) fn error(&self) -> BuiltinFunction {
+    pub(crate) fn error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Error
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -806,14 +806,14 @@ impl Intrinsics {
     }
 
     /// %escape%
-    pub(crate) fn escape(&self) -> BuiltinFunction {
+    pub(crate) fn escape(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::Escape
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %eval%
-    pub(crate) fn eval(&self) -> BuiltinFunction {
+    pub(crate) fn eval(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::Eval
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -827,7 +827,7 @@ impl Intrinsics {
     }
 
     /// %EvalError%
-    pub(crate) fn eval_error(&self) -> BuiltinFunction {
+    pub(crate) fn eval_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::EvalError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -845,7 +845,7 @@ impl Intrinsics {
     }
 
     /// %FinalizationRegistry%
-    pub(crate) fn finalization_registry(&self) -> BuiltinFunction {
+    pub(crate) fn finalization_registry(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::FinalizationRegistry
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -864,7 +864,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn float32_array(&self) -> BuiltinFunction {
+    pub(crate) fn float32_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Float32Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -884,7 +884,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn float64_array(&self) -> BuiltinFunction {
+    pub(crate) fn float64_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Float64Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -895,7 +895,7 @@ impl Intrinsics {
         IntrinsicConstructorIndexes::Float64Array.get_object_index(self.object_index_base)
     }
 
-    pub(crate) fn function_prototype(&self) -> BuiltinFunction {
+    pub(crate) fn function_prototype(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::FunctionPrototype
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -906,7 +906,7 @@ impl Intrinsics {
     }
 
     /// %Function%
-    pub(crate) fn function(&self) -> BuiltinFunction {
+    pub(crate) fn function(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Function
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -917,7 +917,7 @@ impl Intrinsics {
     }
 
     /// %GeneratorFunction.prototype.prototype.next%
-    pub(crate) fn generator_function_prototype_prototype_next(&self) -> BuiltinFunction {
+    pub(crate) fn generator_function_prototype_prototype_next(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::GeneratorFunctionPrototypePrototypeNext
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -940,7 +940,7 @@ impl Intrinsics {
     }
 
     /// %GeneratorFunction%
-    pub(crate) fn generator_function(&self) -> BuiltinFunction {
+    pub(crate) fn generator_function(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::GeneratorFunction
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -966,7 +966,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int16_array(&self) -> BuiltinFunction {
+    pub(crate) fn int16_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Int16Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -986,7 +986,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int32_array(&self) -> BuiltinFunction {
+    pub(crate) fn int32_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Int32Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1006,7 +1006,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn int8_array(&self) -> BuiltinFunction {
+    pub(crate) fn int8_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Int8Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1018,14 +1018,14 @@ impl Intrinsics {
     }
 
     /// %isFinite%
-    pub(crate) fn is_finite(&self) -> BuiltinFunction {
+    pub(crate) fn is_finite(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::IsFinite
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %isNaN%
-    pub(crate) fn is_nan(&self) -> BuiltinFunction {
+    pub(crate) fn is_nan(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::IsNaN
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1047,7 +1047,7 @@ impl Intrinsics {
     }
 
     /// %Map.prototype.entries%
-    pub(crate) fn map_prototype_entries(&self) -> BuiltinFunction {
+    pub(crate) fn map_prototype_entries(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::MapPrototypeEntries
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1061,7 +1061,7 @@ impl Intrinsics {
     }
 
     /// %Map%
-    pub(crate) fn map(&self) -> BuiltinFunction {
+    pub(crate) fn map(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Map
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1098,7 +1098,7 @@ impl Intrinsics {
     }
 
     /// %Number%
-    pub(crate) fn number(&self) -> BuiltinFunction {
+    pub(crate) fn number(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Number
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1109,7 +1109,7 @@ impl Intrinsics {
     }
 
     /// %Object.prototype.toString%
-    pub(crate) fn object_prototype_to_string(&self) -> BuiltinFunction {
+    pub(crate) fn object_prototype_to_string(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ObjectPrototypeToString
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1123,7 +1123,7 @@ impl Intrinsics {
     }
 
     /// %Object%
-    pub(crate) fn object(&self) -> BuiltinFunction {
+    pub(crate) fn object(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Object
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1134,14 +1134,14 @@ impl Intrinsics {
     }
 
     /// %parseFloat%
-    pub(crate) fn parse_float(&self) -> BuiltinFunction {
+    pub(crate) fn parse_float(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ParseFloat
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %parseInt%
-    pub(crate) fn parse_int(&self) -> BuiltinFunction {
+    pub(crate) fn parse_int(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ParseInt
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1155,7 +1155,7 @@ impl Intrinsics {
     }
 
     /// %Promise%
-    pub(crate) fn promise(&self) -> BuiltinFunction {
+    pub(crate) fn promise(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Promise
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1166,7 +1166,7 @@ impl Intrinsics {
     }
 
     /// %Proxy%
-    pub(crate) fn proxy(&self) -> BuiltinFunction {
+    pub(crate) fn proxy(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Proxy
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1184,7 +1184,7 @@ impl Intrinsics {
     }
 
     /// %RangeError%
-    pub(crate) fn range_error(&self) -> BuiltinFunction {
+    pub(crate) fn range_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::RangeError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1202,7 +1202,7 @@ impl Intrinsics {
     }
 
     /// %ReferenceError%
-    pub(crate) fn reference_error(&self) -> BuiltinFunction {
+    pub(crate) fn reference_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::ReferenceError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1221,7 +1221,7 @@ impl Intrinsics {
 
     /// %RegExp.prototype.exec%
     #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp_prototype_exec(&self) -> BuiltinFunction {
+    pub(crate) fn reg_exp_prototype_exec(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::RegExpPrototypeExec
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1237,7 +1237,7 @@ impl Intrinsics {
 
     /// %RegExp%
     #[cfg(feature = "regexp")]
-    pub(crate) fn reg_exp(&self) -> BuiltinFunction {
+    pub(crate) fn reg_exp(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::RegExp
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1257,7 +1257,7 @@ impl Intrinsics {
     }
 
     /// %Set.prototype.values%
-    pub(crate) fn set_prototype_values(&self) -> BuiltinFunction {
+    pub(crate) fn set_prototype_values(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::SetPrototypeValues
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1271,7 +1271,7 @@ impl Intrinsics {
     }
 
     /// %Set%
-    pub(crate) fn set(&self) -> BuiltinFunction {
+    pub(crate) fn set(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Set
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1298,7 +1298,7 @@ impl Intrinsics {
 
     /// %SharedArrayBuffer%
     #[cfg(feature = "shared-array-buffer")]
-    pub(crate) fn shared_array_buffer(&self) -> BuiltinFunction {
+    pub(crate) fn shared_array_buffer(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::SharedArrayBuffer
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1310,14 +1310,14 @@ impl Intrinsics {
     }
 
     /// %String.prototype.trimEnd%
-    pub(crate) fn string_prototype_trim_end(&self) -> BuiltinFunction {
+    pub(crate) fn string_prototype_trim_end(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::StringPrototypeTrimEnd
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }
 
     /// %String.prototype.trimStart%
-    pub(crate) fn string_prototype_trim_start(&self) -> BuiltinFunction {
+    pub(crate) fn string_prototype_trim_start(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::StringPrototypeTrimStart
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1335,7 +1335,7 @@ impl Intrinsics {
     }
 
     /// %String%
-    pub(crate) fn string(&self) -> BuiltinFunction {
+    pub(crate) fn string(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::String
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1360,7 +1360,7 @@ impl Intrinsics {
     }
 
     /// %Symbol%
-    pub(crate) fn symbol(&self) -> BuiltinFunction {
+    pub(crate) fn symbol(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Symbol
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1378,7 +1378,7 @@ impl Intrinsics {
     }
 
     /// %SyntaxError%
-    pub(crate) fn syntax_error(&self) -> BuiltinFunction {
+    pub(crate) fn syntax_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::SyntaxError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1389,7 +1389,7 @@ impl Intrinsics {
     }
 
     /// %ThrowTypeError%
-    pub(crate) fn throw_type_error(&self) -> BuiltinFunction {
+    pub(crate) fn throw_type_error(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::ThrowTypeError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1397,7 +1397,7 @@ impl Intrinsics {
 
     /// %TypedArray.prototype.values%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn typed_array_prototype_values(&self) -> BuiltinFunction {
+    pub(crate) fn typed_array_prototype_values(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::TypedArrayPrototypeValues
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1413,7 +1413,7 @@ impl Intrinsics {
 
     /// %TypedArray%
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn typed_array(&self) -> BuiltinFunction {
+    pub(crate) fn typed_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::TypedArray
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1432,7 +1432,7 @@ impl Intrinsics {
     }
 
     /// %TypeError%
-    pub(crate) fn type_error(&self) -> BuiltinFunction {
+    pub(crate) fn type_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::TypeError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1451,7 +1451,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint16_array(&self) -> BuiltinFunction {
+    pub(crate) fn uint16_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Uint16Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1471,7 +1471,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint32_array(&self) -> BuiltinFunction {
+    pub(crate) fn uint32_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Uint32Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1491,7 +1491,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_array(&self) -> BuiltinFunction {
+    pub(crate) fn uint8_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Uint8Array
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1511,7 +1511,7 @@ impl Intrinsics {
     }
 
     #[cfg(feature = "array-buffer")]
-    pub(crate) fn uint8_clamped_array(&self) -> BuiltinFunction {
+    pub(crate) fn uint8_clamped_array(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::Uint8ClampedArray
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1523,7 +1523,7 @@ impl Intrinsics {
     }
 
     /// %unescape%
-    pub(crate) fn unescape(&self) -> BuiltinFunction {
+    pub(crate) fn unescape(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::Unescape
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1537,7 +1537,7 @@ impl Intrinsics {
     }
 
     /// %URIError%
-    pub(crate) fn uri_error(&self) -> BuiltinFunction {
+    pub(crate) fn uri_error(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::URIError
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1557,7 +1557,7 @@ impl Intrinsics {
 
     /// %WeakMap%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_map(&self) -> BuiltinFunction {
+    pub(crate) fn weak_map(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::WeakMap
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1578,7 +1578,7 @@ impl Intrinsics {
 
     /// %WeakRef%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_ref(&self) -> BuiltinFunction {
+    pub(crate) fn weak_ref(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::WeakRef
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
@@ -1599,7 +1599,7 @@ impl Intrinsics {
 
     /// %WeakSet%
     #[cfg(feature = "weak-refs")]
-    pub(crate) fn weak_set(&self) -> BuiltinFunction {
+    pub(crate) fn weak_set(&self) -> BuiltinFunction<'static> {
         IntrinsicConstructorIndexes::WeakSet
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
