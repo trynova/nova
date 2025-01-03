@@ -201,7 +201,7 @@ impl RegExpPrototype {
         };
 
         // 3. Let codeUnits be a new empty List.
-        let mut code_units = Vec::new();
+        let mut code_units: [Option<char>; 8] = [None; 8];
 
         let Some(obj) = Object::internal_prototype(Object::try_from(r).unwrap(), agent) else {
             return Err(agent.throw_exception_with_static_message(
@@ -222,7 +222,7 @@ impl RegExpPrototype {
 
         // 5. If hasIndices is true, append the code unit 0x0064 (LATIN SMALL LETTER D) to codeUnits.
         if has_indices {
-            code_units.push("d");
+            code_units[0] = Some('d');
         };
 
         let global_args = get(
@@ -236,7 +236,7 @@ impl RegExpPrototype {
 
         // 7. If global is true, append the code unit 0x0067 (LATIN SMALL LETTER G) to codeUnits.
         if global {
-            code_units.push("g");
+            code_units[1] = Some('g');
         };
 
         let ignore_case_args = get(
@@ -250,7 +250,7 @@ impl RegExpPrototype {
 
         // 9. If ignoreCase is true, append the code unit 0x0069 (LATIN SMALL LETTER I) to codeUnits.
         if ignore_case {
-            code_units.push("i");
+            code_units[2] = Some('i');
         };
 
         let mutliline_args = get(
@@ -264,7 +264,7 @@ impl RegExpPrototype {
 
         // 11. If multiline is true, append the code unit 0x006D (LATIN SMALL LETTER M) to codeUnits.
         if multiline {
-            code_units.push("m");
+            code_units[3] = Some('m');
         };
 
         let dot_all_args = get(
@@ -278,7 +278,7 @@ impl RegExpPrototype {
 
         // 13. If dotAll is true, append the code unit 0x0073 (LATIN SMALL LETTER S) to codeUnits.
         if dot_all {
-            code_units.push("s");
+            code_units[4] = Some('s');
         };
 
         let unicode_args = get(
@@ -292,7 +292,7 @@ impl RegExpPrototype {
 
         // 15. If unicode is true, append the code unit 0x0075 (LATIN SMALL LETTER U) to codeUnits.
         if unicode {
-            code_units.push("u");
+            code_units[5] = Some('u');
         };
 
         let unicode_sets_args = get(
@@ -306,7 +306,7 @@ impl RegExpPrototype {
 
         // 17. If unicodeSets is true, append the code unit 0x0076 (LATIN SMALL LETTER V) to codeUnits.
         if unicode_sets {
-            code_units.push("v");
+            code_units[6] = Some('v');
         };
 
         let sticky_args = get(
@@ -320,11 +320,15 @@ impl RegExpPrototype {
 
         // 19. If sticky is true, append the code unit 0x0079 (LATIN SMALL LETTER Y) to codeUnits.
         if sticky {
-            code_units.push("y");
+            code_units[7] = Some('v');
         };
 
         // 20. Return the String value whose code units are the elements of the List codeUnits. If codeUnits has no elements, the empty String is returned.
-        Ok(Value::from_string(agent, code_units.concat(), gc.nogc()))
+        Ok(Value::from_string(
+            agent,
+            code_units.iter().filter_map(|&opt| opt).collect(),
+            gc.nogc(),
+        ))
     }
 
     fn get_global(
