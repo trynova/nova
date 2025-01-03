@@ -60,7 +60,7 @@ pub struct CreatorProperties(
 
 pub struct BuiltinFunctionBuilder<'agent, P, L, N, B, Pr> {
     pub(crate) agent: &'agent mut Agent,
-    this: BuiltinFunction,
+    this: BuiltinFunction<'static>,
     object_index: Option<OrdinaryObject<'static>>,
     realm: RealmIdentifier,
     prototype: P,
@@ -538,7 +538,7 @@ impl<'agent>
         NoProperties,
     >
 {
-    pub fn build(&mut self) -> BuiltinFunction {
+    pub fn build(&mut self) -> BuiltinFunction<'static> {
         let data = BuiltinFunctionHeapData {
             object_index: None,
             length: self.length.0,
@@ -569,7 +569,7 @@ impl<'agent>
         CreatorProperties,
     >
 {
-    pub fn build(self) -> BuiltinFunction {
+    pub fn build(self) -> BuiltinFunction<'static> {
         let Self {
             agent,
             length,
@@ -645,7 +645,7 @@ impl<'agent>
         CreatorProperties,
     >
 {
-    pub fn build(self) -> BuiltinFunction {
+    pub fn build(self) -> BuiltinFunction<'static> {
         let Self {
             agent,
             length,

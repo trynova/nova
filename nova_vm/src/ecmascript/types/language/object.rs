@@ -112,7 +112,7 @@ pub use property_storage::PropertyStorage;
 pub enum Object {
     Object(OrdinaryObject<'static>) = OBJECT_DISCRIMINANT,
     BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction<'static>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction) =

@@ -22,7 +22,7 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
-    }, engine::rootable::{HeapRootData, HeapRootRef, Rootable}, heap::{indexes::BuiltinFunctionIndex, CompactionLists, HeapMarkAndSweep, WorkQueues}
+    }, engine::rootable::{HeapRootData, HeapRootRef, Rootable}, heap::{CompactionLists, HeapMarkAndSweep, WorkQueues}
 };
 
 pub(crate) use data::*;
@@ -39,7 +39,7 @@ pub(crate) use into_function::{
 #[repr(u8)]
 pub enum Function {
     BoundFunction(BoundFunction<'static>) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunction) = BUILTIN_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction<'static>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
     BuiltinConstructorFunction(BuiltinConstructorFunction) =
@@ -195,10 +195,6 @@ impl Function {
 
     pub fn scope<'a>(self, agent: &mut Agent, gc: NoGcScope<'_, 'a>) -> Scoped<'a, Function> {
         Scoped::new(agent, self.unbind(), gc)
-    }
-
-    pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
-        Self::BuiltinFunction(BuiltinFunction(idx))
     }
 
     pub fn is_constructor(self, agent: &Agent) -> bool {

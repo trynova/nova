@@ -135,7 +135,7 @@ pub(crate) struct WorkQueues {
     pub bigints: Vec<HeapBigInt<'static>>,
     pub bound_functions: Vec<BoundFunction<'static>>,
     pub builtin_constructors: Vec<BuiltinConstructorFunction>,
-    pub builtin_functions: Vec<BuiltinFunction>,
+    pub builtin_functions: Vec<BuiltinFunction<'static>>,
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<DataView>,
     #[cfg(feature = "date")]
