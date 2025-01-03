@@ -143,6 +143,8 @@ pub fn heap_gc(
         let Heap {
             #[cfg(feature = "array-buffer")]
             array_buffers,
+            #[cfg(feature = "array-buffer")]
+                array_buffer_detach_keys: _,
             arrays,
             array_iterators,
             await_reactions,
@@ -1023,6 +1025,8 @@ fn sweep(
     let Heap {
         #[cfg(feature = "array-buffer")]
         array_buffers,
+        #[cfg(feature = "array-buffer")]
+        array_buffer_detach_keys,
         arrays,
         array_iterators,
         await_reactions,
@@ -1221,6 +1225,11 @@ fn sweep(
         if !array_buffers.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(array_buffers, &compactions, &bits.array_buffers);
+                sweep_side_table_values(
+                    array_buffer_detach_keys,
+                    &compactions.array_buffers,
+                    &bits.array_buffers,
+                );
             });
         }
         if !arrays.is_empty() {

@@ -1,7 +1,5 @@
 use nova_vm::ecmascript::{
-    builtins::{
-        create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs,
-    },
+    builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
     execution::{agent::ExceptionType, Agent, JsResult},
     types::{InternalMethods, IntoValue, Object, PropertyDescriptor, PropertyKey, String, Value},
 };
@@ -66,7 +64,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
                 gc.nogc(),
             ));
         };
-        array_buffer.detach(agent, None);
+        array_buffer.detach(agent, None, gc.nogc())?;
         Ok(Value::Undefined)
     }
 
