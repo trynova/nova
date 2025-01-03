@@ -181,6 +181,7 @@ impl RegExpPrototype {
         todo!()
     }
 
+    /// ### [22.2.6.4 get RegExp.prototype.flags](https://tc39.es/ecma262/#sec-get-regexp.prototype.flags)
     fn get_flags(
         agent: &mut Agent,
         this_value: Value,
