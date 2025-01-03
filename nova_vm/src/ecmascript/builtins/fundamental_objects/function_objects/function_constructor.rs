@@ -34,14 +34,14 @@ impl Builtin for FunctionConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for FunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Function;
 }
 
 impl FunctionConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

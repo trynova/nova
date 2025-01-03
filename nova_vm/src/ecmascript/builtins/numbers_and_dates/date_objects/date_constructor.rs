@@ -30,7 +30,7 @@ use crate::SmallInteger;
 pub struct DateConstructor;
 
 impl Builtin for DateConstructor {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 7;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.Date;
 }
@@ -57,7 +57,7 @@ impl Builtin for DateUTC {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
 impl DateConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

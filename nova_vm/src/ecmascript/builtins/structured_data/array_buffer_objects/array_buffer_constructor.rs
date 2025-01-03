@@ -26,7 +26,7 @@ impl Builtin for ArrayBufferConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(ArrayBufferConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for ArrayBufferConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::ArrayBuffer;
@@ -56,7 +56,7 @@ impl BuiltinGetter for ArrayBufferGetSpecies {}
 
 impl ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

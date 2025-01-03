@@ -19,14 +19,14 @@ impl Builtin for AggregateErrorConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(AggregateErrorConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AggregateError;
 }
 
 impl AggregateErrorConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

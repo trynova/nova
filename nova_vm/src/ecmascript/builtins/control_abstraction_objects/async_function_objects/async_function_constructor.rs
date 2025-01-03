@@ -22,14 +22,14 @@ impl Builtin for AsyncFunctionConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(AsyncFunctionConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for AsyncFunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AsyncFunction;
 }
 
 impl AsyncFunctionConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

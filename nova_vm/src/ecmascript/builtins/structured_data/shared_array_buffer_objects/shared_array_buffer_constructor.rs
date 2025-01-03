@@ -19,7 +19,7 @@ impl Builtin for SharedArrayBufferConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(SharedArrayBufferConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for SharedArrayBufferConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::SharedArrayBuffer;
@@ -39,7 +39,7 @@ impl Builtin for SharedArrayBufferGetSpecies {
 impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 
 impl SharedArrayBufferConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

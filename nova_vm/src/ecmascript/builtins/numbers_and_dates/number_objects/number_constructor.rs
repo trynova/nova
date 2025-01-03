@@ -36,7 +36,7 @@ use crate::SmallInteger;
 pub struct NumberConstructor;
 
 impl Builtin for NumberConstructor {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.Number;
 }
@@ -70,7 +70,7 @@ impl Builtin for NumberIsSafeInteger {
 }
 
 impl NumberConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

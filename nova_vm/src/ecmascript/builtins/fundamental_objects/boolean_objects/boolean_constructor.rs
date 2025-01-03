@@ -31,14 +31,14 @@ impl Builtin for BooleanConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for BooleanConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Boolean;
 }
 
 impl BooleanConstructor {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

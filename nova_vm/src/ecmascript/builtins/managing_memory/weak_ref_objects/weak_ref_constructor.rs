@@ -19,14 +19,14 @@ impl Builtin for WeakRefConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(WeakRefConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for WeakRefConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakRef;
 }
 
 impl WeakRefConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

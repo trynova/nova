@@ -43,7 +43,7 @@ use super::abstract_operations::validate_typed_array;
 pub struct TypedArrayIntrinsicObject;
 
 impl Builtin for TypedArrayIntrinsicObject {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 0;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.TypedArray;
 }
@@ -73,7 +73,7 @@ impl Builtin for TypedArrayGetSpecies {
 }
 impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

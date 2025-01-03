@@ -52,7 +52,7 @@ use crate::SmallInteger;
 pub struct ArrayConstructor;
 
 impl Builtin for ArrayConstructor {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.Array;
 }
@@ -91,7 +91,7 @@ impl BuiltinGetter for ArrayGetSpecies {}
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
 impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
-    fn behaviour(
+    fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

@@ -25,7 +25,7 @@ use crate::heap::WellKnownSymbolIndexes;
 pub struct RegExpConstructor;
 
 impl Builtin for RegExpConstructor {
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.RegExp;
 }
@@ -44,7 +44,7 @@ impl Builtin for RegExpGetSpecies {
 impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

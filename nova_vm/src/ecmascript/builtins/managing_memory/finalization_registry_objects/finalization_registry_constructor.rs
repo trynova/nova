@@ -19,14 +19,14 @@ impl Builtin for FinalizationRegistryConstructor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(FinalizationRegistryConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for FinalizationRegistryConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::FinalizationRegistry;
 }
 
 impl FinalizationRegistryConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

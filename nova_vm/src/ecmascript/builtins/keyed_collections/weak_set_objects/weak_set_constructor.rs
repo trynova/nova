@@ -19,14 +19,14 @@ impl Builtin for WeakSetConstructor {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: Behaviour = Behaviour::Constructor(WeakSetConstructor::behaviour);
+    const BEHAVIOUR: Behaviour = Behaviour::Constructor(Self::constructor);
 }
 impl BuiltinIntrinsicConstructor for WeakSetConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakSet;
 }
 
 impl WeakSetConstructor {
-    fn behaviour(
+    fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
