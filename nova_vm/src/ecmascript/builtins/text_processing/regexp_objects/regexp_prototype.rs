@@ -192,7 +192,7 @@ impl RegExpPrototype {
         let r = this_value;
 
         // 2. If R is not an Object, throw a TypeError exception.
-        if !r.is_object() {
+        let Ok(r) = Object::try_from(r) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "value is not object",
@@ -203,7 +203,7 @@ impl RegExpPrototype {
         // 3. Let codeUnits be a new empty List.
         let mut code_units: [Option<char>; 8] = [None; 8];
 
-        let Some(obj) = Object::internal_prototype(Object::try_from(r).unwrap(), agent) else {
+        let Some(obj) = Object::internal_prototype(r, agent) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "value is not object",
