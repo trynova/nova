@@ -19,10 +19,10 @@ use crate::{
     },
 };
 
-pub use abstract_operations::detach_array_buffer;
+use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::{
     allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
-    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, Ordering,
+    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, Ordering, DetachKey,
 };
 pub use data::*;
 use std::ops::{Index, IndexMut};
@@ -50,6 +50,10 @@ impl ArrayBuffer {
     #[inline]
     pub fn max_byte_length(self, agent: &Agent) -> usize {
         agent[self].max_byte_length()
+    }
+
+    pub fn detach(self, agent: &mut Agent, key: Option<DetachKey>) {
+        detach_array_buffer(agent, self, key);
     }
 
     /// Resize a Resizable ArrayBuffer.

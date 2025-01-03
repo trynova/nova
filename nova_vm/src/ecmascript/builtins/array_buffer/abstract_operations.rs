@@ -18,6 +18,7 @@ use crate::{
     Heap,
 };
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 pub struct DetachKey {}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -118,7 +119,7 @@ pub(crate) fn is_detached_buffer(agent: &Agent, array_buffer: ArrayBuffer) -> bo
 /// The abstract operation DetachArrayBuffer takes argument *arrayBuffer* (an
 /// ArrayBuffer) and optional argument *key* (anything) and returns either a
 /// normal completion containing UNUSED or a throw completion.
-pub fn detach_array_buffer(agent: &mut Agent, array_buffer: ArrayBuffer, _key: Option<DetachKey>) {
+pub(crate) fn detach_array_buffer(agent: &mut Agent, array_buffer: ArrayBuffer, _key: Option<DetachKey>) {
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
     // TODO: SharedArrayBuffer that we can even take here.
     // 2. If key is not present, set key to undefined.
