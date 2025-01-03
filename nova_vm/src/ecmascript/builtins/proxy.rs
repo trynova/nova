@@ -205,7 +205,7 @@ impl InternalMethods for Proxy {
         if handler_proto != target_proto {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "Unexpected break in ControlFlow",
+                "handlerProto and targetProto are not the same value",
                 gc.nogc(),
             ));
         }
