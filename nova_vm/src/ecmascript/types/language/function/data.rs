@@ -24,7 +24,7 @@ pub struct BoundFunctionHeapData {
     /// ### \[\[BoundTargetFunction\]\]
     ///
     /// The wrapped function object.
-    pub(crate) bound_target_function: Function,
+    pub(crate) bound_target_function: Function<'static>,
     /// ### \[\[BoundThis\]\]
     ///
     /// The value that is always passed as the **this** value when calling the

@@ -108,8 +108,8 @@ impl IntoObject for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl IntoFunction for BuiltinConstructorFunction<'_> {
-    fn into_function(self) -> Function {
+impl<'a> IntoFunction<'a> for BuiltinConstructorFunction<'a> {
+    fn into_function(self) -> Function<'a> {
         self.into()
     }
 }
@@ -126,9 +126,9 @@ impl From<BuiltinConstructorFunction<'_>> for Object {
     }
 }
 
-impl From<BuiltinConstructorFunction<'_>> for Function {
-    fn from(value: BuiltinConstructorFunction) -> Self {
-        Self::BuiltinConstructorFunction(value.unbind())
+impl<'a> From<BuiltinConstructorFunction<'a>> for Function<'a> {
+    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
+        Self::BuiltinConstructorFunction(value)
     }
 }
 
@@ -154,10 +154,10 @@ impl TryFrom<Object> for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl TryFrom<Function> for BuiltinConstructorFunction<'_> {
+impl<'a> TryFrom<Function<'a>> for BuiltinConstructorFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Function) -> Result<Self, Self::Error> {
+    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
         match value {
             Function::BuiltinConstructorFunction(data) => Ok(data),
             _ => Err(()),
@@ -199,7 +199,7 @@ impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorH
     }
 }
 
-impl FunctionInternalProperties for BuiltinConstructorFunction<'_> {
+impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     fn get_name(self, _: &Agent) -> String<'static> {
         unreachable!();
     }
@@ -412,7 +412,7 @@ fn builtin_call_or_construct(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into_function()),
+        function: Some(f.into_function().unbind()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.

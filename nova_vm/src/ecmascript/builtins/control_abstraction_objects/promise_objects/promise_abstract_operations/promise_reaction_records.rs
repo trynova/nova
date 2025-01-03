@@ -36,7 +36,7 @@ pub(crate) enum PromiseReactionType {
 /// \[\[Type\]\] will be used instead.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PromiseReactionHandler {
-    JobCallback(Function),
+    JobCallback(Function<'static>),
     Await(AwaitReactionIdentifier),
     Empty,
 }

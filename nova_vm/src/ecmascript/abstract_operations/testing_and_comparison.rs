@@ -70,11 +70,18 @@ pub(crate) fn is_array(_agent: &Agent, argument: impl IntoValue) -> JsResult<boo
 /// > Nova breaks with the specification to narrow the types automatically, and
 /// > returns an `Option<Function>`. Eventually this should become
 /// > `Option<Callable>` once callable proxies are supported.
-pub(crate) fn is_callable(argument: impl TryInto<Function>) -> Option<Function> {
+pub(crate) fn is_callable<'a, 'b>(
+    argument: impl TryInto<Function<'b>>,
+    _: NoGcScope<'a, '_>,
+) -> Option<Function<'a>> {
     // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
-    argument.try_into().ok()
+    if let Ok(f) = argument.try_into() {
+        Some(f.unbind())
+    } else {
+        None
+    }
 }
 
 /// ### [7.2.4 IsConstructor ( argument )](https://tc39.es/ecma262/#sec-isconstructor)
@@ -88,10 +95,10 @@ pub(crate) fn is_callable(argument: impl TryInto<Function>) -> Option<Function> 
 /// > returns an `Option<Function>`. Eventually this should become
 /// > `Option<Callable>` or `Option<Constructable>` once callable proxies are
 /// > supported.
-pub(crate) fn is_constructor(
+pub(crate) fn is_constructor<'a>(
     agent: &mut Agent,
-    constructor: impl TryInto<Function>,
-) -> Option<Function> {
+    constructor: impl TryInto<Function<'a>>,
+) -> Option<Function<'a>> {
     // 1. If argument is not an Object, return false.
     // TODO: Proxy
     let Ok(constructor) = constructor.try_into() else {

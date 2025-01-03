@@ -26,15 +26,15 @@ pub struct NoDefinition;
 pub struct CreatorKey(PropertyKey<'static>);
 
 #[derive(Clone, Copy)]
-pub struct CreatorGetAccessor(Function);
+pub struct CreatorGetAccessor(Function<'static>);
 
 #[derive(Clone, Copy)]
-pub struct CreatorSetAccess(Function);
+pub struct CreatorSetAccess(Function<'static>);
 
 #[derive(Clone, Copy)]
 pub struct CreatorGetSetAccessor {
-    get: Function,
-    set: Function,
+    get: Function<'static>,
+    set: Function<'static>,
 }
 
 #[derive(Clone, Copy)]
@@ -131,7 +131,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
     pub fn with_getter_function(
         self,
-        getter: Function,
+        getter: Function<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorGetAccessor> {
         PropertyBuilder {
             agent: self.agent,
@@ -144,7 +144,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_getter(
         self,
-        creator: impl FnOnce(&mut Agent) -> Function,
+        creator: impl FnOnce(&mut Agent) -> Function<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorGetAccessor> {
         let getter = creator(self.agent);
         PropertyBuilder {
@@ -158,7 +158,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_setter_function(
         self,
-        setter: Function,
+        setter: Function<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorSetAccess> {
         PropertyBuilder {
             agent: self.agent,
@@ -171,7 +171,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_setter(
         self,
-        creator: impl FnOnce(&mut Agent) -> Function,
+        creator: impl FnOnce(&mut Agent) -> Function<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorSetAccess> {
         let setter = creator(self.agent);
         PropertyBuilder {
@@ -185,8 +185,8 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_getter_and_setter_functions(
         self,
-        getter: Function,
-        setter: Function,
+        getter: Function<'static>,
+        setter: Function<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorGetSetAccessor> {
         PropertyBuilder {
             agent: self.agent,
@@ -202,7 +202,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_getter_and_setter(
         self,
-        creator: impl FnOnce(&mut Agent) -> (Function, Function),
+        creator: impl FnOnce(&mut Agent) -> (Function<'static>, Function<'static>),
     ) -> PropertyBuilder<'agent, K, CreatorGetSetAccessor> {
         let (getter, setter) = creator(self.agent);
         PropertyBuilder {

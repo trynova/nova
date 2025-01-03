@@ -14,9 +14,9 @@ use super::PrivateEnvironmentIndex;
 #[derive(Debug)]
 pub enum PrivateName {
     Field(Option<Value>),
-    Method(Option<Function>),
+    Method(Option<Function<'static>>),
     /// Accessor(get, set)
-    Accessor(Option<Function>, Option<Function>),
+    Accessor(Option<Function<'static>>, Option<Function<'static>>),
 }
 
 impl PrivateName {

@@ -468,12 +468,12 @@ pub(crate) fn delete_property_or_throw(
 /// containing either a function object or undefined, or a throw completion. It
 /// is used to get the value of a specific property of an ECMAScript language
 /// value when the value of the property is expected to be a function.
-pub(crate) fn try_get_method(
+pub(crate) fn try_get_method<'a>(
     agent: &mut Agent,
     v: Value,
     p: PropertyKey,
-    gc: NoGcScope,
-) -> TryResult<JsResult<Option<Function>>> {
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<Option<Function<'a>>>> {
     // 1. Let func be ? GetV(V, P).
     let func = match try_get_v(agent, v, p, gc)? {
         Ok(func) => func,
@@ -491,12 +491,12 @@ pub(crate) fn try_get_method(
 /// function object or undefined, or a throw completion. It is used to get the
 /// value of a specific property of an ECMAScript language value when the value
 /// of the property is expected to be a function.
-pub(crate) fn try_get_object_method(
+pub(crate) fn try_get_object_method<'a>(
     agent: &mut Agent,
     o: Object,
     p: PropertyKey,
-    gc: NoGcScope,
-) -> TryResult<JsResult<Option<Function>>> {
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<Option<Function<'a>>>> {
     // 1. Let func be ? GetV(V, P).
     let func = o.try_get(agent, p, o.into_value(), gc)?;
     TryResult::Continue(get_method_internal(agent, func, gc))
@@ -509,12 +509,12 @@ pub(crate) fn try_get_object_method(
 /// containing either a function object or undefined, or a throw completion. It
 /// is used to get the value of a specific property of an ECMAScript language
 /// value when the value of the property is expected to be a function.
-pub(crate) fn get_method(
+pub(crate) fn get_method<'a>(
     agent: &mut Agent,
     v: Value,
     p: PropertyKey,
-    mut gc: GcScope,
-) -> JsResult<Option<Function>> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Option<Function<'a>>> {
     let p = p.bind(gc.nogc());
     // 1. Let func be ? GetV(V, P).
     let func = get_v(agent, v, p.unbind(), gc.reborrow())?;
@@ -528,29 +528,29 @@ pub(crate) fn get_method(
 /// containing either a function object or undefined, or a throw completion. It
 /// is used to get the value of a specific property of an ECMAScript language
 /// value when the value of the property is expected to be a function.
-pub(crate) fn get_object_method(
+pub(crate) fn get_object_method<'a>(
     agent: &mut Agent,
     o: Object,
     p: PropertyKey,
-    mut gc: GcScope,
-) -> JsResult<Option<Function>> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Option<Function<'a>>> {
     let p = p.bind(gc.nogc());
     // 1. Let func be ? GetV(V, P).
     let func = o.internal_get(agent, p.unbind(), o.into_value(), gc.reborrow())?;
     get_method_internal(agent, func, gc.into_nogc())
 }
 
-fn get_method_internal(
+fn get_method_internal<'a>(
     agent: &mut Agent,
     func: Value,
-    gc: NoGcScope,
-) -> JsResult<Option<Function>> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Option<Function<'a>>> {
     // 2. If func is either undefined or null, return undefined.
     if func.is_undefined() || func.is_null() {
         return Ok(None);
     }
     // 3. If IsCallable(func) is false, throw a TypeError exception.
-    let func = is_callable(func);
+    let func = is_callable(func, gc);
     if func.is_none() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -659,7 +659,7 @@ pub(crate) fn call(
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
-    match is_callable(f) {
+    match is_callable(f, gc.nogc()) {
         None => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Not a callable object",
@@ -668,7 +668,7 @@ pub(crate) fn call(
         // 3. Return ? F.[[Call]](V, argumentsList).
         Some(f) => {
             let current_stack_size = agent.stack_refs.borrow().len();
-            let result = f.internal_call(agent, v, arguments_list, gc);
+            let result = f.unbind().internal_call(agent, v, arguments_list, gc);
             agent.stack_refs.borrow_mut().truncate(current_stack_size);
             result
         }
@@ -1070,9 +1070,10 @@ pub(crate) fn call_function(
     arguments_list: Option<ArgumentsList>,
     gc: GcScope,
 ) -> JsResult<Value> {
+    let f = f.bind(gc.nogc());
     let arguments_list = arguments_list.unwrap_or_default();
     let current_stack_size = agent.stack_refs.borrow().len();
-    let result = f.internal_call(agent, v, arguments_list, gc);
+    let result = f.unbind().internal_call(agent, v, arguments_list, gc);
     agent.stack_refs.borrow_mut().truncate(current_stack_size);
     result
 }
@@ -1084,11 +1085,13 @@ pub(crate) fn construct(
     new_target: Option<Function>,
     gc: GcScope,
 ) -> JsResult<Object> {
+    let f = f.bind(gc.nogc());
     // 1. If newTarget is not present, set newTarget to F.
     let new_target = new_target.unwrap_or(f);
     // 2. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
-    f.internal_construct(agent, arguments_list, new_target, gc)
+    f.unbind()
+        .internal_construct(agent, arguments_list, new_target.unbind(), gc)
 }
 
 /// ### [7.3.20 Invoke ( V, P \[ , argumentsList \] )]()
@@ -1123,30 +1126,35 @@ pub(crate) fn invoke(
 /// normal completion containing a Boolean or a throw completion. It implements
 /// the default algorithm for determining if O inherits from the instance
 /// object inheritance path provided by C.
-pub(crate) fn ordinary_has_instance(
+pub(crate) fn ordinary_has_instance<'a, 'b>(
     agent: &mut Agent,
-    c: impl TryInto<Function>,
+    c: impl TryInto<Function<'b>>,
     o: impl IntoValue,
     mut gc: GcScope,
 ) -> JsResult<bool> {
     // 1. If IsCallable(C) is false, return false.
-    let Some(c) = is_callable(c) else {
+    let Some(c) = is_callable(c, gc.nogc()) else {
         return Ok(false);
     };
+    let c = c.bind(gc.nogc());
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
     if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
-        let bc = agent[c].bound_target_function;
+        let bc = agent[c].bound_target_function.bind(gc.nogc());
         // b. Return ? InstanceofOperator(O, BC).
-        return instanceof_operator(agent, o, bc, gc.reborrow());
+        return instanceof_operator(agent, o, bc.unbind(), gc.reborrow());
     }
     // 3. If O is not an Object, return false.
     let Ok(o) = Object::try_from(o.into_value()) else {
         return Ok(false);
     };
     // 4. Let P be ? Get(C, "prototype").
-    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.prototype);
-    let p = get(agent, c, key, gc.reborrow())?;
+    let p = get(
+        agent,
+        c.unbind(),
+        BUILTIN_STRING_MEMORY.prototype.into(),
+        gc.reborrow(),
+    )?;
     // 5. If P is not an Object, throw a TypeError exception.
     let Ok(p) = Object::try_from(p) else {
         return Err(agent.throw_exception_with_static_message(
@@ -1891,7 +1899,7 @@ pub(crate) fn initialize_instance_elements(
                 is_strict_mode: true,
                 source_code,
             }),
-            function: Some(f),
+            function: Some(f.unbind()),
             realm: agent[constructor].realm,
             script_or_module: None,
         });
@@ -1963,13 +1971,14 @@ pub(crate) fn group_by_property<'a, 'b>(
     require_object_coercible(agent, items, gc.nogc())?;
 
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
-    let Some(callback_fn) = is_callable(callback_fn) else {
+    let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Callback is not callable",
             gc.into_nogc(),
         ));
     };
+    let callback_fn = callback_fn.bind(gc.nogc()).scope(agent, gc.nogc());
 
     // 3. Let groups be a new empty List.
     let mut groups: Vec<GroupByRecord<'b, PropertyKey<'static>>> = vec![];
@@ -2014,7 +2023,7 @@ pub(crate) fn group_by_property<'a, 'b>(
         // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
         let key = call_function(
             agent,
-            callback_fn,
+            callback_fn.get(agent),
             Value::Undefined,
             Some(ArgumentsList(&[value, fk])),
             gc.reborrow(),
@@ -2056,13 +2065,14 @@ pub(crate) fn group_by_collection<'a>(
     require_object_coercible(agent, items, gc.nogc())?;
 
     // 2. If IsCallable(callback) is false, throw a TypeError exception.
-    let Some(callback_fn) = is_callable(callback_fn) else {
+    let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Callback is not callable",
             gc.into_nogc(),
         ));
     };
+    let callback_fn = callback_fn.bind(gc.nogc()).scope(agent, gc.nogc());
 
     // 3. Let groups be a new empty List.
     let mut groups: Vec<GroupByRecord<'a, Value>> = vec![];
@@ -2107,7 +2117,7 @@ pub(crate) fn group_by_collection<'a>(
         // e. Let key be Completion(Call(callback, undefined, « value, 𝔽(k) »)).
         let key = call_function(
             agent,
-            callback_fn,
+            callback_fn.get(agent),
             Value::Undefined,
             Some(ArgumentsList(&[value, fk])),
             gc.reborrow(),

@@ -94,14 +94,14 @@ impl BuiltinPromiseResolvingFunction<'_> {
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction<'_>> for Function {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value.unbind())
+impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Function<'a> {
+    fn from(value: BuiltinPromiseResolvingFunction<'a>) -> Self {
+        Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoFunction for BuiltinPromiseResolvingFunction<'_> {
-    fn into_function(self) -> Function {
+impl<'a> IntoFunction<'a> for BuiltinPromiseResolvingFunction<'a> {
+    fn into_function(self) -> Function<'a> {
         self.into()
     }
 }
@@ -130,7 +130,7 @@ impl IntoValue for BuiltinPromiseResolvingFunction<'_> {
     }
 }
 
-impl FunctionInternalProperties for BuiltinPromiseResolvingFunction<'_> {
+impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> {
     fn get_name(self, _: &Agent) -> String<'static> {
         String::EMPTY_STRING
     }

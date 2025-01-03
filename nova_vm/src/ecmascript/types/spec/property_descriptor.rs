@@ -30,10 +30,10 @@ pub struct PropertyDescriptor {
     pub writable: Option<bool>,
 
     /// \[\[Get]]
-    pub get: Option<Function>,
+    pub get: Option<Function<'static>>,
 
     /// \[\[Set]]
-    pub set: Option<Function>,
+    pub set: Option<Function<'static>>,
 
     /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
@@ -51,10 +51,10 @@ pub struct ScopedPropertyDescriptor<'a> {
     pub writable: Option<bool>,
 
     /// \[\[Get]]
-    pub get: Option<Scoped<'a, Function>>,
+    pub get: Option<Scoped<'a, Function<'static>>>,
 
     /// \[\[Set]]
-    pub set: Option<Scoped<'a, Function>>,
+    pub set: Option<Scoped<'a, Function<'static>>>,
 
     /// \[\[Enumerable]]
     pub enumerable: Option<bool>,
@@ -333,7 +333,7 @@ impl PropertyDescriptor {
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
-                let Some(getter) = is_callable(getter) else {
+                let Some(getter) = is_callable(getter, gc.nogc()) else {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "getter is not callable",
@@ -341,7 +341,7 @@ impl PropertyDescriptor {
                     ));
                 };
                 // c. Set desc.[[Get]] to getter.
-                desc.get = Some(getter);
+                desc.get = Some(getter.unbind());
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
@@ -353,7 +353,7 @@ impl PropertyDescriptor {
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
-                let Some(setter) = is_callable(setter) else {
+                let Some(setter) = is_callable(setter, gc.nogc()) else {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "setter is not callable",
@@ -361,7 +361,7 @@ impl PropertyDescriptor {
                     ));
                 };
                 // c. Set desc.[[Set]] to setter.
-                desc.set = Some(setter);
+                desc.set = Some(setter.unbind());
             }
         }
         // 15. If desc has a [[Get]] field or desc has a [[Set]] field, then
@@ -446,7 +446,7 @@ impl PropertyDescriptor {
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
-                let Some(getter) = is_callable(getter) else {
+                let Some(getter) = is_callable(getter, gc) else {
                     return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "getter is not callable",
@@ -454,7 +454,7 @@ impl PropertyDescriptor {
                     )));
                 };
                 // c. Set desc.[[Get]] to getter.
-                desc.get = Some(getter);
+                desc.get = Some(getter.unbind());
             }
         }
         // 13. Let hasSet be ? HasProperty(Obj, "set").
@@ -466,7 +466,7 @@ impl PropertyDescriptor {
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
-                let Some(setter) = is_callable(setter) else {
+                let Some(setter) = is_callable(setter, gc) else {
                     return TryResult::Continue(Err(agent.throw_exception_with_static_message(
                         ExceptionType::TypeError,
                         "setter is not callable",
@@ -474,7 +474,7 @@ impl PropertyDescriptor {
                     )));
                 };
                 // c. Set desc.[[Set]] to setter.
-                desc.set = Some(setter);
+                desc.set = Some(setter.unbind());
             }
         }
         // 15. If desc has a [[Get]] field or desc has a [[Set]] field, then

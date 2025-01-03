@@ -791,7 +791,7 @@ fn typed_array_constructor<T: Viewable>(
                 let iterator_record = &get_iterator_from_method(
                     agent,
                     first_argument,
-                    using_iterator,
+                    using_iterator.unbind(),
                     gc.reborrow(),
                 )?;
                 let values = iterator_to_list(agent, iterator_record, gc.reborrow())?;

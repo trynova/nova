@@ -1003,7 +1003,7 @@ impl StringPrototype {
             if let Some(replacer) = replacer {
                 return call_function(
                     agent,
-                    replacer,
+                    replacer.unbind(),
                     search_value,
                     Some(ArgumentsList(&[o, replace_value])),
                     gc.reborrow(),
@@ -1023,7 +1023,7 @@ impl StringPrototype {
         s = s_root.get(agent).bind(gc.nogc());
 
         // 5. Let functionalReplace be IsCallable(replaceValue).
-        if let Some(functional_replace) = is_callable(replace_value) {
+        if let Some(functional_replace) = is_callable(replace_value, gc.nogc()) {
             // 7. Let searchLength be the length of searchString.
             let search_length = search_string.len(agent);
 
@@ -1044,7 +1044,7 @@ impl StringPrototype {
             ];
             let result = call_function(
                 agent,
-                functional_replace,
+                functional_replace.unbind(),
                 Value::Undefined,
                 Some(ArgumentsList(args)),
                 gc.reborrow(),
@@ -1118,7 +1118,7 @@ impl StringPrototype {
             if let Some(replacer) = replacer {
                 return call_function(
                     agent,
-                    replacer,
+                    replacer.unbind(),
                     search_value,
                     Some(ArgumentsList(&[o, replace_value])),
                     gc.reborrow(),
@@ -1139,7 +1139,7 @@ impl StringPrototype {
         s = s_root.get(agent).bind(gc.nogc());
 
         // 5. Let functionalReplace be IsCallable(replaceValue).
-        if let Some(functional_replace) = is_callable(replace_value) {
+        if let Some(functional_replace) = is_callable(replace_value, gc.nogc()) {
             // 7. Let searchLength be the length of searchString.
             let search_length = search_string.len(agent);
 
@@ -1172,13 +1172,14 @@ impl StringPrototype {
             let mut result = std::string::String::with_capacity(subject.len());
 
             // 14. For each element p of matchPositions, do
+            let functional_replace = functional_replace.scope(agent, gc.nogc());
             for p in match_positions {
                 search_string = search_string_root.get(agent);
                 s = s_root.get(agent);
                 // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
-                    functional_replace,
+                    functional_replace.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList(&[
                         search_string.into_value(),
@@ -1336,7 +1337,7 @@ impl StringPrototype {
             if let Ok(Some(splitter)) = get_method(agent, separator, symbol, gc.reborrow()) {
                 return call_function(
                     agent,
-                    splitter,
+                    splitter.unbind(),
                     separator,
                     Some(ArgumentsList(&[o, args.get(1)])),
                     gc.reborrow(),

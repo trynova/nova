@@ -14,7 +14,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, InternalMethods, Object},
     },
-    engine::context::GcScope,
+    engine::{context::GcScope, unwrap_try},
 };
 
 pub(crate) fn base_class_default_constructor(
@@ -26,7 +26,9 @@ pub(crate) fn base_class_default_constructor(
     // Note: We've already checked this at an earlier level.
 
     // iii. Let F be the active function object.
-    let f = BuiltinConstructorFunction::try_from(agent.active_function_object()).unwrap();
+    let f = BuiltinConstructorFunction::try_from(agent.active_function_object(gc.nogc()))
+        .unwrap()
+        .scope(agent, gc.nogc());
 
     // iv. If F.[[ConstructorKind]] is derived, then
     // v. Else,
@@ -39,7 +41,7 @@ pub(crate) fn base_class_default_constructor(
         gc.reborrow(),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result, f, gc)?;
+    initialize_instance_elements(agent, result, f.get(agent), gc)?;
 
     // vii. Return result.
     Ok(result)
@@ -56,7 +58,7 @@ pub(crate) fn derived_class_default_constructor(
     // Note: We've already checked this at an earlier level.
 
     // iii. Let F be the active function object.
-    let f = BuiltinConstructorFunction::try_from(agent.active_function_object()).unwrap();
+    let f = BuiltinConstructorFunction::try_from(agent.active_function_object(gc.nogc())).unwrap();
 
     // iv. If F.[[ConstructorKind]] is derived, then
     // 1. NOTE: This branch behaves similarly to constructor(...args) { super(...args); }.
@@ -65,7 +67,7 @@ pub(crate) fn derived_class_default_constructor(
     // %Array.prototype%, this function does not.
 
     // 2. Let func be ! F.[[GetPrototypeOf]]().
-    let func = f.internal_get_prototype_of(agent, gc.reborrow()).unwrap();
+    let func = unwrap_try(f.try_get_prototype_of(agent, gc.nogc()));
     // 3. If IsConstructor(func) is false, throw a TypeError exception.
     let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
         return Err(agent.throw_exception_with_static_message(
@@ -74,6 +76,7 @@ pub(crate) fn derived_class_default_constructor(
             gc.nogc(),
         ));
     };
+    let f = f.scope(agent, gc.nogc());
     // 4. Let result be ? Construct(func, args, NewTarget).
     let result = construct(
         agent,
@@ -83,7 +86,7 @@ pub(crate) fn derived_class_default_constructor(
         gc.reborrow(),
     )?;
     // vi. Perform ? InitializeInstanceElements(result, F).
-    initialize_instance_elements(agent, result, f, gc)?;
+    initialize_instance_elements(agent, result, f.get(agent), gc)?;
 
     // vii. Return result.
     Ok(result)

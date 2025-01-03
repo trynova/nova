@@ -27,7 +27,7 @@ use super::{data::SealableElementsVector, Array, ArrayHeapData};
 /// integer) and optional argument proto (an Object) and returns either a
 /// normal completion containing an Array exotic object or a throw completion.
 /// It is used to specify the creation of new Arrays.
-pub fn array_create(
+pub(crate) fn array_create(
     agent: &mut Agent,
     length: usize,
     capacity: usize,

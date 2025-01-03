@@ -28,7 +28,7 @@ use super::{
 pub(crate) struct PromiseResolveThenableJob {
     promise_to_resolve: Promise,
     thenable: Object,
-    then: Function,
+    then: Function<'static>,
 }
 impl PromiseResolveThenableJob {
     pub(crate) fn run(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<()> {
@@ -95,7 +95,7 @@ pub(crate) fn new_promise_resolve_thenable_job(
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
             promise_to_resolve,
             thenable,
-            then,
+            then: then.unbind(),
         }),
     }
 }

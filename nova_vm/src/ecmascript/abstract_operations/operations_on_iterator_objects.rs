@@ -44,6 +44,7 @@ pub(crate) fn get_iterator_from_method(
     method: Function,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<IteratorRecord> {
+    let method = method.bind(gc.nogc());
     // 1. Let iterator be ? Call(method, obj).
     let iterator = call(agent, method.into(), obj, None, gc.reborrow())?;
 
@@ -114,7 +115,7 @@ pub(crate) fn get_iterator(
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
             let _sync_iterator_record =
-                get_iterator_from_method(agent, obj, sync_method, gc.reborrow())?;
+                get_iterator_from_method(agent, obj, sync_method.unbind(), gc.reborrow())?;
 
             // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
             todo!("Implement create_async_from_sync_iterator(sync_iterator_record)")
@@ -142,7 +143,7 @@ pub(crate) fn get_iterator(
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
-    get_iterator_from_method(agent, obj, method, gc.reborrow())
+    get_iterator_from_method(agent, obj, method.unbind(), gc.reborrow())
 }
 
 /// ### [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
@@ -359,7 +360,7 @@ pub(crate) fn iterator_close<T>(
             // c. Set innerResult to Completion(Call(return, iterator)).
             call_function(
                 agent,
-                return_function,
+                return_function.unbind(),
                 iterator.into_value(),
                 None,
                 gc.reborrow(),

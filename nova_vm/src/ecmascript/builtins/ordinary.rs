@@ -1316,12 +1316,14 @@ pub(crate) fn ordinary_create_from_constructor(
     intrinsic_default_proto: ProtoIntrinsics,
     gc: GcScope,
 ) -> JsResult<Object> {
+    let constructor = constructor.bind(gc.nogc());
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
 
     // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
-    let proto = get_prototype_from_constructor(agent, constructor, intrinsic_default_proto, gc)?;
+    let proto =
+        get_prototype_from_constructor(agent, constructor.unbind(), intrinsic_default_proto, gc)?;
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
@@ -1352,6 +1354,7 @@ pub(crate) fn get_prototype_from_constructor(
     intrinsic_default_proto: ProtoIntrinsics,
     gc: GcScope,
 ) -> JsResult<Option<Object>> {
+    let constructor = constructor.bind(gc.nogc());
     let function_realm = get_function_realm(agent, constructor);
     // NOTE: %Constructor%.prototype is an immutable property; we can thus
     // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
@@ -1448,7 +1451,7 @@ pub(crate) fn get_prototype_from_constructor(
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
     let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
-    let proto = get(agent, constructor, prototype_key, gc)?;
+    let proto = get(agent, constructor.unbind(), prototype_key, gc)?;
     // 3. If proto is not an Object, then
     //   a. Let realm be ? GetFunctionRealm(constructor).
     //   b. Set proto to realm's intrinsic object named intrinsicDefaultProto.

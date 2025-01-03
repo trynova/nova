@@ -339,8 +339,10 @@ pub(crate) fn allocate_typed_array<T: Viewable>(
     length: Option<usize>,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<TypedArray> {
+    let new_target = new_target.bind(gc.nogc());
     // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
-    let proto = get_prototype_from_constructor(agent, new_target, default_proto, gc.reborrow())?;
+    let proto =
+        get_prototype_from_constructor(agent, new_target.unbind(), default_proto, gc.reborrow())?;
 
     // 2. Let obj be TypedArrayCreate(proto).
     let obj = typed_array_create::<T>(agent, proto);

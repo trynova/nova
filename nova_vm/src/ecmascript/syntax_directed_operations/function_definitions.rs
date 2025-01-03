@@ -384,7 +384,7 @@ pub(crate) fn evaluate_generator_body(
     // 3. Set G.[[GeneratorBrand]] to empty.
     let generator = ordinary_create_from_constructor(
         agent,
-        function_object.into_function(),
+        function_object.into_function().unbind(),
         ProtoIntrinsics::Generator,
         gc.reborrow(),
     )?;

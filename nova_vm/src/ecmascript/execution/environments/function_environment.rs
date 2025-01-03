@@ -52,7 +52,7 @@ pub(crate) struct FunctionEnvironment {
     ///
     /// The function object whose invocation caused this Environment Record to
     /// be created.
-    pub(crate) function_object: Function,
+    pub(crate) function_object: Function<'static>,
 
     /// ### \[\[NewTarget\]\]
     ///
@@ -119,7 +119,7 @@ pub(crate) fn new_function_environment(
     let declarative_environment =
         DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
     // 2. Set env.[[FunctionObject]] to F.
-    let function_object = f.into_function();
+    let function_object = f.into_function().unbind();
     // 3. If F.[[ThisMode]] is LEXICAL, set env.[[ThisBindingStatus]] to LEXICAL.
     let this_binding_status = if this_mode == ThisMode::Lexical {
         ThisBindingStatus::Lexical
@@ -172,7 +172,7 @@ pub(crate) fn new_class_static_element_environment(
     let env = FunctionEnvironment {
         this_value: Some(class_constructor.into_value()),
 
-        function_object: class_constructor,
+        function_object: class_constructor.unbind(),
 
         this_binding_status: ThisBindingStatus::Initialized,
 
@@ -205,7 +205,7 @@ pub(crate) fn new_class_field_initializer_environment(
         .push_function_environment(FunctionEnvironment {
             this_value: Some(class_instance.into_value()),
             this_binding_status: ThisBindingStatus::Initialized,
-            function_object: class_constructor,
+            function_object: class_constructor.unbind(),
             new_target: None,
             declarative_environment,
         })

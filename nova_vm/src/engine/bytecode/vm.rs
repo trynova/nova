@@ -701,7 +701,7 @@ impl<'a> Vm {
                 // 8. Perform SetFunctionName(closure, propKey, "get").
                 set_function_name(
                     agent,
-                    closure,
+                    closure.unbind(),
                     prop_key,
                     Some(BUILTIN_STRING_MEMORY.get),
                     gc.nogc(),
@@ -713,7 +713,7 @@ impl<'a> Vm {
                 let desc = PropertyDescriptor {
                     value: None,
                     writable: None,
-                    get: Some(closure.into_function()),
+                    get: Some(closure.into_function().unbind()),
                     set: None,
                     enumerable: Some(enumerable),
                     configurable: Some(true),
@@ -773,7 +773,7 @@ impl<'a> Vm {
                 // 7. Perform SetFunctionName(closure, propKey, "set").
                 set_function_name(
                     agent,
-                    closure,
+                    closure.unbind(),
                     prop_key,
                     Some(BUILTIN_STRING_MEMORY.set),
                     gc.nogc(),
@@ -786,7 +786,7 @@ impl<'a> Vm {
                     value: None,
                     writable: None,
                     get: None,
-                    set: Some(closure.into_function()),
+                    set: Some(closure.into_function().unbind()),
                     enumerable: Some(enumerable),
                     configurable: Some(true),
                 };
@@ -2398,7 +2398,7 @@ pub(crate) fn instanceof_operator(
         // a. Return ToBoolean(? Call(instOfHandler, target, « V »)).
         let result = call_function(
             agent,
-            inst_of_handler,
+            inst_of_handler.unbind(),
             target.into_value(),
             Some(ArgumentsList(&[value.into_value()])),
             gc.reborrow(),
@@ -2406,7 +2406,7 @@ pub(crate) fn instanceof_operator(
         Ok(to_boolean(agent, result))
     } else {
         // 4. If IsCallable(target) is false, throw a TypeError exception.
-        let Some(target) = is_callable(target) else {
+        let Some(target) = is_callable(target, gc.nogc()) else {
             let error_message = format!(
                 "Invalid instanceof target {} is not a function.",
                 target
@@ -2417,7 +2417,7 @@ pub(crate) fn instanceof_operator(
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
         // 5. Return ? OrdinaryHasInstance(target, V).
-        Ok(ordinary_has_instance(agent, target, value, gc)?)
+        Ok(ordinary_has_instance(agent, target.unbind(), value, gc)?)
     }
 }
 

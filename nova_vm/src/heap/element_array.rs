@@ -9,10 +9,13 @@ use super::{
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
     CompactionLists, HeapMarkAndSweep, WorkQueues,
 };
-use crate::ecmascript::{
-    builtins::SealableElementsVector,
-    execution::Agent,
-    types::{Function, PropertyDescriptor, PropertyKey, Value},
+use crate::{
+    ecmascript::{
+        builtins::SealableElementsVector,
+        execution::Agent,
+        types::{Function, PropertyDescriptor, PropertyKey, Value},
+    },
+    engine::context::NoGcScope,
 };
 use std::{
     mem::MaybeUninit,
@@ -375,51 +378,63 @@ pub enum ElementDescriptor {
     /// ```js
     /// { get, enumerable: true, configurable: true }
     /// ```
-    ReadOnlyEnumerableConfigurableAccessor { get: Function },
+    ReadOnlyEnumerableConfigurableAccessor { get: Function<'static> },
     /// ```js
     /// { get, enumerable: true, configurable: false }
     /// ```
-    ReadOnlyEnumerableUnconfigurableAccessor { get: Function },
+    ReadOnlyEnumerableUnconfigurableAccessor { get: Function<'static> },
     /// ```js
     /// { get, enumerable: false, configurable: true }
     /// ```
-    ReadOnlyUnenumerableConfigurableAccessor { get: Function },
+    ReadOnlyUnenumerableConfigurableAccessor { get: Function<'static> },
     /// ```js
     /// { get, enumerable: false, configurable: false }
     /// ```
-    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function },
+    ReadOnlyUnenumerableUnconfigurableAccessor { get: Function<'static> },
     /// ```js
     /// { set, enumerable: true, configurable: true }
     /// ```
-    WriteOnlyEnumerableConfigurableAccessor { set: Function },
+    WriteOnlyEnumerableConfigurableAccessor { set: Function<'static> },
     /// ```js
     /// { set, enumerable: true, configurable: false }
     /// ```
-    WriteOnlyEnumerableUnconfigurableAccessor { set: Function },
+    WriteOnlyEnumerableUnconfigurableAccessor { set: Function<'static> },
     /// ```js
     /// { set, enumerable: false, configurable: true }
     /// ```
-    WriteOnlyUnenumerableConfigurableAccessor { set: Function },
+    WriteOnlyUnenumerableConfigurableAccessor { set: Function<'static> },
     /// ```js
     /// { set, enumerable: false, configurable: false }
     /// ```
-    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function },
+    WriteOnlyUnenumerableUnconfigurableAccessor { set: Function<'static> },
     /// ```js
     /// { get, set, enumerable: true, configurable: true }
     /// ```
-    ReadWriteEnumerableConfigurableAccessor { get: Function, set: Function },
+    ReadWriteEnumerableConfigurableAccessor {
+        get: Function<'static>,
+        set: Function<'static>,
+    },
     /// ```js
     /// { get, set, enumerable: true, configurable: false }
     /// ```
-    ReadWriteEnumerableUnconfigurableAccessor { get: Function, set: Function },
+    ReadWriteEnumerableUnconfigurableAccessor {
+        get: Function<'static>,
+        set: Function<'static>,
+    },
     /// ```js
     /// { get, set, enumerable: false, configurable: true }
     /// ```
-    ReadWriteUnenumerableConfigurableAccessor { get: Function, set: Function },
+    ReadWriteUnenumerableConfigurableAccessor {
+        get: Function<'static>,
+        set: Function<'static>,
+    },
     /// ```js
     /// { get, set, enumerable: false, configurable: false }
     /// ```
-    ReadWriteUnenumerableUnconfigurableAccessor { get: Function, set: Function },
+    ReadWriteUnenumerableUnconfigurableAccessor {
+        get: Function<'static>,
+        set: Function<'static>,
+    },
 }
 
 impl ElementDescriptor {
@@ -464,7 +479,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) const fn new_with_get_ec(get: Function, e: bool, c: bool) -> Self {
+    pub(crate) const fn new_with_get_ec(get: Function<'static>, e: bool, c: bool) -> Self {
         match (e, c) {
             (true, true) => Self::ReadOnlyEnumerableConfigurableAccessor { get },
             (true, false) => Self::ReadOnlyEnumerableUnconfigurableAccessor { get },
@@ -473,7 +488,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub(crate) const fn new_with_set_ec(set: Function, e: bool, c: bool) -> Self {
+    pub(crate) const fn new_with_set_ec(set: Function<'static>, e: bool, c: bool) -> Self {
         match (e, c) {
             (true, true) => Self::WriteOnlyEnumerableConfigurableAccessor { set },
             (true, false) => Self::WriteOnlyEnumerableUnconfigurableAccessor { set },
@@ -483,8 +498,8 @@ impl ElementDescriptor {
     }
 
     pub(crate) const fn new_with_get_set_ec(
-        get: Function,
-        set: Function,
+        get: Function<'static>,
+        set: Function<'static>,
         e: bool,
         c: bool,
     ) -> Self {
@@ -874,7 +889,7 @@ impl ElementDescriptor {
         }
     }
 
-    pub fn getter_function(&self) -> Option<Function> {
+    pub fn getter_function<'a>(&self, gc: NoGcScope<'a, '_>) -> Option<Function<'a>> {
         match self {
             ElementDescriptor::ReadOnlyEnumerableConfigurableAccessor { get }
             | ElementDescriptor::ReadOnlyEnumerableUnconfigurableAccessor { get }
@@ -884,13 +899,13 @@ impl ElementDescriptor {
             | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { get, .. }
             | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { get, .. }
             | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { get, .. } => {
-                Some(*get)
+                Some(get.bind(gc))
             }
             _ => None,
         }
     }
 
-    pub fn setter_function(&self) -> Option<Function> {
+    pub fn setter_function<'a>(&self, gc: NoGcScope<'a, '_>) -> Option<Function<'a>> {
         match self {
             ElementDescriptor::WriteOnlyEnumerableConfigurableAccessor { set }
             | ElementDescriptor::WriteOnlyEnumerableUnconfigurableAccessor { set }
@@ -900,7 +915,7 @@ impl ElementDescriptor {
             | ElementDescriptor::ReadWriteEnumerableUnconfigurableAccessor { set, .. }
             | ElementDescriptor::ReadWriteUnenumerableConfigurableAccessor { set, .. }
             | ElementDescriptor::ReadWriteUnenumerableUnconfigurableAccessor { set, .. } => {
-                Some(*set)
+                Some(set.bind(gc))
             }
             _ => None,
         }

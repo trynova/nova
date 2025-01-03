@@ -115,7 +115,7 @@ impl FunctionPrototype {
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         // 1. Let func be the this value.
-        let Some(func) = is_callable(this_value) else {
+        let Some(func) = is_callable(this_value, gc.nogc()) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -123,20 +123,22 @@ impl FunctionPrototype {
                 gc.nogc(),
             ));
         };
+        let func = func.bind(gc.nogc());
         let this_arg = args.get(0);
         let arg_array = args.get(1);
         if arg_array.is_undefined() || arg_array.is_null() {
             // 3. If argArray is either undefined or null, then
             //   a. TODO: Perform PrepareForTailCall().
             //   b. Return ? Call(func, thisArg).
-            return call_function(agent, func, this_arg, None, gc);
+            return call_function(agent, func.unbind(), this_arg, None, gc);
         }
+        let func = func.scope(agent, gc.nogc());
         // 4. Let argList be ? CreateListFromArrayLike(argArray).
         let args = create_list_from_array_like(agent, arg_array, gc.reborrow())?;
         let args_list = ArgumentsList(&args);
         // 5. TODO: Perform PrepareForTailCall().
         // 6.Return ? Call(func, thisArg, argList).
-        call_function(agent, func, this_arg, Some(args_list), gc)
+        call_function(agent, func.get(agent), this_arg, Some(args_list), gc)
     }
 
     /// ### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
@@ -162,7 +164,7 @@ impl FunctionPrototype {
         // 1. Let Target be the this value.
         let target = this_value;
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
-        let Some(mut target) = is_callable(target) else {
+        let Some(mut target) = is_callable(target, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Cannot bind a non-callable object",
@@ -171,7 +173,7 @@ impl FunctionPrototype {
         };
         let scoped_target = target.scope(agent, gc.nogc());
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
-        let mut f = bound_function_create(agent, target, this_arg, args, gc.reborrow())?
+        let mut f = bound_function_create(agent, target.unbind(), this_arg, args, gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
         target = scoped_target.get(agent);
@@ -298,17 +300,18 @@ impl FunctionPrototype {
         args: ArgumentsList,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        let Some(func) = is_callable(this_value) else {
+        let Some(func) = is_callable(this_value, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Not a callable value",
                 gc.nogc(),
             ));
         };
+        let func = func.bind(gc.nogc());
         // TODO: PrepareForTailCall
         let this_arg = args.get(0);
         let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });
-        call_function(agent, func, this_arg, Some(args), gc)
+        call_function(agent, func.unbind(), this_arg, Some(args), gc)
     }
 
     fn to_string(

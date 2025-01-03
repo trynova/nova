@@ -223,7 +223,7 @@ impl ArrayConstructor {
         } else {
             // 3. Else,
             // a. If IsCallable(mapfn) is false, throw a TypeError exception.
-            let Some(mapfn) = is_callable(mapfn) else {
+            let Some(mapfn) = is_callable(mapfn, gc.nogc()) else {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "The map function of Array.from is not callable",
@@ -232,7 +232,7 @@ impl ArrayConstructor {
             };
 
             // b. Let mapping be true.
-            Some(mapfn)
+            Some(mapfn.scope(agent, gc.nogc()))
         };
 
         // 4. Let usingIterator be ? GetMethod(items, @@iterator).
@@ -245,10 +245,14 @@ impl ArrayConstructor {
 
         // 5. If usingIterator is not undefined, then
         if let Some(using_iterator) = using_iterator {
+            let mut using_iterator = using_iterator.unbind().bind(gc.nogc());
             // a. If IsConstructor(C) is true, then
             let a = if let Some(c) = is_constructor(agent, this_value) {
+                let scoped_using_iterator = using_iterator.scope(agent, gc.nogc());
                 // i. Let A be ? Construct(C).
-                construct(agent, c, None, None, gc.reborrow())?
+                let a = construct(agent, c, None, None, gc.reborrow())?;
+                using_iterator = scoped_using_iterator.get(agent).bind(gc.nogc());
+                a
             } else {
                 // b. Else,
                 // i. Let A be ! ArrayCreate(0).
@@ -259,7 +263,7 @@ impl ArrayConstructor {
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
             let mut iterator_record =
-                get_iterator_from_method(agent, items, using_iterator, gc.reborrow())?;
+                get_iterator_from_method(agent, items, using_iterator.unbind(), gc.reborrow())?;
 
             // d. Let k be 0.
             let mut k = 0;
@@ -305,11 +309,11 @@ impl ArrayConstructor {
                 };
 
                 // v. If mapping is true, then
-                let mapped_value = if let Some(mapping) = mapping {
+                let mapped_value = if let Some(mapping) = &mapping {
                     // 1. Let mappedValue be Completion(Call(mapfn, thisArg, « next, 𝔽(k) »)).
                     let mapped_value = call_function(
                         agent,
-                        mapping,
+                        mapping.get(agent),
                         this_arg,
                         Some(ArgumentsList(&[next, fk])),
                         gc.reborrow(),
@@ -387,11 +391,11 @@ impl ArrayConstructor {
             let k_value = get(agent, array_like, pk, gc.reborrow())?;
 
             // c. If mapping is true, then
-            let mapped_value = if let Some(mapping) = mapping {
+            let mapped_value = if let Some(mapping) = &mapping {
                 // i. Let mappedValue be ? Call(mapfn, thisArg, « kValue, 𝔽(k) »).
                 call_function(
                     agent,
-                    mapping,
+                    mapping.get(agent),
                     this_arg,
                     Some(ArgumentsList(&[k_value, fk])),
                     gc.reborrow(),
