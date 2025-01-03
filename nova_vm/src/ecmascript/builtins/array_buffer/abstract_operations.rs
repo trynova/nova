@@ -132,7 +132,11 @@ pub(crate) fn detach_array_buffer(
     // 2. If key is not present, set key to undefined.
     // 3. If arrayBuffer.[[ArrayBufferDetachKey]] is not key, throw a TypeError exception.
     if array_buffer.get_detach_key(agent) != key {
-        return Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "", gc));
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Mismatching array buffer detach keys",
+            gc,
+        ));
     }
 
     // 4. Set arrayBuffer.[[ArrayBufferData]] to null.
