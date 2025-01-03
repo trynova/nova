@@ -8,7 +8,8 @@ use oxc_span::Span;
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::TryResult;
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{
@@ -39,9 +40,43 @@ use crate::{
 use super::ArgumentsList;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BuiltinConstructorFunction(pub(crate) BuiltinConstructorIndex);
+pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
 
-impl BuiltinConstructorFunction {
+impl<'a> BuiltinConstructorFunction<'a> {
+    /// Unbind this BuiltinConstructorFunction from its current lifetime. This is necessary to use
+    /// the BuiltinConstructorFunction as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> BuiltinConstructorFunction<'static> {
+        unsafe {
+            std::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'static>>(
+                self,
+            )
+        }
+    }
+
+    // Bind this BuiltinConstructorFunction to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your BuiltinConstructorFunctions cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound BuiltinConstructorFunction cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinConstructorFunction<'gc> {
+        unsafe {
+            std::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'gc>>(self)
+        }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, BuiltinConstructorFunction<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BuiltinConstructorIndex::from_u32_index(0))
     }
@@ -55,49 +90,49 @@ impl BuiltinConstructorFunction {
     }
 }
 
-impl From<BuiltinConstructorIndex> for BuiltinConstructorFunction {
-    fn from(value: BuiltinConstructorIndex) -> Self {
+impl<'a> From<BuiltinConstructorIndex<'a>> for BuiltinConstructorFunction<'a> {
+    fn from(value: BuiltinConstructorIndex<'a>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for BuiltinConstructorFunction {
+impl IntoValue for BuiltinConstructorFunction<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for BuiltinConstructorFunction {
+impl IntoObject for BuiltinConstructorFunction<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl IntoFunction for BuiltinConstructorFunction {
+impl IntoFunction for BuiltinConstructorFunction<'_> {
     fn into_function(self) -> Function {
         self.into()
     }
 }
 
-impl From<BuiltinConstructorFunction> for Value {
+impl From<BuiltinConstructorFunction<'_>> for Value {
     fn from(value: BuiltinConstructorFunction) -> Self {
-        Value::BuiltinConstructorFunction(value)
+        Value::BuiltinConstructorFunction(value.unbind())
     }
 }
 
-impl From<BuiltinConstructorFunction> for Object {
+impl From<BuiltinConstructorFunction<'_>> for Object {
     fn from(value: BuiltinConstructorFunction) -> Self {
-        Self::BuiltinConstructorFunction(value)
+        Self::BuiltinConstructorFunction(value.unbind())
     }
 }
 
-impl From<BuiltinConstructorFunction> for Function {
+impl From<BuiltinConstructorFunction<'_>> for Function {
     fn from(value: BuiltinConstructorFunction) -> Self {
-        Self::BuiltinConstructorFunction(value)
+        Self::BuiltinConstructorFunction(value.unbind())
     }
 }
 
-impl TryFrom<Value> for BuiltinConstructorFunction {
+impl TryFrom<Value> for BuiltinConstructorFunction<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -108,7 +143,7 @@ impl TryFrom<Value> for BuiltinConstructorFunction {
     }
 }
 
-impl TryFrom<Object> for BuiltinConstructorFunction {
+impl TryFrom<Object> for BuiltinConstructorFunction<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -119,7 +154,7 @@ impl TryFrom<Object> for BuiltinConstructorFunction {
     }
 }
 
-impl TryFrom<Function> for BuiltinConstructorFunction {
+impl TryFrom<Function> for BuiltinConstructorFunction<'_> {
     type Error = ();
 
     fn try_from(value: Function) -> Result<Self, Self::Error> {
@@ -130,7 +165,7 @@ impl TryFrom<Function> for BuiltinConstructorFunction {
     }
 }
 
-impl Index<BuiltinConstructorFunction> for Agent {
+impl Index<BuiltinConstructorFunction<'_>> for Agent {
     type Output = BuiltinConstructorHeapData;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
@@ -138,13 +173,13 @@ impl Index<BuiltinConstructorFunction> for Agent {
     }
 }
 
-impl IndexMut<BuiltinConstructorFunction> for Agent {
+impl IndexMut<BuiltinConstructorFunction<'_>> for Agent {
     fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
         &mut self.heap.builtin_constructors[index]
     }
 }
 
-impl Index<BuiltinConstructorFunction> for Vec<Option<BuiltinConstructorHeapData>> {
+impl Index<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData>> {
     type Output = BuiltinConstructorHeapData;
 
     fn index(&self, index: BuiltinConstructorFunction) -> &Self::Output {
@@ -155,7 +190,7 @@ impl Index<BuiltinConstructorFunction> for Vec<Option<BuiltinConstructorHeapData
     }
 }
 
-impl IndexMut<BuiltinConstructorFunction> for Vec<Option<BuiltinConstructorHeapData>> {
+impl IndexMut<BuiltinConstructorFunction<'_>> for Vec<Option<BuiltinConstructorHeapData>> {
     fn index_mut(&mut self, index: BuiltinConstructorFunction) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("BuiltinConstructorFunction out of bounds")
@@ -164,7 +199,7 @@ impl IndexMut<BuiltinConstructorFunction> for Vec<Option<BuiltinConstructorHeapD
     }
 }
 
-impl FunctionInternalProperties for BuiltinConstructorFunction {
+impl FunctionInternalProperties for BuiltinConstructorFunction<'_> {
     fn get_name(self, _: &Agent) -> String<'static> {
         unreachable!();
     }
@@ -174,7 +209,7 @@ impl FunctionInternalProperties for BuiltinConstructorFunction {
     }
 }
 
-impl InternalSlots for BuiltinConstructorFunction {
+impl InternalSlots for BuiltinConstructorFunction<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -194,7 +229,7 @@ impl InternalSlots for BuiltinConstructorFunction {
     }
 }
 
-impl InternalMethods for BuiltinConstructorFunction {
+impl InternalMethods for BuiltinConstructorFunction<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -356,6 +391,7 @@ fn builtin_call_or_construct(
     new_target: Function,
     gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
+    let f = f.bind(gc.nogc());
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -428,10 +464,11 @@ pub(crate) struct BuiltinConstructorArgs<'a> {
 /// additionalInternalSlotsList contains the names of additional internal slots
 /// that must be defined as part of the object. This operation creates a
 /// built-in function object.
-pub(crate) fn create_builtin_constructor(
+pub(crate) fn create_builtin_constructor<'a>(
     agent: &mut Agent,
     args: BuiltinConstructorArgs,
-) -> BuiltinConstructorFunction {
+    _: NoGcScope<'a, '_>,
+) -> BuiltinConstructorFunction<'a> {
     // 1. If realm is not present, set realm to the current Realm Record.
     let realm = agent.current_realm_id();
 
@@ -500,14 +537,37 @@ pub(crate) fn create_builtin_constructor(
     })
 }
 
-impl CreateHeapData<BuiltinConstructorHeapData, BuiltinConstructorFunction> for Heap {
-    fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction {
+impl Rootable for BuiltinConstructorFunction<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::BuiltinConstructorFunction(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BuiltinConstructorFunction(d) => Some(d),
+            _ => None,
+        }
+    }
+}
+
+impl CreateHeapData<BuiltinConstructorHeapData, BuiltinConstructorFunction<'static>> for Heap {
+    fn create(&mut self, data: BuiltinConstructorHeapData) -> BuiltinConstructorFunction<'static> {
         self.builtin_constructors.push(Some(data));
         BuiltinConstructorIndex::last(&self.builtin_constructors).into()
     }
 }
 
-impl HeapMarkAndSweep for BuiltinConstructorFunction {
+impl HeapMarkAndSweep for BuiltinConstructorFunction<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.builtin_constructors.push(*self);
     }

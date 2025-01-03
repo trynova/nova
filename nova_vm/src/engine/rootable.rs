@@ -124,7 +124,7 @@ mod private {
     impl RootableSealed for ArrayIterator {}
     impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction<'_> {}
-    impl RootableSealed for BuiltinConstructorFunction {}
+    impl RootableSealed for BuiltinConstructorFunction<'_> {}
     impl RootableSealed for BuiltinFunction<'_> {}
     impl RootableSealed for BuiltinPromiseResolvingFunction {}
     #[cfg(feature = "array-buffer")]
@@ -219,7 +219,7 @@ pub enum HeapRootData {
     BuiltinFunction(BuiltinFunction<'static>) = BUILTIN_FUNCTION_DISCRIMINANT,
     ECMAScriptFunction(ECMAScriptFunction<'static>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
     BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
-    BuiltinConstructorFunction(BuiltinConstructorFunction) =
+    BuiltinConstructorFunction(BuiltinConstructorFunction<'static>) =
         BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
     BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction) =
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,

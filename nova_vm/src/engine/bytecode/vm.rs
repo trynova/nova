@@ -1211,22 +1211,21 @@ impl<'a> Vm {
                         source_code,
                         source_text: Span::new(0, 0),
                     },
+                    gc.nogc(),
                 );
 
-                proto
-                    .internal_define_own_property(
-                        agent,
-                        BUILTIN_STRING_MEMORY.constructor.into(),
-                        PropertyDescriptor {
-                            value: Some(function.into_value()),
-                            writable: Some(true),
-                            enumerable: Some(false),
-                            configurable: Some(true),
-                            ..Default::default()
-                        },
-                        gc.reborrow(),
-                    )
-                    .unwrap();
+                unwrap_try(proto.try_define_own_property(
+                    agent,
+                    BUILTIN_STRING_MEMORY.constructor.into(),
+                    PropertyDescriptor {
+                        value: Some(function.into_value()),
+                        writable: Some(true),
+                        enumerable: Some(false),
+                        configurable: Some(true),
+                        ..Default::default()
+                    },
+                    gc.nogc(),
+                ));
 
                 vm.result = Some(function.into_value());
             }
