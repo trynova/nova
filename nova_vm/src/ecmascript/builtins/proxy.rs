@@ -12,6 +12,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{call_function, get_object_method, try_get_object_method},
             testing_and_comparison::{is_extensible, same_value},
+            type_conversion::to_boolean,
         },
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
@@ -234,8 +235,68 @@ impl InternalMethods for Proxy {
         TryResult::Break(())
     }
 
-    fn internal_is_extensible(self, _agent: &mut Agent, _gc: GcScope<'_, '_>) -> JsResult<bool> {
-        todo!();
+    fn internal_is_extensible(self, agent: &mut Agent, mut gc: GcScope<'_, '_>) -> JsResult<bool> {
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+
+        // 5. Let trap be ? GetMethod(handler, "isExtensible").
+        let target = target.scope(agent, gc.nogc());
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.isExtensible.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.isExtensible.into(),
+                gc.reborrow(),
+            )?;
+            handler = scoped_handler.get(agent).bind(gc.nogc());
+            trap
+        };
+
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? IsExtensible(target).
+            return is_extensible(agent, target.get(agent), gc.reborrow());
+        };
+
+        // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
+        // call functionを使ったほうがいいかも？
+        let argment = call_function(
+            agent,
+            trap,
+            handler.into_value(),
+            Some(ArgumentsList(&[target.get(agent).into()])),
+            gc.reborrow(),
+        )?;
+        let boolean_trap_result = to_boolean(agent, argment);
+
+        // 8. Let targetResult be ? IsExtensible(target).
+        let target_result = is_extensible(agent, target.get(agent), gc.reborrow())?;
+
+        // 9. If booleanTrapResult is not targetResult, throw a TypeError exception.
+        if boolean_trap_result != target_result {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "booleanTrapResult is not targetResult",
+                gc.nogc(),
+            ));
+        };
+
+        // 10. Return booleanTrapResult.
+        return Ok(boolean_trap_result);
     }
 
     fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
