@@ -4689,8 +4689,6 @@
   "built-ins/RegExp/prototype/flags/get-order.js": "CRASH",
   "built-ins/RegExp/prototype/flags/rethrow.js": "CRASH",
   "built-ins/RegExp/prototype/flags/return-order.js": "CRASH",
-  "built-ins/RegExp/prototype/flags/this-val-non-obj.js": "CRASH",
-  "built-ins/RegExp/prototype/flags/this-val-regexp-prototype.js": "CRASH",
   "built-ins/RegExp/prototype/flags/this-val-regexp.js": "CRASH",
   "built-ins/RegExp/prototype/global/S15.10.7.2_A10.js": "CRASH",
   "built-ins/RegExp/prototype/global/cross-realm.js": "FAIL",
