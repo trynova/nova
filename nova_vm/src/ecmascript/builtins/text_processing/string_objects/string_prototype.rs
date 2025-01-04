@@ -9,6 +9,7 @@ use unicode_normalization::{
     is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick, IsNormalized, UnicodeNormalization,
 };
 
+use crate::ecmascript::abstract_operations::testing_and_comparison::is_reg_exp;
 use crate::ecmascript::abstract_operations::type_conversion::{
     to_integer_or_infinity_number, to_string_primitive, try_to_integer_or_infinity, try_to_string,
 };
@@ -499,7 +500,13 @@ impl StringPrototype {
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            // TODO
+            if is_reg_exp(agent, search_string, gc.reborrow())? {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "searchString is RegExp",
+                    gc.nogc(),
+                ));
+            }
 
             // 5. Let searchStr be ? ToString(searchString).
             let search_str = to_string(agent, search_string, gc.reborrow())?
@@ -582,7 +589,13 @@ impl StringPrototype {
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            // TODO
+            if is_reg_exp(agent, search_string, gc.reborrow())? {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "searchString is RegExp",
+                    gc.nogc(),
+                ));
+            }
 
             // 5. Let searchStr be ? ToString(searchString).
             let search_str = to_string(agent, search_string, gc.reborrow())?
@@ -1443,7 +1456,13 @@ impl StringPrototype {
 
         // 3. Let isRegExp be ? IsRegExp(searchString).
         // 4. If isRegExp is true, throw a TypeError exception.
-        // TODO
+        if is_reg_exp(agent, args.get(0), gc.reborrow())? {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "searchString is RegExp",
+                gc.nogc(),
+            ));
+        }
 
         // 5. Let searchStr be ? ToString(searchString).
         let search_str = to_string(agent, args.get(0), gc.reborrow())?
