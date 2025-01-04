@@ -7,7 +7,7 @@ use std::ops::Deref;
 use oxc_ast::ast::{
     BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
     ForStatementLeft, Function, FunctionBody, LabeledStatement, Program, Statement, StaticBlock,
-    VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
+    SwitchCase, VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
 };
 use oxc_ecmascript::BoundNames;
 
@@ -218,7 +218,10 @@ pub(crate) trait LexicallyScopedDeclarations<'a> {
     fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(&'a self, f: &mut F);
 }
 
-pub(crate) fn case_block_lexically_scoped_declarations() {
+pub(crate) fn case_block_lexically_scoped_declarations<'body>(
+    cases: &'body [SwitchCase<'body>],
+) -> Vec<LexicallyScopedDeclaration<'body>> {
+    let mut lexically_scoped_declarations = vec![];
     // CaseBlock : { }
     // 1. Return a new empty List.
 
@@ -242,6 +245,13 @@ pub(crate) fn case_block_lexically_scoped_declarations() {
     // DefaultClause : default : StatementListopt
     // 1. If the StatementList is present, return the LexicallyScopedDeclarations of StatementList.
     // 2. Return a new empty List.
+
+    for ele in cases {
+        ele.consequent.lexically_scoped_declarations(&mut |decl| {
+            lexically_scoped_declarations.push(decl);
+        });
+    }
+    lexically_scoped_declarations
 }
 
 pub(crate) fn function_body_lexically_scoped_declarations<'body>(
