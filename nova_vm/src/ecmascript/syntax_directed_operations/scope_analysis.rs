@@ -387,6 +387,7 @@ impl<'a> LexicallyScopedDeclarations<'a> for Statement<'a> {
                 // VariableStatement
                 if decl.kind.is_var() {
                     // 2. Return a new empty List.
+                    return;
                 }
                 // 1. Return a List whose sole element is DeclarationPart of Declaration.
                 for decl in &decl.declarations {
