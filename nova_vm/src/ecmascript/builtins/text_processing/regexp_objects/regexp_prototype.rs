@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::types::InternalSlots;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -204,18 +203,11 @@ impl RegExpPrototype {
         let mut code_units: [u8; 7] = [0; 7];
         let mut i: usize = 0;
 
-        let Some(obj) = Object::internal_prototype(r, agent) else {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "value is not object",
-                gc.nogc(),
-            ));
-        };
-
         // 4. Let hasIndices be ToBoolean(? Get(R, "hasIndices")).
+        let r = r.scope(agent, gc.nogc());
         let has_indices_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.hasIndices.into(),
             gc.reborrow(),
         )?;
@@ -230,7 +222,7 @@ impl RegExpPrototype {
         // 6. Let global be ToBoolean(? Get(R, "global")).
         let global_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.global.into(),
             gc.reborrow(),
         )?;
@@ -245,7 +237,7 @@ impl RegExpPrototype {
         // 8. Let ignoreCase be ToBoolean(? Get(R, "ignoreCase")).
         let ignore_case_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.ignoreCase.into(),
             gc.reborrow(),
         )?;
@@ -260,7 +252,7 @@ impl RegExpPrototype {
         // 10. Let multiline be ToBoolean(? Get(R, "multiline")).
         let mutliline_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.multiline.into(),
             gc.reborrow(),
         )?;
@@ -274,7 +266,7 @@ impl RegExpPrototype {
         // 12. Let dotAll be ToBoolean(? Get(R, "dotAll")).
         let dot_all_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.dotAll.into(),
             gc.reborrow(),
         )?;
@@ -289,7 +281,7 @@ impl RegExpPrototype {
         // 14. Let unicode be ToBoolean(? Get(R, "unicode")).
         let unicode_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.unicode.into(),
             gc.reborrow(),
         )?;
@@ -304,7 +296,7 @@ impl RegExpPrototype {
         // 16. Let unicodeSets be ToBoolean(? Get(R, "unicodeSets")).
         let unicode_sets_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.unicodeSets.into(),
             gc.reborrow(),
         )?;
@@ -319,7 +311,7 @@ impl RegExpPrototype {
         // 18. Let sticky be ToBoolean(? Get(R, "sticky")).
         let sticky_args = get(
             agent,
-            obj,
+            r.get(agent),
             BUILTIN_STRING_MEMORY.sticky.into(),
             gc.reborrow(),
         )?;
