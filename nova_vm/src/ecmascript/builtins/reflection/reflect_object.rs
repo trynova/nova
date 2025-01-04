@@ -162,18 +162,25 @@ impl ReflectObject {
         let arguments_list = arguments.get(2);
 
         // 1. If IsCallable(target) is false, throw a TypeError exception.
-        let Some(target) = is_callable(target) else {
+        let Some(target) = is_callable(target, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Value is not callable",
                 gc.nogc(),
             ));
         };
+        let target = target.scope(agent, gc.nogc());
         // 2. Let args be ? CreateListFromArrayLike(argumentsList).
         let args = create_list_from_array_like(agent, arguments_list, gc.reborrow())?;
         // TODO: 3. Perform PrepareForTailCall().
         // 4. Return ? Call(target, thisArgument, args)
-        call_function(agent, target, this_argument, Some(ArgumentsList(&args)), gc)
+        call_function(
+            agent,
+            target.get(agent),
+            this_argument,
+            Some(ArgumentsList(&args)),
+            gc,
+        )
     }
 
     /// [28.1.2 Reflect.construct ( target, argumentsList \[ , newTarget \] )](https://tc39.es/ecma262/#sec-reflect.construct)

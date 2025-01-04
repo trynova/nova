@@ -135,7 +135,7 @@ mod private {
     impl RootableSealed for EmbedderObject {}
     impl RootableSealed for Error {}
     impl RootableSealed for FinalizationRegistry {}
-    impl RootableSealed for Function {}
+    impl RootableSealed for Function<'_> {}
     impl RootableSealed for Generator {}
     impl RootableSealed for Map {}
     impl RootableSealed for MapIterator {}

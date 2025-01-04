@@ -83,8 +83,8 @@ impl IntoObject for ECMAScriptFunction<'_> {
     }
 }
 
-impl IntoFunction for ECMAScriptFunction<'_> {
-    fn into_function(self) -> Function {
+impl<'a> IntoFunction<'a> for ECMAScriptFunction<'a> {
+    fn into_function(self) -> Function<'a> {
         self.into()
     }
 }
@@ -113,10 +113,10 @@ impl TryFrom<Object> for ECMAScriptFunction<'_> {
     }
 }
 
-impl TryFrom<Function> for ECMAScriptFunction<'_> {
+impl<'a> TryFrom<Function<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Function) -> Result<Self, Self::Error> {
+    fn try_from(value: Function<'a>) -> Result<Self, Self::Error> {
         if let Function::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -137,9 +137,9 @@ impl From<ECMAScriptFunction<'_>> for Object {
     }
 }
 
-impl From<ECMAScriptFunction<'_>> for Function {
-    fn from(val: ECMAScriptFunction) -> Self {
-        Function::ECMAScriptFunction(val.unbind())
+impl<'a> From<ECMAScriptFunction<'a>> for Function<'a> {
+    fn from(val: ECMAScriptFunction<'a>) -> Self {
+        Function::ECMAScriptFunction(val)
     }
 }
 
@@ -368,7 +368,7 @@ impl InternalSlots for ECMAScriptFunction<'_> {
     }
 }
 
-impl FunctionInternalProperties for ECMAScriptFunction<'_> {
+impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
     fn get_name(self, agent: &Agent) -> String<'static> {
         agent[self].name.unwrap_or(String::EMPTY_STRING)
     }
@@ -553,6 +553,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         new_target: Function,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
+        let mut new_target = new_target.bind(gc.nogc());
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self]
             .ecmascript_function
@@ -560,13 +561,16 @@ impl InternalMethods for ECMAScriptFunction<'_> {
             .is_derived_class();
         // 3. If kind is BASE, then
         let this_argument = if is_base {
+            let scoped_new_target = new_target.scope(agent, gc.nogc());
             // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
-            Some(ordinary_create_from_constructor(
+            let this_argument = ordinary_create_from_constructor(
                 agent,
-                new_target,
+                new_target.unbind(),
                 ProtoIntrinsics::Object,
                 gc.reborrow(),
-            )?)
+            )?;
+            new_target = scoped_new_target.get(agent).bind(gc.nogc());
+            Some(this_argument)
         } else {
             None
         };
@@ -678,7 +682,7 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
             source_code,
         }),
         // 3. Set the Function of calleeContext to F.
-        function: Some(f.into()),
+        function: Some(f.into_function().unbind()),
         // 5. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 6. Set the ScriptOrModule of calleeContext to F.[[ScriptOrModule]].
@@ -960,9 +964,9 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
 /// function object or a built-in function object) and optional arguments
 /// writablePrototype (a Boolean) and prototype (an Object) and returns
 /// UNUSED. It converts F into a constructor.
-pub(crate) fn make_constructor(
+pub(crate) fn make_constructor<'a>(
     agent: &mut Agent,
-    function: impl IntoFunction + InternalMethods,
+    function: impl IntoFunction<'a> + InternalMethods,
     writable_prototype: Option<bool>,
     prototype: Option<OrdinaryObject>,
 ) {
@@ -1051,9 +1055,9 @@ pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object:
 /// The abstract operation SetFunctionName takes arguments F (a function
 /// object) and name (a property key or Private Name) and optional argument
 /// prefix (a String) and returns UNUSED. It adds a "name" property to F.
-pub(crate) fn set_function_name(
+pub(crate) fn set_function_name<'a>(
     agent: &mut Agent,
-    function: impl IntoFunction,
+    function: impl IntoFunction<'a>,
     name: PropertyKey,
     _prefix: Option<String>,
     gc: NoGcScope,

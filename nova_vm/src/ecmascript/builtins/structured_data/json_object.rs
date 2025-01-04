@@ -133,7 +133,8 @@ impl JSONObject {
         );
 
         // 11. If IsCallable(reviver) is true, then
-        if let Some(reviver) = is_callable(reviver) {
+        if let Some(reviver) = is_callable(reviver, gc.nogc()) {
+            let reviver = reviver.bind(gc.nogc());
             // a. Let root be OrdinaryObjectCreate(%Object.prototype%).
             let Object::Object(root) =
                 ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None)
@@ -156,6 +157,7 @@ impl JSONObject {
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
             let root = root.into_object().scope(agent, gc.nogc());
+            let reviver = reviver.scope(agent, gc.nogc());
             return internalize_json_property(agent, root, root_name, reviver, gc.reborrow());
         }
 
@@ -213,7 +215,7 @@ fn internalize_json_property<'a>(
     agent: &mut Agent,
     holder: Scoped<'a, Object>,
     name: Scoped<'a, PropertyKey<'static>>,
-    reviver: Function,
+    reviver: Scoped<'a, Function<'static>>,
     mut gc: GcScope<'_, 'a>,
 ) -> JsResult<Value> {
     // 1. Let val be ? Get(holder, name).
@@ -239,7 +241,7 @@ fn internalize_json_property<'a>(
                     agent,
                     scoped_val.clone(),
                     prop.clone(),
-                    reviver,
+                    reviver.clone(),
                     gc.reborrow(),
                 )?;
 
@@ -277,7 +279,7 @@ fn internalize_json_property<'a>(
                     agent,
                     scoped_val.clone(),
                     p.clone(),
-                    reviver,
+                    reviver.clone(),
                     gc.reborrow(),
                 )?;
 
@@ -308,7 +310,7 @@ fn internalize_json_property<'a>(
     let name = name.get(agent).convert_to_value(agent, gc.nogc());
     call_function(
         agent,
-        reviver,
+        reviver.get(agent),
         holder.get(agent).into_value(),
         Some(ArgumentsList(&[name, val])),
         gc.reborrow(),

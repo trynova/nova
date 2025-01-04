@@ -92,8 +92,8 @@ impl IntoObject for BoundFunction<'_> {
     }
 }
 
-impl IntoFunction for BoundFunction<'_> {
-    fn into_function(self) -> Function {
+impl<'a> IntoFunction<'a> for BoundFunction<'a> {
+    fn into_function(self) -> Function<'a> {
         Function::BoundFunction(self.unbind())
     }
 }
@@ -112,8 +112,20 @@ pub(crate) fn bound_function_create<'a>(
     bound_args: &[Value],
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<BoundFunction<'a>> {
+    let mut target_function = target_function.bind(gc.nogc());
     // 1. Let proto be ? targetFunction.[[GetPrototypeOf]]().
-    let proto = target_function.internal_get_prototype_of(agent, gc.reborrow())?;
+    let proto = if let TryResult::Continue(proto) =
+        target_function.try_get_prototype_of(agent, gc.nogc())
+    {
+        proto
+    } else {
+        let scoped_target_function = target_function.scope(agent, gc.nogc());
+        let proto = target_function
+            .unbind()
+            .internal_get_prototype_of(agent, gc.reborrow())?;
+        target_function = scoped_target_function.get(agent).bind(gc.nogc());
+        proto
+    };
     // 2. Let internalSlotsList be the list-concatenation of « [[Prototype]],
     //     [[Extensible]] » and the internal slots listed in Table 31.
     // 3. Let obj be MakeBasicObject(internalSlotsList).
@@ -133,7 +145,7 @@ pub(crate) fn bound_function_create<'a>(
     let data = BoundFunctionHeapData {
         object_index: None,
         length: 0,
-        bound_target_function: target_function,
+        bound_target_function: target_function.unbind(),
         bound_this,
         bound_arguments: elements,
         name: None,
@@ -148,7 +160,7 @@ pub(crate) fn bound_function_create<'a>(
     Ok(obj)
 }
 
-impl FunctionInternalProperties for BoundFunction<'_> {
+impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     fn get_name(self, agent: &Agent) -> String<'static> {
         agent[self].name.unwrap_or(String::EMPTY_STRING)
     }
@@ -338,6 +350,7 @@ impl InternalMethods for BoundFunction<'_> {
         new_target: Function,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
+        let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Assert: IsConstructor(target) is true.
@@ -365,7 +378,7 @@ impl InternalMethods for BoundFunction<'_> {
             agent,
             target,
             Some(ArgumentsList(&args)),
-            Some(new_target),
+            Some(new_target.unbind()),
             gc.reborrow(),
         )
     }

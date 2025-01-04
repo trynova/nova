@@ -180,7 +180,7 @@ impl VmIterator {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, value, method, gc)?;
+                let js_iterator = get_iterator_from_method(agent, value, method.unbind(), gc)?;
                 Ok(VmIterator::GenericIterator(js_iterator))
             }
         }

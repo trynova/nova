@@ -133,6 +133,7 @@ pub(crate) fn create_dynamic_function<'a>(
     body_arg: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<ECMAScriptFunction<'a>> {
+    let mut constructor = constructor.bind(gc.nogc());
     // 11. Perform ? HostEnsureCanCompileStrings(currentRealm, parameterStrings, bodyString, false).
     agent
         .host_hooks
@@ -164,6 +165,7 @@ pub(crate) fn create_dynamic_function<'a>(
         } else {
             // Some of the parameters are non-primitives. This means we'll be
             // calling into JavaScript during this work.
+            let scoped_constructor = constructor.scope(agent, gc.nogc());
             let mut parameter_string_roots = Vec::with_capacity(parameter_args.len());
             for param in parameter_args {
                 // Each parameter has to be rooted in case the next parameter
@@ -183,6 +185,7 @@ pub(crate) fn create_dynamic_function<'a>(
                 .map(|param_root| param_root.get(agent).bind(gc))
                 .collect::<Vec<_>>();
 
+            constructor = scoped_constructor.get(agent).bind(gc);
             parameter_strings_vec = parameter_strings;
             parameter_strings_slice = &parameter_strings_vec;
         }
@@ -281,7 +284,7 @@ pub(crate) fn create_dynamic_function<'a>(
     let params = OrdinaryFunctionCreateParams {
         function_prototype: get_prototype_from_constructor(
             agent,
-            constructor,
+            constructor.unbind(),
             kind.intrinsic_prototype(),
             gc.reborrow(),
         )?,

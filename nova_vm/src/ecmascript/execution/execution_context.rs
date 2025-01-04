@@ -73,7 +73,7 @@ pub(crate) struct ExecutionContext {
     /// then the value of this component is that function object. If the
     /// context is evaluating the code of a Script or Module, the value is
     /// null.
-    pub function: Option<Function>,
+    pub function: Option<Function<'static>>,
 
     /// ### Realm
     ///

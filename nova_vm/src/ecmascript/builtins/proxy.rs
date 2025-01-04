@@ -154,7 +154,9 @@ impl InternalMethods for Proxy {
                 handler,
                 BUILTIN_STRING_MEMORY.getPrototypeOf.into(),
                 gc.reborrow(),
-            )?;
+            )?
+            .map(Function::unbind);
+            let trap = trap.map(|t| t.bind(gc.nogc()));
             handler = scoped_handler.get(agent).bind(gc.nogc());
             trap
         };
@@ -168,7 +170,7 @@ impl InternalMethods for Proxy {
         // 7. Let handlerProto be ? Call(trap, handler, « target »).
         let handler_proto = call_function(
             agent,
-            trap,
+            trap.unbind(),
             handler.into(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
@@ -261,7 +263,9 @@ impl InternalMethods for Proxy {
                 handler,
                 BUILTIN_STRING_MEMORY.isExtensible.into(),
                 gc.reborrow(),
-            )?;
+            )?
+            .map(Function::unbind);
+            let trap = trap.map(|t| t.bind(gc.nogc()));
             handler = scoped_handler.get(agent).bind(gc.nogc());
             trap
         };
@@ -275,7 +279,7 @@ impl InternalMethods for Proxy {
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
         let argument = call_function(
             agent,
-            trap,
+            trap.unbind(),
             handler.into_value(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
@@ -332,7 +336,9 @@ impl InternalMethods for Proxy {
                 handler,
                 BUILTIN_STRING_MEMORY.preventExtensions.into(),
                 gc.reborrow(),
-            )?;
+            )?
+            .map(Function::unbind);
+            let trap = trap.map(|f| f.bind(gc.nogc()));
             handler = scoped_handler.get(agent).bind(gc.nogc());
             trap
         };
@@ -346,7 +352,7 @@ impl InternalMethods for Proxy {
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target »)).
         let argument = call_function(
             agent,
-            trap,
+            trap.unbind(),
             handler.into_value(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
@@ -475,11 +481,14 @@ impl InternalMethods for Proxy {
                 handler,
                 BUILTIN_STRING_MEMORY.get.into(),
                 gc.reborrow(),
-            )?;
-            handler = scoped_handler.get(agent).bind(gc.nogc());
-            receiver = scoped_receiver.get(agent).bind(gc.nogc());
-            target = scoped_target.get(agent).bind(gc.nogc());
-            property_key = scoped_property_key.get(agent).bind(gc.nogc());
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            receiver = scoped_receiver.get(agent).bind(gc);
+            target = scoped_target.get(agent).bind(gc);
+            property_key = scoped_property_key.get(agent).bind(gc);
             trap
         };
         // 6. If trap is undefined, then
@@ -491,7 +500,7 @@ impl InternalMethods for Proxy {
         let p = property_key.convert_to_value(agent, gc.nogc());
         let trap_result = call_function(
             agent,
-            trap,
+            trap.unbind(),
             handler.into_value(),
             Some(ArgumentsList(&[target.into_value(), p, receiver])),
             gc.reborrow(),

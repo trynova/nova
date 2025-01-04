@@ -177,8 +177,8 @@ impl IntoObject for BuiltinFunction<'_> {
     }
 }
 
-impl IntoFunction for BuiltinFunction<'_> {
-    fn into_function(self) -> Function {
+impl<'a> IntoFunction<'a> for BuiltinFunction<'a> {
+    fn into_function(self) -> Function<'a> {
         self.into()
     }
 }
@@ -195,9 +195,9 @@ impl From<BuiltinFunction<'_>> for Object {
     }
 }
 
-impl From<BuiltinFunction<'_>> for Function {
-    fn from(value: BuiltinFunction) -> Self {
-        Function::BuiltinFunction(value.unbind())
+impl<'a> From<BuiltinFunction<'a>> for Function<'a> {
+    fn from(value: BuiltinFunction<'a>) -> Self {
+        Function::BuiltinFunction(value)
     }
 }
 
@@ -235,7 +235,7 @@ impl IndexMut<BuiltinFunction<'_>> for Vec<Option<BuiltinFunctionHeapData>> {
     }
 }
 
-impl FunctionInternalProperties for BuiltinFunction<'_> {
+impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
     fn get_name(self, agent: &Agent) -> String<'static> {
         agent[self].initial_name.unwrap_or(String::EMPTY_STRING)
     }
@@ -444,7 +444,7 @@ pub(crate) fn builtin_call_or_construct(
         // 8. Perform any necessary implementation-defined initialization of calleeContext.
         ecmascript_code: None,
         // 4. Set the Function of calleeContext to F.
-        function: Some(f.into()),
+        function: Some(f.into_function().unbind()),
         // 6. Set the Realm of calleeContext to calleeRealm.
         realm: callee_realm,
         // 7. Set the ScriptOrModule of calleeContext to null.

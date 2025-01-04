@@ -88,13 +88,14 @@ impl SetConstructor {
         // 5. Let adder be ? Get(set, "add").
         let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into(), gc.reborrow())?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
-        let Some(adder) = is_callable(adder) else {
+        let Some(adder) = is_callable(adder, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid adder function",
                 gc.nogc(),
             ));
         };
+        let adder = adder.scope(agent, gc.nogc());
         if let Value::Array(iterable) = iterable {
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)
@@ -181,7 +182,7 @@ impl SetConstructor {
             // c. Let status be Completion(Call(adder, set, « next »)).
             let status = call_function(
                 agent,
-                adder,
+                adder.get(agent),
                 set.into_value(),
                 Some(ArgumentsList(&[next])),
                 gc.reborrow(),

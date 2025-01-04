@@ -95,7 +95,7 @@ pub(crate) fn to_primitive<'a>(
             // iv. Let result be ? Call(exoticToPrim, input, « hint »).
             let result: Value = call_function(
                 agent,
-                exotic_to_prim,
+                exotic_to_prim.unbind(),
                 input.into(),
                 Some(ArgumentsList(&[hint.into()])),
                 gc.reborrow(),
@@ -156,7 +156,7 @@ pub(crate) fn to_primitive_object<'a>(
         // iv. Let result be ? Call(exoticToPrim, input, « hint »).
         let result: Value = call_function(
             agent,
-            exotic_to_prim,
+            exotic_to_prim.unbind(),
             input.into(),
             Some(ArgumentsList(&[hint.into()])),
             gc.reborrow(),
@@ -212,9 +212,10 @@ pub(crate) fn ordinary_to_primitive<'a>(
         // a. Let method be ? Get(O, name).
         let method = get(agent, o, name, gc.reborrow())?;
         // b. If IsCallable(method) is true, then
-        if let Some(method) = is_callable(method) {
+        if let Some(method) = is_callable(method, gc.nogc()) {
             // i. Let result be ? Call(method, O).
-            let result: Value = call_function(agent, method, o.into(), None, gc.reborrow())?;
+            let result: Value =
+                call_function(agent, method.unbind(), o.into(), None, gc.reborrow())?;
             // ii. If result is not an Object, return result.
             if let Ok(result) = Primitive::try_from(result) {
                 return Ok(result);

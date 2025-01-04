@@ -78,18 +78,18 @@ pub(crate) enum ObjectEntryPropertyDescriptor {
         configurable: bool,
     },
     ReadOnly {
-        get: Function,
+        get: Function<'static>,
         enumerable: bool,
         configurable: bool,
     },
     WriteOnly {
-        set: Function,
+        set: Function<'static>,
         enumerable: bool,
         configurable: bool,
     },
     ReadWrite {
-        get: Function,
-        set: Function,
+        get: Function<'static>,
+        set: Function<'static>,
         enumerable: bool,
         configurable: bool,
     },

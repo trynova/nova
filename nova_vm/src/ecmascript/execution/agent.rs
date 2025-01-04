@@ -425,12 +425,13 @@ impl Agent {
     }
 
     /// Panics if no active function object exists.
-    pub(crate) fn active_function_object(&self) -> Function {
+    pub(crate) fn active_function_object<'a>(&self, gc: NoGcScope<'a, '_>) -> Function<'a> {
         self.execution_context_stack
             .last()
             .unwrap()
             .function
             .unwrap()
+            .bind(gc)
     }
 
     /// Get access to the Host data, useful to share state between calls of built-in functions.

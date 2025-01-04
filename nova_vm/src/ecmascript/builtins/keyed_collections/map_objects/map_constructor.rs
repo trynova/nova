@@ -109,7 +109,7 @@ impl MapConstructor {
                 gc.reborrow(),
             )?;
             // 6. If IsCallable(adder) is false, throw a TypeError exception.
-            let Some(adder) = is_callable(adder) else {
+            let Some(adder) = is_callable(adder, gc.nogc()) else {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Map.prototype.set is not callable",
@@ -117,8 +117,14 @@ impl MapConstructor {
                 ));
             };
             // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
-            add_entries_from_iterable_map_constructor(agent, map, iterable, adder, gc.reborrow())
-                .map(|result| result.into_value())
+            add_entries_from_iterable_map_constructor(
+                agent,
+                map,
+                iterable,
+                adder.unbind(),
+                gc.reborrow(),
+            )
+            .map(|result| result.into_value())
         }
     }
 
@@ -165,10 +171,12 @@ pub fn add_entries_from_iterable_map_constructor(
     adder: Function,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Map> {
-    if let Function::BuiltinFunction(adder) = adder {
-        if agent[adder].behaviour == MapPrototypeSet::BEHAVIOUR {
+    let mut adder = adder.bind(gc.nogc());
+    if let Function::BuiltinFunction(bf) = adder {
+        if agent[bf].behaviour == MapPrototypeSet::BEHAVIOUR {
             // Normal Map.prototype.set
             if let Value::Array(iterable) = iterable {
+                let scoped_adder = bf.scope(agent, gc.nogc());
                 let using_iterator = get_method(
                     agent,
                     iterable.into_value(),
@@ -264,11 +272,18 @@ pub fn add_entries_from_iterable_map_constructor(
                         return Ok(target);
                     }
                 }
+                adder = scoped_adder.get(agent).bind(gc.nogc()).into_function();
             }
         }
     }
 
-    add_entries_from_iterable_map_constructor(agent, target, iterable, adder, gc.reborrow())
+    add_entries_from_iterable_map_constructor(
+        agent,
+        target,
+        iterable,
+        adder.unbind(),
+        gc.reborrow(),
+    )
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -291,6 +306,7 @@ pub(crate) fn add_entries_from_iterable(
     adder: Function,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
+    let adder = adder.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
     let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
     // 2. Repeat,
@@ -323,7 +339,7 @@ pub(crate) fn add_entries_from_iterable(
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         let status = call_function(
             agent,
-            adder,
+            adder.get(agent),
             target.into_value(),
             Some(ArgumentsList(&[k, v])),
             gc.reborrow(),

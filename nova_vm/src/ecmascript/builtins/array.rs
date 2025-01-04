@@ -23,8 +23,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            Function, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -383,6 +383,7 @@ impl InternalMethods for Array {
                     elements,
                     index,
                     property_descriptor,
+                    gc,
                 ));
             }
         } else {
@@ -509,7 +510,7 @@ impl InternalMethods for Array {
                     .get_descriptors_and_slice(elements.into());
                 if let Some(descriptors) = descriptors {
                     if let Some(descriptor) = descriptors.get(&index) {
-                        if let Some(_getter) = descriptor.getter_function() {
+                        if let Some(_getter) = descriptor.getter_function(gc) {
                             // 7. Return ? Call(getter, Receiver).
                             // return call_function(agent, getter, receiver, None, gc);
                             return TryResult::Break(());
@@ -571,9 +572,9 @@ impl InternalMethods for Array {
                     .get_descriptors_and_slice(elements.into());
                 if let Some(descriptors) = descriptors {
                     if let Some(descriptor) = descriptors.get(&index) {
-                        if let Some(getter) = descriptor.getter_function() {
+                        if let Some(getter) = descriptor.getter_function(gc.nogc()) {
                             // 7. Return ? Call(getter, Receiver).
-                            return call_function(agent, getter, receiver, None, gc);
+                            return call_function(agent, getter.unbind(), receiver, None, gc);
                         }
                     }
                 }
@@ -722,6 +723,7 @@ fn ordinary_define_own_property_for_array(
     elements: SealableElementsVector,
     index: u32,
     descriptor: PropertyDescriptor,
+    gc: NoGcScope,
 ) -> bool {
     let descriptor_value = descriptor.value;
 
@@ -811,8 +813,8 @@ fn ordinary_define_own_property_for_array(
     let current_is_data_descriptor = current_descriptor.map_or(false, |c| c.is_data_descriptor());
     let current_is_accessor_descriptor =
         current_descriptor.map_or(false, |c| c.is_accessor_descriptor());
-    let current_getter = current_descriptor.and_then(|c| c.getter_function());
-    let current_setter = current_descriptor.and_then(|c| c.setter_function());
+    let current_getter = current_descriptor.and_then(|c| c.getter_function(gc));
+    let current_setter = current_descriptor.and_then(|c| c.setter_function(gc));
 
     // 5. If current.[[Configurable]] is false, then
     if !current_configurable {
@@ -953,8 +955,8 @@ fn ordinary_define_own_property_for_array(
         let mut descriptor = descriptor;
         let result_value = descriptor.value.or(current_value);
         descriptor.writable = descriptor.writable.or(current_writable);
-        descriptor.get = descriptor.get.or(current_getter);
-        descriptor.set = descriptor.set.or(current_setter);
+        descriptor.get = descriptor.get.or(current_getter).map(Function::unbind);
+        descriptor.set = descriptor.set.or(current_setter).map(Function::unbind);
         descriptor.enumerable = Some(descriptor.enumerable.unwrap_or(current_enumerable));
         descriptor.configurable = Some(descriptor.configurable.unwrap_or(current_configurable));
         let (descriptors, slice) = agent

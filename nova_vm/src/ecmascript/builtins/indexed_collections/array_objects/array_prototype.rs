@@ -8,7 +8,7 @@ use small_string::SmallString;
 
 use crate::ecmascript::abstract_operations::type_conversion::try_to_string;
 use crate::engine::context::GcScope;
-use crate::engine::TryResult;
+use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -663,13 +663,14 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o, gc.reborrow())?;
         let callback_fn = arguments.get(0);
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not a function",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
         let this_arg = arguments.get(1);
         // 4. Let k be 0.
         let mut k = 0;
@@ -687,7 +688,7 @@ impl ArrayPrototype {
                 let f_k = Number::try_from(k).unwrap().into_value();
                 let test_result = call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     this_arg,
                     Some(ArgumentsList(&[k_value, f_k])),
                     gc.reborrow(),
@@ -870,13 +871,14 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o, gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o, 0, gc.reborrow())?;
         // 5. Let k be 0.
@@ -896,7 +898,7 @@ impl ArrayPrototype {
                 // ii. Let selected be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
                 let result = call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     this_arg,
                     Some(ArgumentsList(&[
                         k_value,
@@ -1087,13 +1089,14 @@ impl ArrayPrototype {
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, o, gc.reborrow())? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
-        let Some(mapper_function) = is_callable(mapper_function) else {
+        let Some(mapper_function) = is_callable(mapper_function, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Mapper function is not callable",
                 gc.nogc(),
             ));
         };
+        let mapper_function = mapper_function.scope(agent, gc.nogc());
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o, 0, gc.reborrow())?;
         // 5. Perform ? FlattenIntoArray(A, O, sourceLen, 0, 1, mapperFunction, thisArg).
@@ -1160,13 +1163,14 @@ impl ArrayPrototype {
         let callback_fn = arguments.get(0);
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
 
         let this_arg = arguments.get(0);
         // 4. Let k be 0.
@@ -1184,7 +1188,7 @@ impl ArrayPrototype {
                 // ii. Perform ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
                 call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     this_arg,
                     Some(ArgumentsList(&[
                         k_value,
@@ -1724,13 +1728,14 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o, gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
         // 4. Let A be ? ArraySpeciesCreate(O, len).
         let a = array_species_create(agent, o, len as usize, gc.reborrow())?;
         // 5. Let k be 0.
@@ -1748,7 +1753,7 @@ impl ArrayPrototype {
                 // ii. Let mappedValue be ? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »).
                 let mapped_value = call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     this_arg,
                     Some(ArgumentsList(&[
                         k_value,
@@ -1989,13 +1994,14 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o, gc.reborrow())?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
@@ -2063,7 +2069,7 @@ impl ArrayPrototype {
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
                 accumulator = call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList(&[
                         accumulator,
@@ -2139,13 +2145,14 @@ impl ArrayPrototype {
         let len = length_of_array_like(agent, o, gc.reborrow())?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
@@ -2212,7 +2219,7 @@ impl ArrayPrototype {
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
                 accumulator = call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList(&[
                         accumulator,
@@ -2671,13 +2678,14 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o, gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn) else {
+        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
                 gc.nogc(),
             ));
         };
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
@@ -2693,7 +2701,7 @@ impl ArrayPrototype {
                 // ii. Let testResult be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
                 let test_result = call_function(
                     agent,
-                    callback_fn,
+                    callback_fn.get(agent),
                     this_arg,
                     Some(ArgumentsList(&[
                         k_value,
@@ -2748,8 +2756,8 @@ impl ArrayPrototype {
         // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
         let comparator = if comparator.is_undefined() {
             None
-        } else if let Some(comparator) = is_callable(comparator) {
-            Some(comparator)
+        } else if let Some(comparator) = is_callable(comparator, gc.nogc()) {
+            Some(comparator.scope(agent, gc.nogc()))
         } else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -3036,8 +3044,8 @@ impl ArrayPrototype {
         // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
         let comparator = if comparator.is_undefined() {
             None
-        } else if let Some(comparator) = is_callable(comparator) {
-            Some(comparator)
+        } else if let Some(comparator) = is_callable(comparator, gc.nogc()) {
+            Some(comparator.scope(agent, gc.nogc()))
         } else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -3100,7 +3108,7 @@ impl ArrayPrototype {
             gc.reborrow(),
         )?;
         // 3. If IsCallable(func) is false, set func to the intrinsic function %Object.prototype.toString%.
-        let func = is_callable(func).unwrap_or_else(|| {
+        let func = is_callable(func, gc.nogc()).unwrap_or_else(|| {
             agent
                 .current_realm()
                 .intrinsics()
@@ -3108,7 +3116,7 @@ impl ArrayPrototype {
                 .into_function()
         });
         // 4. Return ? Call(func, array).
-        call_function(agent, func, array.into_value(), None, gc)
+        call_function(agent, func.unbind(), array.into_value(), None, gc)
     }
 
     /// ### [23.1.3.37 Array.prototype.unshift ( ...items )](https://tc39.es/ecma262/#sec-array.prototype.unshift)
@@ -3514,17 +3522,18 @@ fn find_via_predicate(
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<(i64, Value)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
-    let Some(predicate) = is_callable(predicate) else {
+    let Some(predicate) = is_callable(predicate, gc.nogc()) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Predicate is not a function",
             gc.nogc(),
         ));
     };
+    let predicate = predicate.scope(agent, gc.nogc());
     // 4. For each integer k of indices, do
     let check = |agent: &mut Agent,
                  o: Object,
-                 predicate: Function,
+                 predicate: Scoped<'_, Function<'static>>,
                  this_arg: Value,
                  k: i64,
                  mut gc: GcScope<'_, '_>|
@@ -3534,10 +3543,11 @@ fn find_via_predicate(
         // b. NOTE: If O is a TypedArray, the following invocation of Get will return a normal completion.
         // c. Let kValue be ? Get(O, Pk).
         let k_value = get(agent, o, pk, gc.reborrow())?;
+
         // d. Let testResult be ? Call(predicate, thisArg, « kValue, 𝔽(k), O »).
         let test_result = call_function(
             agent,
-            predicate,
+            predicate.get(agent),
             this_arg,
             Some(ArgumentsList(&[
                 Number::try_from(k).unwrap().into_value(),
@@ -3557,7 +3567,7 @@ fn find_via_predicate(
     if ascending {
         // a. Let indices be a List of the integers in the interval from 0 (inclusive) to len (exclusive), in ascending order.
         for k in 0..len {
-            if let Some(result) = check(agent, o, predicate, this_arg, k, gc.reborrow())? {
+            if let Some(result) = check(agent, o, predicate.clone(), this_arg, k, gc.reborrow())? {
                 return Ok(result);
             }
         }
@@ -3565,7 +3575,7 @@ fn find_via_predicate(
         // 3. Else,
         // a. Let indices be a List of the integers in the interval from 0 (inclusive) to len (exclusive), in descending order.
         for k in (0..len).rev() {
-            if let Some(result) = check(agent, o, predicate, this_arg, k, gc.reborrow())? {
+            if let Some(result) = check(agent, o, predicate.clone(), this_arg, k, gc.reborrow())? {
                 return Ok(result);
             }
         }
@@ -3589,7 +3599,7 @@ fn flatten_into_array(
     source_len: usize,
     start: usize,
     depth: Option<usize>,
-    mapper_function: Option<Function>,
+    mapper_function: Option<Scoped<'_, Function<'static>>>,
     this_arg: Option<Value>,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<usize> {
@@ -3615,11 +3625,11 @@ fn flatten_into_array(
         // i. Let element be ? Get(source, P).
         let element = get(agent, source, p, gc.reborrow())?;
         // ii. If mapperFunction is present, then
-        let element = if let Some(mapper_function) = mapper_function {
+        let element = if let Some(mapper_function) = &mapper_function {
             // 1. Set element to ? Call(mapperFunction, thisArg, « element, sourceIndex, source »).
             call_function(
                 agent,
-                mapper_function,
+                mapper_function.get(agent),
                 this_arg.unwrap(),
                 Some(ArgumentsList(&[
                     element,
@@ -3741,7 +3751,7 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
     obj: Object,
     len: usize,
-    comparator: Option<Function>,
+    comparator: Option<Scoped<'_, Function<'static>>>,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Vec<Value>> {
     // 1. Let items be a new empty List.
@@ -3785,7 +3795,7 @@ fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
                 // This is dangerous but we don't have much of a choice.
                 return Ordering::Equal;
             }
-            let result = compare_array_elements(agent, *a, *b, comparator, gc.reborrow());
+            let result = compare_array_elements(agent, *a, *b, comparator.clone(), gc.reborrow());
             let Ok(result) = result else {
                 error = Some(result.unwrap_err());
                 return Ordering::Equal;
@@ -3809,7 +3819,7 @@ fn compare_array_elements(
     agent: &mut Agent,
     x: Value,
     y: Value,
-    comparator: Option<Function>,
+    comparator: Option<Scoped<'_, Function<'static>>>,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Ordering> {
     // 1. If x and y are both undefined, return +0𝔽.
@@ -3827,7 +3837,7 @@ fn compare_array_elements(
         // a. Let v be ? ToNumber(? Call(comparator, undefined, « x, y »)).
         let v = call_function(
             agent,
-            comparator,
+            comparator.get(agent),
             Value::Undefined,
             Some(ArgumentsList(&[x, y])),
             gc.reborrow(),
