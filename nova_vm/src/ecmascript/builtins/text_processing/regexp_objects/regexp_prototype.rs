@@ -200,7 +200,7 @@ impl RegExpPrototype {
         };
 
         // 3. Let codeUnits be a new empty List.
-        let mut code_units: [u8; 7] = [0; 7];
+        let mut code_units: [u8; 8] = [0; 8];
         let mut i: usize = 0;
 
         // 4. Let hasIndices be ToBoolean(? Get(R, "hasIndices")).
