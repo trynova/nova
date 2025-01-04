@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -179,13 +180,152 @@ impl RegExpPrototype {
         todo!()
     }
 
+    /// ### [22.2.6.4 get RegExp.prototype.flags](https://tc39.es/ecma262/#sec-get-regexp.prototype.flags)
     fn get_flags(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        todo!()
+        // 1. Let R be the this value.
+        let r = this_value;
+
+        // 2. If R is not an Object, throw a TypeError exception.
+        let Ok(r) = Object::try_from(r) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "value is not object",
+                gc.nogc(),
+            ));
+        };
+
+        // 3. Let codeUnits be a new empty List.
+        let mut code_units: [u8; 8] = [0; 8];
+        let mut i: usize = 0;
+
+        // 4. Let hasIndices be ToBoolean(? Get(R, "hasIndices")).
+        let r = r.scope(agent, gc.nogc());
+        let has_indices_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.hasIndices.into(),
+            gc.reborrow(),
+        )?;
+        let has_indices = to_boolean(agent, has_indices_args);
+
+        // 5. If hasIndices is true, append the code unit 0x0064 (LATIN SMALL LETTER D) to codeUnits.
+        if has_indices {
+            code_units[i] = b'd';
+            i += 1;
+        };
+
+        // 6. Let global be ToBoolean(? Get(R, "global")).
+        let global_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.global.into(),
+            gc.reborrow(),
+        )?;
+        let global = to_boolean(agent, global_args);
+
+        // 7. If global is true, append the code unit 0x0067 (LATIN SMALL LETTER G) to codeUnits.
+        if global {
+            code_units[i] = b'g';
+            i += 1;
+        };
+
+        // 8. Let ignoreCase be ToBoolean(? Get(R, "ignoreCase")).
+        let ignore_case_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.ignoreCase.into(),
+            gc.reborrow(),
+        )?;
+        let ignore_case = to_boolean(agent, ignore_case_args);
+
+        // 9. If ignoreCase is true, append the code unit 0x0069 (LATIN SMALL LETTER I) to codeUnits.
+        if ignore_case {
+            code_units[i] = b'i';
+            i += 1;
+        };
+
+        // 10. Let multiline be ToBoolean(? Get(R, "multiline")).
+        let mutliline_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.multiline.into(),
+            gc.reborrow(),
+        )?;
+        let multiline = to_boolean(agent, mutliline_args);
+
+        // 11. If multiline is true, append the code unit 0x006D (LATIN SMALL LETTER M) to codeUnits.
+        if multiline {
+            code_units[i] = b'm';
+        };
+
+        // 12. Let dotAll be ToBoolean(? Get(R, "dotAll")).
+        let dot_all_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.dotAll.into(),
+            gc.reborrow(),
+        )?;
+        let dot_all = to_boolean(agent, dot_all_args);
+
+        // 13. If dotAll is true, append the code unit 0x0073 (LATIN SMALL LETTER S) to codeUnits.
+        if dot_all {
+            code_units[i] = b's';
+            i += 1;
+        };
+
+        // 14. Let unicode be ToBoolean(? Get(R, "unicode")).
+        let unicode_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.unicode.into(),
+            gc.reborrow(),
+        )?;
+        let unicode = to_boolean(agent, unicode_args);
+
+        // 15. If unicode is true, append the code unit 0x0075 (LATIN SMALL LETTER U) to codeUnits.
+        if unicode {
+            code_units[i] = b'u';
+            i += 1;
+        };
+
+        // 16. Let unicodeSets be ToBoolean(? Get(R, "unicodeSets")).
+        let unicode_sets_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.unicodeSets.into(),
+            gc.reborrow(),
+        )?;
+        let unicode_sets = to_boolean(agent, unicode_sets_args);
+
+        // 17. If unicodeSets is true, append the code unit 0x0076 (LATIN SMALL LETTER V) to codeUnits.
+        if unicode_sets {
+            code_units[i] = b'v';
+            i += 1;
+        };
+
+        // 18. Let sticky be ToBoolean(? Get(R, "sticky")).
+        let sticky_args = get(
+            agent,
+            r.get(agent),
+            BUILTIN_STRING_MEMORY.sticky.into(),
+            gc.reborrow(),
+        )?;
+        let sticky = to_boolean(agent, sticky_args);
+
+        // 19. If sticky is true, append the code unit 0x0079 (LATIN SMALL LETTER Y) to codeUnits.
+        if sticky {
+            code_units[i] = b'v';
+            i += 1;
+        };
+
+        // 20. Return the String value whose code units are the elements of the List codeUnits. If codeUnits has no elements, the empty String is returned.
+        let res = unsafe { std::str::from_utf8_unchecked(&code_units[0..i]) };
+        Ok(Value::from_string(agent, res.to_string(), gc.nogc()))
     }
 
     fn get_global(
