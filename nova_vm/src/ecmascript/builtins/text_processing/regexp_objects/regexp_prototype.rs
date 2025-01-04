@@ -201,7 +201,8 @@ impl RegExpPrototype {
         };
 
         // 3. Let codeUnits be a new empty List.
-        let mut code_units: [Option<char>; 8] = [None; 8];
+        let mut code_units: [u8; 7] = [0; 7];
+        let mut i: usize = 0;
 
         let Some(obj) = Object::internal_prototype(r, agent) else {
             return Err(agent.throw_exception_with_static_message(
@@ -222,7 +223,8 @@ impl RegExpPrototype {
 
         // 5. If hasIndices is true, append the code unit 0x0064 (LATIN SMALL LETTER D) to codeUnits.
         if has_indices {
-            code_units[0] = Some('d');
+            code_units[i] = b'd';
+            i += 1;
         };
 
         // 6. Let global be ToBoolean(? Get(R, "global")).
@@ -236,7 +238,8 @@ impl RegExpPrototype {
 
         // 7. If global is true, append the code unit 0x0067 (LATIN SMALL LETTER G) to codeUnits.
         if global {
-            code_units[1] = Some('g');
+            code_units[i] = b'g';
+            i += 1;
         };
 
         // 8. Let ignoreCase be ToBoolean(? Get(R, "ignoreCase")).
@@ -250,7 +253,8 @@ impl RegExpPrototype {
 
         // 9. If ignoreCase is true, append the code unit 0x0069 (LATIN SMALL LETTER I) to codeUnits.
         if ignore_case {
-            code_units[2] = Some('i');
+            code_units[i] = b'i';
+            i += 1;
         };
 
         // 10. Let multiline be ToBoolean(? Get(R, "multiline")).
@@ -264,7 +268,7 @@ impl RegExpPrototype {
 
         // 11. If multiline is true, append the code unit 0x006D (LATIN SMALL LETTER M) to codeUnits.
         if multiline {
-            code_units[3] = Some('m');
+            code_units[i] = b'm';
         };
 
         // 12. Let dotAll be ToBoolean(? Get(R, "dotAll")).
@@ -278,7 +282,8 @@ impl RegExpPrototype {
 
         // 13. If dotAll is true, append the code unit 0x0073 (LATIN SMALL LETTER S) to codeUnits.
         if dot_all {
-            code_units[4] = Some('s');
+            code_units[i] = b's';
+            i += 1;
         };
 
         // 14. Let unicode be ToBoolean(? Get(R, "unicode")).
@@ -292,7 +297,8 @@ impl RegExpPrototype {
 
         // 15. If unicode is true, append the code unit 0x0075 (LATIN SMALL LETTER U) to codeUnits.
         if unicode {
-            code_units[5] = Some('u');
+            code_units[i] = b'u';
+            i += 1;
         };
 
         // 16. Let unicodeSets be ToBoolean(? Get(R, "unicodeSets")).
@@ -306,7 +312,8 @@ impl RegExpPrototype {
 
         // 17. If unicodeSets is true, append the code unit 0x0076 (LATIN SMALL LETTER V) to codeUnits.
         if unicode_sets {
-            code_units[6] = Some('v');
+            code_units[i] = b'v';
+            i += 1;
         };
 
         // 18. Let sticky be ToBoolean(? Get(R, "sticky")).
@@ -320,15 +327,13 @@ impl RegExpPrototype {
 
         // 19. If sticky is true, append the code unit 0x0079 (LATIN SMALL LETTER Y) to codeUnits.
         if sticky {
-            code_units[7] = Some('v');
+            code_units[i] = b'v';
+            i += 1;
         };
 
         // 20. Return the String value whose code units are the elements of the List codeUnits. If codeUnits has no elements, the empty String is returned.
-        Ok(Value::from_string(
-            agent,
-            code_units.iter().filter_map(|&opt| opt).collect(),
-            gc.nogc(),
-        ))
+        let res = unsafe { std::str::from_utf8_unchecked(&code_units[0..i]) };
+        Ok(Value::from_string(agent, res.to_string(), gc.nogc()))
     }
 
     fn get_global(
