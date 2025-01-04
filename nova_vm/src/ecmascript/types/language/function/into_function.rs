@@ -5,7 +5,9 @@
 use super::Function;
 use crate::{
     ecmascript::{
-        builtins::ordinary::{ordinary_get_own_property, ordinary_own_property_keys},
+        builtins::ordinary::{
+            ordinary_get_own_property, ordinary_own_property_keys, ordinary_set, ordinary_try_set,
+        },
         execution::{Agent, JsResult},
         types::{
             language::IntoObject, InternalMethods, InternalSlots, ObjectHeapData, OrdinaryObject,
@@ -223,8 +225,7 @@ pub(crate) fn function_try_set<'a>(
         // length and name are not writable
         TryResult::Continue(false)
     } else {
-        func.create_backing_object(agent)
-            .try_set(agent, property_key, value, receiver, gc)
+        ordinary_try_set(agent, func.into_object(), property_key, value, receiver, gc)
     }
 }
 
@@ -245,8 +246,9 @@ pub(crate) fn function_internal_set<'a>(
         // length and name are not writable
         Ok(false)
     } else {
-        func.create_backing_object(agent).internal_set(
+        ordinary_set(
             agent,
+            func.into_object(),
             property_key.unbind(),
             value,
             receiver,
