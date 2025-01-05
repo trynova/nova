@@ -2912,6 +2912,9 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
         ast::Expression::ArrowFunctionExpression(_) => true,
         ast::Expression::FunctionExpression(f) => f.id.is_none(),
         ast::Expression::ClassExpression(f) => f.id.is_none(),
+        ast::Expression::ParenthesizedExpression(x) => {
+            is_anonymous_function_definition(&x.expression)
+        }
         _ => false,
     }
 }
