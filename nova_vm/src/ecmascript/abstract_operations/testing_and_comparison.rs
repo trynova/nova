@@ -422,18 +422,34 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     else {
         // a. If px is a BigInt and py is a String, then
         if px.is_bigint() && py.is_string() {
-            todo!("Finish this")
+            let Ok(px) = BigInt::try_from(px) else {
+                unreachable!()
+            };
+            let Ok(py) = String::try_from(py) else {
+                unreachable!()
+            };
+
             // i. Let ny be StringToBigInt(py).
+            let ny = string_to_big_int(agent, py, gc)?;
             // ii. If ny is undefined, return undefined.
             // iii. Return BigInt::lessThan(px, ny).
+            return Ok(Some(BigInt::less_than(agent, px, ny)));
         }
 
         // b. If px is a String and py is a BigInt, then
         if px.is_string() && py.is_bigint() {
-            todo!("Finish this")
+            let Ok(px) = String::try_from(px) else {
+                unreachable!()
+            };
+            let Ok(py) = BigInt::try_from(py) else {
+                unreachable!()
+            };
+
             // i. Let nx be StringToBigInt(px).
+            let nx = string_to_big_int(agent, px, gc)?;
             // ii. If nx is undefined, return undefined.
             // iii. Return BigInt::lessThan(nx, py).
+            return Ok(Some(BigInt::less_than(agent, nx, py)));
         }
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
