@@ -575,21 +575,17 @@ impl Value {
 
     /// A string conversion that will never throw, meant for things like
     /// displaying exceptions.
-    pub fn try_string_repr<'gc>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'gc, '_>,
-    ) -> TryResult<String<'gc>> {
+    pub fn try_string_repr<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> String<'gc> {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return TryResult::Continue(symbol_idx.descriptive_string(agent, gc));
+            return symbol_idx.descriptive_string(agent, gc);
         };
-        match self.try_to_string(agent, gc)? {
-            Ok(result) => TryResult::Continue(result),
-            Err(_) => {
+        match self.try_to_string(agent, gc) {
+            TryResult::Continue(result) => result.unwrap(),
+            _ => {
                 debug_assert!(self.is_object());
-                TryResult::Continue(BUILTIN_STRING_MEMORY.Object)
+                BUILTIN_STRING_MEMORY.Object
             }
         }
     }

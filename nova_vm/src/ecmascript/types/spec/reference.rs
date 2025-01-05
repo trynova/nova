@@ -374,7 +374,7 @@ pub(crate) fn try_put_value<'a>(
         let succeeded = base_obj.try_set(agent, referenced_name, w, this_value, gc)?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let base_obj_repr = base_obj.into_value().try_string_repr(agent, gc)?;
+            let base_obj_repr = base_obj.into_value().try_string_repr(agent, gc);
             let error_message = format!(
                 "Could not set property '{}' of {}.",
                 referenced_name.as_display(agent),
