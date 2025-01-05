@@ -98,7 +98,7 @@ pub(crate) fn array_species_create(
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Object> {
     // 1. Let isArray be ? IsArray(originalArray).
-    let original_is_array = is_array(agent, original_array.into_value())?;
+    let original_is_array = is_array(agent, original_array.into_value(), gc.nogc())?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.nogc())?;

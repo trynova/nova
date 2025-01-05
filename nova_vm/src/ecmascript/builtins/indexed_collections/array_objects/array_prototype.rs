@@ -3466,7 +3466,7 @@ fn is_concat_spreadable(
             }
         } else {
             // 4. Return ? IsArray(O).
-            let o_is_array = is_array(agent, o.into_value())?;
+            let o_is_array = is_array(agent, o.into_value(), gc.nogc())?;
             if o_is_array {
                 Ok(Some(o))
             } else {
@@ -3646,7 +3646,7 @@ fn flatten_into_array(
         // iv. If depth > 0, then
         if depth.map_or(true, |depth| depth > 0) {
             // 1. Set shouldFlatten to ? IsArray(element).
-            should_flatten = is_array(agent, element)?;
+            should_flatten = is_array(agent, element, gc.nogc())?;
         }
         // v. If shouldFlatten is true, then
         if should_flatten {

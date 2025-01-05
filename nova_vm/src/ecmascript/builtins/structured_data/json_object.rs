@@ -225,7 +225,7 @@ fn internalize_json_property<'a>(
         // a. Let isArray be ? IsArray(val).
         // b. If isArray is true, then
         let scoped_val = val.scope(agent, gc.nogc());
-        if is_array(agent, val)? {
+        if is_array(agent, val, gc.nogc())? {
             // i. Let len be ? LengthOfArrayLike(val).
             let len = length_of_array_like(agent, val, gc.reborrow())?;
             // let val = val.scope(agent, gc.nogc());

@@ -5,6 +5,9 @@
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
 use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
+use crate::ecmascript::builtins::proxy::abstract_operations::{
+    validate_non_revoked_proxy, NonRevokedProxy,
+};
 use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
@@ -52,16 +55,29 @@ pub(crate) fn require_object_coercible(
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array(_agent: &Agent, argument: impl IntoValue) -> JsResult<bool> {
-    // 1. If argument is not an Object, return false.
-    // 2. If argument is an Array exotic object, return true.
-    Ok(matches!(argument.into_value(), Value::Array(_)))
-    // TODO: Proxy
-    // 3. If argument is a Proxy exotic object, then
-    // a. Perform ? ValidateNonRevokedProxy(argument).
-    // b. Let proxyTarget be argument.[[ProxyTarget]].
-    // c. Return ? IsArray(proxyTarget).
-    // 4. Return false.
+pub(crate) fn is_array(
+    agent: &mut Agent,
+    argument: impl IntoValue,
+    gc: NoGcScope<'_, '_>,
+) -> JsResult<bool> {
+    let argument = argument.into_value();
+
+    match argument {
+        // 1. If argument is not an Object, return false.
+        // 2. If argument is an Array exotic object, return true.
+        Value::Array(_) => Ok(true),
+        // 3. If argument is a Proxy exotic object, then
+        Value::Proxy(proxy) => {
+            // a. Perform ? ValidateNonRevokedProxy(argument).
+            // b. Let proxyTarget be argument.[[ProxyTarget]].
+            let NonRevokedProxy { target, handler: _ } =
+                validate_non_revoked_proxy(agent, proxy, gc)?;
+            // c. Return ? IsArray(proxyTarget).
+            is_array(agent, target, gc)
+        }
+        // 4. Return false.
+        _ => Ok(false),
+    }
 }
 
 /// ### [7.2.3 IsCallable ( argument )](https://tc39.es/ecma262/#sec-iscallable)
