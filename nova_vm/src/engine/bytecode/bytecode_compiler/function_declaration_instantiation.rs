@@ -94,6 +94,9 @@ pub(crate) fn instantiation(
     //   e. Set the LexicalEnvironment of calleeContext to env.
     if !strict && has_parameter_expressions {
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i += 1;
+        }
     }
 
     // 21. For each String paramName of parameterNames, do
@@ -212,6 +215,9 @@ pub(crate) fn instantiation(
         // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
         if !strict {
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                *i += 1;
+            }
         }
     } else {
         // 28. Else,

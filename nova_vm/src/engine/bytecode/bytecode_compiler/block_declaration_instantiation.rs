@@ -36,6 +36,9 @@ pub(super) fn instantiation<'a>(
         if !did_enter_declarative_environment {
             did_enter_declarative_environment = true;
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                *i += 1;
+            }
         }
         handle_block_lexically_scoped_declaration(ctx, d);
     });
