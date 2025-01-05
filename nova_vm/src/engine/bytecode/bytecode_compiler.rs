@@ -2303,16 +2303,15 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // 2. Let lhs be ? ResolveBinding(bindingId).
                     let identifier_string =
                         String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier_string,
-                    );
+                    let identifier = ctx.add_identifier(identifier_string);
+                    ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
                     ctx.add_instruction(Instruction::PushReference);
 
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
-                        // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                        ctx.name_identifier = Some(NamedEvaluationParameter::ReferenceStack);
+                        ctx.add_instruction_with_immediate(Instruction::LoadConstant, identifier);
+                        // a. Let value be ? NamedEvaluation of Initializer with argument StackgId.
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                         init.compile(ctx);
                     } else {
                         // 4. Else,
@@ -2361,10 +2360,8 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // 1. Let lhs be ! ResolveBinding(StringValue of BindingIdentifier).
                     let identifier_string =
                         String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
-                    ctx.add_instruction_with_identifier(
-                        Instruction::ResolveBinding,
-                        identifier_string,
-                    );
+                    let identifier = ctx.add_identifier(identifier_string);
+                    ctx.add_instruction_with_immediate(Instruction::ResolveBinding, identifier);
 
                     let Some(init) = &decl.init else {
                         // LexicalBinding : BindingIdentifier
@@ -2387,7 +2384,8 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
                     // 3. If IsAnonymousFunctionDefinition(Initializer) is true, then
                     if is_anonymous_function_definition(init) {
                         // a. Let value be ? NamedEvaluation of Initializer with argument bindingId.
-                        ctx.name_identifier = Some(NamedEvaluationParameter::ReferenceStack);
+                        ctx.add_instruction_with_immediate(Instruction::LoadConstant, identifier);
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Stack);
                         init.compile(ctx);
                     } else {
                         // 4. Else,
@@ -2913,6 +2911,7 @@ fn is_anonymous_function_definition(expression: &ast::Expression) -> bool {
     match expression {
         ast::Expression::ArrowFunctionExpression(_) => true,
         ast::Expression::FunctionExpression(f) => f.id.is_none(),
+        ast::Expression::ClassExpression(f) => f.id.is_none(),
         _ => false,
     }
 }

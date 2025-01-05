@@ -5,7 +5,10 @@
 use oxc_ast::ast::BindingPattern;
 use oxc_syntax::{number::ToJsString, operator::BinaryOperator};
 
-use crate::{ecmascript::execution::Agent, engine::context::NoGcScope};
+use crate::{
+    ecmascript::{execution::Agent, types::String},
+    engine::context::NoGcScope,
+};
 
 use super::{Executable, IndexType};
 
@@ -589,10 +592,14 @@ fn debug_print_constant(
     gc: NoGcScope,
 ) -> std::string::String {
     let constant = exe.fetch_constant(agent, index);
-    constant
-        .try_string_repr(agent, gc)
-        .as_str(agent)
-        .to_string()
+    if let Ok(string_constant) = String::try_from(constant) {
+        format!("\"{}\"", string_constant.as_str(agent))
+    } else {
+        constant
+            .try_string_repr(agent, gc)
+            .as_str(agent)
+            .to_string()
+    }
 }
 
 fn debug_print_identifier(
