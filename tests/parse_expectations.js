@@ -17,6 +17,8 @@ for (const key of exepctationResultKeys) {
   }
 }
 
+baseKeys.sort((a, b) => baseMap.get(b) - baseMap.get(a));
+
 for (const key of baseKeys) {
   print(`'${key}': ${baseMap.get(key)}`);
 }
