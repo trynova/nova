@@ -248,21 +248,7 @@ impl<'a> Vm {
             eprintln!("Instructions:");
             let iter = InstructionIter::new(executable.get_instructions(agent));
             for (ip, instr) in iter {
-                match instr.kind.argument_count() {
-                    0 => {
-                        eprintln!("  {}: {:?}()", ip, instr.kind);
-                    }
-                    1 => {
-                        let arg0 = instr.args.first().unwrap().unwrap();
-                        eprintln!("  {}: {:?}({})", ip, instr.kind, arg0);
-                    }
-                    2 => {
-                        let arg0 = instr.args.first().unwrap().unwrap();
-                        let arg1 = instr.args.last().unwrap();
-                        eprintln!("  {}: {:?}({}, {:?})", ip, instr.kind, arg0, arg1);
-                    }
-                    _ => unreachable!(),
-                }
+                instr.debug_print(agent, ip, executable, gc.nogc());
             }
             eprintln!();
         }

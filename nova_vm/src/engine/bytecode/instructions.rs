@@ -2,9 +2,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use oxc_syntax::operator::BinaryOperator;
+use oxc_ast::ast::BindingPattern;
+use oxc_syntax::{number::ToJsString, operator::BinaryOperator};
 
-use super::IndexType;
+use crate::{
+    ecmascript::{execution::Agent, types::String},
+    engine::context::NoGcScope,
+};
+
+use super::{Executable, IndexType};
 
 /// ## Notes
 ///
@@ -427,8 +433,7 @@ impl Instruction {
     pub fn has_function_expression_index(self) -> bool {
         matches!(
             self,
-            |Self::ClassDefineConstructor| Self::ClassDefineDefaultConstructor
-                | Self::InstantiateArrowFunctionExpression
+            |Self::ClassDefineConstructor| Self::InstantiateArrowFunctionExpression
                 | Self::InstantiateOrdinaryFunctionExpression
                 | Self::ObjectDefineGetter
                 | Self::ObjectDefineMethod
@@ -456,6 +461,229 @@ impl Instruction {
 pub(crate) struct Instr {
     pub kind: Instruction,
     pub args: [Option<IndexType>; 2],
+}
+
+impl Instr {
+    pub(crate) fn debug_print(&self, agent: &mut Agent, ip: usize, exe: Executable, gc: NoGcScope) {
+        match self.kind.argument_count() {
+            0 => {
+                eprintln!("  {}: {:?}", ip, self.kind);
+            }
+            1 => {
+                let arg0 = self.args.first().unwrap().unwrap();
+                eprintln!(
+                    "  {}: {:?}({})",
+                    ip,
+                    self.kind,
+                    Self::print_single_arg(agent, self.kind, arg0, exe, gc)
+                );
+            }
+            2 => {
+                let arg0 = self.args.first().unwrap().unwrap();
+                let arg1 = self.args.last().unwrap().unwrap();
+                eprintln!(
+                    "  {}: {:?}({})",
+                    ip,
+                    self.kind,
+                    Self::print_two_args(agent, self.kind, arg0, arg1, exe, gc)
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    fn print_single_arg(
+        agent: &mut Agent,
+        kind: Instruction,
+        arg: IndexType,
+        exe: Executable,
+        gc: NoGcScope,
+    ) -> std::string::String {
+        let index = arg as usize;
+        debug_assert!(kind.argument_count() == 1);
+        if kind.has_constant_index() {
+            debug_print_constant(agent, exe, index, gc)
+        } else if kind.has_jump_slot() {
+            arg.to_string()
+        } else if kind.has_identifier_index() {
+            debug_print_identifier(agent, exe, index, gc)
+        } else if kind.has_function_expression_index() {
+            if kind == Instruction::InstantiateArrowFunctionExpression {
+                let expr = exe.fetch_arrow_function_expression(agent, index);
+                let arrow_fn = expr.expression.get();
+                format!(
+                    "({}) => {{}}",
+                    arrow_fn
+                        .params
+                        .iter_bindings()
+                        .map(debug_print_binding_pattern)
+                        .collect::<Vec<std::string::String>>()
+                        .join(", ")
+                )
+            } else {
+                let expr = exe.fetch_function_expression(agent, index);
+                let normal_fn = expr.expression.get();
+                format!(
+                    "function {}({})",
+                    normal_fn.name().map_or("anonymous", |a| a.as_str()),
+                    normal_fn
+                        .params
+                        .iter_bindings()
+                        .map(debug_print_binding_pattern)
+                        .collect::<Vec<std::string::String>>()
+                        .join(", ")
+                )
+            }
+        } else if kind == Instruction::ClassDefineDefaultConstructor {
+            if exe.fetch_class_initializer_bytecode(agent, index).1 {
+                "{ super() }".to_string()
+            } else {
+                "{}".to_string()
+            }
+        } else {
+            // Immediate
+            arg.to_string()
+        }
+    }
+
+    fn print_two_args(
+        agent: &mut Agent,
+        kind: Instruction,
+        arg0: IndexType,
+        arg1: IndexType,
+        exe: Executable,
+        gc: NoGcScope,
+    ) -> std::string::String {
+        let index0 = arg0 as usize;
+        let index1 = arg1 as usize;
+        match kind {
+            Instruction::BeginSimpleArrayBindingPattern => {
+                format!("{{ length: {}, env: {} }}", arg0, arg1 == 1)
+            }
+            Instruction::BindingPatternBindNamed => {
+                format!(
+                    "{{ {}: {} }}",
+                    debug_print_constant(agent, exe, index1, gc),
+                    debug_print_identifier(agent, exe, index0, gc)
+                )
+            }
+            Instruction::ClassDefineConstructor => {
+                if index1 == 1 {
+                    "constructor() { super() }".to_string()
+                } else {
+                    "constructor()".to_string()
+                }
+            }
+            Instruction::InitializeVariableEnvironment => {
+                format!("{{ var count: {}, strict: {} }}", arg0, arg1 == 1)
+            }
+            Instruction::ObjectDefineGetter => "get function() {}".to_string(),
+            Instruction::ObjectDefineMethod => "function() {}".to_string(),
+            Instruction::ObjectDefineSetter => "set function() {}".to_string(),
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn debug_print_constant(
+    agent: &mut Agent,
+    exe: Executable,
+    index: usize,
+    gc: NoGcScope,
+) -> std::string::String {
+    let constant = exe.fetch_constant(agent, index);
+    if let Ok(string_constant) = String::try_from(constant) {
+        format!("\"{}\"", string_constant.as_str(agent))
+    } else {
+        constant
+            .try_string_repr(agent, gc)
+            .as_str(agent)
+            .to_string()
+    }
+}
+
+fn debug_print_identifier(
+    agent: &Agent,
+    exe: Executable,
+    index: usize,
+    gc: NoGcScope,
+) -> std::string::String {
+    let identifier = exe.fetch_identifier(agent, index, gc);
+    identifier.as_str(agent).to_string()
+}
+
+fn debug_print_binding_pattern(b: &BindingPattern) -> std::string::String {
+    match &b.kind {
+        oxc_ast::ast::BindingPatternKind::BindingIdentifier(b) => b.name.to_string(),
+        oxc_ast::ast::BindingPatternKind::ObjectPattern(b) => {
+            let mut prop_strings = b
+                .properties
+                .iter()
+                .map(|b| {
+                    format!(
+                        "{}: {}",
+                        debug_print_property_key(&b.key),
+                        debug_print_binding_pattern(&b.value)
+                    )
+                })
+                .collect::<Vec<std::string::String>>();
+            if let Some(rest) = &b.rest {
+                prop_strings.push(format!(
+                    "...{}",
+                    debug_print_binding_pattern(&rest.argument)
+                ));
+            }
+            format!("{{ {} }}", prop_strings.join(", "))
+        }
+        oxc_ast::ast::BindingPatternKind::ArrayPattern(b) => {
+            let mut elem_strings = b
+                .elements
+                .iter()
+                .map(|b| {
+                    if let Some(b) = b {
+                        debug_print_binding_pattern(b)
+                    } else {
+                        "".to_string()
+                    }
+                })
+                .collect::<Vec<std::string::String>>();
+            if let Some(rest) = &b.rest {
+                elem_strings.push(format!(
+                    "...{}",
+                    debug_print_binding_pattern(&rest.argument)
+                ));
+            }
+            format!("{{ {} }}", elem_strings.join(", "))
+        }
+        oxc_ast::ast::BindingPatternKind::AssignmentPattern(b) => {
+            format!(
+                "{} = {}",
+                debug_print_binding_pattern(&b.left),
+                debug_print_expression(&b.right)
+            )
+        }
+    }
+}
+
+fn debug_print_property_key<'a>(pk: &'a oxc_ast::ast::PropertyKey) -> &'a str {
+    match pk {
+        oxc_ast::ast::PropertyKey::StaticIdentifier(n) => n.name.as_str(),
+        oxc_ast::ast::PropertyKey::PrivateIdentifier(p) => p.name.as_str(),
+        _ => "[computed]",
+    }
+}
+
+fn debug_print_expression(expr: &oxc_ast::ast::Expression) -> std::string::String {
+    match expr {
+        oxc_ast::ast::Expression::BooleanLiteral(l) => l.value.to_string(),
+        oxc_ast::ast::Expression::NullLiteral(_) => "null".to_string(),
+        oxc_ast::ast::Expression::NumericLiteral(l) => l.value.to_js_string(),
+        oxc_ast::ast::Expression::BigIntLiteral(l) => l.raw.to_string(),
+        oxc_ast::ast::Expression::RegExpLiteral(l) => l.raw.to_string(),
+        oxc_ast::ast::Expression::StringLiteral(l) => l.raw.as_ref().unwrap().to_string(),
+        oxc_ast::ast::Expression::TemplateLiteral(_) => "`...`".to_string(),
+        _ => "[computed]".to_string(),
+    }
 }
 
 #[derive(Debug)]
