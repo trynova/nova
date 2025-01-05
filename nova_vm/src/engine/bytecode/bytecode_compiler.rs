@@ -1870,6 +1870,7 @@ fn simple_array_pattern<'a, 'b, I>(
     'b: 'a,
     I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
 {
+    ctx.lexical_binding_state = has_environment;
     ctx.add_instruction_with_immediate_and_immediate(
         Instruction::BeginSimpleArrayBindingPattern,
         num_elements,
@@ -1946,6 +1947,7 @@ fn complex_array_pattern<'a, 'b, I>(
     'b: 'a,
     I: Iterator<Item = Option<&'a BindingPattern<'b>>>,
 {
+    ctx.lexical_binding_state = has_environment;
     for ele in elements {
         ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
 
@@ -2050,6 +2052,7 @@ fn simple_object_pattern(
     ctx: &mut CompileContext,
     has_environment: bool,
 ) {
+    ctx.lexical_binding_state = has_environment;
     ctx.add_instruction_with_immediate(
         Instruction::BeginSimpleObjectBindingPattern,
         has_environment.into(),
@@ -2148,6 +2151,7 @@ fn complex_object_pattern(
     ctx: &mut CompileContext,
     has_environment: bool,
 ) {
+    ctx.lexical_binding_state = has_environment;
     // 8.6.2 Runtime Semantics: BindingInitialization
     // BindingPattern : ObjectBindingPattern
     // 1. Perform ? RequireObjectCoercible(value).
