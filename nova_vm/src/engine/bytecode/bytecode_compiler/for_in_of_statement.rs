@@ -39,6 +39,9 @@ fn for_in_of_head_evaluation<'gc>(
         // a. Assert: uninitializedBoundNames has no duplicate entries.
         // b. Let newEnv be NewDeclarativeEnvironment(oldEnv).
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i += 1;
+        }
         // c. For each String name of uninitializedBoundNames, do
         for name in uninitialized_bound_names.iter() {
             // i. Perform ! newEnv.CreateMutableBinding(name, false).
@@ -51,6 +54,9 @@ fn for_in_of_head_evaluation<'gc>(
     // 4. Set the running execution context's LexicalEnvironment to oldEnv.
     if !uninitialized_bound_names.is_empty() {
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i -= 1;
+        }
     }
     // 5. Let exprValue be ? GetValue(? exprRef).
     if is_reference(expr) {
@@ -148,6 +154,7 @@ fn for_in_of_body_evaluation(
         None
     };
 
+    let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
     let previous_continue = ctx.current_continue.replace(vec![]);
     let previous_break = ctx.current_break.replace(vec![]);
 
@@ -234,6 +241,9 @@ fn for_in_of_body_evaluation(
                     // Optimization: Only enter declarative environment if
                     // bound names exist.
                     ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+                    if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                        *i += 1;
+                    }
                     entered_declarative_environment = true;
                 }
                 let identifier =
@@ -293,6 +303,9 @@ fn for_in_of_body_evaluation(
         // Note: If we've entered a declarative environment then we have to
         // exit it before we continue back to repeat_jump.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i -= 1;
+        }
         for continue_entry in own_continues {
             ctx.set_jump_target_here(continue_entry);
         }
@@ -311,6 +324,7 @@ fn for_in_of_body_evaluation(
     for break_entry in own_breaks {
         ctx.set_jump_target_here(break_entry);
     }
+    ctx.current_depth_of_loop_scope = previous_depth_of_loop;
     // i. If iterationKind is ENUMERATE, then
     if iteration_kind == IterationKind::Enumerate {
         // 1. Return ? UpdateEmpty(result, V).
@@ -388,6 +402,7 @@ impl CompileEvaluation for ast::ForInStatement<'_> {
 
 impl CompileEvaluation for ast::ForOfStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
         let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
@@ -444,5 +459,6 @@ impl CompileEvaluation for ast::ForOfStatement<'_> {
 
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
+        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
     }
 }

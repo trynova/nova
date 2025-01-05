@@ -65,6 +65,8 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     ///
     /// Otherwise, all bindings being created are variable scoped.
     lexical_binding_state: bool,
+    /// Current depth of the lexical scope away from our continue/break target.
+    current_depth_of_loop_scope: Option<u16>,
     /// `continue;` statement jumps that were present in the current loop.
     current_continue: Option<Vec<JumpIndex>>,
     /// `break;` statement jumps that were present in the current loop.
@@ -91,6 +93,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
             class_initializer_bytecodes: Vec::new(),
             name_identifier: None,
             lexical_binding_state: false,
+            current_depth_of_loop_scope: None,
             current_continue: None,
             current_break: None,
             optional_chains: None,
@@ -2438,12 +2441,16 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
         }
         if did_enter_declarative_environment {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                *i -= 1;
+            }
         }
     }
 }
 
 impl CompileEvaluation for ast::ForStatement<'_> {
     fn compile<'gc>(&self, ctx: &mut CompileContext<'_, 'gc, '_>) {
+        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
         let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
@@ -2494,6 +2501,9 @@ impl CompileEvaluation for ast::ForStatement<'_> {
                     if is_lexical {
                         // 1. Let oldEnv be the running execution context's LexicalEnvironment.
                         // 2. Let loopEnv be NewDeclarativeEnvironment(oldEnv).
+                        // Note: This declaration environment is not something
+                        // that continue/break statements should care about. We
+                        // take care of tearing this one down.
                         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
                         // 3. Let isConst be IsConstantDeclaration of LexicalDeclaration.
                         let is_const = init.kind.is_const();
@@ -2627,6 +2637,7 @@ impl CompileEvaluation for ast::ForStatement<'_> {
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
+        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
     }
 }
 
@@ -2723,6 +2734,9 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if did_enter_declarative_environment {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                *i -= 1;
+            }
         }
         // 9. Return R.
     }
@@ -2759,12 +2773,18 @@ impl CompileEvaluation for ast::TryStatement<'_> {
                 todo!("{:?}", exception_param.pattern.kind);
             };
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                *i += 1;
+            }
             let identifier_string = String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
             ctx.add_instruction_with_identifier(Instruction::CreateCatchBinding, identifier_string);
         }
         catch_clause.body.compile(ctx);
         if catch_clause.param.is_some() {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+            if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+                *i -= 1;
+            }
         }
         ctx.set_jump_target_here(jump_to_end);
     }
@@ -2772,6 +2792,7 @@ impl CompileEvaluation for ast::TryStatement<'_> {
 
 impl CompileEvaluation for ast::WhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
         let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
@@ -2808,11 +2829,13 @@ impl CompileEvaluation for ast::WhileStatement<'_> {
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
+        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
     }
 }
 
 impl CompileEvaluation for ast::DoWhileStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        let previous_depth_of_loop = ctx.current_depth_of_loop_scope.replace(0);
         let previous_continue = ctx.current_continue.replace(vec![]);
         let previous_break = ctx.current_break.replace(vec![]);
 
@@ -2839,6 +2862,7 @@ impl CompileEvaluation for ast::DoWhileStatement<'_> {
         }
         ctx.current_break = previous_break;
         ctx.current_continue = previous_continue;
+        ctx.current_depth_of_loop_scope = previous_depth_of_loop;
     }
 }
 
@@ -2847,6 +2871,12 @@ impl CompileEvaluation for ast::BreakStatement<'_> {
         if let Some(label) = &self.label {
             let label = label.name.as_str();
             todo!("break {};", label);
+        }
+        if let Some(depth) = ctx.current_depth_of_loop_scope {
+            for _ in 0..depth {
+                // We have to exit the declarative environments we've entered.
+                ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+            }
         }
         let break_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         ctx.current_break.as_mut().unwrap().push(break_jump);
@@ -2858,6 +2888,11 @@ impl CompileEvaluation for ast::ContinueStatement<'_> {
         if let Some(label) = &self.label {
             let label = label.name.as_str();
             todo!("continue {};", label);
+        }
+        let depth = ctx.current_depth_of_loop_scope.unwrap();
+        for _ in 0..depth {
+            // We have to exit the declarative environments we've entered.
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
         }
         let continue_jump = ctx.add_instruction_with_jump_slot(Instruction::Jump);
         ctx.current_continue.as_mut().unwrap().push(continue_jump);

@@ -36,6 +36,9 @@ impl CompileEvaluation for ast::Class<'_> {
         // Note: The specification doesn't enter the declaration here, but
         // no user code is run between here and first enter.
         ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i += 1;
+        }
 
         // 3. If classBinding is not undefined, then
         let mut has_class_name_on_stack = false;
@@ -492,6 +495,9 @@ impl CompileEvaluation for ast::Class<'_> {
         }
         // Note: We finally leave classEnv here. See step 26.
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i -= 1;
+        }
 
         // 32. Set the running execution context's PrivateEnvironment to outerPrivateEnvironment.
         // 33. Return F.
@@ -757,6 +763,9 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             statement.compile(ctx);
         }
         ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
+            *i -= 1;
+        }
         ctx.add_instruction(Instruction::ExitVariableEnvironment);
     }
 }
