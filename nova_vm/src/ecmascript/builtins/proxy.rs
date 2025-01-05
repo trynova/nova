@@ -773,6 +773,13 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
+    /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)
+    ///
+    /// The [[Call]] internal method of a Proxy exotic object O takes
+    /// arguments thisArgument (an ECMAScript language value)
+    /// and argumentsList (a List of ECMAScript language values)
+    /// and returns either a normal completion containing an ECMAScript
+    /// language value or a throw completion.
     fn internal_call(
         self,
         agent: &mut Agent,
