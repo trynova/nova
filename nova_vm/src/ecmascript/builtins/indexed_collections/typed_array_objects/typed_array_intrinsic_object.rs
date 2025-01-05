@@ -100,9 +100,9 @@ impl TypedArrayIntrinsicObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        is_array(agent, arguments.get(0)).map(Value::Boolean)
+        is_array(agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
     }
 
     fn of(
