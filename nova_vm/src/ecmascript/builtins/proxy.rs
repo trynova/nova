@@ -639,15 +639,106 @@ impl InternalMethods for Proxy {
         TryResult::Break(())
     }
 
+    /// ### [10.5.9 [[Set]] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-set-p-v-receiver)
+    ///
+    /// The [[Set]] internal method of a Proxy exotic object O takes
+    /// arguments P (a property key), V (an ECMAScript language
+    /// value), and Receiver (an ECMAScript language value) and returns either a normal completion containing
+    /// a Boolean or a throw completion.
     fn internal_set(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _value: Value,
-        _receiver: Value,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        mut receiver: Value,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        todo!();
+        let mut property_key = property_key.bind(gc.nogc());
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            mut target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 5. Let trap be ? GetMethod(handler, "set").
+        let scoped_target = target.scope(agent, gc.nogc());
+        let scoped_property_key = property_key.scope(agent, gc.nogc());
+        let trap = if let TryResult::Continue(trap) =
+            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.set.into(), gc.nogc())
+        {
+            trap?
+        } else {
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_receiver = receiver.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.set.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            receiver = scoped_receiver.get(agent).bind(gc);
+            target = scoped_target.get(agent).bind(gc);
+            property_key = scoped_property_key.get(agent).bind(gc);
+            trap
+        };
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? target.[[Set]](P, V, Receiver).
+            return target.internal_set(agent, property_key.unbind(), value, receiver, gc);
+        };
+        // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
+        let p = property_key.convert_to_value(agent, gc.nogc());
+        let argument = call_function(
+            agent,
+            trap.unbind(),
+            handler.into_value(),
+            Some(ArgumentsList(&[target.into_value(), p, value, receiver])),
+            gc.reborrow(),
+        )?;
+        let boolean_trap_result = to_boolean(agent, argument);
+
+        // 8. If booleanTrapResult is false, return false.
+        if !boolean_trap_result {
+            return Ok(false);
+        };
+
+        // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        let target = scoped_target.get(agent).bind(gc.nogc());
+        let property_key = scoped_property_key.get(agent).bind(gc.nogc());
+        let target_desc =
+            target.internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
+        // 10. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
+        if let Some(target_desc) = target_desc {
+            if target_desc.configurable == Some(false) {
+                // a. If IsDataDescriptor(targetDesc) is true and
+                //    targetDesc.[[Writable]] is false, then
+                // i. If SameValue(V, targetDesc.[[Value]]) is false,
+                //    throw a TypeError exception.
+                // b. If IsAccessorDescriptor(targetDesc) is true and
+                //    targetDesc.[[Value]] is undefined, then
+                // i. If targetDesc.[[Set]] is undefined,
+                //    throw a TypeError exception.
+                if target_desc.is_data_descriptor()
+                    && target_desc.writable == Some(false)
+                    && !same_value(agent, value, target_desc.value.unwrap_or(Value::Undefined))
+                    || target_desc.is_accessor_descriptor() && target_desc.set.is_none()
+                {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Invalid Proxy [[Set]] method",
+                        gc.into_nogc(),
+                    ));
+                }
+            }
+        }
+        // 10. Return trapResult.
+        Ok(true)
     }
 
     fn try_delete(self, _: &mut Agent, _: PropertyKey, _: NoGcScope) -> TryResult<bool> {
