@@ -2786,9 +2786,8 @@ impl CompileEvaluation for ast::TryStatement<'_> {
             });
             // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
             // 6. If status is an abrupt completion, then
-
-            //        a. Set the running execution context's LexicalEnvironment to oldEnv.
-            //        b. Return ? status.
+            // a. Set the running execution context's LexicalEnvironment to oldEnv.
+            // b. Return ? status.
             match &exception_param.pattern.kind {
                 ast::BindingPatternKind::BindingIdentifier(identifier) => {
                     let identifier_string = ctx.create_identifier(&identifier.name);
