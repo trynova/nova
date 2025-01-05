@@ -2425,6 +2425,7 @@ impl CompileEvaluation for ast::Declaration<'_> {
 
 impl CompileEvaluation for ast::BlockStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
+        println!("Here");
         if self.body.is_empty() {
             // Block : {}
             // 1. Return EMPTY.
@@ -2772,7 +2773,7 @@ impl CompileEvaluation for ast::TryStatement<'_> {
             // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
             // 4. Set the running execution context's LexicalEnvironment to catchEnv.
             // Note: We skip the declarative environment if there is no catch
-            // param as it's not observable. TODO: Check that this is true.
+            // param as it's not observable.
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
             if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
                 *i += 1;
