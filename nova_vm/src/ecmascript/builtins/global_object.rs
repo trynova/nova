@@ -388,8 +388,10 @@ pub fn eval_declaration_instantiation(
             // i. For each element name of varNames, do
             for name in &var_names {
                 let name = String::from_str(agent, name.as_str(), gc.nogc());
-                // 1. If varEnv.HasLexicalDeclaration(name) is true, throw a SyntaxError exception.
-                // 2. NOTE: eval will not create a global var declaration that would be shadowed by a global lexical declaration.
+                // 1. If varEnv.HasLexicalDeclaration(name) is true, throw a
+                //    SyntaxError exception.
+                // 2. NOTE: eval will not create a global var declaration that
+                //    would be shadowed by a global lexical declaration.
                 if var_env.has_lexical_declaration(agent, name) {
                     return Err(agent.throw_exception(
                         ExceptionType::SyntaxError,
@@ -411,20 +413,24 @@ pub fn eval_declaration_instantiation(
         while this_env != var_env {
             // i. If thisEnv is not an Object Environment Record, then
             if !matches!(this_env, EnvironmentIndex::Object(_)) {
-                // 1. NOTE: The environment of with statements cannot contain any lexical declaration so it doesn't need to be checked for var/let hoisting conflicts.
+                // 1. NOTE: The environment of with statements cannot contain
+                //    any lexical declaration so it doesn't need to be checked
+                //    for var/let hoisting conflicts.
                 // 2. For each element name of varNames, do
                 for name in &var_names {
                     let name = String::from_str(agent, name.as_str(), gc.nogc())
                         .unbind()
                         .scope(agent, gc.nogc());
                     // a. If ! thisEnv.HasBinding(name) is true, then
-                    // b. NOTE: A direct eval will not hoist var declaration over a like-named lexical declaration.
+                    // b. NOTE: A direct eval will not hoist var declaration
+                    //    over a like-named lexical declaration.
                     if this_env
                         .has_binding(agent, name.get(agent), gc.reborrow())
                         .unwrap()
                     {
                         // i. Throw a SyntaxError exception.
-                        // ii. NOTE: Annex B.3.4 defines alternate semantics for the above step.
+                        // ii. NOTE: Annex B.3.4 defines alternate semantics
+                        //     for the above step.
                         return Err(agent.throw_exception(
                             ExceptionType::SyntaxError,
                             format!("Redeclaration of variable '{}'", name.as_str(agent)),
@@ -450,7 +456,9 @@ pub fn eval_declaration_instantiation(
 
         // a. For each Private Name binding of pointer.[[Names]], do
         for name in env.names.values() {
-            // i. If privateIdentifiers does not contain binding.[[Description]], append binding.[[Description]] to privateIdentifiers.
+            // i. If privateIdentifiers does not contain
+            //    binding.[[Description]], append binding.[[Description]] to
+            //    privateIdentifiers.
             if private_identifiers.contains(&name.description()) {
                 private_identifiers.push(name.description());
             }
@@ -461,7 +469,8 @@ pub fn eval_declaration_instantiation(
     }
 
     // TODO:
-    // 7. If AllPrivateIdentifiersValid of body with argument privateIdentifiers is false, throw a SyntaxError exception.
+    // 7. If AllPrivateIdentifiersValid of body with argument
+    //    privateIdentifiers is false, throw a SyntaxError exception.
 
     // 8. Let functionsToInitialize be a new empty List.
     let mut functions_to_initialize = vec![];
@@ -559,7 +568,9 @@ pub fn eval_declaration_instantiation(
     drop(declared_var_names_strings);
 
     // 13. NOTE: Annex B.3.2.3 adds additional steps at this point.
-    // 14. NOTE: No abnormal terminations occur after this algorithm step unless varEnv is a Global Environment Record and the global object is a Proxy exotic object.
+    // 14. NOTE: No abnormal terminations occur after this algorithm step
+    //     unless varEnv is a Global Environment Record and the global object
+    //     is a Proxy exotic object.
 
     // 15. Let lexDeclarations be the LexicallyScopedDeclarations of body.
     let lex_declarations = script_lexically_scoped_declarations(script);

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod block_declaration_instantiation;
 mod class_definition_evaluation;
 mod for_in_of_statement;
 mod function_declaration_instantiation;
@@ -2424,59 +2425,8 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
             // 1. Return EMPTY.
             return;
         }
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        // SAFETY: Stupid lifetime transmute.
-        let body = unsafe {
-            std::mem::transmute::<
-                &oxc_allocator::Vec<'_, Statement<'_>>,
-                &'static oxc_allocator::Vec<'static, Statement<'static>>,
-            >(&self.body)
-        };
-        body.lexically_scoped_declarations(&mut |decl| {
-            match decl {
-                LexicallyScopedDeclaration::Variable(decl) => {
-                    if decl.kind.is_const() {
-                        decl.id.bound_names(&mut |name| {
-                            let identifier =
-                                String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
-                            ctx.add_instruction_with_identifier(
-                                Instruction::CreateImmutableBinding,
-                                identifier,
-                            );
-                        });
-                    } else if decl.kind.is_lexical() {
-                        decl.id.bound_names(&mut |name| {
-                            let identifier =
-                                String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
-                            ctx.add_instruction_with_identifier(
-                                Instruction::CreateMutableBinding,
-                                identifier,
-                            );
-                        });
-                    }
-                }
-                LexicallyScopedDeclaration::Function(decl) => {
-                    // TODO: InstantiateFunctionObject and InitializeBinding
-                    decl.bound_names(&mut |name| {
-                        let identifier = String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
-                        ctx.add_instruction_with_identifier(
-                            Instruction::CreateMutableBinding,
-                            identifier,
-                        );
-                    });
-                }
-                LexicallyScopedDeclaration::Class(decl) => {
-                    decl.bound_names(&mut |name| {
-                        let identifier = String::from_str(ctx.agent, name.name.as_str(), ctx.gc);
-                        ctx.add_instruction_with_identifier(
-                            Instruction::CreateMutableBinding,
-                            identifier,
-                        );
-                    });
-                }
-                LexicallyScopedDeclaration::DefaultExport => unreachable!(),
-            }
-        });
+        let did_enter_declarative_environment =
+            block_declaration_instantiation::instantiation(ctx, self);
         for ele in &self.body {
             ele.compile(ctx);
         }
@@ -2484,7 +2434,9 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
             // Block did not end in a return so we overwrite the result with undefined.
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if did_enter_declarative_environment {
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
     }
 }
 
@@ -2689,9 +2641,9 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         // 5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
-        // TODO: Analyze switch env instantiation.
+        let did_enter_declarative_environment =
+            block_declaration_instantiation::instantiation(ctx, self);
 
         // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
         let mut has_default = false;
@@ -2767,7 +2719,9 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
         ctx.current_break = previous_break;
 
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if did_enter_declarative_environment {
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
         // 9. Return R.
     }
 }
