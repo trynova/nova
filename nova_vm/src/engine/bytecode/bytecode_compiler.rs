@@ -2425,7 +2425,6 @@ impl CompileEvaluation for ast::Declaration<'_> {
 
 impl CompileEvaluation for ast::BlockStatement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        println!("Here");
         if self.body.is_empty() {
             // Block : {}
             // 1. Return EMPTY.
