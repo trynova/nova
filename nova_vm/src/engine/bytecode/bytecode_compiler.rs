@@ -2766,26 +2766,60 @@ impl CompileEvaluation for ast::TryStatement<'_> {
 
         let catch_clause = self.handler.as_ref().unwrap();
         ctx.set_jump_target_here(jump_to_catch);
+
         if let Some(exception_param) = &catch_clause.param {
-            let ast::BindingPatternKind::BindingIdentifier(identifier) =
-                &exception_param.pattern.kind
-            else {
-                todo!("{:?}", exception_param.pattern.kind);
-            };
+            // 1. Let oldEnv be the running execution context's LexicalEnvironment.
+            // 2. Let catchEnv be NewDeclarativeEnvironment(oldEnv).
+            // 4. Set the running execution context's LexicalEnvironment to catchEnv.
+            // Note: We skip the declarative environment if there is no catch
+            // param as it's not observable. TODO: Check that this is true.
             ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
             if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
                 *i += 1;
             }
-            let identifier_string = String::from_str(ctx.agent, identifier.name.as_str(), ctx.gc);
-            ctx.add_instruction_with_identifier(Instruction::CreateCatchBinding, identifier_string);
+            // 3. For each element argName of the BoundNames of CatchParameter, do
+            // a. Perform ! catchEnv.CreateMutableBinding(argName, false).
+            exception_param.pattern.bound_names(&mut |arg_name| {
+                let arg_name = String::from_str(ctx.agent, arg_name.name.as_str(), ctx.gc);
+                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, arg_name);
+            });
+            // 5. Let status be Completion(BindingInitialization of CatchParameter with arguments thrownValue and catchEnv).
+            // 6. If status is an abrupt completion, then
+
+            //        a. Set the running execution context's LexicalEnvironment to oldEnv.
+            //        b. Return ? status.
+            match &exception_param.pattern.kind {
+                ast::BindingPatternKind::BindingIdentifier(identifier) => {
+                    let identifier_string = ctx.create_identifier(&identifier.name);
+                    ctx.add_instruction_with_identifier(
+                        Instruction::ResolveBinding,
+                        identifier_string,
+                    );
+                    ctx.add_instruction(Instruction::InitializeReferencedBinding);
+                }
+                ast::BindingPatternKind::ObjectPattern(pattern) => {
+                    ctx.add_instruction(Instruction::Load);
+                    ctx.lexical_binding_state = true;
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::ArrayPattern(pattern) => {
+                    ctx.add_instruction(Instruction::Load);
+                    ctx.lexical_binding_state = true;
+                    pattern.compile(ctx);
+                }
+                ast::BindingPatternKind::AssignmentPattern(_) => unreachable!(),
+            }
         }
+        // 7. Let B be Completion(Evaluation of Block).
         catch_clause.body.compile(ctx);
+        // 8. Set the running execution context's LexicalEnvironment to oldEnv.
         if catch_clause.param.is_some() {
             ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
             if let Some(i) = ctx.current_depth_of_loop_scope.as_mut() {
                 *i -= 1;
             }
         }
+        // 9. Return ? B.
         ctx.set_jump_target_here(jump_to_end);
     }
 }

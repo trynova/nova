@@ -126,7 +126,6 @@ pub(crate) struct Vm {
     iterator_stack: Vec<VmIterator>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
     result: Option<Value>,
-    exception: Option<Value>,
     reference: Option<Reference<'static>>,
 }
 
@@ -190,7 +189,6 @@ impl<'a> Vm {
             iterator_stack: Vec::new(),
             exception_jump_target_stack: Vec::new(),
             result: None,
-            exception: None,
             reference: None,
         }
     }
@@ -217,7 +215,6 @@ impl<'a> Vm {
             iterator_stack: suspended.iterator_stack.into_vec(),
             exception_jump_target_stack: suspended.exception_jump_target_stack.into_vec(),
             result: None,
-            exception: None,
             reference: None,
         }
     }
@@ -356,7 +353,7 @@ impl<'a> Vm {
                 .as_mut()
                 .unwrap()
                 .lexical_environment = ejt.lexical_environment;
-            self.exception = Some(err.value());
+            self.result = Some(err.value());
             true
         } else {
             false
@@ -1752,41 +1749,6 @@ impl<'a> Vm {
                     .create_immutable_binding(agent, name, true, gc.nogc())
                     .unwrap();
             }
-            Instruction::CreateCatchBinding => {
-                let lex_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment;
-                let name =
-                    executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
-                unwrap_try(lex_env.try_create_mutable_binding(agent, name, false, gc.nogc()))
-                    .unwrap();
-
-                if let Err(result) = lex_env.initialize_binding(
-                    agent,
-                    name.unbind(),
-                    vm.exception.take().unwrap(),
-                    gc,
-                ) {
-                    let old_env = agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment
-                        .get_outer_env(agent)
-                        .unwrap();
-                    agent
-                        .running_execution_context_mut()
-                        .ecmascript_code
-                        .as_mut()
-                        .unwrap()
-                        .lexical_environment = old_env;
-                    return Err(result);
-                }
-            }
             Instruction::Throw => {
                 let result = vm.result.take().unwrap();
                 return Err(JsError::new(result));
@@ -2434,7 +2396,6 @@ impl HeapMarkAndSweep for Vm {
             iterator_stack,
             exception_jump_target_stack,
             result,
-            exception,
             reference,
         } = self;
         stack.as_slice().mark_values(queues);
@@ -2442,7 +2403,6 @@ impl HeapMarkAndSweep for Vm {
         iterator_stack.as_slice().mark_values(queues);
         exception_jump_target_stack.as_slice().mark_values(queues);
         result.mark_values(queues);
-        exception.mark_values(queues);
         reference.mark_values(queues);
     }
 
@@ -2454,7 +2414,6 @@ impl HeapMarkAndSweep for Vm {
             iterator_stack,
             exception_jump_target_stack,
             result,
-            exception,
             reference,
         } = self;
         stack.as_mut_slice().sweep_values(compactions);
@@ -2464,7 +2423,6 @@ impl HeapMarkAndSweep for Vm {
             .as_mut_slice()
             .sweep_values(compactions);
         result.sweep_values(compactions);
-        exception.sweep_values(compactions);
         reference.sweep_values(compactions);
     }
 }
