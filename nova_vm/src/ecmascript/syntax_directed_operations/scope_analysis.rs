@@ -5,9 +5,10 @@
 use std::ops::Deref;
 
 use oxc_ast::ast::{
-    BindingIdentifier, Class, Declaration, ExportDefaultDeclarationKind, ForStatementInit,
-    ForStatementLeft, Function, FunctionBody, LabeledStatement, Program, Statement, StaticBlock,
-    SwitchCase, VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
+    BindingIdentifier, BlockStatement, Class, Declaration, ExportDefaultDeclarationKind,
+    ForStatementInit, ForStatementLeft, Function, FunctionBody, LabeledStatement, Program,
+    Statement, StaticBlock, SwitchCase, SwitchStatement, VariableDeclaration,
+    VariableDeclarationKind, VariableDeclarator,
 };
 use oxc_ecmascript::BoundNames;
 
@@ -218,40 +219,35 @@ pub(crate) trait LexicallyScopedDeclarations<'a> {
     fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(&'a self, f: &mut F);
 }
 
-pub(crate) fn case_block_lexically_scoped_declarations<'body>(
-    cases: &'body [SwitchCase<'body>],
-) -> Vec<LexicallyScopedDeclaration<'body>> {
-    let mut lexically_scoped_declarations = vec![];
-    // CaseBlock : { }
-    // 1. Return a new empty List.
-
-    // CaseBlock : { CaseClausesopt DefaultClause CaseClausesopt }
-    // 1. If the first CaseClauses is present, let declarations1 be the LexicallyScopedDeclarations of the first CaseClauses.
-    // 2. Else, let declarations1 be a new empty List.
-    // 3. Let declarations2 be LexicallyScopedDeclarations of DefaultClause.
-    // 4. If the second CaseClauses is present, let declarations3 be the LexicallyScopedDeclarations of the second CaseClauses.
-    // 5. Else, let declarations3 be a new empty List.
-    // 6. Return the list-concatenation of declarations1, declarations2, and declarations3.
-
-    // CaseClauses : CaseClauses CaseClause
-    // 1. Let declarations1 be LexicallyScopedDeclarations of CaseClauses.
-    // 2. Let declarations2 be LexicallyScopedDeclarations of CaseClause.
-    // 3. Return the list-concatenation of declarations1 and declarations2.
-
-    // CaseClause : case Expression : StatementListopt
-    // 1. If the StatementList is present, return the LexicallyScopedDeclarations of StatementList.
-    // 2. Return a new empty List.
-
-    // DefaultClause : default : StatementListopt
-    // 1. If the StatementList is present, return the LexicallyScopedDeclarations of StatementList.
-    // 2. Return a new empty List.
-
-    for ele in cases {
-        ele.consequent.lexically_scoped_declarations(&mut |decl| {
-            lexically_scoped_declarations.push(decl);
-        });
+impl<'a> LexicallyScopedDeclarations<'a> for BlockStatement<'a> {
+    fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
+        for case in &self.body {
+            case.lexically_scoped_declarations(f);
+        }
     }
-    lexically_scoped_declarations
+}
+
+impl<'a> LexicallyScopedDeclarations<'a> for SwitchStatement<'a> {
+    fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
+        for case in &self.cases {
+            case.lexically_scoped_declarations(f);
+        }
+    }
+}
+
+impl<'a> LexicallyScopedDeclarations<'a> for SwitchCase<'a> {
+    fn lexically_scoped_declarations<F: FnMut(LexicallyScopedDeclaration<'a>)>(
+        &'a self,
+        f: &mut F,
+    ) {
+        self.consequent.lexically_scoped_declarations(f);
+    }
 }
 
 pub(crate) fn function_body_lexically_scoped_declarations<'body>(
