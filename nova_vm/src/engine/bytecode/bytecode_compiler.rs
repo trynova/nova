@@ -2425,8 +2425,8 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
             // 1. Return EMPTY.
             return;
         }
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
-        block_declaration_instantiation::instantiation(ctx, self);
+        let did_enter_declarative_environment =
+            block_declaration_instantiation::instantiation(ctx, self);
         for ele in &self.body {
             ele.compile(ctx);
         }
@@ -2434,7 +2434,9 @@ impl CompileEvaluation for ast::BlockStatement<'_> {
             // Block did not end in a return so we overwrite the result with undefined.
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
         }
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if did_enter_declarative_environment {
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
     }
 }
 
@@ -2639,9 +2641,9 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
         // 3. Let oldEnv be the running execution context's LexicalEnvironment.
         // 4. Let blockEnv be NewDeclarativeEnvironment(oldEnv).
         // 6. Set the running execution context's LexicalEnvironment to blockEnv.
-        ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
         // 5. Perform BlockDeclarationInstantiation(CaseBlock, blockEnv).
-        block_declaration_instantiation::instantiation(ctx, self);
+        let did_enter_declarative_environment =
+            block_declaration_instantiation::instantiation(ctx, self);
 
         // 7. Let R be Completion(CaseBlockEvaluation of CaseBlock with argument switchValue).
         let mut has_default = false;
@@ -2717,7 +2719,9 @@ impl CompileEvaluation for ast::SwitchStatement<'_> {
         ctx.current_break = previous_break;
 
         // 8. Set the running execution context's LexicalEnvironment to oldEnv.
-        ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        if did_enter_declarative_environment {
+            ctx.add_instruction(Instruction::ExitDeclarativeEnvironment);
+        }
         // 9. Return R.
     }
 }

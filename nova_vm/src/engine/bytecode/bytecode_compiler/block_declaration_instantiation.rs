@@ -27,15 +27,21 @@ use super::{
 pub(super) fn instantiation<'a>(
     ctx: &mut CompileContext,
     code: &'a impl LexicallyScopedDeclarations<'a>,
-) {
+) -> bool {
+    let mut did_enter_declarative_environment = false;
     // 1. Let declarations be the LexicallyScopedDeclarations of code.
     // 2. Let privateEnv be the running execution context's PrivateEnvironment.
     // 3. For each element d of declarations, do
     code.lexically_scoped_declarations(&mut |d| {
+        if !did_enter_declarative_environment {
+            did_enter_declarative_environment = true;
+            ctx.add_instruction(Instruction::EnterDeclarativeEnvironment);
+        }
         handle_block_lexically_scoped_declaration(ctx, d);
     });
 
     // 4. Return unused.
+    did_enter_declarative_environment
 }
 
 pub fn handle_block_lexically_scoped_declaration(
