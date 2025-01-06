@@ -2,8 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::{
+    builtins::{
+        indexed_collections::typed_array_objects::abstract_operations::{
+            is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
+            typed_array_length,
+        },
+        typed_array::TypedArray,
+    },
+    types::U8Clamped,
+};
 use crate::{
+    engine::context::GcScope,
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::create_iter_result_object,
@@ -59,19 +70,85 @@ impl ArrayIteratorPrototype {
 
         let len: i64 = match array {
             // i. If array has a [[TypedArrayName]] internal slot, then
-            // TODO!
             #[cfg(feature = "array-buffer")]
-            Object::Int8Array(_)
-            | Object::Uint8Array(_)
-            | Object::Uint8ClampedArray(_)
-            | Object::Int16Array(_)
-            | Object::Uint16Array(_)
-            | Object::Int32Array(_)
-            | Object::Uint32Array(_)
-            | Object::BigInt64Array(_)
-            | Object::BigUint64Array(_)
-            | Object::Float32Array(_)
-            | Object::Float64Array(_) => todo!(),
+            Object::Int8Array(array)
+            | Object::Uint8Array(array)
+            | Object::Uint8ClampedArray(array)
+            | Object::Int16Array(array)
+            | Object::Uint16Array(array)
+            | Object::Int32Array(array)
+            | Object::Uint32Array(array)
+            | Object::BigInt64Array(array)
+            | Object::BigUint64Array(array)
+            | Object::Float32Array(array)
+            | Object::Float64Array(array) => {
+                let array = array.into();
+                // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(array, seq-cst).
+                let ta_record = make_typed_array_with_buffer_witness_record(
+                    agent,
+                    array,
+                    crate::ecmascript::builtins::array_buffer::Ordering::SeqCst,
+                );
+                // 2. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+                if match array {
+                    TypedArray::Int8Array(_) => {
+                        is_typed_array_out_of_bounds::<i8>(agent, &ta_record)
+                    }
+                    TypedArray::Uint8Array(_) => {
+                        is_typed_array_out_of_bounds::<u8>(agent, &ta_record)
+                    }
+                    TypedArray::Uint8ClampedArray(_) => {
+                        is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
+                    }
+                    TypedArray::Int16Array(_) => {
+                        is_typed_array_out_of_bounds::<i16>(agent, &ta_record)
+                    }
+                    TypedArray::Uint16Array(_) => {
+                        is_typed_array_out_of_bounds::<u16>(agent, &ta_record)
+                    }
+                    TypedArray::Int32Array(_) => {
+                        is_typed_array_out_of_bounds::<i32>(agent, &ta_record)
+                    }
+                    TypedArray::Uint32Array(_) => {
+                        is_typed_array_out_of_bounds::<u32>(agent, &ta_record)
+                    }
+                    TypedArray::BigInt64Array(_) => {
+                        is_typed_array_out_of_bounds::<i64>(agent, &ta_record)
+                    }
+                    TypedArray::BigUint64Array(_) => {
+                        is_typed_array_out_of_bounds::<u64>(agent, &ta_record)
+                    }
+                    TypedArray::Float32Array(_) => {
+                        is_typed_array_out_of_bounds::<f32>(agent, &ta_record)
+                    }
+                    TypedArray::Float64Array(_) => {
+                        is_typed_array_out_of_bounds::<f64>(agent, &ta_record)
+                    }
+                } {
+                    return Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "TypedArray out of bounds",
+                        gc.nogc(),
+                    ));
+                }
+
+                // 3. Let len be TypedArrayLength(taRecord).
+                (match array {
+                    TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record),
+                    TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record),
+                    TypedArray::Uint8ClampedArray(_) => {
+                        typed_array_length::<U8Clamped>(agent, &ta_record)
+                    }
+                    TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record),
+                    TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record),
+                    TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record),
+                    TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record),
+                    TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record),
+                    TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record),
+                    TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record),
+                    TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record),
+                }) as i64
+            }
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),
