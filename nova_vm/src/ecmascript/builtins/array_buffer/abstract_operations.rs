@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{ArrayBuffer, ArrayBufferHeapData};
+use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::types::{Numeric, Viewable};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
@@ -215,27 +216,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
         return Ok(None);
     }
     // 4. Return ? ToIndex(maxByteLength).
-    // TODO: Consider de-inlining this once ToIndex is implemented.
-    let number = max_byte_length.to_number(agent, gc.reborrow())?;
-    let integer = if number.is_nan(agent) || number.is_pos_zero(agent) || number.is_neg_zero(agent)
-    {
-        0
-    } else if number.is_pos_infinity(agent) {
-        i64::MAX
-    } else if number.is_neg_infinity(agent) {
-        i64::MIN
-    } else {
-        number.into_i64(agent)
-    };
-    if (0..=(2i64.pow(53) - 1)).contains(&integer) {
-        Ok(Some(integer))
-    } else {
-        Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Not a SafeInteger",
-            gc.nogc(),
-        ))
-    }
+    to_index(agent, max_byte_length, gc).map(Some)
 }
 
 /// ### [25.1.3.7 HostResizeArrayBuffer ( buffer, newByteLength )](https://tc39.es/ecma262/#sec-hostresizearraybuffer)
