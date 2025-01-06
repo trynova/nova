@@ -798,7 +798,6 @@ impl InternalMethods for Proxy {
             mut handler,
         } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
         // 5. Let trap be ? GetMethod(handler, "apply").
-        let scoped_target = target.scope(agent, gc.nogc());
         let trap = if let TryResult::Continue(trap) = try_get_object_method(
             agent,
             handler,
@@ -808,6 +807,7 @@ impl InternalMethods for Proxy {
             trap?
         } else {
             let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_target = target.scope(agent, gc.nogc());
             let trap = get_object_method(
                 agent,
                 handler,
