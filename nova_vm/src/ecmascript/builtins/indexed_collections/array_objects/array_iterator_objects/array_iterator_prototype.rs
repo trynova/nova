@@ -14,7 +14,6 @@ use crate::ecmascript::{
     types::U8Clamped,
 };
 use crate::{
-    engine::context::GcScope,
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::create_iter_result_object,
@@ -29,6 +28,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::context::GcScope,
     heap::WellKnownSymbolIndexes,
     SmallInteger,
 };
