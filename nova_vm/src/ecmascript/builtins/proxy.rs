@@ -835,9 +835,9 @@ impl InternalMethods for Proxy {
         // 7. Let argArray be CreateArrayFromList(argumentsList).
         let arg_array = create_array_from_list(agent, &[arguments_list], gc.nogc());
         // 8. Return ? Call(trap, handler, « target, thisArgument, argArray »).
-        return call(
+        return call_function(
             agent,
-            trap.into_value(),
+            trap.unbind(),
             handler.into_value(),
             Some(ArgumentsList(&[
                 target.into_value(),
