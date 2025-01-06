@@ -10,7 +10,10 @@ use data::ProxyHeapData;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, get_object_method, try_get_object_method},
+            operations_on_objects::{
+                call, call_function, create_array_from_list, get_object_method,
+                try_get_object_method,
+            },
             testing_and_comparison::{is_extensible, same_value},
             type_conversion::to_boolean,
         },
@@ -770,14 +773,79 @@ impl InternalMethods for Proxy {
         todo!();
     }
 
+    /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)
+    ///
+    /// The [[Call]] internal method of a Proxy exotic object O takes
+    /// arguments thisArgument (an ECMAScript language value)
+    /// and argumentsList (a List of ECMAScript language values)
+    /// and returns either a normal completion containing an ECMAScript
+    /// language value or a throw completion.
     fn internal_call(
         self,
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments_list: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        _: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
-        todo!()
+        let this_argument = arguments.get(1);
+        let arguments_list = arguments.get(2);
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            mut target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 5. Let trap be ? GetMethod(handler, "apply").
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.apply.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_target = target.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.apply.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            target = scoped_target.get(agent).bind(gc);
+            trap
+        };
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? Call(target, thisArgument, argumentsList).
+            return call(
+                agent,
+                target.into_value(),
+                this_argument,
+                Some(ArgumentsList(&[arguments_list])),
+                gc,
+            );
+        };
+        // 7. Let argArray be CreateArrayFromList(argumentsList).
+        let arg_array = create_array_from_list(agent, &[arguments_list], gc.nogc());
+        // 8. Return ? Call(trap, handler, « target, thisArgument, argArray »).
+        return call_function(
+            agent,
+            trap.unbind(),
+            handler.into_value(),
+            Some(ArgumentsList(&[
+                target.into_value(),
+                this_argument,
+                arg_array.into_value(),
+            ])),
+            gc,
+        );
     }
 
     fn internal_construct(
