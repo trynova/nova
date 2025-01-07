@@ -95,7 +95,7 @@ pub(crate) enum DynamicFunctionKind {
     Normal,
     Generator,
     Async,
-    // AsyncGenerator
+    AsyncGenerator,
 }
 impl DynamicFunctionKind {
     fn prefix(&self) -> &'static str {
@@ -103,6 +103,7 @@ impl DynamicFunctionKind {
             DynamicFunctionKind::Normal => "function",
             DynamicFunctionKind::Generator => "function*",
             DynamicFunctionKind::Async => "async function",
+            DynamicFunctionKind::AsyncGenerator => "async function*",
         }
     }
     fn function_matches_kind(&self, function: &oxc_ast::ast::Function) -> bool {
@@ -110,6 +111,7 @@ impl DynamicFunctionKind {
             DynamicFunctionKind::Normal => (false, false),
             DynamicFunctionKind::Generator => (false, true),
             DynamicFunctionKind::Async => (true, false),
+            DynamicFunctionKind::AsyncGenerator => (true, true),
         };
         function.r#async == is_async && function.generator == is_generator
     }
@@ -118,6 +120,7 @@ impl DynamicFunctionKind {
             DynamicFunctionKind::Normal => ProtoIntrinsics::Function,
             DynamicFunctionKind::Generator => ProtoIntrinsics::GeneratorFunction,
             DynamicFunctionKind::Async => ProtoIntrinsics::AsyncFunction,
+            DynamicFunctionKind::AsyncGenerator => ProtoIntrinsics::AsyncGeneratorFunction,
         }
     }
 }
