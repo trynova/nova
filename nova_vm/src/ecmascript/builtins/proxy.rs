@@ -227,13 +227,85 @@ impl InternalMethods for Proxy {
         TryResult::Break(())
     }
 
+    /// ### 0.5.2 [[[SetPrototypeOf]] ( V )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-setprototypeof-v)
+    ///
+    /// The [[SetPrototypeOf]] internal method of a Proxy exotic object O takes
+    /// argument V (an Object or null) and returns either a normal completion
+    /// containing a Boolean or a throw completion.
     fn internal_set_prototype_of(
         self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        prototype: Option<Object>,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        todo!();
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            mut target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 5. Let trap be ? GetMethod(handler, "setPrototypeOf").
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.setPrototypeOf.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            let scoped_target = target.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.setPrototypeOf.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|t| t.bind(gc));
+            target = scoped_target.get(agent).bind(gc);
+            handler = scoped_handler.get(agent).bind(gc);
+            trap
+        };
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? target.[[SetPrototypeOf]](V).
+            return target.internal_set_prototype_of(agent, prototype, gc);
+        };
+        // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, V »)).
+        let argument = call_function(
+            agent,
+            trap.unbind(),
+            handler.into_value(),
+            Some(ArgumentsList(&[target.into(), prototype.into()])),
+            gc.reborrow(),
+        )?;
+        let boolean_trap_result = to_boolean(agent, argument);
+        // 8. If booleanTrapResult is false, return false.
+        if !boolean_trap_result {
+            return Ok(false);
+        }
+        // 9. Let extensibleTarget be ? IsExtensible(target).
+        let extensible_target = is_extensible(agent, target, gc.reborrow())?;
+        // 10. If extensibleTarget is true, return true.
+        if extensible_target {
+            return Ok(true);
+        }
+        // 11. Let targetProto be ? target.[[GetPrototypeOf]]().
+        let target_proto = target.internal_get_prototype_of(agent, gc.reborrow())?;
+        // 12. If SameValue(V, targetProto) is false, throw a TypeError exception.
+        if prototype != target_proto {
+            return  Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "'setPrototypeOf' on proxy: trap returned truish for setting a new prototype on the non-extensible proxy target",
+                gc.nogc(),
+            ));
+        }
+        // 13. Return true.
+        Ok(true)
     }
 
     fn try_is_extensible(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
