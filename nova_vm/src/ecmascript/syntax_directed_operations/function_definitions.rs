@@ -140,35 +140,49 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
     if function.generator {
         // InstantiateGeneratorFunctionObject
         // 5. Let prototype be OrdinaryObjectCreate(%GeneratorFunction.prototype.prototype%).
+
+        // InstantiateAsyncGeneratorFunctionObject
+        // 5. Let prototype be OrdinaryObjectCreate(%AsyncGeneratorPrototype%).
+
         // NOTE: Although `prototype` has the generator prototype, it doesn't have the generator
         // internals slots, so it's created as an ordinary object.
         let prototype = ordinary_object_create_with_intrinsics(
             agent,
             Some(ProtoIntrinsics::Object),
-            Some(
+            Some(if function.r#async {
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .async_generator_prototype()
+                    .into_object()
+            } else {
                 agent
                     .current_realm()
                     .intrinsics()
                     .generator_prototype()
-                    .into_object(),
-            ),
+                    .into_object()
+            }),
         );
-        // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
+        // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor {
         unwrap_try(try_define_property_or_throw(
             agent,
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
+                // [[Value]]: prototype,
                 value: Some(prototype.into_value()),
+                // [[Writable]]: true,
                 writable: Some(true),
-                get: None,
-                set: None,
+                // [[Enumerable]]: false,
                 enumerable: Some(false),
+                // [[Configurable]]: false
                 configurable: Some(false),
+                ..Default::default()
             },
             gc,
         ))
         .unwrap();
+        // }).
     }
 
     // 6. Return F.
