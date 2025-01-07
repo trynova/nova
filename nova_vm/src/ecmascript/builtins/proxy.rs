@@ -255,7 +255,7 @@ impl InternalMethods for Proxy {
         ) {
             trap?
         } else {
-            let scoped_target: crate::engine::Scoped<'_, Object> = target.scope(agent, gc.nogc());
+            let scoped_target = target.scope(agent, gc.nogc());
             let scoped_handler = handler.scope(agent, gc.nogc());
             let trap = get_object_method(
                 agent,
