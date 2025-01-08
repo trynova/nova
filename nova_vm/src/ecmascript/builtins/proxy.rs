@@ -465,13 +465,166 @@ impl InternalMethods for Proxy {
         TryResult::Break(())
     }
 
+    /// ### 10.5.5 [[[GetOwnProperty]] ( P )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-getownproperty-p)
+    ///
+    /// The [[GetOwnProperty]] internal method of a Proxy exotic object O takes
+    /// argument P (a property key) and returns either a normal completion
+    /// containing either a Property Descriptor or undefined, or a throw completion.
     fn internal_get_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Option<PropertyDescriptor>> {
-        todo!();
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            mut target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 5. Let trap be ? GetMethod(handler, "getOwnPropertyDescriptor").
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            let scoped_target = target.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            target = scoped_target.get(agent).bind(gc);
+            trap
+        };
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? target.[[GetOwnProperty]](P).
+            return target.internal_get_own_property(agent, property_key, gc);
+        };
+        // 7. Let trapResultObj be ? Call(trap, handler, « target, P »).
+        let trap_result_obj = call_function(
+            agent,
+            trap.unbind(),
+            handler.into_value(),
+            Some(ArgumentsList(&[target.into(), property_key.into()])),
+            gc.reborrow(),
+        )?;
+        // 8. If trapResultObj is not an Object and trapResultObj is not undefined, throw a TypeError exception.
+        if !trap_result_obj.is_object() && !trap_result_obj.is_undefined() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "proxy [[GetOwnProperty]] must return an object or undefined",
+                gc.nogc(),
+            ));
+        };
+        // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        let target_desc = target.internal_get_own_property(agent, property_key, gc.reborrow())?;
+        // 10. If trapResultObj is undefined, then
+        if trap_result_obj.is_undefined() {
+            if let Some(target_desc) = target_desc {
+                // b. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
+                if target_desc.configurable == Some(false) {
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy can't report a non-configurable own property '{}' as non-existent.",
+                            property_key.as_display(agent)
+                        ),
+                        gc.nogc(),
+                    ));
+                }
+            } else {
+                // a. If targetDesc is undefined, return undefined.
+                return Ok(None);
+            }
+            // c. Let extensibleTarget be ? IsExtensible(target).
+            let extensible_target = is_extensible(agent, target, gc.reborrow())?;
+            // d. If extensibleTarget is false, throw a TypeError exception.
+            if !extensible_target {
+                return Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "proxy can't report a extensibleTarget own property '{}' as non-existent.",
+                        property_key.as_display(agent)
+                    ),
+                    gc.nogc(),
+                ));
+            };
+            // e. Return undefined.
+            return Ok(None);
+        };
+        // 11. Let extensibleTarget be ? IsExtensible(target).
+        let extensible_target = is_extensible(agent, target, gc.reborrow())?;
+        // 12. Let resultDesc be ? ToPropertyDescriptor(trapResultObj).
+        let result_desc = if let TryResult::Continue(result_desc) =
+            PropertyDescriptor::try_to_property_descriptor(agent, trap_result_obj, gc.nogc())
+        {
+            result_desc?
+        } else {
+            PropertyDescriptor::to_property_descriptor(agent, trap_result_obj, gc.reborrow())?
+        };
+        // 13. Perform CompletePropertyDescriptor(resultDesc).
+        PropertyDescriptor::complete_property_descriptor(result_desc.clone(), agent, gc.nogc())?;
+        // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
+        let valid = is_compatible_property_descriptor(
+            agent,
+            extensible_target,
+            result_desc.clone(),
+            target_desc.clone(),
+            gc.nogc(),
+        );
+        // 15. If valid is false, throw a TypeError exception.
+        if !valid {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "valid",
+                gc.nogc(),
+            ));
+        };
+        // 16. If resultDesc.[[Configurable]] is false, then
+        if result_desc.configurable == Some(false) {
+            // b. If resultDesc has a [[Writable]] field and resultDesc.[[Writable]] is false, then
+            if let Some(false) = result_desc.writable {
+                // i. Assert: targetDesc has a [[Writable]] field.
+                // ii. If targetDesc.[[Writable]] is true, throw a TypeError exception.
+                if let Some(target_desc) = target_desc {
+                    if target_desc.writable == Some(true) {
+                        return  Err(agent.throw_exception(
+                                ExceptionType::TypeError,
+                                format!(
+                                    "proxy can't report existing writable property '{}' as non-writable",
+                                    property_key.as_display(agent)
+                                ),
+                                gc.nogc()
+                        ));
+                    }
+                }
+            }
+            // a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
+            //   i. Throw a TypeError exception.
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                format!(
+                    "proxy can't report a non-existent property '{}' as non-configurable",
+                    property_key.as_display(agent)
+                ),
+                gc.nogc(),
+            ));
+        };
+        // 17. Return resultDesc.
+        Ok(Some(result_desc))
     }
 
     fn try_define_own_property(
