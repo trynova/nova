@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, PromiseCapability};
+use crate::ecmascript::execution::agent::ExceptionType;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -12,6 +15,11 @@ use crate::{
     },
     heap::WellKnownSymbolIndexes,
 };
+
+use super::async_generator_abstract_operations::{
+    async_generator_enqueue, async_generator_resume, async_generator_validate,
+};
+use super::{AsyncGenerator, AsyncGeneratorRequestCompletion};
 
 pub(crate) struct AsyncGeneratorPrototype;
 
@@ -41,13 +49,53 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 }
 
 impl AsyncGeneratorPrototype {
+    /// ### [27.6.1.2 %AsyncGeneratorPrototype%.next ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-next)
     fn next(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let value = arguments.get(0);
+        // 1. Let generator be the this value.
+        let generator = this_value;
+        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+        let promise_capability = PromiseCapability::new(agent);
+        // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
+        let result = async_generator_validate(agent, generator, (), gc.nogc());
+        // 4. IfAbruptRejectPromise(result, promiseCapability).
+        let generator = if_abrupt_reject_promise(agent, result, promise_capability)?;
+        // 5. Let state be generator.[[AsyncGeneratorState]].
+        let state = agent[generator].async_generator_state.as_ref().unwrap();
+        // 6. If state is completed, then
+        if state.is_completed() {
+            println!("Completed");
+            // a. Let iteratorResult be CreateIteratorResultObject(undefined, true).
+            let iterator_result =
+                create_iter_result_object(agent, Value::Undefined, true, gc.nogc());
+            // b. Perform ! Call(promiseCapability.[[Resolve]], undefined, « iteratorResult »).
+            promise_capability.resolve(agent, iterator_result.into_value(), gc);
+            // c. Return promiseCapability.[[Promise]].
+            return Ok(promise_capability.promise().into_value());
+        }
+        let state_is_suspended = state.is_suspended();
+        let state_is_executing_or_draining = state.is_active();
+        // 7. Let completion be NormalCompletion(value).
+        let completion = AsyncGeneratorRequestCompletion::Ok(value);
+        // 8. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
+        println!("Enqueue");
+        async_generator_enqueue(agent, generator, completion, promise_capability);
+        // 9. If state is either suspended-start or suspended-yield, then
+        if state_is_suspended {
+            // a. Perform AsyncGeneratorResume(generator, completion).
+            async_generator_resume(agent, generator.unbind(), completion, gc);
+        } else {
+            // 10. Else,
+            // a. Assert: state is either executing or draining-queue.
+            assert!(state_is_executing_or_draining);
+        }
+        // 11. Return promiseCapability.[[Promise]].
+        Ok(promise_capability.promise().into_value())
     }
 
     fn r#return(

@@ -2,8 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::collections::VecDeque;
+
 use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
 use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
+use crate::ecmascript::builtins::generator_objects::SuspendedGeneratorState;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
@@ -415,11 +418,11 @@ pub(crate) fn evaluate_generator_body(
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
     let executable = Executable::compile_function_body(agent, data, gc);
-    agent[generator].generator_state = Some(GeneratorState::Suspended {
+    agent[generator].generator_state = Some(GeneratorState::Suspended(SuspendedGeneratorState {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,
         execution_context: agent.running_execution_context().clone(),
-    });
+    }));
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
     Ok(generator.into_value())
@@ -460,10 +463,13 @@ pub(crate) fn evaluate_async_generator_body(
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
     let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
     let executable = Executable::compile_function_body(agent, data, gc.nogc());
-    agent[generator].generator_state = Some(AsyncGeneratorState::Suspended {
-        vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
-        executable,
-        execution_context: agent.running_execution_context().clone(),
+    agent[generator].async_generator_state = Some(AsyncGeneratorState::Suspended {
+        state: SuspendedGeneratorState {
+            vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
+            executable,
+            execution_context: agent.running_execution_context().clone(),
+        },
+        queue: VecDeque::new(),
     });
     // 6. Return ReturnCompletion(generator).
     Ok(generator.into_value())

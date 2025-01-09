@@ -2,9 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+mod async_generator_abstract_operations;
 mod async_generator_prototype;
 
-use std::ops::{Index, IndexMut};
+use std::{
+    collections::VecDeque,
+    ops::{Index, IndexMut},
+};
 
 pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 
@@ -30,6 +34,8 @@ use crate::{
     },
 };
 
+use super::generator_objects::SuspendedGeneratorState;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AsyncGenerator<'a>(pub(crate) AsyncGeneratorIndex<'a>);
 
@@ -50,12 +56,8 @@ impl AsyncGenerator<'_> {
     // let gen = gen.bind(&gc);
     // ```
     // to make sure that the unbound AsyncGenerator cannot be used after binding.
-    pub const fn bind<'a>(self, _: NoGcScope<'a, '_>) -> Option<AsyncGenerator<'a>> {
-        unsafe {
-            Some(std::mem::transmute::<AsyncGenerator, AsyncGenerator<'a>>(
-                self,
-            ))
-        }
+    pub const fn bind<'a>(self, _: NoGcScope<'a, '_>) -> AsyncGenerator<'a> {
+        unsafe { std::mem::transmute::<AsyncGenerator, AsyncGenerator<'a>>(self) }
     }
 
     pub fn scope<'scope>(
@@ -72,6 +74,40 @@ impl AsyncGenerator<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
+        matches!(
+            agent[self].async_generator_state.as_ref().unwrap(),
+            AsyncGeneratorState::DrainingQueue(_)
+        )
+    }
+
+    pub(crate) fn queue_is_empty(self, agent: &Agent) -> bool {
+        match agent[self].async_generator_state.as_ref().unwrap() {
+            AsyncGeneratorState::Suspended { queue, .. }
+            | AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.is_empty(),
+            AsyncGeneratorState::Completed => unreachable!(),
+        }
+    }
+
+    pub(crate) fn peek_first(self, agent: &mut Agent) -> &AsyncGeneratorRequest {
+        match agent[self].async_generator_state.as_mut().unwrap() {
+            AsyncGeneratorState::Suspended { queue, .. }
+            | AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.front().unwrap(),
+            AsyncGeneratorState::Completed => unreachable!(),
+        }
+    }
+
+    pub(crate) fn pop_first(self, agent: &mut Agent) -> AsyncGeneratorRequest {
+        match agent[self].async_generator_state.as_mut().unwrap() {
+            AsyncGeneratorState::Suspended { queue, .. }
+            | AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap(),
+            AsyncGeneratorState::Completed => unreachable!(),
+        }
     }
 }
 
@@ -184,20 +220,37 @@ impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
 #[derive(Debug, Default)]
 pub struct AsyncGeneratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) generator_state: Option<AsyncGeneratorState>,
+    pub(crate) async_generator_state: Option<AsyncGeneratorState>,
 }
 
 #[derive(Debug)]
 pub(crate) enum AsyncGeneratorState {
     // SUSPENDED-START has `vm_or_args` set to Arguments, SUSPENDED-YIELD has it set to Vm.
     Suspended {
-        vm_or_args: VmOrArguments,
-        executable: Executable,
-        execution_context: ExecutionContext,
+        state: SuspendedGeneratorState,
+        queue: VecDeque<AsyncGeneratorRequest>,
     },
-    Executing(Vec<AsyncGeneratorRequest>),
-    DrainingQueue(Vec<AsyncGeneratorRequest>),
+    Executing(VecDeque<AsyncGeneratorRequest>),
+    DrainingQueue(VecDeque<AsyncGeneratorRequest>),
     Completed,
+}
+
+impl AsyncGeneratorState {
+    pub(crate) fn is_completed(&self) -> bool {
+        matches!(self, Self::Completed)
+    }
+
+    pub(crate) fn is_suspended(&self) -> bool {
+        matches!(self, Self::Suspended { .. })
+    }
+
+    pub(crate) fn is_active(&self) -> bool {
+        matches!(self, Self::Executing(_) | Self::DrainingQueue(_))
+    }
+
+    pub(crate) fn is_draining(&self) -> bool {
+        matches!(self, Self::DrainingQueue(_))
+    }
 }
 
 /// ## [27.6.3.1 AsyncGeneratorRequest Records](https://tc39.es/ecma262/#sec-asyncgeneratorrequest-records)
@@ -213,11 +266,11 @@ pub(crate) struct AsyncGeneratorRequest {
     pub(crate) capability: PromiseCapability,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) enum AsyncGeneratorRequestCompletion {
+    Ok(Value),
+    Err(JsError),
     Return(Value),
-    Throw(JsError),
-    Yield(Value),
 }
 
 impl Rootable for AsyncGenerator<'_> {
@@ -260,9 +313,9 @@ impl HeapMarkAndSweep for AsyncGeneratorRequest {
             capability,
         } = self;
         match completion {
-            AsyncGeneratorRequestCompletion::Return(value)
-            | AsyncGeneratorRequestCompletion::Yield(value) => value.mark_values(queues),
-            AsyncGeneratorRequestCompletion::Throw(err) => err.mark_values(queues),
+            AsyncGeneratorRequestCompletion::Ok(value)
+            | AsyncGeneratorRequestCompletion::Return(value) => value.mark_values(queues),
+            AsyncGeneratorRequestCompletion::Err(err) => err.mark_values(queues),
         }
         capability.mark_values(queues);
     }
@@ -273,9 +326,9 @@ impl HeapMarkAndSweep for AsyncGeneratorRequest {
             capability,
         } = self;
         match completion {
-            AsyncGeneratorRequestCompletion::Return(value)
-            | AsyncGeneratorRequestCompletion::Yield(value) => value.sweep_values(compactions),
-            AsyncGeneratorRequestCompletion::Throw(err) => err.sweep_values(compactions),
+            AsyncGeneratorRequestCompletion::Ok(value)
+            | AsyncGeneratorRequestCompletion::Return(value) => value.sweep_values(compactions),
+            AsyncGeneratorRequestCompletion::Err(err) => err.sweep_values(compactions),
         }
         capability.sweep_values(compactions);
     }
@@ -285,27 +338,21 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             object_index,
-            generator_state,
+            async_generator_state: generator_state,
         } = self;
         object_index.mark_values(queues);
         let Some(generator_state) = generator_state else {
             return;
         };
         match generator_state {
-            AsyncGeneratorState::Suspended {
-                vm_or_args,
-                executable,
-                execution_context,
-            } => {
-                match vm_or_args {
-                    VmOrArguments::Vm(vm) => vm.mark_values(queues),
-                    VmOrArguments::Arguments(args) => args.as_ref().mark_values(queues),
+            AsyncGeneratorState::Suspended { state, queue } => {
+                state.mark_values(queues);
+                for req in queue {
+                    req.mark_values(queues);
                 }
-                executable.mark_values(queues);
-                execution_context.mark_values(queues);
             }
-            AsyncGeneratorState::Executing(vec) | AsyncGeneratorState::DrainingQueue(vec) => {
-                for req in vec {
+            AsyncGeneratorState::Executing(queue) | AsyncGeneratorState::DrainingQueue(queue) => {
+                for req in queue {
                     req.mark_values(queues);
                 }
             }
@@ -316,27 +363,21 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData {
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         let Self {
             object_index,
-            generator_state,
+            async_generator_state: generator_state,
         } = self;
         object_index.sweep_values(compactions);
         let Some(generator_state) = generator_state else {
             return;
         };
         match generator_state {
-            AsyncGeneratorState::Suspended {
-                vm_or_args,
-                executable,
-                execution_context,
-            } => {
-                match vm_or_args {
-                    VmOrArguments::Vm(vm) => vm.sweep_values(compactions),
-                    VmOrArguments::Arguments(args) => args.as_ref().sweep_values(compactions),
+            AsyncGeneratorState::Suspended { state, queue } => {
+                state.sweep_values(compactions);
+                for req in queue {
+                    req.sweep_values(compactions);
                 }
-                executable.sweep_values(compactions);
-                execution_context.sweep_values(compactions);
             }
-            AsyncGeneratorState::Executing(vec) | AsyncGeneratorState::DrainingQueue(vec) => {
-                for req in vec {
+            AsyncGeneratorState::Executing(queue) | AsyncGeneratorState::DrainingQueue(queue) => {
+                for req in queue {
                     req.sweep_values(compactions);
                 }
             }
