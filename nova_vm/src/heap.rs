@@ -54,6 +54,7 @@ use crate::{
     ecmascript::{
         builtins::{
             array_buffer::DetachKey,
+            async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::GeneratorHeapData,
@@ -101,6 +102,7 @@ pub struct Heap {
     pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
+    pub async_generators: Vec<Option<AsyncGeneratorHeapData>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
@@ -207,6 +209,7 @@ impl Heap {
             array_buffer_detach_keys: AHashMap::with_capacity(0),
             arrays: Vec::with_capacity(1024),
             array_iterators: Vec::with_capacity(256),
+            async_generators: Vec::with_capacity(0),
             await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),

@@ -2272,7 +2272,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Map(_) |
         Value::Promise(_) |
         Value::AsyncFromSyncIterator |
-        Value::AsyncIterator |
+        Value::AsyncGenerator(_) |
         Value::Iterator |
         Value::ArrayIterator(_) |
         Value::MapIterator(_) |
