@@ -29,6 +29,7 @@ use crate::{
             try_to_string,
         },
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
                 generator_objects::Generator,
@@ -205,7 +206,7 @@ pub enum Value {
     // Iterator objects
     // TODO: Figure out if these are needed at all.
     AsyncFromSyncIterator,
-    AsyncIterator,
+    AsyncGenerator(AsyncGenerator<'static>),
     Iterator,
     ArrayIterator(ArrayIterator),
     SetIterator(SetIterator),
@@ -338,7 +339,8 @@ pub(crate) const FLOAT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Float64Array(TypedArrayIndex::from_u32_index(0)));
 pub(crate) const ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::AsyncFromSyncIterator);
-pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::AsyncIterator);
+pub(crate) const ASYNC_GENERATOR_DISCRIMINANT: u8 =
+    value_discriminant(Value::AsyncGenerator(AsyncGenerator::_def()));
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
@@ -803,7 +805,10 @@ impl Value {
                 data.into_index().hash(hasher);
             }
             Value::AsyncFromSyncIterator => todo!(),
-            Value::AsyncIterator => todo!(),
+            Value::AsyncGenerator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => {
                 discriminant.hash(hasher);
@@ -1024,7 +1029,10 @@ impl Value {
                 data.into_index().hash(hasher);
             }
             Value::AsyncFromSyncIterator => todo!(),
-            Value::AsyncIterator => todo!(),
+            Value::AsyncGenerator(data) => {
+                discriminant.hash(hasher);
+                data.get_index().hash(hasher);
+            }
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => {
                 discriminant.hash(hasher);
@@ -1231,7 +1239,7 @@ impl Rootable for Value {
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index)),
             Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
-            Self::AsyncIterator => Err(HeapRootData::AsyncIterator),
+            Self::AsyncGenerator(gen) => Err(HeapRootData::AsyncGenerator(gen)),
             Self::Iterator => Err(HeapRootData::Iterator),
             Self::ArrayIterator(array_iterator) => Err(HeapRootData::ArrayIterator(array_iterator)),
             Self::SetIterator(set_iterator) => Err(HeapRootData::SetIterator(set_iterator)),
@@ -1347,7 +1355,7 @@ impl Rootable for Value {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncIterator => Some(Self::AsyncIterator),
+            HeapRootData::AsyncGenerator(gen) => Some(Self::AsyncGenerator(gen)),
             HeapRootData::Iterator => Some(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => {
                 Some(Self::ArrayIterator(array_iterator))
@@ -1450,7 +1458,7 @@ impl HeapMarkAndSweep for Value {
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
-            Value::AsyncIterator => todo!(),
+            Value::AsyncGenerator(data) => data.mark_values(queues),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.mark_values(queues),
             Value::SetIterator(data) => data.mark_values(queues),
@@ -1533,7 +1541,7 @@ impl HeapMarkAndSweep for Value {
             Value::BuiltinPromiseCollectorFunction => todo!(),
             Value::BuiltinProxyRevokerFunction => todo!(),
             Value::AsyncFromSyncIterator => todo!(),
-            Value::AsyncIterator => todo!(),
+            Value::AsyncGenerator(data) => data.sweep_values(compactions),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.sweep_values(compactions),
             Value::SetIterator(data) => data.sweep_values(compactions),

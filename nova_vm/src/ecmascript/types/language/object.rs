@@ -30,7 +30,7 @@ use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRI
 use super::{
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-        ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
+        ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
@@ -60,6 +60,7 @@ use crate::{
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
                 generator_objects::Generator,
@@ -169,7 +170,7 @@ pub enum Object {
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-    AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
+    AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator) = ARRAY_ITERATOR_DISCRIMINANT,
     SetIterator(SetIterator) = SET_ITERATOR_DISCRIMINANT,
@@ -244,7 +245,7 @@ impl IntoValue for Object {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => Value::ArrayIterator(data),
             Object::SetIterator(data) => Value::SetIterator(data),
@@ -469,7 +470,7 @@ impl From<Object> for Value {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data),
             Object::AsyncFromSyncIterator => Value::AsyncFromSyncIterator,
-            Object::AsyncIterator => Value::AsyncIterator,
+            Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
             Object::Iterator => Value::Iterator,
             Object::ArrayIterator(data) => Value::ArrayIterator(data),
             Object::SetIterator(data) => Value::SetIterator(data),
@@ -555,7 +556,7 @@ impl TryFrom<Value> for Object {
             #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => Ok(Object::Float64Array(data)),
             Value::AsyncFromSyncIterator => Ok(Object::AsyncFromSyncIterator),
-            Value::AsyncIterator => Ok(Object::AsyncIterator),
+            Value::AsyncGenerator(data) => Ok(Object::AsyncGenerator(data)),
             Value::Iterator => Ok(Object::Iterator),
             Value::ArrayIterator(data) => Ok(Object::ArrayIterator(data)),
             Value::SetIterator(data) => Ok(Object::SetIterator(data)),
@@ -666,7 +667,7 @@ impl Hash for Object {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.into_index().hash(state),
             Object::AsyncFromSyncIterator => {}
-            Object::AsyncIterator => {}
+            Object::AsyncGenerator(data) => data.get_index().hash(state),
             Object::Iterator => {}
             Object::ArrayIterator(data) => data.get_index().hash(state),
             Object::SetIterator(data) => data.get_index().hash(state),
@@ -756,7 +757,7 @@ impl InternalSlots for Object {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_extensible(agent),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_extensible(agent),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_extensible(agent),
             Object::SetIterator(data) => data.internal_extensible(agent),
@@ -850,7 +851,7 @@ impl InternalSlots for Object {
                 TypedArray::Float64Array(data).internal_set_extensible(agent, value)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_set_extensible(agent, value),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_extensible(agent, value),
             Object::SetIterator(data) => data.internal_set_extensible(agent, value),
@@ -926,7 +927,7 @@ impl InternalSlots for Object {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_prototype(agent),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_prototype(agent),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prototype(agent),
             Object::SetIterator(data) => data.internal_prototype(agent),
@@ -1022,7 +1023,7 @@ impl InternalSlots for Object {
                 TypedArray::Float64Array(data).internal_set_prototype(agent, prototype)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_set_prototype(agent, prototype),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::SetIterator(data) => data.internal_set_prototype(agent, prototype),
@@ -1118,7 +1119,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_get_prototype_of(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_get_prototype_of(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::SetIterator(data) => data.try_get_prototype_of(agent, gc),
@@ -1216,7 +1217,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_get_prototype_of(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::SetIterator(data) => data.internal_get_prototype_of(agent, gc),
@@ -1317,7 +1318,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_set_prototype_of(agent, prototype, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::SetIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
@@ -1422,7 +1423,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_set_prototype_of(agent, prototype, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::SetIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
@@ -1502,7 +1503,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_is_extensible(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_is_extensible(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_is_extensible(agent, gc),
             Object::SetIterator(data) => data.try_is_extensible(agent, gc),
@@ -1594,7 +1595,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_is_extensible(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_is_extensible(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_is_extensible(agent, gc),
             Object::SetIterator(data) => data.internal_is_extensible(agent, gc),
@@ -1686,7 +1687,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_prevent_extensions(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_prevent_extensions(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::SetIterator(data) => data.try_prevent_extensions(agent, gc),
@@ -1780,7 +1781,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_prevent_extensions(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::SetIterator(data) => data.internal_prevent_extensions(agent, gc),
@@ -1883,7 +1884,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_get_own_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::SetIterator(data) => data.try_get_own_property(agent, property_key, gc),
@@ -1993,7 +1994,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_get_own_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::SetIterator(data) => data.internal_get_own_property(agent, property_key, gc),
@@ -2162,7 +2163,9 @@ impl InternalMethods for Object {
                 gc,
             ),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2323,7 +2326,9 @@ impl InternalMethods for Object {
             Object::Float64Array(data) => TypedArray::Float64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor, gc)
+            }
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2436,7 +2441,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_has_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_has_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_has_property(agent, property_key, gc),
             Object::SetIterator(data) => data.try_has_property(agent, property_key, gc),
@@ -2539,7 +2544,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_has_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_has_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::SetIterator(data) => data.internal_has_property(agent, property_key, gc),
@@ -2641,7 +2646,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_get(agent, property_key, receiver, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::SetIterator(data) => data.try_get(agent, property_key, receiver, gc),
@@ -2747,7 +2752,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_get(agent, property_key, receiver, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::SetIterator(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -2860,7 +2865,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_set(agent, property_key, value, receiver, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::SetIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
@@ -2997,7 +3002,9 @@ impl InternalMethods for Object {
                 gc,
             ),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.internal_set(agent, property_key, value, receiver, gc)
+            }
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
@@ -3104,7 +3111,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_delete(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_delete(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_delete(agent, property_key, gc),
             Object::SetIterator(data) => data.try_delete(agent, property_key, gc),
@@ -3205,7 +3212,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_delete(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_delete(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::SetIterator(data) => data.internal_delete(agent, property_key, gc),
@@ -3299,7 +3306,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).try_own_property_keys(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_own_property_keys(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_own_property_keys(agent, gc),
             Object::SetIterator(data) => data.try_own_property_keys(agent, gc),
@@ -3397,7 +3404,7 @@ impl InternalMethods for Object {
                 TypedArray::Float64Array(data).internal_own_property_keys(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_own_property_keys(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::SetIterator(data) => data.internal_own_property_keys(agent, gc),
@@ -3512,7 +3519,7 @@ impl HeapMarkAndSweep for Object {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.mark_values(queues),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.mark_values(queues),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.mark_values(queues),
             Object::SetIterator(data) => data.mark_values(queues),
@@ -3582,7 +3589,7 @@ impl HeapMarkAndSweep for Object {
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.sweep_values(compactions),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.sweep_values(compactions),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.sweep_values(compactions),
             Object::SetIterator(data) => data.sweep_values(compactions),
@@ -3702,7 +3709,7 @@ impl Rootable for Object {
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index)),
             Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
-            Self::AsyncIterator => Err(HeapRootData::AsyncIterator),
+            Self::AsyncGenerator(gen) => Err(HeapRootData::AsyncGenerator(gen)),
             Self::Iterator => Err(HeapRootData::Iterator),
             Self::ArrayIterator(array_iterator) => Err(HeapRootData::ArrayIterator(array_iterator)),
             Self::SetIterator(set_iterator) => Err(HeapRootData::SetIterator(set_iterator)),
@@ -3810,7 +3817,7 @@ impl Rootable for Object {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncIterator => Some(Self::AsyncIterator),
+            HeapRootData::AsyncGenerator(gen) => Some(Self::AsyncGenerator(gen)),
             HeapRootData::Iterator => Some(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => {
                 Some(Self::ArrayIterator(array_iterator))

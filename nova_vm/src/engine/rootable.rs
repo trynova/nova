@@ -40,6 +40,7 @@ use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
             error::Error,
@@ -62,7 +63,7 @@ use crate::{
         types::{
             bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
+            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
             BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
             BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
             BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -91,6 +92,7 @@ mod private {
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
             error::Error,
@@ -122,6 +124,7 @@ mod private {
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer {}
     impl RootableSealed for ArrayIterator {}
+    impl RootableSealed for AsyncGenerator<'_> {}
     impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction<'_> {}
     impl RootableSealed for BuiltinConstructorFunction<'_> {}
@@ -273,7 +276,7 @@ pub enum HeapRootData {
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-    AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
+    AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator) = ARRAY_ITERATOR_DISCRIMINANT,
     SetIterator(SetIterator) = SET_ITERATOR_DISCRIMINANT,
@@ -401,7 +404,7 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
             HeapRootData::AsyncFromSyncIterator => todo!(),
-            HeapRootData::AsyncIterator => todo!(),
+            HeapRootData::AsyncGenerator(gen) => gen.mark_values(queues),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
             HeapRootData::SetIterator(set_iterator) => set_iterator.mark_values(queues),
@@ -489,7 +492,7 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.sweep_values(compactions),
             HeapRootData::AsyncFromSyncIterator => todo!(),
-            HeapRootData::AsyncIterator => todo!(),
+            HeapRootData::AsyncGenerator(gen) => gen.sweep_values(compactions),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
             HeapRootData::SetIterator(set_iterator) => set_iterator.sweep_values(compactions),

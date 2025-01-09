@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
 use std::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -31,6 +31,7 @@ pub struct Options {
 pub type JsResult<T> = std::result::Result<T, JsError>;
 
 #[derive(Debug, Default, Clone, Copy)]
+#[repr(transparent)]
 pub struct JsError(Value);
 
 impl JsError {
@@ -44,6 +45,16 @@ impl JsError {
 
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         to_string(agent, self.0, gc).unwrap()
+    }
+}
+
+impl HeapMarkAndSweep for JsError {
+    fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
+        self.0.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &crate::heap::CompactionLists) {
+        self.0.sweep_values(compactions);
     }
 }
 
