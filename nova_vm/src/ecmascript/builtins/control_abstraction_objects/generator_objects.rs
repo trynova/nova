@@ -64,11 +64,11 @@ impl Generator {
         };
 
         // 7. Set generator.[[GeneratorState]] to executing.
-        let Some(GeneratorState::Suspended {
+        let Some(GeneratorState::Suspended(SuspendedGeneratorState {
             vm_or_args,
             executable,
             execution_context,
-        }) = agent[self]
+        })) = agent[self]
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -138,11 +138,12 @@ impl Generator {
                 // GeneratorYield:
                 // 3. Let generator be the value of the Generator component of genContext.
                 // 5. Set generator.[[GeneratorState]] to suspended-yield.
-                agent[self].generator_state = Some(GeneratorState::Suspended {
-                    vm_or_args: VmOrArguments::Vm(vm),
-                    executable,
-                    execution_context,
-                });
+                agent[self].generator_state =
+                    Some(GeneratorState::Suspended(SuspendedGeneratorState {
+                        vm_or_args: VmOrArguments::Vm(vm),
+                        executable,
+                        execution_context,
+                    }));
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
                 // NOTE: `callerContext` here is the `GeneratorResume` execution context.
                 Ok(create_iter_result_object(agent, yielded_value, false))
@@ -161,10 +162,10 @@ impl Generator {
     ) -> JsResult<Object> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
-            GeneratorState::Suspended {
+            GeneratorState::Suspended(SuspendedGeneratorState {
                 vm_or_args: VmOrArguments::Arguments(_),
                 ..
-            } => {
+            }) => {
                 // 2. If state is suspended-start, then
                 // a. Set generator.[[GeneratorState]] to completed.
                 // b. NOTE: Once a generator enters the completed state it never leaves it and its
@@ -195,11 +196,11 @@ impl Generator {
         };
 
         // 8. Set generator.[[GeneratorState]] to executing.
-        let Some(GeneratorState::Suspended {
+        let Some(GeneratorState::Suspended(SuspendedGeneratorState {
             vm_or_args: VmOrArguments::Vm(vm),
             executable,
             execution_context,
-        }) = agent[self]
+        })) = agent[self]
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -238,11 +239,12 @@ impl Generator {
                 Err(err)
             }
             ExecutionResult::Yield { vm, yielded_value } => {
-                agent[self].generator_state = Some(GeneratorState::Suspended {
-                    vm_or_args: VmOrArguments::Vm(vm),
-                    executable,
-                    execution_context,
-                });
+                agent[self].generator_state =
+                    Some(GeneratorState::Suspended(SuspendedGeneratorState {
+                        vm_or_args: VmOrArguments::Vm(vm),
+                        executable,
+                        execution_context,
+                    }));
                 Ok(create_iter_result_object(agent, yielded_value, false))
             }
             ExecutionResult::Await { .. } => unreachable!(),
@@ -407,15 +409,48 @@ pub(crate) enum VmOrArguments {
 }
 
 #[derive(Debug)]
+pub(crate) struct SuspendedGeneratorState {
+    pub(crate) vm_or_args: VmOrArguments,
+    pub(crate) executable: Executable,
+    pub(crate) execution_context: ExecutionContext,
+}
+
+#[derive(Debug)]
 pub(crate) enum GeneratorState {
     // SUSPENDED-START has `vm_or_args` set to Arguments, SUSPENDED-YIELD has it set to Vm.
-    Suspended {
-        vm_or_args: VmOrArguments,
-        executable: Executable,
-        execution_context: ExecutionContext,
-    },
+    Suspended(SuspendedGeneratorState),
     Executing,
     Completed,
+}
+
+impl HeapMarkAndSweep for SuspendedGeneratorState {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            vm_or_args,
+            executable,
+            execution_context,
+        } = self;
+        match vm_or_args {
+            VmOrArguments::Vm(vm) => vm.mark_values(queues),
+            VmOrArguments::Arguments(args) => args.as_ref().mark_values(queues),
+        }
+        executable.mark_values(queues);
+        execution_context.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            vm_or_args,
+            executable,
+            execution_context,
+        } = self;
+        match vm_or_args {
+            VmOrArguments::Vm(vm) => vm.sweep_values(compactions),
+            VmOrArguments::Arguments(args) => args.as_ref().sweep_values(compactions),
+        }
+        executable.sweep_values(compactions);
+        execution_context.sweep_values(compactions);
+    }
 }
 
 impl HeapMarkAndSweep for GeneratorHeapData {
@@ -425,18 +460,8 @@ impl HeapMarkAndSweep for GeneratorHeapData {
             generator_state,
         } = self;
         object_index.mark_values(queues);
-        if let Some(GeneratorState::Suspended {
-            vm_or_args,
-            executable,
-            execution_context,
-        }) = generator_state
-        {
-            match vm_or_args {
-                VmOrArguments::Vm(vm) => vm.mark_values(queues),
-                VmOrArguments::Arguments(args) => args.as_ref().mark_values(queues),
-            }
-            executable.mark_values(queues);
-            execution_context.mark_values(queues);
+        if let Some(GeneratorState::Suspended(state)) = generator_state {
+            state.mark_values(queues);
         }
     }
 
@@ -446,18 +471,8 @@ impl HeapMarkAndSweep for GeneratorHeapData {
             generator_state,
         } = self;
         object_index.sweep_values(compactions);
-        if let Some(GeneratorState::Suspended {
-            vm_or_args,
-            executable,
-            execution_context,
-        }) = generator_state
-        {
-            match vm_or_args {
-                VmOrArguments::Vm(vm) => vm.sweep_values(compactions),
-                VmOrArguments::Arguments(args) => args.as_ref().sweep_values(compactions),
-            }
-            executable.sweep_values(compactions);
-            execution_context.sweep_values(compactions);
+        if let Some(GeneratorState::Suspended(state)) = generator_state {
+            state.sweep_values(compactions);
         }
     }
 }
