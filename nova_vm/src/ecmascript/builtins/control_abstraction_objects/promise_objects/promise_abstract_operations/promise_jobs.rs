@@ -4,6 +4,10 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
+use crate::ecmascript::builtins::async_generator_objects::{
+    async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
+    async_generator_start_result,
+};
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -139,6 +143,33 @@ impl PromiseReactionJob {
                 // 5. f. Return undefined.
                 Ok(Value::Undefined)
             }
+            PromiseReactionHandler::AsyncGenerator(async_generator) => {
+                async_generator_start_result(
+                    agent,
+                    async_generator,
+                    Ok(self.argument),
+                    gc.reborrow(),
+                );
+                Ok(Value::Undefined)
+            }
+            PromiseReactionHandler::AsyncGeneratorFulfill(async_generator) => {
+                async_generator_await_return_on_fulfilled(
+                    agent,
+                    async_generator,
+                    self.argument,
+                    gc.reborrow(),
+                );
+                Ok(Value::Undefined)
+            }
+            PromiseReactionHandler::AsyncGeneratorReject(async_generator) => {
+                async_generator_await_return_on_rejected(
+                    agent,
+                    async_generator,
+                    self.argument,
+                    gc.reborrow(),
+                );
+                Ok(Value::Undefined)
+            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -193,7 +224,10 @@ pub(crate) fn new_promise_reaction_job(
                 .realm,
         ),
         // 2. Let handlerRealm be null.
-        PromiseReactionHandler::Empty => None,
+        PromiseReactionHandler::AsyncGenerator(_)
+        | PromiseReactionHandler::AsyncGeneratorFulfill(_)
+        | PromiseReactionHandler::AsyncGeneratorReject(_)
+        | PromiseReactionHandler::Empty => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

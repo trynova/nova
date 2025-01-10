@@ -73,8 +73,14 @@ macro_rules! create_environment_index {
         /// plus one. This allows us to not use an empty value in storage for
         /// the zero index while still saving room for a [`None`] value when
         /// stored in an [`Option`].
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub(crate) struct $index(NonZeroU32, PhantomData<$name>);
+
+        impl std::fmt::Debug for $index {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "$index({:?})", self.0)
+            }
+        }
 
         impl $index {
             /// Creates a new index from a u32.
@@ -192,7 +198,7 @@ impl ModuleEnvironmentIndex {
 /// Environment Record, and Global Environment Record. Function Environment
 /// Records and Module Environment Records are subclasses of Declarative
 /// Environment Record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub(crate) enum EnvironmentIndex {
     // Leave 0 for None option
@@ -201,6 +207,18 @@ pub(crate) enum EnvironmentIndex {
     Global(GlobalEnvironmentIndex),
     // Module(ModuleEnvironmentIndex),
     Object(ObjectEnvironmentIndex),
+}
+
+impl std::fmt::Debug for EnvironmentIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EnvironmentIndex::Declarative(d) => write!(f, "DeclarativeEnvironment({:?})", d.0),
+            EnvironmentIndex::Function(d) => write!(f, "FunctionEnvironment({:?})", d.0),
+            EnvironmentIndex::Global(d) => write!(f, "GlobalEnvironment({:?})", d.0),
+            EnvironmentIndex::Object(d) => write!(f, "ObjectEnvironment({:?})", d.0),
+            // EnvironmentIndex::Module(d) => {}
+        }
+    }
 }
 
 impl EnvironmentIndex {
