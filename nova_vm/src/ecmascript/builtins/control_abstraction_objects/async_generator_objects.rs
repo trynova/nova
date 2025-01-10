@@ -10,6 +10,10 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+pub(crate) use async_generator_abstract_operations::{
+    async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
+    async_generator_start_result,
+};
 pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 
 use crate::{
@@ -18,7 +22,7 @@ use crate::{
             generator_objects::VmOrArguments,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics},
+        execution::{agent::JsError, Agent, ProtoIntrinsics, RealmIdentifier},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
@@ -26,7 +30,7 @@ use crate::{
     engine::{
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Executable, Scoped,
+        Scoped,
     },
     heap::{
         indexes::{AsyncGeneratorIndex, BaseIndex},
@@ -76,6 +80,11 @@ impl AsyncGenerator<'_> {
         self.0.into_index()
     }
 
+    pub(crate) fn get_realm(self, agent: &Agent) -> Option<RealmIdentifier> {
+        println!("{:#?}", agent[self].async_generator_state);
+        None
+    }
+
     pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
         matches!(
             agent[self].async_generator_state.as_ref().unwrap(),
@@ -108,6 +117,23 @@ impl AsyncGenerator<'_> {
             | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap(),
             AsyncGeneratorState::Completed => unreachable!(),
         }
+    }
+
+    pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest) {
+        match agent[self].async_generator_state.as_mut().unwrap() {
+            AsyncGeneratorState::Suspended { queue, .. }
+            | AsyncGeneratorState::Executing(queue)
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request),
+            AsyncGeneratorState::Completed => unreachable!(),
+        }
+    }
+
+    pub(crate) fn transition_to_draining_queue(self, agent: &mut Agent) {
+        let async_generator_state = &mut agent[self].async_generator_state;
+        let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
+            unreachable!()
+        };
+        async_generator_state.replace(AsyncGeneratorState::DrainingQueue(queue));
     }
 }
 
@@ -245,7 +271,7 @@ impl AsyncGeneratorState {
     }
 
     pub(crate) fn is_active(&self) -> bool {
-        matches!(self, Self::Executing(_) | Self::DrainingQueue(_))
+        matches!(self, Self::Executing { .. } | Self::DrainingQueue(_))
     }
 
     pub(crate) fn is_draining(&self) -> bool {

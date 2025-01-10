@@ -461,8 +461,15 @@ pub(crate) fn evaluate_async_generator_body(
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
-    let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
-    let executable = Executable::compile_function_body(agent, data, gc.nogc());
+    let function_object = scoped_function_object.get(agent).bind(gc.nogc());
+    let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
+        exe
+    } else {
+        let data = CompileFunctionBodyData::new(agent, function_object);
+        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        agent[function_object].compiled_bytecode = Some(exe);
+        exe
+    };
     agent[generator].async_generator_state = Some(AsyncGeneratorState::Suspended {
         state: SuspendedGeneratorState {
             vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),

@@ -531,6 +531,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
     env: Option<EnvironmentIndex>,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<Reference<'a>> {
+    let name = name.bind(gc.nogc());
     let env = env.unwrap_or_else(|| {
         // 1. If env is not present or env is undefined, then
         //    a. Set env to the running execution context's LexicalEnvironment.
@@ -553,7 +554,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    get_identifier_reference(agent, Some(env), name, strict, gc)
+    get_identifier_reference(agent, Some(env), name.unbind(), strict, gc)
 }
 
 #[derive(Debug, Clone, Copy)]

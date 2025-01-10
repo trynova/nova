@@ -4,8 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, PromiseCapability};
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
@@ -19,7 +18,7 @@ use crate::{
 use super::async_generator_abstract_operations::{
     async_generator_enqueue, async_generator_resume, async_generator_validate,
 };
-use super::{AsyncGenerator, AsyncGeneratorRequestCompletion};
+use super::AsyncGeneratorRequestCompletion;
 
 pub(crate) struct AsyncGeneratorPrototype;
 
@@ -69,7 +68,6 @@ impl AsyncGeneratorPrototype {
         let state = agent[generator].async_generator_state.as_ref().unwrap();
         // 6. If state is completed, then
         if state.is_completed() {
-            println!("Completed");
             // a. Let iteratorResult be CreateIteratorResultObject(undefined, true).
             let iterator_result =
                 create_iter_result_object(agent, Value::Undefined, true, gc.nogc());
@@ -83,7 +81,6 @@ impl AsyncGeneratorPrototype {
         // 7. Let completion be NormalCompletion(value).
         let completion = AsyncGeneratorRequestCompletion::Ok(value);
         // 8. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
-        println!("Enqueue");
         async_generator_enqueue(agent, generator, completion, promise_capability);
         // 9. If state is either suspended-start or suspended-yield, then
         if state_is_suspended {
