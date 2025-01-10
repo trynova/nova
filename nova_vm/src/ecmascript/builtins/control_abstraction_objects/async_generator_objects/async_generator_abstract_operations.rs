@@ -55,7 +55,7 @@ pub(crate) fn async_generator_start_result(
     //    NormalCompletion(undefined).
     // i. If result is a return completion, set result to
     //    NormalCompletion(result.[[Value]]).
-    let result = result.map_or_else(|e| e.value(), |v| v);
+    let result = result.unwrap_or_else(|e| e.value());
     // j. Perform AsyncGeneratorCompleteStep(acGenerator, result, true).
     async_generator_complete_step(
         agent,
