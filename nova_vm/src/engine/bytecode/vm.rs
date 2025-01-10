@@ -72,6 +72,7 @@ struct EmptyParametersList(ast::FormalParameters<'static>);
 unsafe impl Send for EmptyParametersList {}
 unsafe impl Sync for EmptyParametersList {}
 
+#[derive(Debug)]
 pub(crate) enum ExecutionResult {
     Return(Value),
     Throw(JsError),

@@ -6,8 +6,12 @@ use std::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
-        builtins::control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionIdentifier,
-        execution::Agent, types::Function,
+        builtins::{
+            async_generator_objects::AsyncGenerator,
+            control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionIdentifier,
+        },
+        execution::Agent,
+        types::Function,
     },
     heap::{indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep},
 };
@@ -38,6 +42,9 @@ pub(crate) enum PromiseReactionType {
 pub(crate) enum PromiseReactionHandler {
     JobCallback(Function<'static>),
     Await(AwaitReactionIdentifier),
+    AsyncGenerator(AsyncGenerator<'static>),
+    AsyncGeneratorFulfill(AsyncGenerator<'static>),
+    AsyncGeneratorReject(AsyncGenerator<'static>),
     Empty,
 }
 
