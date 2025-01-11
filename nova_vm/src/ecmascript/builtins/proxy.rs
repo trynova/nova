@@ -514,11 +514,13 @@ impl InternalMethods for Proxy {
             return target.internal_get_own_property(agent, property_key, gc);
         };
         // 7. Let trapResultObj be ? Call(trap, handler, « target, P »).
+
+        let p = property_key.convert_to_value(agent, gc.nogc());
         let trap_result_obj = call_function(
             agent,
             trap.unbind(),
             handler.into_value(),
-            Some(ArgumentsList(&[target.into(), property_key.into()])),
+            Some(ArgumentsList(&[target.into(), p])),
             gc.reborrow(),
         )?;
         // 8. If trapResultObj is not an Object and trapResultObj is not undefined, throw a TypeError exception.
@@ -571,7 +573,7 @@ impl InternalMethods for Proxy {
         let mut result_desc =
             PropertyDescriptor::to_property_descriptor(agent, trap_result_obj, gc.reborrow())?;
         // 13. Perform CompletePropertyDescriptor(resultDesc).
-        result_desc.complete_property_descriptor(agent, gc.nogc())?;
+        result_desc.complete_property_descriptor()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
         let valid = is_compatible_property_descriptor(
             agent,
@@ -592,7 +594,7 @@ impl InternalMethods for Proxy {
         if result_desc.configurable == Some(false) {
             // a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
             if target_desc
-                .clone()
+                .as_ref()
                 .map_or(true, |d| d.configurable == Some(true))
             {
                 // i. Throw a TypeError exception.

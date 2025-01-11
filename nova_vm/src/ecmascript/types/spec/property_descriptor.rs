@@ -497,13 +497,9 @@ impl PropertyDescriptor {
     ///
     /// The abstract operation CompletePropertyDescriptor takes
     /// argument Desc (a Property Descriptor) and returns unused.
-    pub(crate) fn complete_property_descriptor(
-        &mut self,
-        _agent: &mut Agent,
-        _gc: NoGcScope<'_, '_>,
-    ) -> JsResult<()> {
+    pub(crate) fn complete_property_descriptor(&mut self) -> JsResult<()> {
         // 1. Let like be the Record { [[Value]]: undefined, [[Writable]]: false, [[Get]]: undefined, [[Set]]: undefined, [[Enumerable]]: false, [[Configurable]]: false }.
-        let like: PropertyDescriptor = PropertyDescriptor {
+        let like = PropertyDescriptor {
             value: Some(Value::Undefined),
             writable: Some(false),
             get: None,
@@ -516,35 +512,29 @@ impl PropertyDescriptor {
             // a. If Desc does not have a [[Value]] field, set Desc.[[Value]] to like.[[Value]].
             if self.value.is_none() {
                 self.value = like.value;
-                return Ok(());
             };
             // b. If Desc does not have a [[Writable]] field, set Desc.[[Writable]] to like.[[Writable]].
             if self.writable.is_none() {
                 self.writable = like.writable;
-                return Ok(());
             };
         } else {
             // 3. Else,
             // a. If Desc does not have a [[Get]] field, set Desc.[[Get]] to like.[[Get]].
             if self.get.is_none() {
                 self.get = like.get;
-                return Ok(());
             };
             // b. If Desc does not have a [[Set]] field, set Desc.[[Set]] to like.[[Set]].
             if self.set.is_none() {
                 self.set = like.set;
-                return Ok(());
             };
         };
         // 4. If Desc does not have an [[Enumerable]] field, set Desc.[[Enumerable]] to like.[[Enumerable]].
         if self.enumerable.is_none() {
             self.enumerable = like.enumerable;
-            return Ok(());
         };
         // 5. If Desc does not have a [[Configurable]] field, set Desc.[[Configurable]] to like.[[Configurable]].
         if self.configurable.is_none() {
             self.configurable = like.configurable;
-            return Ok(());
         };
         // 6. Return unused.
         Ok(())
