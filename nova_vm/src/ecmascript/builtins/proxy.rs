@@ -560,6 +560,7 @@ impl InternalMethods for Proxy {
         // 12. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is false, then
         let setting_config_false = property_descriptor.configurable == Some(false);
         // 14. If targetDesc is undefined, then
+        let gc = gc.into_nogc();
         if target_desc.is_none() {
             // a. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
@@ -569,7 +570,7 @@ impl InternalMethods for Proxy {
                         "proxy can't define a new property '{}' on a non-extensible object",
                         property_key.as_display(agent)
                     ),
-                    gc.nogc(),
+                    gc,
                 ));
             }
             // b. If settingConfigFalse is true, throw a TypeError exception.
@@ -580,7 +581,7 @@ impl InternalMethods for Proxy {
                         "proxy can't define a non-existent '{}' property as non-configurable",
                         property_key.as_display(agent)
                     ),
-                    gc.nogc(),
+                    gc,
                 ));
             }
         } else {
@@ -591,7 +592,7 @@ impl InternalMethods for Proxy {
                 extensible_target,
                 property_descriptor.clone(),
                 target_desc.clone(),
-                gc.nogc(),
+                gc,
             ) {
                 return Err(agent.throw_exception(
                     ExceptionType::TypeError,
@@ -599,7 +600,7 @@ impl InternalMethods for Proxy {
                         "proxy can't define an incompatible property descriptor ('{}', proxy can't report an existing non-configurable property as configurable)",
                         property_key.as_display(agent)
                     ),
-                    gc.nogc(),
+                    gc,
                 ));
             };
             // b. If settingConfigFalse is true and targetDesc.[[Configurable]] is true, throw a TypeError exception.
@@ -612,7 +613,7 @@ impl InternalMethods for Proxy {
                                 "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing configurable property as non-configurable)",
                                 property_key.as_display(agent)
                             ),
-                            gc.nogc(),
+                            gc,
                         ));
                     }
                 }
@@ -632,7 +633,7 @@ impl InternalMethods for Proxy {
                                     "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing non-configurable writable property as non-writable)",
                                     property_key.as_display(agent)
                                 ),
-                                gc.nogc(),
+                                gc,
                             ));
                         }
                     }
