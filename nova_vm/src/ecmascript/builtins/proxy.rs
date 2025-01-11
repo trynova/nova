@@ -1062,7 +1062,7 @@ impl InternalMethods for Proxy {
             ));
         };
         // 14. Return true.
-        return Ok(true);
+        Ok(true)
     }
 
     fn try_own_property_keys<'a>(
