@@ -974,11 +974,95 @@ impl InternalMethods for Proxy {
 
     fn internal_delete(
         self,
-        _agent: &mut Agent,
-        _property_key: PropertyKey,
-        _gc: GcScope<'_, '_>,
+        agent: &mut Agent,
+        mut property_key: PropertyKey,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<bool> {
-        todo!();
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            mut target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 5. Let trap be ? GetMethod(handler, "deleteProperty").
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.deleteProperty.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_target = target.scope(agent, gc.nogc());
+            let scoped_property_key = property_key.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.deleteProperty.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            target = scoped_target.get(agent).bind(gc);
+            property_key = scoped_property_key.get(agent);
+            trap
+        };
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? target.[[Delete]](P).
+            return target.internal_delete(agent, property_key, gc);
+        };
+        // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P »)).
+        let p = property_key.convert_to_value(agent, gc.nogc());
+        let argument = call_function(
+            agent,
+            trap.unbind(),
+            handler.into_value(),
+            Some(ArgumentsList(&[target.into_value(), p])),
+            gc.reborrow(),
+        )?;
+        let boolean_trap_result = to_boolean(agent, argument);
+        // 8. If booleanTrapResult is false, return false.
+        if !boolean_trap_result {
+            return Ok(false);
+        };
+        // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
+        let target_desc = target.internal_get_own_property(agent, property_key, gc.reborrow())?;
+        // 10. If targetDesc is undefined, return true.
+        let Some(target_desc) = target_desc else {
+            return Ok(true);
+        };
+        // 11. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
+        if target_desc.configurable == Some(false) {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                format!(
+                    "property '{}' is non-configurable and can't be deleted",
+                    property_key.as_display(agent)
+                ),
+                gc.into_nogc(),
+            ));
+        };
+        // 12. Let extensibleTarget be ? IsExtensible(target).
+        let extensible_target = is_extensible(agent, target, gc.reborrow())?;
+        // 13. If extensibleTarget is false, throw a TypeError exception.
+        if !extensible_target {
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                format!(
+                    "proxy can't delete property '{}' on a non-extensible object",
+                    property_key.as_display(agent)
+                ),
+                gc.into_nogc(),
+            ));
+        };
+        // 14. Return true.
+        return Ok(true);
     }
 
     fn try_own_property_keys<'a>(
