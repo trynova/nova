@@ -493,6 +493,53 @@ impl PropertyDescriptor {
         TryResult::Continue(Ok(desc))
     }
 
+    /// ### [6.2.6.6 CompletePropertyDescriptor ( Desc )](https://tc39.es/ecma262/#sec-completepropertydescriptor)
+    ///
+    /// The abstract operation CompletePropertyDescriptor takes
+    /// argument Desc (a Property Descriptor) and returns unused.
+    pub(crate) fn complete_property_descriptor(&mut self) -> JsResult<()> {
+        // 1. Let like be the Record { [[Value]]: undefined, [[Writable]]: false, [[Get]]: undefined, [[Set]]: undefined, [[Enumerable]]: false, [[Configurable]]: false }.
+        let like = PropertyDescriptor {
+            value: Some(Value::Undefined),
+            writable: Some(false),
+            get: None,
+            set: None,
+            enumerable: Some(false),
+            configurable: Some(false),
+        };
+        // 2. If IsGenericDescriptor(Desc) is true or IsDataDescriptor(Desc) is true, then
+        if self.is_generic_descriptor() || self.is_data_descriptor() {
+            // a. If Desc does not have a [[Value]] field, set Desc.[[Value]] to like.[[Value]].
+            if self.value.is_none() {
+                self.value = like.value;
+            };
+            // b. If Desc does not have a [[Writable]] field, set Desc.[[Writable]] to like.[[Writable]].
+            if self.writable.is_none() {
+                self.writable = like.writable;
+            };
+        } else {
+            // 3. Else,
+            // a. If Desc does not have a [[Get]] field, set Desc.[[Get]] to like.[[Get]].
+            if self.get.is_none() {
+                self.get = like.get;
+            };
+            // b. If Desc does not have a [[Set]] field, set Desc.[[Set]] to like.[[Set]].
+            if self.set.is_none() {
+                self.set = like.set;
+            };
+        };
+        // 4. If Desc does not have an [[Enumerable]] field, set Desc.[[Enumerable]] to like.[[Enumerable]].
+        if self.enumerable.is_none() {
+            self.enumerable = like.enumerable;
+        };
+        // 5. If Desc does not have a [[Configurable]] field, set Desc.[[Configurable]] to like.[[Configurable]].
+        if self.configurable.is_none() {
+            self.configurable = like.configurable;
+        };
+        // 6. Return unused.
+        Ok(())
+    }
+
     pub fn is_fully_populated(&self) -> bool {
         ((self.value.is_some() && self.writable.is_some())
             // A property descriptor can contain just get or set.
