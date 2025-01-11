@@ -558,14 +558,7 @@ impl InternalMethods for Proxy {
         // 11. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, target, gc.reborrow())?;
         // 12. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is false, then
-        let setting_config_false = if property_descriptor.configurable == Some(false) {
-            // a. Let settingConfigFalse be true.
-            true
-        } else {
-            // 13. Else,
-            // a. Let settingConfigFalse be false.
-            false
-        };
+        let setting_config_false = property_descriptor.configurable == Some(false);
         // 14. If targetDesc is undefined, then
         if target_desc.is_none() {
             // a. If extensibleTarget is false, throw a TypeError exception.
