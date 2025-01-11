@@ -4,7 +4,9 @@
 
 //! ## [27.2.1.1 PromiseCapability Records]()
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
+use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -209,6 +211,71 @@ impl PromiseCapability {
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
         agent.host_hooks.enqueue_promise_job(job);
         // 16. Return undefined.
+    }
+
+    /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
+    pub fn try_resolve(self, agent: &mut Agent, resolution: Value, gc: NoGcScope) -> TryResult<()> {
+        // 1. Let F be the active function object.
+        // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
+        // 3. Let promise be F.[[Promise]].
+        // 4. Let alreadyResolved be F.[[AlreadyResolved]].
+        // 5. If alreadyResolved.[[Value]] is true, return undefined.
+        if self.is_already_resolved(agent) {
+            return TryResult::Continue(());
+        }
+        // 6. Set alreadyResolved.[[Value]] to true.
+        match &mut agent[self.promise].promise_state {
+            PromiseState::Pending { is_resolved, .. } => *is_resolved = true,
+            _ => unreachable!(),
+        };
+
+        // 7. If SameValue(resolution, promise) is true, then
+        if resolution == self.promise.into_value() {
+            // a. Let selfResolutionError be a newly created TypeError object.
+            // b. Perform RejectPromise(promise, selfResolutionError).
+            let exception = agent.create_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Tried to resolve a promise with itself.",
+                gc,
+            );
+            self.internal_reject(agent, exception);
+            // c. Return undefined.
+            return TryResult::Continue(());
+        }
+
+        // 8. If resolution is not an Object, then
+        let Ok(resolution) = Object::try_from(resolution) else {
+            // a. Perform FulfillPromise(promise, resolution).
+            self.internal_fulfill(agent, resolution);
+            // b. Return undefined.
+            return TryResult::Continue(());
+        };
+
+        // 9. Let then be Completion(Get(resolution, "then")).
+        // 10. If then is an abrupt completion, then
+        // a. Perform RejectPromise(promise, then.[[Value]]).
+        // b. Return undefined.
+        // 11. Let thenAction be then.[[Value]].
+        let then_action = try_get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc)?;
+
+        // 12. If IsCallable(thenAction) is false, then
+        // TODO: Callable proxies
+        let Ok(then_action) = Function::try_from(then_action) else {
+            // a. Perform FulfillPromise(promise, resolution).
+            self.internal_fulfill(agent, resolution.into_value());
+            // b. Return undefined.
+            return TryResult::Continue(());
+        };
+
+        // 13. Let thenJobCallback be HostMakeJobCallback(thenAction).
+        // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
+        // implementations other than browsers, [[HostDefine]] must be EMPTY.
+        // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
+        let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
+        // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
+        agent.host_hooks.enqueue_promise_job(job);
+        // 16. Return undefined.
+        TryResult::Continue(())
     }
 
     /// [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
