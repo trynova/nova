@@ -3053,7 +3053,6 @@
   "built-ins/Proxy/get/trap-is-null-target-is-proxy.js": "CRASH",
   "built-ins/Proxy/getOwnPropertyDescriptor/null-handler.js": "CRASH",
   "built-ins/Proxy/getOwnPropertyDescriptor/result-type-is-not-object-nor-undefined-realm.js": "FAIL",
-  "built-ins/Proxy/getOwnPropertyDescriptor/resultdesc-return-not-configurable.js": "FAIL",
   "built-ins/Proxy/getOwnPropertyDescriptor/trap-is-missing-target-is-proxy.js": "CRASH",
   "built-ins/Proxy/getOwnPropertyDescriptor/trap-is-not-callable-realm.js": "FAIL",
   "built-ins/Proxy/getOwnPropertyDescriptor/trap-is-null-target-is-proxy.js": "CRASH",

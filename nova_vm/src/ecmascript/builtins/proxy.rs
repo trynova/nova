@@ -568,15 +568,10 @@ impl InternalMethods for Proxy {
         // 11. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, target, gc.reborrow())?;
         // 12. Let resultDesc be ? ToPropertyDescriptor(trapResultObj).
-        let result_desc = if let TryResult::Continue(result_desc) =
-            PropertyDescriptor::try_to_property_descriptor(agent, trap_result_obj, gc.nogc())
-        {
-            result_desc?
-        } else {
-            PropertyDescriptor::to_property_descriptor(agent, trap_result_obj, gc.reborrow())?
-        };
+        let mut result_desc =
+            PropertyDescriptor::to_property_descriptor(agent, trap_result_obj, gc.reborrow())?;
         // 13. Perform CompletePropertyDescriptor(resultDesc).
-        PropertyDescriptor::complete_property_descriptor(result_desc.clone(), agent, gc.nogc())?;
+        result_desc.complete_property_descriptor(agent, gc.nogc())?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
         let valid = is_compatible_property_descriptor(
             agent,
@@ -595,33 +590,38 @@ impl InternalMethods for Proxy {
         };
         // 16. If resultDesc.[[Configurable]] is false, then
         if result_desc.configurable == Some(false) {
+            // a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
+            if target_desc
+                .clone()
+                .map_or(true, |d| d.configurable == Some(true))
+            {
+                // i. Throw a TypeError exception.
+                return Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "proxy can't report a non-existent property '{}' as non-configurable",
+                        property_key.as_display(agent)
+                    ),
+                    gc.nogc(),
+                ));
+            }
+            let target_desc = target_desc.unwrap();
             // b. If resultDesc has a [[Writable]] field and resultDesc.[[Writable]] is false, then
-            if let Some(false) = result_desc.writable {
+            if result_desc.writable == Some(false) {
                 // i. Assert: targetDesc has a [[Writable]] field.
+                assert!(target_desc.writable.is_some());
                 // ii. If targetDesc.[[Writable]] is true, throw a TypeError exception.
-                if let Some(target_desc) = target_desc {
-                    if target_desc.writable == Some(true) {
-                        return  Err(agent.throw_exception(
-                                ExceptionType::TypeError,
-                                format!(
-                                    "proxy can't report existing writable property '{}' as non-writable",
-                                    property_key.as_display(agent)
-                                ),
-                                gc.nogc()
-                        ));
-                    }
+                if target_desc.writable == Some(true) {
+                    return Err(agent.throw_exception(
+                        ExceptionType::TypeError,
+                        format!(
+                            "proxy can't report existing writable property '{}' as non-writable",
+                            property_key.as_display(agent)
+                        ),
+                        gc.nogc(),
+                    ));
                 }
             }
-            // a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
-            //   i. Throw a TypeError exception.
-            return Err(agent.throw_exception(
-                ExceptionType::TypeError,
-                format!(
-                    "proxy can't report a non-existent property '{}' as non-configurable",
-                    property_key.as_display(agent)
-                ),
-                gc.nogc(),
-            ));
         };
         // 17. Return resultDesc.
         Ok(Some(result_desc))

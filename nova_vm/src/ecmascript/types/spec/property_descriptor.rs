@@ -498,13 +498,13 @@ impl PropertyDescriptor {
     /// The abstract operation CompletePropertyDescriptor takes
     /// argument Desc (a Property Descriptor) and returns unused.
     pub(crate) fn complete_property_descriptor(
-        desc: Self,
+        &mut self,
         _agent: &mut Agent,
         _gc: NoGcScope<'_, '_>,
     ) -> JsResult<()> {
         // 1. Let like be the Record { [[Value]]: undefined, [[Writable]]: false, [[Get]]: undefined, [[Set]]: undefined, [[Enumerable]]: false, [[Configurable]]: false }.
-        let mut like: PropertyDescriptor = PropertyDescriptor {
-            value: None,
+        let like: PropertyDescriptor = PropertyDescriptor {
+            value: Some(Value::Undefined),
             writable: Some(false),
             get: None,
             set: None,
@@ -512,38 +512,38 @@ impl PropertyDescriptor {
             configurable: Some(false),
         };
         // 2. If IsGenericDescriptor(Desc) is true or IsDataDescriptor(Desc) is true, then
-        if desc.is_generic_descriptor() || desc.is_data_descriptor() {
+        if self.is_generic_descriptor() || self.is_data_descriptor() {
             // a. If Desc does not have a [[Value]] field, set Desc.[[Value]] to like.[[Value]].
-            let Some(_) = desc.value else {
-                like.value = desc.value;
+            if self.value.is_none() {
+                self.value = like.value;
                 return Ok(());
             };
             // b. If Desc does not have a [[Writable]] field, set Desc.[[Writable]] to like.[[Writable]].
-            let Some(_) = desc.writable else {
-                like.writable = desc.writable;
+            if self.writable.is_none() {
+                self.writable = like.writable;
                 return Ok(());
             };
         } else {
             // 3. Else,
             // a. If Desc does not have a [[Get]] field, set Desc.[[Get]] to like.[[Get]].
-            let Some(_) = desc.get else {
-                like.get = desc.get;
+            if self.get.is_none() {
+                self.get = like.get;
                 return Ok(());
             };
             // b. If Desc does not have a [[Set]] field, set Desc.[[Set]] to like.[[Set]].
-            let Some(_) = desc.set else {
-                like.set = desc.set;
+            if self.set.is_none() {
+                self.set = like.set;
                 return Ok(());
             };
         };
         // 4. If Desc does not have an [[Enumerable]] field, set Desc.[[Enumerable]] to like.[[Enumerable]].
-        let Some(_) = desc.enumerable else {
-            like.enumerable = desc.enumerable;
+        if self.enumerable.is_none() {
+            self.enumerable = like.enumerable;
             return Ok(());
         };
         // 5. If Desc does not have a [[Configurable]] field, set Desc.[[Configurable]] to like.[[Configurable]].
-        let Some(_) = desc.configurable else {
-            like.configurable = desc.configurable;
+        if self.configurable.is_none() {
+            self.configurable = like.configurable;
             return Ok(());
         };
         // 6. Return unused.
