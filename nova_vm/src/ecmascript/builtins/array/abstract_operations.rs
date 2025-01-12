@@ -27,13 +27,13 @@ use super::{data::SealableElementsVector, Array, ArrayHeapData};
 /// integer) and optional argument proto (an Object) and returns either a
 /// normal completion containing an Array exotic object or a throw completion.
 /// It is used to specify the creation of new Arrays.
-pub(crate) fn array_create(
+pub(crate) fn array_create<'a>(
     agent: &mut Agent,
     length: usize,
     capacity: usize,
     proto: Option<Object>,
-    gc: NoGcScope,
-) -> JsResult<Array> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Array<'a>> {
     // 1. If length > 2**32 - 1, throw a RangeError exception.
     if length > (2usize.pow(32) - 1) {
         return Err(agent.throw_exception_with_static_message(
@@ -166,6 +166,7 @@ pub(crate) fn array_set_length(
     desc: PropertyDescriptor,
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<bool> {
+    let a = a.bind(gc.nogc());
     // 1. If Desc does not have a [[Value]] field, then
     let Some(desc_value) = desc.value else {
         // a. Return ! OrdinaryDefineOwnProperty(A, "length", Desc).
@@ -194,6 +195,7 @@ pub(crate) fn array_set_length(
     let new_len_writable = desc.writable.unwrap_or(true);
     // NOTE: Setting the [[Writable]] attribute to false is deferred in case any elements cannot be deleted.
     // 3. Let newLen be ? ToUint32(Desc.[[Value]]).
+    let a = a.scope(agent, gc.nogc());
     let new_len = to_uint32(agent, desc_value, gc.reborrow())?;
     // 4. Let numberLen be ? ToNumber(Desc.[[Value]]).
     let number_len = to_number(agent, desc_value, gc.reborrow())?;
@@ -205,6 +207,8 @@ pub(crate) fn array_set_length(
             gc.nogc(),
         ));
     }
+    let gc = gc.into_nogc();
+    let a = a.get(agent).bind(gc);
     // 6. Set newLenDesc.[[Value]] to newLen.
     // 7. Let oldLenDesc be OrdinaryGetOwnProperty(A, "length").
     let Heap {

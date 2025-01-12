@@ -56,12 +56,14 @@ pub(super) fn execute_simple_array_binding(
                         .into_value()
                 } else {
                     let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                    let rest = array_create(agent, 0, capacity, None, gc.nogc()).unwrap();
+                    let rest = array_create(agent, 0, capacity, None, gc.nogc())
+                        .unwrap()
+                        .scope(agent, gc.nogc());
                     let mut idx = 0u32;
                     while let Some(result) = iterator.step_value(agent, gc.reborrow())? {
                         unwrap_try(try_create_data_property_or_throw(
                             agent,
-                            rest,
+                            rest.get(agent),
                             PropertyKey::from(idx),
                             result,
                             gc.nogc(),
@@ -71,7 +73,7 @@ pub(super) fn execute_simple_array_binding(
                     }
 
                     iterator_is_done = true;
-                    rest.into_value()
+                    rest.get(agent).into_value()
                 }
             }
             Instruction::FinishBindingPattern => break,

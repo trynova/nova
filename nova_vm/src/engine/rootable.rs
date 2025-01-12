@@ -118,7 +118,7 @@ mod private {
 
     /// Marker trait to make Rootable not implementable outside of nova_vm.
     pub trait RootableSealed {}
-    impl RootableSealed for Array {}
+    impl RootableSealed for Array<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer {}
     impl RootableSealed for ArrayIterator {}
@@ -227,7 +227,7 @@ pub enum HeapRootData {
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'static>),
     Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
-    Array(Array) = ARRAY_DISCRIMINANT,
+    Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]

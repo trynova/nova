@@ -154,7 +154,7 @@ pub enum Value {
     /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
     Arguments(OrdinaryObject<'static>),
     // TODO: MappedArguments(MappedArgumentsObject),
-    Array(Array),
+    Array(Array<'static>),
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer),
     #[cfg(feature = "array-buffer")]
