@@ -13,6 +13,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::get;
 use crate::ecmascript::abstract_operations::operations_on_objects::get_method;
 use crate::ecmascript::abstract_operations::operations_on_objects::length_of_array_like;
 use crate::ecmascript::abstract_operations::operations_on_objects::set;
+use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property_or_throw;
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
@@ -45,6 +46,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::engine::context::GcScope;
+use crate::engine::unwrap_try;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
 use crate::SmallInteger;
@@ -133,13 +135,13 @@ impl ArrayConstructor {
                 // b. Let array be ! ArrayCreate(0, proto).
                 let array = array_create(agent, 1, 1, proto, gc.nogc()).unwrap();
                 // i. Perform ! CreateDataPropertyOrThrow(array, "0", len).
-                create_data_property_or_throw(
+                unwrap_try(try_create_data_property_or_throw(
                     agent,
                     array,
                     PropertyKey::from(SmallInteger::zero()),
                     len,
-                    gc.reborrow(),
-                )
+                    gc.nogc(),
+                ))
                 .unwrap();
                 // ii. Let intLen be 1𝔽.
                 // e. Perform ! Set(array, "length", intLen, true).
@@ -191,7 +193,14 @@ impl ArrayConstructor {
             let item_k = arguments.get(k as usize);
 
             // iii. Perform ! CreateDataPropertyOrThrow(array, Pk, itemK).
-            create_data_property_or_throw(agent, array, pk, item_k, gc.reborrow()).unwrap();
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                array,
+                pk,
+                item_k,
+                gc.nogc(),
+            ))
+            .unwrap();
 
             // iv. Set k to k + 1.
             k += 1;

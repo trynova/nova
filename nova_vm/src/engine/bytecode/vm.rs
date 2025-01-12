@@ -1985,21 +1985,22 @@ impl<'a> Vm {
             Instruction::IteratorRestIntoArray => {
                 let mut iterator = vm.iterator_stack.pop().unwrap();
                 let capacity = iterator.remaining_length_estimate(agent).unwrap_or(0);
-                let array = array_create(agent, 0, capacity, None, gc.nogc())?;
+                let array =
+                    array_create(agent, 0, capacity, None, gc.nogc())?.scope(agent, gc.nogc());
 
                 let mut idx: u32 = 0;
                 while let Some(value) = iterator.step_value(agent, gc.reborrow())? {
                     let key = PropertyKey::Integer(idx.into());
                     unwrap_try(try_create_data_property(
                         agent,
-                        array,
+                        array.get(agent),
                         key,
                         value,
                         gc.nogc(),
                     ));
                     idx += 1;
                 }
-                vm.result = Some(array.into_value());
+                vm.result = Some(array.get(agent).into_value());
             }
             Instruction::IteratorClose => {
                 let iterator = vm.iterator_stack.pop().unwrap();

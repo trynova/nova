@@ -29,7 +29,8 @@ use crate::{
     },
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        unwrap_try, Scoped, TryResult,
     },
     heap::{
         element_array::{ElementArrays, ElementDescriptor},
@@ -41,11 +42,39 @@ use crate::{
 pub use data::{ArrayHeapData, SealableElementsVector};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Array(ArrayIndex);
+pub struct Array<'a>(ArrayIndex<'a>);
 
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
-impl Array {
+impl<'a> Array<'a> {
+    /// Unbind this Array from its current lifetime. This is necessary to use
+    /// the Array as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Array<'static> {
+        unsafe { std::mem::transmute::<Array<'a>, Array<'static>>(self) }
+    }
+
+    // Bind this Array to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Arrays cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array = array.bind(&gc);
+    // ```
+    // to make sure that the unbound Array cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Array<'gc> {
+        unsafe { std::mem::transmute::<Array<'a>, Array<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Array<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -57,7 +86,7 @@ impl Array {
     /// This is equal to the [CreateArrayFromList](https://tc39.es/ecma262/#sec-createarrayfromlist)
     /// abstract operation.
     #[inline]
-    pub fn from_slice(agent: &mut Agent, elements: &[Value], gc: NoGcScope) -> Self {
+    pub fn from_slice(agent: &mut Agent, elements: &[Value], gc: NoGcScope<'a, '_>) -> Self {
         create_array_from_list(agent, elements, gc)
     }
 
@@ -65,35 +94,35 @@ impl Array {
         self.0.into_index()
     }
 
-    pub fn len(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> u32 {
+    pub fn len(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData>) -> u32 {
         agent[*self].elements.len()
     }
 
-    pub fn length_writable(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
+    pub fn length_writable(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData>) -> bool {
         agent[*self].elements.len_writable
     }
 
-    pub fn is_empty(&self, agent: &impl Index<Array, Output = ArrayHeapData>) -> bool {
+    pub fn is_empty(&self, agent: &impl Index<Array<'a>, Output = ArrayHeapData>) -> bool {
         agent[*self].elements.len() == 0
     }
 
-    pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable) -> bool {
+    pub(crate) fn is_dense(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
         agent[self].elements.is_dense(agent)
     }
 
     /// An array is simple if it contains no element accessor descriptors.
-    pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable) -> bool {
+    pub(crate) fn is_simple(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
         agent[self].elements.is_simple(agent)
     }
 
     /// An array is trivial if it contains no element descriptors.
-    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable) -> bool {
+    pub(crate) fn is_trivial(self, agent: &impl ArrayHeapIndexable<'a>) -> bool {
         agent[self].elements.is_trivial(agent)
     }
 
     // This method creates a "shallow clone" of the elements of a simple array (no descriptors).
     // If array is not simple, this cloned array will do some odd things (e.g. getter/setter indexes become holes)
-    pub(crate) fn to_cloned(self, agent: &mut Agent) -> Array {
+    pub(crate) fn to_cloned(self, agent: &mut Agent) -> Self {
         let elements = agent[self].elements;
         let cloned_elements = agent.heap.elements.shallow_clone(elements.into());
         let data = ArrayHeapData {
@@ -110,7 +139,7 @@ impl Array {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
@@ -130,7 +159,7 @@ impl Array {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let property_key = property_key.bind(gc.nogc());
         if let Some(object_index) = self.get_backing_object(agent) {
@@ -149,7 +178,7 @@ impl Array {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable) -> &[Option<Value>] {
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value>] {
         let elements = arena[self].elements;
         &arena.as_ref()[elements]
     }
@@ -161,37 +190,37 @@ impl Array {
     }
 }
 
-impl IntoValue for Array {
+impl IntoValue for Array<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Array {
+impl IntoObject for Array<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<ArrayIndex> for Array {
-    fn from(value: ArrayIndex) -> Self {
+impl<'a> From<ArrayIndex<'a>> for Array<'a> {
+    fn from(value: ArrayIndex<'a>) -> Self {
         Array(value)
     }
 }
 
-impl From<Array> for Object {
+impl From<Array<'_>> for Object {
     fn from(value: Array) -> Self {
-        Self::Array(value)
+        Self::Array(value.unbind())
     }
 }
 
-impl From<Array> for Value {
+impl From<Array<'_>> for Value {
     fn from(value: Array) -> Self {
-        Self::Array(value)
+        Self::Array(value.unbind())
     }
 }
 
-impl TryFrom<Value> for Array {
+impl TryFrom<Value> for Array<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -202,7 +231,7 @@ impl TryFrom<Value> for Array {
     }
 }
 
-impl TryFrom<Object> for Array {
+impl TryFrom<Object> for Array<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -213,7 +242,7 @@ impl TryFrom<Object> for Array {
     }
 }
 
-impl InternalSlots for Array {
+impl InternalSlots for Array<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]
@@ -254,12 +283,12 @@ impl InternalSlots for Array {
     }
 }
 
-impl InternalMethods for Array {
+impl InternalMethods for Array<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         if let PropertyKey::Integer(index) = property_key {
             let index = index.into_i64();
@@ -321,7 +350,7 @@ impl InternalMethods for Array {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             array_try_set_length(agent, self, property_descriptor)
@@ -405,7 +434,7 @@ impl InternalMethods for Array {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -424,7 +453,7 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let has_own = unwrap_try(self.try_get_own_property(agent, property_key, gc));
         if has_own.is_some() {
@@ -448,7 +477,7 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         // Note: GetOwnProperty cannot fail in Array.
@@ -477,7 +506,7 @@ impl InternalMethods for Array {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             TryResult::Continue(self.len(agent).into())
@@ -533,7 +562,7 @@ impl InternalMethods for Array {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -593,7 +622,7 @@ impl InternalMethods for Array {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             TryResult::Continue(true)
@@ -667,7 +696,7 @@ impl InternalMethods for Array {
     }
 }
 
-impl Index<Array> for Agent {
+impl Index<Array<'_>> for Agent {
     type Output = ArrayHeapData;
 
     fn index(&self, index: Array) -> &Self::Output {
@@ -675,13 +704,13 @@ impl Index<Array> for Agent {
     }
 }
 
-impl IndexMut<Array> for Agent {
+impl IndexMut<Array<'_>> for Agent {
     fn index_mut(&mut self, index: Array) -> &mut Self::Output {
         &mut self.heap.arrays[index]
     }
 }
 
-impl Index<Array> for Vec<Option<ArrayHeapData>> {
+impl Index<Array<'_>> for Vec<Option<ArrayHeapData>> {
     type Output = ArrayHeapData;
 
     fn index(&self, index: Array) -> &Self::Output {
@@ -692,7 +721,7 @@ impl Index<Array> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl IndexMut<Array> for Vec<Option<ArrayHeapData>> {
+impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData>> {
     fn index_mut(&mut self, index: Array) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Array out of bounds")
@@ -701,14 +730,37 @@ impl IndexMut<Array> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl CreateHeapData<ArrayHeapData, Array> for Heap {
-    fn create(&mut self, data: ArrayHeapData) -> Array {
+impl Rootable for Array<'static> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Array(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Array(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl CreateHeapData<ArrayHeapData, Array<'static>> for Heap {
+    fn create(&mut self, data: ArrayHeapData) -> Array<'static> {
         self.arrays.push(Some(data));
         Array::from(ArrayIndex::last(&self.arrays))
     }
 }
 
-impl HeapMarkAndSweep for Array {
+impl HeapMarkAndSweep for Array<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.arrays.push(*self);
     }
@@ -997,7 +1049,7 @@ impl ArrayHeap<'_> {
     }
 }
 
-impl Index<Array> for ArrayHeap<'_> {
+impl Index<Array<'_>> for ArrayHeap<'_> {
     type Output = ArrayHeapData;
 
     fn index(&self, index: Array) -> &ArrayHeapData {
@@ -1012,9 +1064,9 @@ impl AsRef<ElementArrays> for ArrayHeap<'_> {
 }
 
 /// Helper trait for array indexing.
-pub(crate) trait ArrayHeapIndexable:
-    Index<Array, Output = ArrayHeapData> + AsRef<ElementArrays>
+pub(crate) trait ArrayHeapIndexable<'a>:
+    Index<Array<'a>, Output = ArrayHeapData> + AsRef<ElementArrays>
 {
 }
-impl ArrayHeapIndexable for ArrayHeap<'_> {}
-impl ArrayHeapIndexable for Agent {}
+impl<'a, 'b> ArrayHeapIndexable<'a> for ArrayHeap<'b> {}
+impl<'a> ArrayHeapIndexable<'a> for Agent {}

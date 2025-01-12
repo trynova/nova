@@ -90,8 +90,7 @@ use crate::{
         TryResult,
     },
     heap::{
-        indexes::{ArrayIndex, ObjectIndex},
-        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -123,7 +122,7 @@ pub enum Object {
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
     PrimitiveObject(PrimitiveObject<'static>) = PRIMITIVE_OBJECT_DISCRIMINANT,
     Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
-    Array(Array) = ARRAY_DISCRIMINANT,
+    Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
@@ -392,12 +391,6 @@ impl<'a> From<ObjectIndex<'a>> for Object {
     fn from(value: ObjectIndex<'a>) -> Self {
         let value: OrdinaryObject<'a> = value.into();
         Object::Object(value.unbind())
-    }
-}
-
-impl From<ArrayIndex> for Object {
-    fn from(value: ArrayIndex) -> Self {
-        Object::Array(value.into())
     }
 }
 

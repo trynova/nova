@@ -251,14 +251,14 @@ impl ObjectPropertiesIterator {
 
 #[derive(Debug)]
 pub(super) struct ArrayValuesIterator {
-    array: Array,
+    array: Array<'static>,
     index: u32,
 }
 
 impl ArrayValuesIterator {
     pub(super) fn new(array: Array) -> Self {
         Self {
-            array,
+            array: array.unbind(),
             // a. Let index be 0.
             index: 0,
         }

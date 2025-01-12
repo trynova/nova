@@ -934,11 +934,11 @@ pub(crate) fn test_integrity_level<T: Level>(
 /// The abstract operation CreateArrayFromList takes argument elements (a List
 /// of ECMAScript language values) and returns an Array. It is used to create
 /// an Array whose elements are provided by elements.
-pub(crate) fn create_array_from_list(
+pub(crate) fn create_array_from_list<'a>(
     agent: &mut Agent,
     elements: &[Value],
-    gc: NoGcScope,
-) -> Array {
+    gc: NoGcScope<'a, '_>,
+) -> Array<'a> {
     let len = elements.len();
     // 1. Let array be ! ArrayCreate(0).
     let array = array_create(agent, len, len, None, gc).unwrap();
@@ -953,11 +953,11 @@ pub(crate) fn create_array_from_list(
     array
 }
 
-pub(crate) fn create_array_from_scoped_list(
+pub(crate) fn create_array_from_scoped_list<'a>(
     agent: &mut Agent,
     elements: Vec<Scoped<'_, Value>>,
-    gc: NoGcScope,
-) -> Array {
+    gc: NoGcScope<'a, '_>,
+) -> Array<'a> {
     let len = elements.len();
     // 1. Let array be ! ArrayCreate(0).
     let agent_ptr = agent as *const Agent;

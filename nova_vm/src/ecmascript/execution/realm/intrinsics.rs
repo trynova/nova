@@ -156,7 +156,7 @@ pub(crate) struct Intrinsics {
     pub(crate) primitive_object_index_base: PrimitiveObjectIndex<'static>,
     /// Array prototype object is an Array exotic object. It is the only one
     /// in the ECMAScript spec so we do not need to store the Array index base.
-    pub(crate) array_prototype: Array,
+    pub(crate) array_prototype: Array<'static>,
     pub(crate) builtin_function_index_base: BuiltinFunctionIndex<'static>,
 }
 
@@ -505,7 +505,7 @@ impl Intrinsics {
     }
 
     /// %Array.prototype%
-    pub(crate) fn array_prototype(&self) -> Array {
+    pub(crate) fn array_prototype(&self) -> Array<'static> {
         self.array_prototype
     }
 

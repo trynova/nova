@@ -6,9 +6,10 @@ use std::cmp::Ordering;
 
 use small_string::SmallString;
 
+use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property_or_throw;
 use crate::ecmascript::abstract_operations::type_conversion::try_to_string;
 use crate::engine::context::GcScope;
-use crate::engine::{Scoped, TryResult};
+use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -2999,6 +3000,7 @@ impl ArrayPrototype {
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
         if let Value::Array(array) = this_value {
+            let array = array.bind(gc.nogc());
             // Fast path: Array is dense and contains no descriptors. No JS
             // functions can thus be called by to_reversed.
             if array.is_trivial(agent) && array.is_dense(agent) {
@@ -3010,10 +3012,12 @@ impl ArrayPrototype {
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?;
+        let scoped_o = o.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o, gc.reborrow())?;
         // 3. Let A be ? ArrayCreate(len).
-        let a = array_create(agent, len as usize, len as usize, None, gc.nogc())?;
+        let a = array_create(agent, len as usize, len as usize, None, gc.nogc())?
+            .scope(agent, gc.nogc());
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
@@ -3023,14 +3027,21 @@ impl ArrayPrototype {
             //    b. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
             //    c. Let fromValue be ? Get(O, from).
-            let from_value = get(agent, o, from, gc.reborrow())?;
+            let from_value = get(agent, scoped_o.get(agent), from, gc.reborrow())?;
             //    d. Perform ! CreateDataPropertyOrThrow(A, Pk, fromValue).
-            create_data_property_or_throw(agent, a, pk, from_value, gc.reborrow()).unwrap();
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                a.get(agent),
+                pk,
+                from_value,
+                gc.nogc(),
+            ))
+            .unwrap();
             //    e. Set k to k + 1.
             k += 1;
         }
         // 6. Return A.
-        Ok(a.into_value())
+        Ok(a.get(agent).into_value())
     }
 
     /// ### [23.1.3.34 Array.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.tosorted)
@@ -3058,7 +3069,7 @@ impl ArrayPrototype {
         // 3. Let len be ? LengthOfArrayLike(obj).
         let len = usize::try_from(length_of_array_like(agent, o, gc.reborrow())?).unwrap();
         // 4. Let A be ? ArrayCreate(len).
-        let a = array_create(agent, len as usize, len as usize, None, gc.nogc())?;
+        let a = array_create(agent, len, len, None, gc.nogc())?.scope(agent, gc.nogc());
         // 5. Let SortCompare be a new Abstract Closure with parameters (x, y)
         //     that captures comparator and performs the following steps when
         //     called:
@@ -3071,6 +3082,7 @@ impl ArrayPrototype {
         //      a. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(j)), sortedList[j]).
         //      b. Set j to j + 1.
         // Fast path: Copy sorted items directly into array.
+        let a = a.get(agent);
         let slice = a.as_mut_slice(agent);
         slice.copy_from_slice(
             &sorted_list
@@ -3301,7 +3313,8 @@ impl ArrayPrototype {
             ));
         }
         // 7. Let A be ? ArrayCreate(len).
-        let a = array_create(agent, len as usize, len as usize, None, gc.nogc())?;
+        let a = array_create(agent, len as usize, len as usize, None, gc.nogc())?
+            .scope(agent, gc.nogc());
         // 8. Let k be 0.
         let mut k = 0;
         // 9. Repeat, while k < len,
@@ -3316,12 +3329,19 @@ impl ArrayPrototype {
                 get(agent, o, pk, gc.reborrow())?
             };
             // d. Perform ! CreateDataPropertyOrThrow(A, Pk, fromValue).
-            create_data_property_or_throw(agent, a, pk, from_value, gc.reborrow()).unwrap();
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                a.get(agent),
+                pk,
+                from_value,
+                gc.nogc(),
+            ))
+            .unwrap();
             // e. Set k to k + 1.
             k += 1;
         }
         // 10. Return A.
-        Ok(a.into())
+        Ok(a.get(agent).into())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
