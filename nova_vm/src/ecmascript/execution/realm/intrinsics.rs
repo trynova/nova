@@ -153,7 +153,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub(crate) struct Intrinsics {
     pub(crate) object_index_base: ObjectIndex<'static>,
-    pub(crate) primitive_object_index_base: PrimitiveObjectIndex,
+    pub(crate) primitive_object_index_base: PrimitiveObjectIndex<'static>,
     /// Array prototype object is an Array exotic object. It is the only one
     /// in the ECMAScript spec so we do not need to store the Array index base.
     pub(crate) array_prototype: Array,
@@ -688,7 +688,7 @@ impl Intrinsics {
     }
 
     /// %Boolean.prototype%
-    pub(crate) fn boolean_prototype(&self) -> PrimitiveObject {
+    pub(crate) fn boolean_prototype(&self) -> PrimitiveObject<'static> {
         IntrinsicPrimitiveObjectIndexes::BooleanPrototype
             .get_primitive_object_index(self.primitive_object_index_base)
             .into()
@@ -1087,7 +1087,7 @@ impl Intrinsics {
     }
 
     /// %Number.prototype%
-    pub(crate) fn number_prototype(&self) -> PrimitiveObject {
+    pub(crate) fn number_prototype(&self) -> PrimitiveObject<'static> {
         IntrinsicPrimitiveObjectIndexes::NumberPrototype
             .get_primitive_object_index(self.primitive_object_index_base)
             .into()
@@ -1324,7 +1324,7 @@ impl Intrinsics {
     }
 
     /// %String.prototype%
-    pub(crate) fn string_prototype(&self) -> PrimitiveObject {
+    pub(crate) fn string_prototype(&self) -> PrimitiveObject<'static> {
         IntrinsicPrimitiveObjectIndexes::StringPrototype
             .get_primitive_object_index(self.primitive_object_index_base)
             .into()

@@ -141,7 +141,7 @@ pub enum Value {
     BuiltinProxyRevokerFunction,
 
     // Boolean, Number, String, Symbol, BigInt objects
-    PrimitiveObject(PrimitiveObject),
+    PrimitiveObject(PrimitiveObject<'static>),
 
     // Well-known object types
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
