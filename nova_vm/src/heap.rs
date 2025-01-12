@@ -108,9 +108,9 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<Option<DataViewHeapData>>,
     #[cfg(feature = "array-buffer")]
-    pub data_view_byte_lengths: AHashMap<DataView, usize>,
+    pub data_view_byte_lengths: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub data_view_byte_offsets: AHashMap<DataView, usize>,
+    pub data_view_byte_offsets: AHashMap<DataView<'static>, usize>,
     #[cfg(feature = "date")]
     pub dates: Vec<Option<DateHeapData>>,
     pub ecmascript_functions: Vec<Option<ECMAScriptFunctionHeapData>>,

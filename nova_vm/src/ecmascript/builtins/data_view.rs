@@ -11,7 +11,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::context::NoGcScope,
+    engine::{
+        context::NoGcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped,
+    },
     heap::{
         indexes::{DataViewIndex, IntoBaseIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -30,9 +34,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct DataView(pub(crate) DataViewIndex);
+pub struct DataView<'a>(pub(crate) DataViewIndex<'a>);
 
-impl DataView {
+impl<'a> DataView<'a> {
+    /// Unbind this DataView from its current lifetime. This is necessary to use
+    /// the DataView as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> DataView<'static> {
+        unsafe { std::mem::transmute::<DataView<'a>, DataView<'static>>(self) }
+    }
+
+    // Bind this DataView to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your DataViews cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_buffer = array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound DataView cannot be used after binding.
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
+        unsafe { std::mem::transmute::<DataView, Self>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, DataView<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     #[inline]
     pub fn byte_length(self, agent: &Agent) -> Option<usize> {
         let byte_length = agent[self].byte_length;
@@ -56,11 +88,7 @@ impl DataView {
     }
 
     #[inline]
-    pub fn get_viewed_array_buffer<'a>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> ArrayBuffer<'a> {
+    pub fn get_viewed_array_buffer(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> ArrayBuffer<'a> {
         agent[self].viewed_array_buffer.bind(gc)
     }
 
@@ -73,43 +101,43 @@ impl DataView {
     }
 }
 
-impl From<DataViewIndex> for DataView {
-    fn from(value: DataViewIndex) -> Self {
+impl<'a> From<DataViewIndex<'a>> for DataView<'a> {
+    fn from(value: DataViewIndex<'a>) -> Self {
         Self(value)
     }
 }
 
-impl IntoBaseIndex<'_, DataViewHeapData> for DataView {
-    fn into_base_index(self) -> DataViewIndex {
+impl<'a> IntoBaseIndex<'a, DataViewHeapData> for DataView<'a> {
+    fn into_base_index(self) -> DataViewIndex<'a> {
         self.0
     }
 }
 
-impl IntoValue for DataView {
+impl IntoValue for DataView<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for DataView {
+impl IntoObject for DataView<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<DataView> for Value {
+impl From<DataView<'_>> for Value {
     fn from(val: DataView) -> Self {
-        Value::DataView(val)
+        Value::DataView(val.unbind())
     }
 }
 
-impl From<DataView> for Object {
+impl From<DataView<'_>> for Object {
     fn from(val: DataView) -> Self {
-        Object::DataView(val)
+        Object::DataView(val.unbind())
     }
 }
 
-impl TryFrom<Object> for DataView {
+impl TryFrom<Object> for DataView<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -120,7 +148,7 @@ impl TryFrom<Object> for DataView {
     }
 }
 
-impl Index<DataView> for Agent {
+impl Index<DataView<'_>> for Agent {
     type Output = DataViewHeapData;
 
     fn index(&self, index: DataView) -> &Self::Output {
@@ -128,13 +156,13 @@ impl Index<DataView> for Agent {
     }
 }
 
-impl IndexMut<DataView> for Agent {
+impl IndexMut<DataView<'_>> for Agent {
     fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
         &mut self.heap.data_views[index]
     }
 }
 
-impl Index<DataView> for Vec<Option<DataViewHeapData>> {
+impl Index<DataView<'_>> for Vec<Option<DataViewHeapData>> {
     type Output = DataViewHeapData;
 
     fn index(&self, index: DataView) -> &Self::Output {
@@ -145,7 +173,7 @@ impl Index<DataView> for Vec<Option<DataViewHeapData>> {
     }
 }
 
-impl IndexMut<DataView> for Vec<Option<DataViewHeapData>> {
+impl IndexMut<DataView<'_>> for Vec<Option<DataViewHeapData>> {
     fn index_mut(&mut self, index: DataView) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("DataView out of bounds")
@@ -154,7 +182,7 @@ impl IndexMut<DataView> for Vec<Option<DataViewHeapData>> {
     }
 }
 
-impl InternalSlots for DataView {
+impl InternalSlots for DataView<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
     #[inline(always)]
@@ -170,16 +198,39 @@ impl InternalSlots for DataView {
     }
 }
 
-impl InternalMethods for DataView {}
+impl InternalMethods for DataView<'_> {}
 
-impl CreateHeapData<DataViewHeapData, DataView> for Heap {
-    fn create(&mut self, data: DataViewHeapData) -> DataView {
+impl Rootable for DataView<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::DataView(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::DataView(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl CreateHeapData<DataViewHeapData, DataView<'static>> for Heap {
+    fn create(&mut self, data: DataViewHeapData) -> DataView<'static> {
         self.data_views.push(Some(data));
         DataView::from(DataViewIndex::last(&self.data_views))
     }
 }
 
-impl HeapMarkAndSweep for DataView {
+impl HeapMarkAndSweep for DataView<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.data_views.push(*self);
     }

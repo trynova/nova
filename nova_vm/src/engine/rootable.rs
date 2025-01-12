@@ -128,7 +128,7 @@ mod private {
     impl RootableSealed for BuiltinFunction<'_> {}
     impl RootableSealed for BuiltinPromiseResolvingFunction<'_> {}
     #[cfg(feature = "array-buffer")]
-    impl RootableSealed for DataView {}
+    impl RootableSealed for DataView<'_> {}
     #[cfg(feature = "date")]
     impl RootableSealed for Date {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
@@ -231,7 +231,7 @@ pub enum HeapRootData {
     #[cfg(feature = "array-buffer")]
     ArrayBuffer(ArrayBuffer<'static>) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    DataView(DataView) = DATA_VIEW_DISCRIMINANT,
+    DataView(DataView<'static>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date) = DATE_DISCRIMINANT,
     Error(Error) = ERROR_DISCRIMINANT,
