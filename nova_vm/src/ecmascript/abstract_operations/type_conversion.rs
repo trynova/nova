@@ -481,7 +481,7 @@ impl IntegerOrInfinity {
 pub(crate) fn to_integer_or_infinity(
     agent: &mut Agent,
     argument: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<IntegerOrInfinity> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
@@ -550,7 +550,7 @@ pub(crate) fn to_integer_or_infinity_number(
 pub(crate) fn try_to_integer_or_infinity(
     agent: &mut Agent,
     argument: Value,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<JsResult<IntegerOrInfinity>> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(int) = argument {
@@ -573,11 +573,7 @@ pub(crate) fn try_to_integer_or_infinity(
 }
 
 /// ### [7.1.6 ToInt32 ( argument )](https://tc39.es/ecma262/#sec-toint32)
-pub(crate) fn to_int32(
-    agent: &mut Agent,
-    argument: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<i32> {
+pub(crate) fn to_int32(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<i32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int32 already.
         let int = int.into_i64();
@@ -613,11 +609,7 @@ pub(crate) fn to_int32_number(agent: &mut Agent, number: Number) -> i32 {
 }
 
 /// ### [7.1.7 ToUint32 ( argument )](https://tc39.es/ecma262/#sec-touint32)
-pub(crate) fn to_uint32(
-    agent: &mut Agent,
-    argument: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<u32> {
+pub(crate) fn to_uint32(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<u32> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -652,11 +644,7 @@ pub(crate) fn to_uint32_number(agent: &mut Agent, number: Number) -> u32 {
 }
 
 /// ### [7.1.8 ToInt16 ( argument )](https://tc39.es/ecma262/#sec-toint16)
-pub(crate) fn to_int16(
-    agent: &mut Agent,
-    argument: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<i16> {
+pub(crate) fn to_int16(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<i16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int16 already.
         let int = int.into_i64();
@@ -690,11 +678,7 @@ pub(crate) fn to_int16_number(agent: &mut Agent, number: Number) -> i16 {
 }
 
 /// ### [7.1.9 ToUint16 ( argument )](https://tc39.es/ecma262/#sec-touint16)
-pub(crate) fn to_uint16(
-    agent: &mut Agent,
-    argument: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<u16> {
+pub(crate) fn to_uint16(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<u16> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint16 already.
         let int = int.into_i64();
@@ -728,7 +712,7 @@ pub(crate) fn to_uint16_number(agent: &mut Agent, number: Number) -> u16 {
 }
 
 /// ### [7.1.10 ToInt8 ( argument )](https://tc39.es/ecma262/#sec-toint8)
-pub(crate) fn to_int8(agent: &mut Agent, argument: Value, mut gc: GcScope<'_, '_>) -> JsResult<i8> {
+pub(crate) fn to_int8(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<i8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly int8 already.
         let int = int.into_i64();
@@ -762,11 +746,7 @@ pub(crate) fn to_int8_number(agent: &mut Agent, number: Number) -> i8 {
 }
 
 /// ### [7.1.11 ToUint8 ( argument )](https://tc39.es/ecma262/#sec-touint8)
-pub(crate) fn to_uint8(
-    agent: &mut Agent,
-    argument: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<u8> {
+pub(crate) fn to_uint8(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint32 already.
         let int = int.into_i64();
@@ -800,11 +780,7 @@ pub(crate) fn to_uint8_number(agent: &mut Agent, number: Number) -> u8 {
 }
 
 /// ### [7.1.12 ToUint8Clamp ( argument )](https://tc39.es/ecma262/#sec-touint8clamp)
-pub(crate) fn to_uint8_clamp(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'_, '_>,
-) -> JsResult<u8> {
+pub(crate) fn to_uint8_clamp(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<u8> {
     if let Value::Integer(int) = argument {
         // Fast path: Integer value is very nearly uint8 already.
         let int = int.into_i64().clamp(0, 255);
@@ -954,11 +930,7 @@ pub(crate) fn string_to_big_int<'a>(
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion. It converts argument to one of 2**64 BigInt values
 /// in the inclusive interval from ℤ(-2**63) to ℤ(2**63 - 1).
-pub(crate) fn to_big_int64(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'_, '_>,
-) -> JsResult<i64> {
+pub(crate) fn to_big_int64(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<i64> {
     // 1. Let n be ? ToBigInt(argument).
     let n = to_big_int(agent, argument, gc)?;
 
@@ -989,11 +961,7 @@ pub(crate) fn to_big_int64_big_int(agent: &mut Agent, n: BigInt) -> i64 {
 /// language value) and returns either a normal completion containing a BigInt
 /// or a throw completion. It converts argument to one of 2**64 BigInt values
 /// in the inclusive interval from 0ℤ to ℤ(2**64 - 1).
-pub(crate) fn to_big_uint64(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'_, '_>,
-) -> JsResult<u64> {
+pub(crate) fn to_big_uint64(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<u64> {
     // 1. Let n be ? ToBigInt(argument).
     let n = to_big_int(agent, argument, gc)?;
     Ok(to_big_uint64_big_int(agent, n))
@@ -1310,7 +1278,7 @@ pub(crate) fn parse_string_to_integer_property_key(str: &str) -> Option<Property
 }
 
 /// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
-pub(crate) fn to_length(agent: &mut Agent, argument: Value, gc: GcScope<'_, '_>) -> JsResult<i64> {
+pub(crate) fn to_length(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<i64> {
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
     // 1. Let len be ? ToIntegerOrInfinity(argument).
@@ -1349,11 +1317,7 @@ pub(crate) fn canonical_numeric_index_string<'gc>(
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
-pub(crate) fn to_index(
-    agent: &mut Agent,
-    argument: Value,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<i64> {
+pub(crate) fn to_index(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<i64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
         let integer = integer.into_i64();
@@ -1382,6 +1346,45 @@ pub(crate) fn to_index(
 
     // 3. Return integer.
     Ok(integer)
+}
+
+/// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
+pub(crate) fn try_to_index(
+    agent: &mut Agent,
+    argument: Value,
+    gc: NoGcScope,
+) -> TryResult<JsResult<i64>> {
+    // Fast path: A safe integer is already an integer.
+    if let Value::Integer(integer) = argument {
+        let integer = integer.into_i64();
+        if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
+            return TryResult::Continue(Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Index is out of range",
+                gc,
+            )));
+        }
+        return TryResult::Continue(Ok(integer));
+    }
+    // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
+
+    // 1. Let integer be ? ToIntegerOrInfinity(value).
+    let integer = match try_to_integer_or_infinity(agent, argument, gc)? {
+        Ok(i) => i.into_i64(),
+        Err(err) => return TryResult::Continue(Err(err)),
+    };
+
+    // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
+    if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
+        return TryResult::Continue(Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Index is out of range",
+            gc,
+        )));
+    }
+
+    // 3. Return integer.
+    TryResult::Continue(Ok(integer))
 }
 
 /// Helper function to check if a `char` is trimmable.

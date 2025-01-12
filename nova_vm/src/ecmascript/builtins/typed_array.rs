@@ -18,6 +18,7 @@ use crate::{
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
+    engine::context::NoGcScope,
     heap::{
         indexes::{IntoBaseIndex, TypedArrayIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -102,7 +103,11 @@ impl TypedArray {
     }
 
     #[inline]
-    pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer {
+    pub fn get_viewed_array_buffer<'a>(
+        self,
+        agent: &Agent,
+        _: NoGcScope<'a, '_>,
+    ) -> ArrayBuffer<'a> {
         agent[self].viewed_array_buffer
     }
 }

@@ -156,7 +156,7 @@ pub enum Value {
     // TODO: MappedArguments(MappedArgumentsObject),
     Array(Array<'static>),
     #[cfg(feature = "array-buffer")]
-    ArrayBuffer(ArrayBuffer),
+    ArrayBuffer(ArrayBuffer<'static>),
     #[cfg(feature = "array-buffer")]
     DataView(DataView),
     #[cfg(feature = "date")]

@@ -13,7 +13,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::context::NoGcScope,
+    engine::{
+        context::NoGcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped,
+    },
     heap::{
         indexes::{ArrayBufferIndex, IntoBaseIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
@@ -30,9 +34,37 @@ use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ArrayBuffer(ArrayBufferIndex);
+pub struct ArrayBuffer<'a>(ArrayBufferIndex<'a>);
 
-impl ArrayBuffer {
+impl<'a> ArrayBuffer<'a> {
+    /// Unbind this ArrayBuffer from its current lifetime. This is necessary to use
+    /// the ArrayBuffer as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> ArrayBuffer<'static> {
+        unsafe { std::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'static>>(self) }
+    }
+
+    // Bind this ArrayBuffer to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your ArrayBuffers cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_buffer = array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound ArrayBuffer cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ArrayBuffer<'gc> {
+        unsafe { std::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, ArrayBuffer<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     #[inline]
     pub fn is_detached(self, agent: &Agent) -> bool {
         agent[self].is_detached()
@@ -61,9 +93,12 @@ impl ArrayBuffer {
     #[inline]
     pub fn set_detach_key(self, agent: &mut Agent, key: Option<DetachKey>) {
         if let Some(key) = key {
-            agent.heap.array_buffer_detach_keys.insert(self, key);
+            agent
+                .heap
+                .array_buffer_detach_keys
+                .insert(self.unbind(), key);
         } else {
-            agent.heap.array_buffer_detach_keys.remove(&self);
+            agent.heap.array_buffer_detach_keys.remove(&self.unbind());
         }
     }
 
@@ -122,19 +157,19 @@ impl ArrayBuffer {
     }
 }
 
-impl IntoObject for ArrayBuffer {
+impl IntoObject for ArrayBuffer<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl IntoValue for ArrayBuffer {
+impl IntoValue for ArrayBuffer<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl TryFrom<Value> for ArrayBuffer {
+impl TryFrom<Value> for ArrayBuffer<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -145,31 +180,31 @@ impl TryFrom<Value> for ArrayBuffer {
     }
 }
 
-impl From<ArrayBufferIndex> for ArrayBuffer {
-    fn from(value: ArrayBufferIndex) -> Self {
+impl<'a> From<ArrayBufferIndex<'a>> for ArrayBuffer<'a> {
+    fn from(value: ArrayBufferIndex<'a>) -> Self {
         ArrayBuffer(value)
     }
 }
 
-impl IntoBaseIndex<'_, ArrayBufferHeapData> for ArrayBuffer {
-    fn into_base_index(self) -> ArrayBufferIndex {
+impl IntoBaseIndex<'_, ArrayBufferHeapData> for ArrayBuffer<'static> {
+    fn into_base_index(self) -> ArrayBufferIndex<'static> {
         self.0
     }
 }
 
-impl From<ArrayBuffer> for Object {
+impl From<ArrayBuffer<'_>> for Object {
     fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value)
+        Self::ArrayBuffer(value.unbind())
     }
 }
 
-impl From<ArrayBuffer> for Value {
+impl From<ArrayBuffer<'_>> for Value {
     fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value)
+        Self::ArrayBuffer(value.unbind())
     }
 }
 
-impl Index<ArrayBuffer> for Agent {
+impl Index<ArrayBuffer<'_>> for Agent {
     type Output = ArrayBufferHeapData;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
@@ -177,13 +212,13 @@ impl Index<ArrayBuffer> for Agent {
     }
 }
 
-impl IndexMut<ArrayBuffer> for Agent {
+impl IndexMut<ArrayBuffer<'_>> for Agent {
     fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
         &mut self.heap.array_buffers[index]
     }
 }
 
-impl Index<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
+impl Index<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
     type Output = ArrayBufferHeapData;
 
     fn index(&self, index: ArrayBuffer) -> &Self::Output {
@@ -194,7 +229,7 @@ impl Index<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
     }
 }
 
-impl IndexMut<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
+impl IndexMut<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
     fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ArrayBuffer out of bounds")
@@ -203,7 +238,7 @@ impl IndexMut<ArrayBuffer> for Vec<Option<ArrayBufferHeapData>> {
     }
 }
 
-impl InternalSlots for ArrayBuffer {
+impl InternalSlots for ArrayBuffer<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
 
     #[inline(always)]
@@ -219,9 +254,32 @@ impl InternalSlots for ArrayBuffer {
     }
 }
 
-impl InternalMethods for ArrayBuffer {}
+impl InternalMethods for ArrayBuffer<'_> {}
 
-impl HeapMarkAndSweep for ArrayBuffer {
+impl Rootable for ArrayBuffer<'static> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::ArrayBuffer(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::ArrayBuffer(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for ArrayBuffer<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.array_buffers.push(*self);
     }
@@ -231,8 +289,8 @@ impl HeapMarkAndSweep for ArrayBuffer {
     }
 }
 
-impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer> for Heap {
-    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer {
+impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer<'static>> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer<'static> {
         self.array_buffers.push(Some(data));
         ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }

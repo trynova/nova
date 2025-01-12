@@ -85,9 +85,10 @@ pub(crate) fn make_typed_array_with_buffer_witness_record(
     agent: &mut Agent,
     obj: TypedArray,
     order: Ordering,
+    gc: NoGcScope,
 ) -> TypedArrayWithBufferWitnessRecords {
     // 1. Let buffer be obj.[[ViewedArrayBuffer]].
-    let buffer = obj.get_viewed_array_buffer(agent);
+    let buffer = obj.get_viewed_array_buffer(agent, gc);
 
     // 2. If IsDetachedBuffer(buffer) is true, then
     let byte_length = if is_detached_buffer(agent, buffer) {
@@ -159,14 +160,15 @@ pub(crate) fn typed_array_create<T: Viewable>(
 pub(crate) fn typed_array_byte_length<T: Viewable>(
     agent: &mut Agent,
     ta_record: &TypedArrayWithBufferWitnessRecords,
+    gc: NoGcScope,
 ) -> usize {
     // 1. If IsTypedArrayOutOfBounds(taRecord) is true, return 0.
-    if is_typed_array_out_of_bounds::<T>(agent, ta_record) {
+    if is_typed_array_out_of_bounds::<T>(agent, ta_record, gc) {
         return 0;
     }
 
     // 2. Let length be TypedArrayLength(taRecord).
-    let length = typed_array_length::<T>(agent, ta_record);
+    let length = typed_array_length::<T>(agent, ta_record, gc);
 
     // 3. If length = 0, return 0.
     if length == 0 {
@@ -193,9 +195,10 @@ pub(crate) fn typed_array_byte_length<T: Viewable>(
 pub(crate) fn typed_array_length<T: Viewable>(
     agent: &Agent,
     ta_record: &TypedArrayWithBufferWitnessRecords,
+    gc: NoGcScope,
 ) -> usize {
     // 1. Assert: IsTypedArrayOutOfBounds(taRecord) is false.
-    assert!(!is_typed_array_out_of_bounds::<T>(agent, ta_record));
+    assert!(!is_typed_array_out_of_bounds::<T>(agent, ta_record, gc));
 
     // 2. Let O be taRecord.[[Object]].
     let o = ta_record.object;
@@ -208,7 +211,7 @@ pub(crate) fn typed_array_length<T: Viewable>(
     // 4. Assert: IsFixedLengthArrayBuffer(O.[[ViewedArrayBuffer]]) is false.
     assert!(!is_fixed_length_array_buffer(
         agent,
-        o.get_viewed_array_buffer(agent)
+        o.get_viewed_array_buffer(agent, gc)
     ));
 
     // 5. Let byteOffset be O.[[ByteOffset]].
@@ -234,6 +237,7 @@ pub(crate) fn typed_array_length<T: Viewable>(
 pub(crate) fn is_typed_array_out_of_bounds<T: Viewable>(
     agent: &Agent,
     ta_record: &TypedArrayWithBufferWitnessRecords,
+    gc: NoGcScope,
 ) -> bool {
     // 1. Let O be taRecord.[[Object]].
     let o = ta_record.object;
@@ -243,7 +247,7 @@ pub(crate) fn is_typed_array_out_of_bounds<T: Viewable>(
 
     // 3. Assert: IsDetachedBuffer(O.[[ViewedArrayBuffer]]) is true if and only if bufferByteLength is detached.
     assert_eq!(
-        is_detached_buffer(agent, o.get_viewed_array_buffer(agent)),
+        is_detached_buffer(agent, o.get_viewed_array_buffer(agent, gc)),
         buffer_byte_length.is_detached()
     );
 
@@ -287,28 +291,28 @@ pub(crate) fn validate_typed_array(
     agent: &mut Agent,
     o: Value,
     order: Ordering,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> JsResult<TypedArrayWithBufferWitnessRecords> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     let o = require_internal_slot_typed_array(agent, o, gc)?;
     // 2. Assert: O has a [[ViewedArrayBuffer]] internal slot.
     // 3. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, order).
-    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, order);
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, order, gc);
     // 4. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
     if match o {
-        TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record),
-        TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record),
+        TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
+        TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
         TypedArray::Uint8ClampedArray(_) => {
-            is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
+            is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
         }
-        TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record),
-        TypedArray::Uint16Array(_) => is_typed_array_out_of_bounds::<u16>(agent, &ta_record),
-        TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record),
-        TypedArray::Uint32Array(_) => is_typed_array_out_of_bounds::<u32>(agent, &ta_record),
-        TypedArray::BigInt64Array(_) => is_typed_array_out_of_bounds::<i64>(agent, &ta_record),
-        TypedArray::BigUint64Array(_) => is_typed_array_out_of_bounds::<u64>(agent, &ta_record),
-        TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record),
-        TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record),
+        TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
+        TypedArray::Uint16Array(_) => is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc),
+        TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
+        TypedArray::Uint32Array(_) => is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc),
+        TypedArray::BigInt64Array(_) => is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc),
+        TypedArray::BigUint64Array(_) => is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc),
+        TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc),
+        TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc),
     } {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -337,7 +341,7 @@ pub(crate) fn allocate_typed_array<T: Viewable>(
     new_target: Function,
     default_proto: ProtoIntrinsics,
     length: Option<usize>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<TypedArray> {
     let new_target = new_target.bind(gc.nogc());
     // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
@@ -376,7 +380,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
     agent: &mut Agent,
     o: TypedArray,
     src_array: TypedArray,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> JsResult<()> {
     let src_heap_data = &agent[src_array];
 
@@ -396,10 +400,10 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
 
     // 7. Let srcRecord be MakeTypedArrayWithBufferWitnessRecord(srcArray, seq-cst).
     let src_record =
-        make_typed_array_with_buffer_witness_record(agent, src_array, Ordering::SeqCst);
+        make_typed_array_with_buffer_witness_record(agent, src_array, Ordering::SeqCst, gc);
 
     // 8. If IsTypedArrayOutOfBounds(srcRecord) is true, throw a TypeError exception.
-    if is_typed_array_out_of_bounds::<Src>(agent, &src_record) {
+    if is_typed_array_out_of_bounds::<Src>(agent, &src_record, gc) {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "TypedArray out of bounds",
@@ -408,7 +412,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
     }
 
     // 9. Let elementLength be TypedArrayLength(srcRecord).
-    let element_length = typed_array_length::<O>(agent, &src_record);
+    let element_length = typed_array_length::<O>(agent, &src_record, gc);
 
     // 10. Let byteLength be elementSize × elementLength.
     let byte_length = element_size * element_length;
@@ -481,7 +485,7 @@ pub(crate) fn initialize_typed_array_from_typed_array<O: Viewable, Src: Viewable
     let o_heap_data = &mut agent[o];
 
     // 13. Set O.[[ViewedArrayBuffer]] to data.
-    o_heap_data.viewed_array_buffer = data;
+    o_heap_data.viewed_array_buffer = data.unbind();
     // 14. Set O.[[ByteLength]] to byteLength.
     o_heap_data.byte_length = Some(byte_length).into();
     // 15. Set O.[[ByteOffset]] to 0.
@@ -506,8 +510,10 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
     buffer: ArrayBuffer,
     byte_offset: Option<Value>,
     length: Option<Value>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
+    let buffer = buffer.bind(gc.nogc());
+    let scoped_buffer = buffer.scope(agent, gc.nogc());
     // 1. Let elementSize be TypedArrayElementSize(O).
     let element_size = size_of::<T>();
 
@@ -527,6 +533,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
         ));
     }
 
+    let buffer = scoped_buffer.get(agent).bind(gc.nogc());
     // 4. Let bufferIsFixedLength be IsFixedLengthArrayBuffer(buffer).
     let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer);
 
@@ -537,6 +544,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
         .transpose()?
         .map(|length| length as usize);
 
+    let buffer = scoped_buffer.get(agent).bind(gc.nogc());
     // 6. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
     if is_detached_buffer(agent, buffer) {
         return Err(agent.throw_exception_with_static_message(
@@ -613,7 +621,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
     }
 
     // 10. Set O.[[ViewedArrayBuffer]] to buffer.
-    o_heap_data.viewed_array_buffer = buffer;
+    o_heap_data.viewed_array_buffer = buffer.unbind();
     // 11. Set O.[[ByteOffset]] to offset.
     o_heap_data.byte_offset = offset.into();
 
@@ -630,7 +638,7 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     values: Vec<Value>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     // 1. Let len be the number of elements in values.
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
@@ -663,7 +671,7 @@ pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     array_like: Object,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     // 1. Let len be ? LengthOfArrayLike(arrayLike).
     let len = length_of_array_like(agent, array_like, gc.reborrow())? as usize;
@@ -699,7 +707,7 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
     length: usize,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> JsResult<()> {
     // 1. Assert: O.[[ViewedArrayBuffer]] is undefined.
     // 2. Let elementSize be TypedArrayElementSize(O).
@@ -721,7 +729,7 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
     let o_heap_data = &mut agent[o];
 
     // 5. Set O.[[ViewedArrayBuffer]] to data.
-    o_heap_data.viewed_array_buffer = data;
+    o_heap_data.viewed_array_buffer = data.unbind();
     // 6. Set O.[[ByteLength]] to byteLength.
     o_heap_data.byte_length = Some(byte_length).into();
     // 7. Set O.[[ByteOffset]] to 0.

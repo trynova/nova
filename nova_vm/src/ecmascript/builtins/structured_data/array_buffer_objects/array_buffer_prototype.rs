@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
 use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -174,10 +176,11 @@ impl ArrayBufferPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
+        let new_length = arguments.get(0);
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
-        let o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
+        let mut o = require_internal_slot_array_buffer(agent, this_value, gc.nogc())?;
         if !o.is_resizable(agent) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -186,7 +189,15 @@ impl ArrayBufferPrototype {
             ));
         }
         // 4. Let newByteLength be ? ToIndex(newLength).
-        let new_byte_length = to_index(agent, arguments.get(0), gc.reborrow())? as usize;
+        let new_byte_length =
+            if let TryResult::Continue(res) = try_to_index(agent, new_length, gc.nogc()) {
+                res? as usize
+            } else {
+                let scoped_o = o.scope(agent, gc.nogc());
+                let res = to_index(agent, new_length, gc.reborrow())?;
+                o = scoped_o.get(agent).bind(gc.nogc());
+                res as usize
+            };
         // 5. If IsDetachedBuffer(O) is true, throw a TypeError exception.
         if is_detached_buffer(agent, o) {
             return Err(agent.throw_exception_with_static_message(
@@ -231,6 +242,8 @@ impl ArrayBufferPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
+        let start = arguments.get(0);
+        let end = arguments.get(1);
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
@@ -246,8 +259,9 @@ impl ArrayBufferPrototype {
         // 5. Let len be O.[[ArrayBufferByteLength]].
         let len = o.byte_length(agent);
 
+        let scoped_o = o.scope(agent, gc.nogc());
         // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, arguments.get(0), gc.reborrow())?;
+        let relative_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
         // 7. If relativeStart = -∞, let first be 0.
         let first = if relative_start.is_neg_infinity() {
             0
@@ -260,7 +274,6 @@ impl ArrayBufferPrototype {
         };
 
         // 10. If end is undefined, let relativeEnd be len;
-        let end = arguments.get(0);
         let final_end = if end.is_undefined() {
             len
         } else {
@@ -293,6 +306,8 @@ impl ArrayBufferPrototype {
         else {
             unreachable!();
         };
+        let gc = gc.into_nogc();
+        let new = new.bind(gc);
         // 17. Perform ? RequireInternalSlot(new, [[ArrayBufferData]]).
         // 18. If IsSharedArrayBuffer(new) is true, throw a TypeError exception.
         // 19. If IsDetachedBuffer(new) is true, throw a TypeError exception.
@@ -300,15 +315,16 @@ impl ArrayBufferPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Construction produced a detached ArrayBuffer",
-                gc.nogc(),
+                gc,
             ));
         }
         // 20. If SameValue(new, O) is true, throw a TypeError exception.
+        let o = scoped_o.get(agent).bind(gc);
         if new == o {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Construction returned the original ArrayBuffer",
-                gc.nogc(),
+                gc,
             ));
         }
         // 21. If new.[[ArrayBufferByteLength]] < newLen, throw a TypeError exception.
@@ -316,7 +332,7 @@ impl ArrayBufferPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Construction returned a smaller ArrayBuffer than requested",
-                gc.nogc(),
+                gc,
             ));
         }
         // 22. NOTE: Side-effects of the above steps may have detached or resized O.
@@ -325,7 +341,7 @@ impl ArrayBufferPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Construction detached ArrayBuffer being sliced",
-                gc.nogc(),
+                gc,
             ));
         }
         // 24. Let fromBuf be O.[[ArrayBufferData]].
@@ -402,11 +418,11 @@ impl ArrayBufferPrototype {
 }
 
 #[inline]
-pub(crate) fn require_internal_slot_array_buffer(
+pub(crate) fn require_internal_slot_array_buffer<'a>(
     agent: &mut Agent,
     o: Value,
-    gc: NoGcScope,
-) -> JsResult<ArrayBuffer> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<ArrayBuffer<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.

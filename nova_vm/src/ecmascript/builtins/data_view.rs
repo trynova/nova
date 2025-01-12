@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::context::NoGcScope,
     heap::{
         indexes::{DataViewIndex, IntoBaseIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -55,8 +56,12 @@ impl DataView {
     }
 
     #[inline]
-    pub fn get_viewed_array_buffer(self, agent: &Agent) -> ArrayBuffer {
-        agent[self].viewed_array_buffer
+    pub fn get_viewed_array_buffer<'a>(
+        self,
+        agent: &Agent,
+        gc: NoGcScope<'a, '_>,
+    ) -> ArrayBuffer<'a> {
+        agent[self].viewed_array_buffer.bind(gc)
     }
 
     pub(crate) const fn _def() -> Self {

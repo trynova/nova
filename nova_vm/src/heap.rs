@@ -97,7 +97,7 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<Option<ArrayBufferHeapData>>,
     #[cfg(feature = "array-buffer")]
-    pub array_buffer_detach_keys: AHashMap<ArrayBuffer, DetachKey>,
+    pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
