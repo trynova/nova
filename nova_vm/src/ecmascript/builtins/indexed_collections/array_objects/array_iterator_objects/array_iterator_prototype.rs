@@ -88,41 +88,42 @@ impl ArrayIteratorPrototype {
                     agent,
                     array,
                     crate::ecmascript::builtins::array_buffer::Ordering::SeqCst,
+                    gc.nogc(),
                 );
                 // 2. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
                 if match array {
                     TypedArray::Int8Array(_) => {
-                        is_typed_array_out_of_bounds::<i8>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Uint8Array(_) => {
-                        is_typed_array_out_of_bounds::<u8>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Uint8ClampedArray(_) => {
-                        is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Int16Array(_) => {
-                        is_typed_array_out_of_bounds::<i16>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Uint16Array(_) => {
-                        is_typed_array_out_of_bounds::<u16>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Int32Array(_) => {
-                        is_typed_array_out_of_bounds::<i32>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Uint32Array(_) => {
-                        is_typed_array_out_of_bounds::<u32>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::BigInt64Array(_) => {
-                        is_typed_array_out_of_bounds::<i64>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::BigUint64Array(_) => {
-                        is_typed_array_out_of_bounds::<u64>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Float32Array(_) => {
-                        is_typed_array_out_of_bounds::<f32>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Float64Array(_) => {
-                        is_typed_array_out_of_bounds::<f64>(agent, &ta_record)
+                        is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc.nogc())
                     }
                 } {
                     return Err(agent.throw_exception_with_static_message(
@@ -134,19 +135,39 @@ impl ArrayIteratorPrototype {
 
                 // 3. Let len be TypedArrayLength(taRecord).
                 (match array {
-                    TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record),
-                    TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record),
-                    TypedArray::Uint8ClampedArray(_) => {
-                        typed_array_length::<U8Clamped>(agent, &ta_record)
+                    TypedArray::Int8Array(_) => {
+                        typed_array_length::<i8>(agent, &ta_record, gc.nogc())
                     }
-                    TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record),
-                    TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record),
-                    TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record),
-                    TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record),
-                    TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record),
-                    TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record),
-                    TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record),
-                    TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record),
+                    TypedArray::Uint8Array(_) => {
+                        typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Uint8ClampedArray(_) => {
+                        typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Int16Array(_) => {
+                        typed_array_length::<i16>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Uint16Array(_) => {
+                        typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Int32Array(_) => {
+                        typed_array_length::<i32>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Uint32Array(_) => {
+                        typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::BigInt64Array(_) => {
+                        typed_array_length::<i64>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::BigUint64Array(_) => {
+                        typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Float32Array(_) => {
+                        typed_array_length::<f32>(agent, &ta_record, gc.nogc())
+                    }
+                    TypedArray::Float64Array(_) => {
+                        typed_array_length::<f64>(agent, &ta_record, gc.nogc())
+                    }
                 }) as i64
             }
             // ii. Else,

@@ -38,15 +38,15 @@ pub(crate) enum Ordering {
 /// argument *maxByteLength* (a non-negative integer or EMPTY) and returns
 /// either a normal completion containing an ArrayBuffer or a throw
 /// completion. It is used to create an ArrayBuffer.
-pub(crate) fn allocate_array_buffer(
+pub(crate) fn allocate_array_buffer<'a>(
     agent: &mut Agent,
     // TODO: Verify that constructor is %ArrayBuffer% and if not,
     // create the `ObjectHeapData` for obj.
     _constructor: Function,
     byte_length: u64,
     max_byte_length: Option<u64>,
-    gc: NoGcScope,
-) -> JsResult<ArrayBuffer> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<ArrayBuffer<'a>> {
     // 1. Let slots be « [[ArrayBufferData]], [[ArrayBufferByteLength]], [[ArrayBufferDetachKey]] ».
     // 2. If maxByteLength is present and maxByteLength is not EMPTY, let allocatingResizableBuffer be true; otherwise let allocatingResizableBuffer be false.
     let allocating_resizable_buffer = max_byte_length.is_some();
@@ -125,7 +125,7 @@ pub(crate) fn detach_array_buffer(
     agent: &mut Agent,
     array_buffer: ArrayBuffer,
     key: Option<DetachKey>,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> JsResult<()> {
     // 1. Assert: IsSharedArrayBuffer(arrayBuffer) is false.
     // TODO: SharedArrayBuffer that we can even take here.
@@ -155,13 +155,13 @@ pub(crate) fn detach_array_buffer(
 /// normal completion containing an ArrayBuffer or a throw completion. It
 /// creates a new ArrayBuffer whose data is a copy of srcBuffer's data over the
 /// range starting at srcByteOffset and continuing for srcLength bytes.
-pub(crate) fn clone_array_buffer(
+pub(crate) fn clone_array_buffer<'a>(
     agent: &mut Agent,
-    src_buffer: ArrayBuffer,
+    src_buffer: ArrayBuffer<'a>,
     src_byte_offset: usize,
     src_length: usize,
-    gc: NoGcScope,
-) -> JsResult<ArrayBuffer> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<ArrayBuffer<'a>> {
     // 1. Assert: IsDetachedBuffer(srcBuffer) is false.
     debug_assert!(!src_buffer.is_detached(agent));
     let array_buffer_constructor = agent.current_realm().intrinsics().array_buffer();
@@ -200,7 +200,7 @@ pub(crate) fn clone_array_buffer(
 pub(crate) fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Option<i64>> {
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
@@ -377,7 +377,7 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
-    array_buffer: ArrayBuffer,
+    array_buffer: ArrayBuffer<'a>,
     byte_index: usize,
     _is_typed_array: bool,
     _order: Ordering,

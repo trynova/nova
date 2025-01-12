@@ -212,9 +212,9 @@ impl DataViewPrototype {
         let o = require_internal_slot_data_view(agent, this_value, gc)?;
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
         // 4. Let viewRecord be MakeDataViewWithBufferWitnessRecord(O, seq-cst).
-        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
         // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
-        if is_view_out_of_bounds(agent, &view_record) {
+        if is_view_out_of_bounds(agent, &view_record, gc) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "DataView is out of bounds",
@@ -222,7 +222,7 @@ impl DataViewPrototype {
             ));
         }
         // 6. Let size be GetViewByteLength(viewRecord).
-        let size = get_view_byte_length(agent, &view_record) as i64;
+        let size = get_view_byte_length(agent, &view_record, gc) as i64;
         // 7. Return 𝔽(size).
         Ok(Number::from(SmallInteger::try_from(size).unwrap()).into_value())
     }
@@ -243,9 +243,9 @@ impl DataViewPrototype {
         let o = require_internal_slot_data_view(agent, this_value, gc)?;
         // 3. Assert: O has a [[ViewedArrayBuffer]] internal slot.
         // 4. Let viewRecord be MakeDataViewWithBufferWitnessRecord(O, seq-cst).
-        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst);
+        let view_record = make_data_view_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
         // 5. If IsViewOutOfBounds(viewRecord) is true, throw a TypeError exception.
-        if is_view_out_of_bounds(agent, &view_record) {
+        if is_view_out_of_bounds(agent, &view_record, gc) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "DataView is out of bounds",

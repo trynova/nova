@@ -2,10 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
 use crate::ecmascript::builtins::array_buffer::{
     ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
 };
 use crate::engine::context::GcScope;
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_index,
@@ -63,10 +65,17 @@ impl DataViewConstructor {
         let byte_length = arguments.get(2);
 
         // 2. Perform ? RequireInternalSlot(buffer, [[ArrayBufferData]]).
-        let buffer = require_internal_slot_array_buffer(agent, buffer, gc.nogc())?;
+        let mut buffer = require_internal_slot_array_buffer(agent, buffer, gc.nogc())?;
+        let scoped_buffer = buffer.scope(agent, gc.nogc());
 
         // 3. Let offset be ? ToIndex(byteOffset).
-        let offset = to_index(agent, byte_offset, gc.reborrow())? as usize;
+        let offset = if let TryResult::Continue(res) = try_to_index(agent, byte_offset, gc.nogc()) {
+            res? as usize
+        } else {
+            let res = to_index(agent, byte_offset, gc.reborrow())?;
+            buffer = scoped_buffer.get(agent).bind(gc.nogc());
+            res as usize
+        };
 
         // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {
@@ -126,12 +135,14 @@ impl DataViewConstructor {
             gc.reborrow(),
         )?;
 
+        let gc = gc.into_nogc();
+        let buffer = scoped_buffer.get(agent).bind(gc);
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "attempting to access detached ArrayBuffer",
-                gc.nogc(),
+                gc,
             ));
         }
 
@@ -143,7 +154,7 @@ impl DataViewConstructor {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "offset is outside the bounds of the buffer",
-                gc.nogc(),
+                gc,
             ));
         }
 
@@ -154,7 +165,7 @@ impl DataViewConstructor {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::RangeError,
                     "offset is outside the bounds of the buffer",
-                    gc.nogc(),
+                    gc,
                 ));
             }
         }
@@ -164,7 +175,7 @@ impl DataViewConstructor {
         let heap_data = &mut agent[o];
 
         // 15. Set O.[[ViewedArrayBuffer]] to buffer.
-        heap_data.viewed_array_buffer = buffer;
+        heap_data.viewed_array_buffer = buffer.unbind();
         // 16. Set O.[[ByteLength]] to viewByteLength.
         let byte_length = view_byte_length.into();
         heap_data.byte_length = byte_length;

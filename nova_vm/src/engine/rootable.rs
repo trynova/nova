@@ -120,7 +120,7 @@ mod private {
     pub trait RootableSealed {}
     impl RootableSealed for Array<'_> {}
     #[cfg(feature = "array-buffer")]
-    impl RootableSealed for ArrayBuffer {}
+    impl RootableSealed for ArrayBuffer<'_> {}
     impl RootableSealed for ArrayIterator {}
     impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction<'_> {}
@@ -229,7 +229,7 @@ pub enum HeapRootData {
     Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer<'static>) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     DataView(DataView) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]

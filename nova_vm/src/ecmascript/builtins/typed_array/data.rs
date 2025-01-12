@@ -61,7 +61,7 @@ impl From<Option<usize>> for TypedArrayArrayLength {
 pub struct TypedArrayHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
     /// ### [\[\[ViewedArrayBuffer\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
-    pub(crate) viewed_array_buffer: ArrayBuffer,
+    pub(crate) viewed_array_buffer: ArrayBuffer<'static>,
     /// ### [\[\[ByteLength\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)
     pub(crate) byte_length: ViewedArrayBufferByteLength,
     /// ### [\[\[ByteOffset\]\]](https://tc39.es/ecma262/#sec-properties-of-typedarray-instances)

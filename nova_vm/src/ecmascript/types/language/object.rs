@@ -124,7 +124,7 @@ pub enum Object {
     Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array<'static>) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    ArrayBuffer(ArrayBuffer) = ARRAY_BUFFER_DISCRIMINANT,
+    ArrayBuffer(ArrayBuffer<'static>) = ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     DataView(DataView) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]

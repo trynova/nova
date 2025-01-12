@@ -128,7 +128,7 @@ pub struct HeapBits {
 #[derive(Debug)]
 pub(crate) struct WorkQueues {
     #[cfg(feature = "array-buffer")]
-    pub array_buffers: Vec<ArrayBuffer>,
+    pub array_buffers: Vec<ArrayBuffer<'static>>,
     pub arrays: Vec<Array<'static>>,
     pub array_iterators: Vec<ArrayIterator>,
     pub await_reactions: Vec<AwaitReactionIdentifier>,

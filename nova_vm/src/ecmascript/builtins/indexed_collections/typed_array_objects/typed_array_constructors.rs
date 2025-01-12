@@ -172,7 +172,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<i8>(agent, arguments, new_target, gc)
     }
@@ -182,7 +182,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<u8>(agent, arguments, new_target, gc)
     }
@@ -192,7 +192,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<U8Clamped>(agent, arguments, new_target, gc)
     }
@@ -202,7 +202,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<i16>(agent, arguments, new_target, gc)
     }
@@ -212,7 +212,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<u16>(agent, arguments, new_target, gc)
     }
@@ -222,7 +222,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<i32>(agent, arguments, new_target, gc)
     }
@@ -232,7 +232,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<u32>(agent, arguments, new_target, gc)
     }
@@ -242,7 +242,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<i64>(agent, arguments, new_target, gc)
     }
@@ -252,7 +252,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<u64>(agent, arguments, new_target, gc)
     }
@@ -262,7 +262,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<f32>(agent, arguments, new_target, gc)
     }
@@ -272,7 +272,7 @@ impl TypedArrayConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         typed_array_constructor::<f64>(agent, arguments, new_target, gc)
     }
@@ -644,7 +644,7 @@ fn typed_array_constructor<T: Viewable>(
     agent: &mut Agent,
     arguments: ArgumentsList,
     new_target: Option<Object>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     // 1. If NewTarget is undefined, throw a TypeError exception.
     let Some(new_target) = new_target else {

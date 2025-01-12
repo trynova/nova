@@ -187,7 +187,7 @@ impl<'a, T> Default for BaseIndex<'a, T> {
 }
 
 #[cfg(feature = "array-buffer")]
-pub type ArrayBufferIndex = BaseIndex<'static, ArrayBufferHeapData>;
+pub type ArrayBufferIndex<'a> = BaseIndex<'a, ArrayBufferHeapData>;
 pub type ArrayIndex<'a> = BaseIndex<'a, ArrayHeapData>;
 pub type ArrayIteratorIndex = BaseIndex<'static, ArrayIteratorHeapData>;
 pub type BigIntIndex<'a> = BaseIndex<'a, BigIntHeapData>;
