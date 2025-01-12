@@ -609,11 +609,11 @@ impl DataViewPrototype {
 }
 
 #[inline]
-pub(crate) fn require_internal_slot_data_view(
+pub(crate) fn require_internal_slot_data_view<'a>(
     agent: &mut Agent,
     o: Value,
-    gc: NoGcScope,
-) -> JsResult<DataView> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<DataView<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[DataView]]).
         Value::DataView(array_buffer) => Ok(array_buffer),

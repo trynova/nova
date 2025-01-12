@@ -377,7 +377,7 @@ pub(crate) fn get_raw_bytes_from_shared_block(
 /// (a Boolean) and returns a Number or a BigInt.
 pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     agent: &mut Agent,
-    array_buffer: ArrayBuffer<'a>,
+    array_buffer: ArrayBuffer,
     byte_index: usize,
     _is_typed_array: bool,
     _order: Ordering,

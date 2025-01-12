@@ -9,7 +9,7 @@ use crate::{
             structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
         },
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{IntoNumeric, Numeric, Value, Viewable},
+        types::{BigInt, IntoNumeric, Number, Numeric, Value, Viewable},
     },
     engine::{
         context::{GcScope, NoGcScope},
@@ -43,9 +43,9 @@ impl ByteLength {
 /// to help ensure there is a single shared memory read event of the byte
 /// length data block when the viewed buffer is a growable SharedArrayBuffers.
 #[derive(Debug, Clone)]
-pub(crate) struct DataViewWithBufferWitnessRecord {
+pub(crate) struct DataViewWithBufferWitnessRecord<'a> {
     /// ### [\[\[Object\]\]](https://tc39.es/ecma262/#table-dataview-with-buffer-witness-record-fields)
-    object: DataView,
+    object: DataView<'a>,
     /// ### [\[\[CachedBufferByteLength\]\]](https://tc39.es/ecma262/#table-dataview-with-buffer-witness-record-fields)
     cached_buffer_byte_length: ByteLength,
 }
@@ -55,12 +55,12 @@ pub(crate) struct DataViewWithBufferWitnessRecord {
 /// The abstract operation MakeDataViewWithBufferWitnessRecord takes arguments
 /// obj (a DataView) and order (seq-cst or unordered) and returns a DataView
 /// With Buffer Witness Record.
-pub(crate) fn make_data_view_with_buffer_witness_record(
+pub(crate) fn make_data_view_with_buffer_witness_record<'a>(
     agent: &Agent,
     obj: DataView,
     order: Ordering,
-    gc: NoGcScope,
-) -> DataViewWithBufferWitnessRecord {
+    gc: NoGcScope<'a, '_>,
+) -> DataViewWithBufferWitnessRecord<'a> {
     let buffer = obj.get_viewed_array_buffer(agent, gc);
     let byte_length = if buffer.is_detached(agent) {
         ByteLength::detached()
@@ -68,7 +68,7 @@ pub(crate) fn make_data_view_with_buffer_witness_record(
         ByteLength::value(array_buffer_byte_length(agent, buffer, order))
     };
     DataViewWithBufferWitnessRecord {
-        object: obj,
+        object: obj.unbind(),
         cached_buffer_byte_length: byte_length,
     }
 }
@@ -179,12 +179,22 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
 ) -> JsResult<Numeric<'gc>> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
-    let view = require_internal_slot_data_view(agent, view, gc.nogc())?;
+    let mut view = require_internal_slot_data_view(agent, view, gc.nogc())?;
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
-    let get_index = to_index(agent, request_index, gc.reborrow())? as usize;
+    let get_index = if let TryResult::Continue(res) = try_to_index(agent, request_index, gc.nogc())
+    {
+        res? as usize
+    } else {
+        let scoped_view = view.scope(agent, gc.nogc());
+        let res = to_index(agent, request_index, gc.reborrow())? as usize;
+        view = scoped_view.get(agent).bind(gc.nogc());
+        res
+    };
     // No GC is possible beyond this point.
+    let view = view.unbind();
     let gc = gc.into_nogc();
+    let view = view.bind(gc);
     // 5. Let viewOffset be view.[[ByteOffset]].
     let view_offset = view.byte_offset(agent);
 
@@ -251,27 +261,50 @@ pub(crate) fn set_view_value<T: Viewable>(
 ) -> JsResult<Value> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
-    let view = require_internal_slot_data_view(agent, view, gc.nogc())?;
+    let mut view = require_internal_slot_data_view(agent, view, gc.nogc())?;
 
     // 3. Let getIndex be ? ToIndex(requestIndex).
     let get_index = if let TryResult::Continue(res) = try_to_index(agent, request_index, gc.nogc())
     {
         res? as usize
     } else {
-        // todo, scope view
-        let res = to_index(agent, request_index, gc.reborrow())?;
-        res as usize
+        let scoped_view = view.scope(agent, gc.nogc());
+        let res = to_index(agent, request_index, gc.reborrow())? as usize;
+        view = scoped_view.get(agent).bind(gc.nogc());
+        res
     };
 
     // 4. If IsBigIntElementType(type) is true, let numberValue be ? ToBigInt(value).
     let number_value = if T::IS_BIGINT {
-        to_big_int(agent, value, gc.reborrow())?.into_numeric()
+        if let Ok(v) = BigInt::try_from(value) {
+            v.into_numeric()
+        } else {
+            let scoped_view = view.scope(agent, gc.nogc());
+            let v = to_big_int(agent, value, gc.reborrow())?
+                .into_numeric()
+                .unbind()
+                .bind(gc.nogc());
+            view = scoped_view.get(agent).bind(gc.nogc());
+            v
+        }
     } else {
         // 5. Otherwise, let numberValue be ? ToNumber(value).
-        to_number(agent, value, gc.reborrow())?.into_numeric()
+        if let Ok(v) = Number::try_from(value) {
+            v.into_numeric()
+        } else {
+            let scoped_view = view.scope(agent, gc.nogc());
+            let v = to_number(agent, value, gc.reborrow())?
+                .into_numeric()
+                .unbind()
+                .bind(gc.nogc());
+            view = scoped_view.get(agent).bind(gc.nogc());
+            v
+        }
     };
+    let view = view.unbind();
     let number_value = number_value.unbind();
     let gc = gc.into_nogc();
+    let view = view.bind(gc);
     let number_value = number_value.bind(gc);
 
     // 7. Let viewOffset be view.[[ByteOffset]].

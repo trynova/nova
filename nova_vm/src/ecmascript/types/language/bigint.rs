@@ -287,8 +287,8 @@ impl<'a> BigInt<'a> {
     // let bigint = bigint.bind(&gc);
     // ```
     // to make sure that the unbound BigInt cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<BigInt<'_>, Self>(self) }
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BigInt<'gc> {
+        unsafe { std::mem::transmute::<Self, BigInt<'gc>>(self) }
     }
 
     pub const fn zero() -> Self {

@@ -826,7 +826,16 @@ pub(crate) fn to_big_int<'a>(
     let prim = to_primitive(agent, argument, Some(PreferredType::Number), gc.reborrow())?.unbind();
     let gc = gc.into_nogc();
     let prim = prim.bind(gc);
+    to_big_int_primitive(agent, prim, gc)
+}
 
+/// ### [7.1.13 ToBigInt ( argument )](https://tc39.es/ecma262/#sec-tobigint)
+#[inline(always)]
+pub(crate) fn to_big_int_primitive<'a>(
+    agent: &mut Agent,
+    prim: Primitive,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<BigInt<'a>> {
     // 2. Return the value that prim corresponds to in Table 12.
     match prim {
         Primitive::Undefined => Err(agent.throw_exception_with_static_message(
@@ -859,7 +868,7 @@ pub(crate) fn to_big_int<'a>(
                 "Cannot convert Number to BigInt",
                 gc,
             )),
-        Primitive::BigInt(idx) => Ok(idx.into()),
+        Primitive::BigInt(idx) => Ok(BigInt::BigInt(idx).bind(gc)),
         Primitive::SmallBigInt(data) => Ok(data.into()),
     }
 }
@@ -867,7 +876,7 @@ pub(crate) fn to_big_int<'a>(
 /// ### [7.1.14 StringToBigInt ( str )](https://tc39.es/ecma262/#sec-stringtobigint)
 pub(crate) fn string_to_big_int<'a>(
     agent: &mut Agent,
-    argument: String<'a>,
+    argument: String,
     nogc: NoGcScope<'a, '_>,
 ) -> JsResult<BigInt<'a>> {
     // 1. Let text be StringToCodePoints(str).
