@@ -145,7 +145,7 @@ mod private {
     impl RootableSealed for Object {}
     impl RootableSealed for OrdinaryObject<'_> {}
     impl RootableSealed for Primitive<'_> {}
-    impl RootableSealed for PrimitiveObject {}
+    impl RootableSealed for PrimitiveObject<'_> {}
     impl RootableSealed for Promise {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy {}
@@ -225,7 +225,7 @@ pub enum HeapRootData {
         BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
     BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
-    PrimitiveObject(PrimitiveObject),
+    PrimitiveObject(PrimitiveObject<'static>),
     Arguments(OrdinaryObject<'static>) = ARGUMENTS_DISCRIMINANT,
     Array(Array) = ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]

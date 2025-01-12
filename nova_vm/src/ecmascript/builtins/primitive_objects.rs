@@ -5,7 +5,8 @@
 use std::ops::{Index, IndexMut};
 
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::{unwrap_try, TryResult};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{
         builtins::ordinary::{
@@ -37,39 +38,39 @@ use super::ordinary::{
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct PrimitiveObject(PrimitiveObjectIndex);
+pub struct PrimitiveObject<'a>(PrimitiveObjectIndex<'a>);
 
-impl From<PrimitiveObjectIndex> for PrimitiveObject {
-    fn from(value: PrimitiveObjectIndex) -> Self {
+impl<'a> From<PrimitiveObjectIndex<'a>> for PrimitiveObject<'a> {
+    fn from(value: PrimitiveObjectIndex<'a>) -> Self {
         Self(value)
     }
 }
 
-impl From<PrimitiveObject> for Object {
+impl From<PrimitiveObject<'_>> for Object {
     fn from(value: PrimitiveObject) -> Self {
-        Self::PrimitiveObject(value)
+        Self::PrimitiveObject(value.unbind())
     }
 }
 
-impl From<PrimitiveObject> for Value {
+impl From<PrimitiveObject<'_>> for Value {
     fn from(value: PrimitiveObject) -> Self {
-        Self::PrimitiveObject(value)
+        Self::PrimitiveObject(value.unbind())
     }
 }
 
-impl IntoObject for PrimitiveObject {
+impl IntoObject for PrimitiveObject<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl IntoValue for PrimitiveObject {
+impl IntoValue for PrimitiveObject<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl TryFrom<Object> for PrimitiveObject {
+impl TryFrom<Object> for PrimitiveObject<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -80,7 +81,7 @@ impl TryFrom<Object> for PrimitiveObject {
     }
 }
 
-impl TryFrom<Value> for PrimitiveObject {
+impl TryFrom<Value> for PrimitiveObject<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -91,7 +92,7 @@ impl TryFrom<Value> for PrimitiveObject {
     }
 }
 
-impl Index<PrimitiveObject> for Agent {
+impl Index<PrimitiveObject<'_>> for Agent {
     type Output = PrimitiveObjectHeapData;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
@@ -99,13 +100,13 @@ impl Index<PrimitiveObject> for Agent {
     }
 }
 
-impl IndexMut<PrimitiveObject> for Agent {
+impl IndexMut<PrimitiveObject<'_>> for Agent {
     fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
         &mut self.heap.primitive_objects[index]
     }
 }
 
-impl Index<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
+impl Index<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
     type Output = PrimitiveObjectHeapData;
 
     fn index(&self, index: PrimitiveObject) -> &Self::Output {
@@ -116,7 +117,7 @@ impl Index<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl IndexMut<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
+impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
     fn index_mut(&mut self, index: PrimitiveObject) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("PrimitiveObject out of bounds")
@@ -125,7 +126,35 @@ impl IndexMut<PrimitiveObject> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl PrimitiveObject {
+impl<'a> PrimitiveObject<'a> {
+    /// Unbind this PrimitiveObject from its current lifetime. This is necessary to use
+    /// the PrimitiveObject as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> PrimitiveObject<'static> {
+        unsafe { std::mem::transmute::<PrimitiveObject<'_>, PrimitiveObject<'static>>(self) }
+    }
+
+    // Bind this PrimitiveObject to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your PrimitiveObjects cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound PrimitiveObject cannot be used after binding.
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> PrimitiveObject<'a> {
+        unsafe { std::mem::transmute::<PrimitiveObject, PrimitiveObject<'a>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, PrimitiveObject<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         PrimitiveObject(PrimitiveObjectIndex::from_u32_index(0))
     }
@@ -162,7 +191,7 @@ impl PrimitiveObject {
     }
 }
 
-impl InternalSlots for PrimitiveObject {
+impl InternalSlots for PrimitiveObject<'_> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -208,7 +237,7 @@ impl InternalSlots for PrimitiveObject {
     }
 }
 
-impl InternalMethods for PrimitiveObject {
+impl InternalMethods for PrimitiveObject<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -554,7 +583,7 @@ pub(crate) enum PrimitiveObjectData {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl TryFrom<PrimitiveObjectData> for BigInt<'_> {
+impl<'a> TryFrom<PrimitiveObjectData> for BigInt<'a> {
     type Error = ();
 
     fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
@@ -658,6 +687,29 @@ impl PrimitiveObjectHeapData {
     }
 }
 
+impl Rootable for PrimitiveObject<'static> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::PrimitiveObject(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::PrimitiveObject(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
 impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self { object_index, data } = self;
@@ -684,7 +736,7 @@ impl HeapMarkAndSweep for PrimitiveObjectHeapData {
     }
 }
 
-impl HeapMarkAndSweep for PrimitiveObject {
+impl HeapMarkAndSweep for PrimitiveObject<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.primitive_objects.push(*self);
     }
@@ -694,8 +746,8 @@ impl HeapMarkAndSweep for PrimitiveObject {
     }
 }
 
-impl CreateHeapData<PrimitiveObjectHeapData, PrimitiveObject> for Heap {
-    fn create(&mut self, data: PrimitiveObjectHeapData) -> PrimitiveObject {
+impl CreateHeapData<PrimitiveObjectHeapData, PrimitiveObject<'static>> for Heap {
+    fn create(&mut self, data: PrimitiveObjectHeapData) -> PrimitiveObject<'static> {
         self.primitive_objects.push(Some(data));
         PrimitiveObject(PrimitiveObjectIndex::last(&self.primitive_objects))
     }

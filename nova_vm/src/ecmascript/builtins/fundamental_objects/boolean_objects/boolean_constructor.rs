@@ -68,7 +68,7 @@ impl BooleanConstructor {
 
         BuiltinFunctionBuilder::new_intrinsic_constructor::<BooleanConstructor>(agent, realm)
             .with_property_capacity(1)
-            .with_prototype_property(boolean_prototype.into_object())
+            .with_prototype_property(boolean_prototype.unbind().into_object())
             .build();
     }
 }
