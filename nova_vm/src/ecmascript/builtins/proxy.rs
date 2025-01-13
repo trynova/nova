@@ -1314,7 +1314,7 @@ impl InternalMethods for Proxy {
                 target.internal_get_own_property(agent, next_key, gc.reborrow())?
             };
             //  b. If desc is not undefined and desc.[[Configurable]] is false, then
-            if desc.unwrap().configurable == Some(false) {
+            if desc.map_or(false, |d| d.configurable == Some(false)) {
                 // i. Append key to targetNonconfigurableKeys.
                 target_nonconfigurable_keys.push(key);
             } else {
