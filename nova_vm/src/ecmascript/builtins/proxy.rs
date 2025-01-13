@@ -15,8 +15,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{
                 call, call_function, construct, create_array_from_list,
-                create_list_from_array_like, get, get_object_method, length_of_array_like,
-                try_get_object_method, try_get_object_method,
+                create_property_key_list_from_array_like, get_object_method, try_get_object_method,
             },
             testing_and_comparison::{is_constructor, is_extensible, same_value},
             type_conversion::to_boolean,
@@ -38,7 +37,6 @@ use crate::{
         indexes::{BaseIndex, ProxyIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
     },
-    SmallInteger,
 };
 
 use super::ordinary::is_compatible_property_descriptor;
@@ -1338,8 +1336,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             gc.reborrow(),
         )?;
         // 8. Let trapResult be ? CreateListFromArrayLike(trapResultArray, property-key).
-        let trap_result =
-            create_list_from_array_like(agent, trap_result_array.unbind(), gc.reborrow())?;
+        let trap_result = create_property_key_list_from_array_like(
+            agent,
+            trap_result_array.unbind(),
+            gc.reborrow(),
+        )?;
         // 9. If trapResult contains any duplicate entries, throw a TypeError exception.
         for (i, value) in trap_result.iter().enumerate() {
             if trap_result[i + 1..].contains(value) {
