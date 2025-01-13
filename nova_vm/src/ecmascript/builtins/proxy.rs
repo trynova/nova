@@ -21,9 +21,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            unbind_property_keys, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            scope_property_keys, unbind_property_keys, Function, InternalMethods, InternalSlots,
+            IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -1337,7 +1337,6 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 8. Let trapResult be ? CreateListFromArrayLike(trapResultArray, property-key).
         let trap_result =
             create_list_from_array_like(agent, trap_result_array.unbind(), gc.reborrow())?;
-
         // 9. If trapResult contains any duplicate entries, throw a TypeError exception.
         for (i, value) in trap_result.iter().enumerate() {
             if trap_result[i + 1..].contains(value) {
@@ -1351,11 +1350,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 10. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
         // 11. Let targetKeys be ? target.[[OwnPropertyKeys]]().
-        let target_keys = unbind_property_keys(
-            scoped_target
-                .get(agent)
-                .internal_own_property_keys(agent, gc.reborrow())?,
-        );
+        let keys = target.internal_own_property_keys(agent, gc.reborrow())?;
+        let target_keys = scope_property_keys(agent, unbind_property_keys(keys), gc.nogc());
         // 13. Assert: targetKeys contains no duplicate entries.
         for i in &trap_result {
             assert!(trap_result.contains(&i))
@@ -1365,13 +1361,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 15. Let targetNonconfigurableKeys be a new empty List.
         let mut target_nonconfigurable_keys = Vec::new();
         // 16. For each element key of targetKeys, do
-        for &key in target_keys.iter() {
+        for key in target_keys {
             // a. Let desc be ? target.[[GetOwnProperty]](key).
-            let desc = scoped_target.get(agent).internal_get_own_property(
-                agent,
-                key.unbind(),
-                gc.reborrow(),
-            )?;
+            let desc = {
+                let next_key = key.get(agent);
+                target.internal_get_own_property(agent, next_key, gc.reborrow())?
+            };
             //  b. If desc is not undefined and desc.[[Configurable]] is false, then
             if desc.unwrap().configurable == Some(false) {
                 // i. Append key to targetNonconfigurableKeys.
@@ -1394,9 +1389,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 18. Let uncheckedResultKeys be a List whose elements are the elements of trapResult.
         let mut unchecked_result_keys = trap_result.clone();
         // 19. For each element key of targetNonconfigurableKeys, do
-        for &key in target_nonconfigurable_keys.iter() {
+        for key in target_nonconfigurable_keys {
+            let key = &key.get(agent);
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
-            if !unchecked_result_keys.contains(&key) {
+            if !unchecked_result_keys.contains(key) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "a",
@@ -1405,7 +1401,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
-                .position(|unchecked_key| unchecked_key == &key)
+                .position(|unchecked_key| unchecked_key == key)
             {
                 // b. Remove the key from uncheckedResultKeys
                 unchecked_result_keys.remove(pos);
@@ -1421,9 +1417,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         };
         // println!("target_configurable_keys {:?}", target_configurable_keys);
         // 21. For each element key of targetConfigurableKeys, do
-        for &key in target_configurable_keys.iter() {
+        for key in target_configurable_keys {
+            let key = &key.get(agent);
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
-            if !unchecked_result_keys.contains(&key) {
+            if !unchecked_result_keys.contains(key) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "b",
@@ -1432,7 +1429,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
-                .position(|unchecked_key| unchecked_key == &key)
+                .position(|unchecked_key| unchecked_key == key)
             {
                 // b. Remove the key from uncheckedResultKeys
                 unchecked_result_keys.remove(pos);
