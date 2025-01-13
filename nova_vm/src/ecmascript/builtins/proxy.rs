@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use std::{
+    collections::HashSet,
+    ops::{Index, IndexMut},
+};
 
 use abstract_operations::{validate_non_revoked_proxy, NonRevokedProxy};
 use data::ProxyHeapData;
@@ -1353,8 +1356,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let keys = target.internal_own_property_keys(agent, gc.reborrow())?;
         let target_keys = scope_property_keys(agent, unbind_property_keys(keys), gc.nogc());
         // 13. Assert: targetKeys contains no duplicate entries.
+        let mut seen = HashSet::new();
         for i in &trap_result {
-            assert!(trap_result.contains(&i))
+            assert!(seen.insert(i), "Duplicate entry found in trap_result");
         }
         // 14. Let targetConfigurableKeys be a new empty List.
         let mut target_configurable_keys = Vec::new();
@@ -1380,11 +1384,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 17. If extensibleTarget is true and targetNonconfigurableKeys is empty, then
         if extensible_target && target_nonconfigurable_keys.is_empty() {
             // a. Return trapResult.
-            let mut property_key_list = Vec::with_capacity(trap_result.len());
-            for v in trap_result {
-                property_key_list.push(v);
-            }
-            return Ok(property_key_list);
+            return Ok(trap_result);
         }
         // 18. Let uncheckedResultKeys be a List whose elements are the elements of trapResult.
         let mut unchecked_result_keys = trap_result.clone();
@@ -1409,11 +1409,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         }
         // 20. If extensibleTarget is true, return trapResult.
         if extensible_target {
-            let mut property_key_list = Vec::with_capacity(trap_result.len());
-            for v in trap_result {
-                property_key_list.push(v);
-            }
-            return Ok(property_key_list);
+            return Ok(trap_result);
         };
         // println!("target_configurable_keys {:?}", target_configurable_keys);
         // 21. For each element key of targetConfigurableKeys, do
@@ -1444,12 +1440,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 gc.nogc(),
             ));
         }
-        let mut property_key_list = Vec::with_capacity(trap_result.len());
-        for v in trap_result {
-            property_key_list.push(v);
-        }
-        Ok(property_key_list)
         // 23. Return trapResult.
+        Ok(trap_result)
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)
