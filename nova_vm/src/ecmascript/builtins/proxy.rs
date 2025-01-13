@@ -12,7 +12,8 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{
                 call, call_function, construct, create_array_from_list,
-                create_list_from_array_like, get_object_method, try_get_object_method,
+                create_list_from_array_like, get, get_object_method, length_of_array_like,
+                try_get_object_method, try_get_object_method,
             },
             testing_and_comparison::{is_constructor, is_extensible, same_value},
             type_conversion::to_boolean,
@@ -34,6 +35,7 @@ use crate::{
         indexes::{BaseIndex, ProxyIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
     },
+    SmallInteger,
 };
 
 use super::ordinary::is_compatible_property_descriptor;
@@ -1385,7 +1387,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             // a. Return trapResult.
             let mut property_key_list = Vec::with_capacity(trap_result.len());
             for v in trap_result {
-                property_key_list.push(unsafe { PropertyKey::from_value_unchecked(v) });
+                property_key_list.push(v);
             }
             return Ok(property_key_list);
         }
@@ -1394,7 +1396,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 19. For each element key of targetNonconfigurableKeys, do
         for &key in target_nonconfigurable_keys.iter() {
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
-            if !unchecked_result_keys.contains(unsafe { &key.into_value_unchecked() }) {
+            if !unchecked_result_keys.contains(&key) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "a",
@@ -1403,7 +1405,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
-                .position(|unchecked_key| unchecked_key == unsafe { &key.into_value_unchecked() })
+                .position(|unchecked_key| unchecked_key == &key)
             {
                 // b. Remove the key from uncheckedResultKeys
                 unchecked_result_keys.remove(pos);
@@ -1413,7 +1415,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         if extensible_target {
             let mut property_key_list = Vec::with_capacity(trap_result.len());
             for v in trap_result {
-                property_key_list.push(unsafe { PropertyKey::from_value_unchecked(v) });
+                property_key_list.push(v);
             }
             return Ok(property_key_list);
         };
@@ -1421,7 +1423,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 21. For each element key of targetConfigurableKeys, do
         for &key in target_configurable_keys.iter() {
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
-            if !unchecked_result_keys.contains(unsafe { &key.into_value_unchecked() }) {
+            if !unchecked_result_keys.contains(&key) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "b",
@@ -1430,7 +1432,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
-                .position(|unchecked_key| unchecked_key == unsafe { &key.into_value_unchecked() })
+                .position(|unchecked_key| unchecked_key == &key)
             {
                 // b. Remove the key from uncheckedResultKeys
                 unchecked_result_keys.remove(pos);
@@ -1447,7 +1449,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         }
         let mut property_key_list = Vec::with_capacity(trap_result.len());
         for v in trap_result {
-            property_key_list.push(unsafe { PropertyKey::from_value_unchecked(v) });
+            property_key_list.push(v);
         }
         Ok(property_key_list)
         // 23. Return trapResult.
