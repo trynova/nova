@@ -1291,9 +1291,12 @@ impl InternalMethods for Proxy {
         // 9. If trapResult contains any duplicate entries, throw a TypeError exception.
         for (i, value) in trap_result.iter().enumerate() {
             if trap_result[i + 1..].contains(value) {
-                return Err(agent.throw_exception_with_static_message(
+                return Err(agent.throw_exception(
                     ExceptionType::TypeError,
-                    "Duplicate entries found in trapResult",
+                    format!(
+                        "proxy [[OwnPropertyKeys]] can't report property '{}' more than once",
+                        value.as_display(agent),
+                    ),
                     gc.nogc(),
                 ));
             }
@@ -1341,9 +1344,12 @@ impl InternalMethods for Proxy {
             let key = &key.get(agent);
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
             if !unchecked_result_keys.contains(key) {
-                return Err(agent.throw_exception_with_static_message(
+                return Err(agent.throw_exception(
                     ExceptionType::TypeError,
-                    "a",
+                    format!(
+                        "proxy can't skip a non-configurable property '{}'",
+                        key.as_display(agent)
+                    ),
                     gc.nogc(),
                 ));
             }
@@ -1359,15 +1365,14 @@ impl InternalMethods for Proxy {
         if extensible_target {
             return Ok(trap_result);
         };
-        // println!("target_configurable_keys {:?}", target_configurable_keys);
         // 21. For each element key of targetConfigurableKeys, do
         for key in target_configurable_keys {
             let key = &key.get(agent);
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
             if !unchecked_result_keys.contains(key) {
-                return Err(agent.throw_exception_with_static_message(
+                return Err(agent.throw_exception(
                     ExceptionType::TypeError,
-                    "b",
+                    format!("proxy can't report an existing own property '{}' as non-existent on a non-extensible object", key.as_display(agent)),
                     gc.nogc(),
                 ));
             }
@@ -1379,12 +1384,11 @@ impl InternalMethods for Proxy {
                 unchecked_result_keys.remove(pos);
             }
         }
-
         // 22. If uncheckedResultKeys is not empty, throw a TypeError exception.
         if !unchecked_result_keys.is_empty() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "c",
+                "trap returned extra keys but proxy target is non-extensible",
                 gc.nogc(),
             ));
         }
