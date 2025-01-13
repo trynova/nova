@@ -11,8 +11,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, create_array_from_list, create_list_from_array_like,
-                get_object_method, try_get_object_method,
+                call, call_function, create_array_from_list, get, get_object_method,
+                length_of_array_like, try_get_object_method,
             },
             testing_and_comparison::{is_extensible, same_value},
             type_conversion::to_boolean,
@@ -33,6 +33,7 @@ use crate::{
         indexes::{BaseIndex, ProxyIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
     },
+    SmallInteger,
 };
 
 use super::ordinary::is_compatible_property_descriptor;
@@ -1325,7 +1326,7 @@ impl InternalMethods for Proxy {
             // a. Return trapResult.
             let mut property_key_list = Vec::with_capacity(trap_result.len());
             for v in trap_result {
-                property_key_list.push(unsafe { PropertyKey::from_value_unchecked(v) });
+                property_key_list.push(v);
             }
             return Ok(property_key_list);
         }
@@ -1334,7 +1335,7 @@ impl InternalMethods for Proxy {
         // 19. For each element key of targetNonconfigurableKeys, do
         for &key in target_nonconfigurable_keys.iter() {
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
-            if !unchecked_result_keys.contains(unsafe { &key.into_value_unchecked() }) {
+            if !unchecked_result_keys.contains(&key) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "a",
@@ -1343,7 +1344,7 @@ impl InternalMethods for Proxy {
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
-                .position(|unchecked_key| unchecked_key == unsafe { &key.into_value_unchecked() })
+                .position(|unchecked_key| unchecked_key == &key)
             {
                 // b. Remove the key from uncheckedResultKeys
                 unchecked_result_keys.remove(pos);
@@ -1353,7 +1354,7 @@ impl InternalMethods for Proxy {
         if extensible_target {
             let mut property_key_list = Vec::with_capacity(trap_result.len());
             for v in trap_result {
-                property_key_list.push(unsafe { PropertyKey::from_value_unchecked(v) });
+                property_key_list.push(v);
             }
             return Ok(property_key_list);
         };
@@ -1361,7 +1362,7 @@ impl InternalMethods for Proxy {
         // 21. For each element key of targetConfigurableKeys, do
         for &key in target_configurable_keys.iter() {
             // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
-            if !unchecked_result_keys.contains(unsafe { &key.into_value_unchecked() }) {
+            if !unchecked_result_keys.contains(&key) {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "b",
@@ -1370,7 +1371,7 @@ impl InternalMethods for Proxy {
             }
             if let Some(pos) = unchecked_result_keys
                 .iter()
-                .position(|unchecked_key| unchecked_key == unsafe { &key.into_value_unchecked() })
+                .position(|unchecked_key| unchecked_key == &key)
             {
                 // b. Remove the key from uncheckedResultKeys
                 unchecked_result_keys.remove(pos);
@@ -1387,7 +1388,7 @@ impl InternalMethods for Proxy {
         }
         let mut property_key_list = Vec::with_capacity(trap_result.len());
         for v in trap_result {
-            property_key_list.push(unsafe { PropertyKey::from_value_unchecked(v) });
+            property_key_list.push(v);
         }
         Ok(property_key_list)
         // 23. Return trapResult.
@@ -1522,6 +1523,95 @@ pub(crate) fn proxy_create(
     // 7. Set P.[[ProxyHandler]] to handler.
     // 8. Return P.
     Ok(p)
+}
+
+/// ### [7.3.19 CreateListFromArrayLike ( obj [ , elementTypes ] )](https://tc39.es/ecma262/#sec-createlistfromarraylike)
+///
+/// The abstract operation CreateListFromArrayLike takes argument obj (an ECMAScript language value)
+/// and optional argument elementTypes (a List of names of ECMAScript Language Types) and returns
+/// either a normal completion containing a List of ECMAScript language values or a throw
+/// completion. It is used to create a List value whose elements are provided by the indexed
+/// properties of obj. elementTypes contains the names of ECMAScript Language Types that are allowed
+/// for element values of the List that is created.
+pub(crate) fn create_list_from_array_like(
+    agent: &mut Agent,
+    obj: Value,
+    mut gc: GcScope,
+) -> JsResult<Vec<PropertyKey<'static>>> {
+    match obj {
+        Value::Array(array) => {
+            let elements: Vec<_> = array.as_slice(agent).to_vec(); // 借用を解放
+            elements
+                .iter()
+                .map(|el| match el {
+                    Some(Value::String(s)) => Ok(PropertyKey::String(s.clone())),
+                    Some(Value::Symbol(sym)) => Ok(PropertyKey::Symbol(sym.clone())),
+                    Some(Value::SmallString(sym)) => Ok(PropertyKey::SmallString(sym.clone())),
+                    Some(Value::Integer(sym)) => Ok(PropertyKey::Integer(sym.clone())),
+                    _ => Err(agent.throw_exception_with_static_message(
+                        ExceptionType::TypeError,
+                        "Proxy target must be an object",
+                        gc.nogc(),
+                    )),
+                })
+                .collect()
+        }
+        // 2. If obj is an Object
+        _ if obj.is_object() => {
+            let object = Object::try_from(obj).map_err(|_| {
+                agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Failed to convert object",
+                    gc.nogc(),
+                )
+            })?;
+            // 3. Let len be ? LengthOfArrayLike(obj).
+            let len = length_of_array_like(agent, object, gc.reborrow())?;
+            let len = usize::try_from(len).map_err(|_| {
+                agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Array length conversion failed",
+                    gc.nogc(),
+                )
+            })?;
+            // 4. Let list be a new empty list.
+            let mut list = Vec::with_capacity(len);
+            // 5. Let index be 0.
+            // 6. Repeat, while index < len,
+            for i in 0..len {
+                // a. Let indexName be ! ToString(𝔽(index)).
+                // b. Let next be ? Get(obj, indexName).
+                let next = get(
+                    agent,
+                    object,
+                    PropertyKey::Integer(SmallInteger::try_from(i as u64).unwrap()),
+                    gc.reborrow(),
+                )?;
+
+                // c. Validate and convert `next` into PropertyKey
+                match next {
+                    Value::String(s) => list.push(PropertyKey::String(s)),
+                    Value::Symbol(sym) => list.push(PropertyKey::Symbol(sym)),
+                    _ => {
+                        return Err(agent.throw_exception_with_static_message(
+                            ExceptionType::TypeError,
+                            "this is error",
+                            gc.nogc(),
+                        ));
+                    }
+                }
+            }
+            // 7. Return list.
+            Ok(list)
+        }
+
+        // 3. If obj is not an Object, throw a TypeError exception.
+        _ => Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Not an object",
+            gc.nogc(),
+        )),
+    }
 }
 
 impl Index<Proxy> for Agent {
