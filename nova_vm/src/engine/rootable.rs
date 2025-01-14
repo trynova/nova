@@ -134,7 +134,7 @@ mod private {
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject {}
     impl RootableSealed for Error {}
-    impl RootableSealed for FinalizationRegistry {}
+    impl RootableSealed for FinalizationRegistry<'_> {}
     impl RootableSealed for Function<'_> {}
     impl RootableSealed for Generator {}
     impl RootableSealed for Map {}
@@ -235,7 +235,7 @@ pub enum HeapRootData {
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
     Error(Error) = ERROR_DISCRIMINANT,
-    FinalizationRegistry(FinalizationRegistry) = FINALIZATION_REGISTRY_DISCRIMINANT,
+    FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
