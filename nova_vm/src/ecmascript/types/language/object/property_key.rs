@@ -309,7 +309,15 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
     fn from(value: String<'a>) -> Self {
         match value {
             String::String(x) => PropertyKey::String(x),
-            String::SmallString(x) => PropertyKey::SmallString(x),
+            String::SmallString(x) => {
+                // NOTE: Makes property keys slightly more correct by converting
+                // small strings to integers when possible.
+                if let Ok(n) = x.as_str().parse::<i64>() {
+                    return PropertyKey::Integer(SmallInteger::try_from(n).unwrap());
+                }
+
+                PropertyKey::SmallString(x)
+            }
         }
     }
 }

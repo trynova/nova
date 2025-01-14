@@ -631,6 +631,28 @@ impl TryFrom<PrimitiveObjectData> for Symbol<'_> {
     }
 }
 
+impl IntoValue for PrimitiveObjectData {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl From<PrimitiveObjectData> for Value {
+    fn from(value: PrimitiveObjectData) -> Self {
+        match value {
+            PrimitiveObjectData::Boolean(data) => Value::Boolean(data),
+            PrimitiveObjectData::String(data) => Value::String(data),
+            PrimitiveObjectData::SmallString(data) => Value::SmallString(data),
+            PrimitiveObjectData::Symbol(data) => Value::Symbol(data),
+            PrimitiveObjectData::Number(data) => Value::Number(data),
+            PrimitiveObjectData::Integer(data) => Value::Integer(data),
+            PrimitiveObjectData::Float(data) => Value::SmallF64(data),
+            PrimitiveObjectData::BigInt(data) => Value::BigInt(data),
+            PrimitiveObjectData::SmallBigInt(data) => Value::SmallBigInt(data),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct PrimitiveObjectHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,

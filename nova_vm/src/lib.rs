@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #![allow(dead_code)]
+#![feature(iter_intersperse)]
 
 pub mod ecmascript;
 pub mod engine;
