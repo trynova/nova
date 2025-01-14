@@ -137,7 +137,7 @@ mod private {
     impl RootableSealed for FinalizationRegistry<'_> {}
     impl RootableSealed for Function<'_> {}
     impl RootableSealed for Generator {}
-    impl RootableSealed for Map {}
+    impl RootableSealed for Map<'_> {}
     impl RootableSealed for MapIterator {}
     impl RootableSealed for Module {}
     impl RootableSealed for Number<'_> {}
@@ -236,7 +236,7 @@ pub enum HeapRootData {
     Date(Date<'static>) = DATE_DISCRIMINANT,
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
-    Map(Map) = MAP_DISCRIMINANT,
+    Map(Map<'static>) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]

@@ -11,6 +11,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{
+        context::NoGcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped,
+    },
     heap::{
         indexes::{BaseIndex, MapIndex},
         CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
@@ -23,9 +28,37 @@ use self::data::MapHeapData;
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Map(pub(crate) MapIndex);
+pub struct Map<'a>(pub(crate) MapIndex<'a>);
 
-impl Map {
+impl<'a> Map<'a> {
+    /// Unbind this Map from its current lifetime. This is necessary to use
+    /// the Map as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Map<'static> {
+        unsafe { std::mem::transmute::<Self, Map<'static>>(self) }
+    }
+
+    // Bind this Map to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Maps cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let map = map.bind(&gc);
+    // ```
+    // to make sure that the unbound Map cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Map<'gc> {
+        unsafe { std::mem::transmute::<Self, Map<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Map<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -35,43 +68,31 @@ impl Map {
     }
 }
 
-impl From<Map> for MapIndex {
-    fn from(val: Map) -> Self {
-        val.0
-    }
-}
-
-impl From<MapIndex> for Map {
-    fn from(value: MapIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for Map {
+impl IntoValue for Map<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Map {
+impl IntoObject for Map<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<Map> for Value {
+impl From<Map<'_>> for Value {
     fn from(val: Map) -> Self {
-        Value::Map(val)
+        Value::Map(val.unbind())
     }
 }
 
-impl From<Map> for Object {
+impl From<Map<'_>> for Object {
     fn from(val: Map) -> Self {
-        Object::Map(val)
+        Object::Map(val.unbind())
     }
 }
 
-impl TryFrom<Object> for Map {
+impl TryFrom<Object> for Map<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -82,7 +103,7 @@ impl TryFrom<Object> for Map {
     }
 }
 
-impl InternalSlots for Map {
+impl InternalSlots for Map<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Map;
 
     #[inline(always)]
@@ -98,9 +119,9 @@ impl InternalSlots for Map {
     }
 }
 
-impl InternalMethods for Map {}
+impl InternalMethods for Map<'_> {}
 
-impl HeapMarkAndSweep for Map {
+impl HeapMarkAndSweep for Map<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.maps.push(*self);
     }
@@ -110,7 +131,7 @@ impl HeapMarkAndSweep for Map {
     }
 }
 
-impl Index<Map> for Agent {
+impl Index<Map<'_>> for Agent {
     type Output = MapHeapData;
 
     fn index(&self, index: Map) -> &Self::Output {
@@ -118,13 +139,13 @@ impl Index<Map> for Agent {
     }
 }
 
-impl IndexMut<Map> for Agent {
+impl IndexMut<Map<'_>> for Agent {
     fn index_mut(&mut self, index: Map) -> &mut Self::Output {
         &mut self.heap.maps[index]
     }
 }
 
-impl Index<Map> for Vec<Option<MapHeapData>> {
+impl Index<Map<'_>> for Vec<Option<MapHeapData>> {
     type Output = MapHeapData;
 
     fn index(&self, index: Map) -> &Self::Output {
@@ -135,7 +156,7 @@ impl Index<Map> for Vec<Option<MapHeapData>> {
     }
 }
 
-impl IndexMut<Map> for Vec<Option<MapHeapData>> {
+impl IndexMut<Map<'_>> for Vec<Option<MapHeapData>> {
     fn index_mut(&mut self, index: Map) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Map out of bounds")
@@ -144,8 +165,31 @@ impl IndexMut<Map> for Vec<Option<MapHeapData>> {
     }
 }
 
-impl CreateHeapData<MapHeapData, Map> for Heap {
-    fn create(&mut self, data: MapHeapData) -> Map {
+impl Rootable for Map<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Map(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Map(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl CreateHeapData<MapHeapData, Map<'static>> for Heap {
+    fn create(&mut self, data: MapHeapData) -> Map<'static> {
         self.maps.push(Some(data));
         Map(MapIndex::last(&self.maps))
     }

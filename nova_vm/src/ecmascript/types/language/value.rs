@@ -163,7 +163,7 @@ pub enum Value {
     Date(Date<'static>),
     Error(Error<'static>),
     FinalizationRegistry(FinalizationRegistry<'static>),
-    Map(Map),
+    Map(Map<'static>),
     Promise(Promise),
     Proxy(Proxy),
     #[cfg(feature = "regexp")]
