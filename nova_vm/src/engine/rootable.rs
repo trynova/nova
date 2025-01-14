@@ -133,7 +133,7 @@ mod private {
     impl RootableSealed for Date<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject {}
-    impl RootableSealed for Error {}
+    impl RootableSealed for Error<'_> {}
     impl RootableSealed for FinalizationRegistry<'_> {}
     impl RootableSealed for Function<'_> {}
     impl RootableSealed for Generator {}
@@ -234,7 +234,7 @@ pub enum HeapRootData {
     DataView(DataView<'static>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
-    Error(Error) = ERROR_DISCRIMINANT,
+    Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,

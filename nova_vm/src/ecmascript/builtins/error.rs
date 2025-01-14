@@ -9,7 +9,8 @@ use std::ops::{Index, IndexMut};
 pub(crate) use data::ErrorHeapData;
 
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::{unwrap_try, TryResult};
+use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
+use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
@@ -26,9 +27,37 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Error(pub(crate) ErrorIndex);
+pub struct Error<'a>(pub(crate) ErrorIndex<'a>);
 
-impl Error {
+impl<'a> Error<'a> {
+    /// Unbind this Error from its current lifetime. This is necessary to use
+    /// the Error as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Error<'static> {
+        unsafe { std::mem::transmute::<Error<'a>, Error<'static>>(self) }
+    }
+
+    // Bind this Error to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Errors cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let error = error.bind(&gc);
+    // ```
+    // to make sure that the unbound Error cannot be used after binding.
+    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
+        unsafe { std::mem::transmute::<Error, Self>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Error<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(ErrorIndex::from_u32_index(0))
     }
@@ -38,31 +67,31 @@ impl Error {
     }
 }
 
-impl IntoValue for Error {
+impl IntoValue for Error<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl From<Error> for Value {
+impl From<Error<'_>> for Value {
     fn from(value: Error) -> Self {
-        Value::Error(value)
+        Value::Error(value.unbind())
     }
 }
 
-impl IntoObject for Error {
+impl IntoObject for Error<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<Error> for Object {
+impl From<Error<'_>> for Object {
     fn from(value: Error) -> Self {
-        Object::Error(value)
+        Object::Error(value.unbind())
     }
 }
 
-impl TryFrom<Value> for Error {
+impl TryFrom<Value> for Error<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, ()> {
@@ -73,7 +102,7 @@ impl TryFrom<Value> for Error {
     }
 }
 
-impl TryFrom<Object> for Error {
+impl TryFrom<Object> for Error<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, ()> {
@@ -84,7 +113,7 @@ impl TryFrom<Object> for Error {
     }
 }
 
-impl InternalSlots for Error {
+impl InternalSlots for Error<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
 
     #[inline(always)]
@@ -166,7 +195,7 @@ impl InternalSlots for Error {
     }
 }
 
-impl InternalMethods for Error {
+impl InternalMethods for Error<'_> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -410,7 +439,30 @@ impl InternalMethods for Error {
     }
 }
 
-impl HeapMarkAndSweep for Error {
+impl Rootable for Error<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::Error(value.unbind()))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::Error(object) => Some(object),
+            _ => None,
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Error<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.errors.push(*self);
     }
@@ -420,14 +472,14 @@ impl HeapMarkAndSweep for Error {
     }
 }
 
-impl CreateHeapData<ErrorHeapData, Error> for Heap {
-    fn create(&mut self, data: ErrorHeapData) -> Error {
+impl CreateHeapData<ErrorHeapData, Error<'static>> for Heap {
+    fn create(&mut self, data: ErrorHeapData) -> Error<'static> {
         self.errors.push(Some(data));
         Error(ErrorIndex::last(&self.errors))
     }
 }
 
-impl Index<Error> for Agent {
+impl Index<Error<'_>> for Agent {
     type Output = ErrorHeapData;
 
     fn index(&self, index: Error) -> &Self::Output {
@@ -435,13 +487,13 @@ impl Index<Error> for Agent {
     }
 }
 
-impl IndexMut<Error> for Agent {
+impl IndexMut<Error<'_>> for Agent {
     fn index_mut(&mut self, index: Error) -> &mut Self::Output {
         &mut self.heap.errors[index]
     }
 }
 
-impl Index<Error> for Vec<Option<ErrorHeapData>> {
+impl Index<Error<'_>> for Vec<Option<ErrorHeapData>> {
     type Output = ErrorHeapData;
 
     fn index(&self, index: Error) -> &Self::Output {
@@ -452,7 +504,7 @@ impl Index<Error> for Vec<Option<ErrorHeapData>> {
     }
 }
 
-impl IndexMut<Error> for Vec<Option<ErrorHeapData>> {
+impl IndexMut<Error<'_>> for Vec<Option<ErrorHeapData>> {
     fn index_mut(&mut self, index: Error) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Error out of bounds")
