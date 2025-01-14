@@ -38,7 +38,7 @@ impl MapIterator {
     pub(crate) fn from_map(agent: &mut Agent, map: Map, kind: CollectionIteratorKind) -> Self {
         agent.heap.create(MapIteratorHeapData {
             object_index: None,
-            map: Some(map),
+            map: Some(map.unbind()),
             next_index: 0,
             kind,
         })
@@ -168,7 +168,7 @@ impl HeapMarkAndSweep for MapIterator {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MapIteratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) map: Option<Map>,
+    pub(crate) map: Option<Map<'static>>,
     pub(crate) next_index: usize,
     pub(crate) kind: CollectionIteratorKind,
 }

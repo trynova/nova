@@ -164,25 +164,30 @@ impl MapConstructor {
 /// #### Unspecified specialization
 ///
 /// This is a specialization for the `new Map()` use case.
-pub fn add_entries_from_iterable_map_constructor(
+pub fn add_entries_from_iterable_map_constructor<'a>(
     agent: &mut Agent,
     target: Map,
     iterable: Value,
     adder: Function,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Map> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Map<'a>> {
+    let mut target = target.bind(gc.nogc());
     let mut adder = adder.bind(gc.nogc());
     if let Function::BuiltinFunction(bf) = adder {
         if agent[bf].behaviour == MapPrototypeSet::BEHAVIOUR {
             // Normal Map.prototype.set
             if let Value::Array(iterable) = iterable {
                 let scoped_adder = bf.scope(agent, gc.nogc());
+                let scoped_target = target.scope(agent, gc.nogc());
                 let using_iterator = get_method(
                     agent,
                     iterable.into_value(),
                     WellKnownSymbolIndexes::Iterator.into(),
                     gc.reborrow(),
-                )?;
+                )?
+                .map(|f| f.unbind())
+                .map(|f| f.bind(gc.nogc()));
+                target = scoped_target.get(agent).bind(gc.nogc());
                 if using_iterator
                     == Some(
                         agent
@@ -207,7 +212,7 @@ pub fn add_entries_from_iterable_map_constructor(
                     // Iterable uses the normal Array iterator of this realm.
                     if iterable.len(&array_heap) == 0 {
                         // Array iterator does not iterate empty arrays.
-                        return Ok(target);
+                        return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
                     }
                     if iterable.is_trivial(&array_heap)
                         && iterable.as_slice(&array_heap).iter().all(|entry| {
@@ -269,7 +274,7 @@ pub fn add_entries_from_iterable_map_constructor(
                                 }
                             }
                         }
-                        return Ok(target);
+                        return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
                     }
                 }
                 adder = scoped_adder.get(agent).bind(gc.nogc()).into_function();
@@ -277,13 +282,7 @@ pub fn add_entries_from_iterable_map_constructor(
         }
     }
 
-    add_entries_from_iterable_map_constructor(
-        agent,
-        target,
-        iterable,
-        adder.unbind(),
-        gc.reborrow(),
-    )
+    add_entries_from_iterable(agent, target.unbind(), iterable, adder.unbind(), gc)
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -299,13 +298,14 @@ pub fn add_entries_from_iterable_map_constructor(
 /// > element array-like object whose first element is a value that will be used
 /// > as a Map key and whose second element is the value to associate with that
 /// > key.
-pub(crate) fn add_entries_from_iterable(
+pub(crate) fn add_entries_from_iterable<'a>(
     agent: &mut Agent,
-    target: Object,
+    target: Map,
     iterable: Value,
     adder: Function,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Object> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Map<'a>> {
+    let target = target.bind(gc.nogc()).scope(agent, gc.nogc());
     let adder = adder.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
     let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
@@ -315,7 +315,7 @@ pub(crate) fn add_entries_from_iterable(
         let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
-            return Ok(target);
+            return Ok(target.get(agent).bind(gc.into_nogc()));
         };
         // c. If next is not an Object, then
         let Ok(next) = Object::try_from(next) else {
@@ -340,7 +340,7 @@ pub(crate) fn add_entries_from_iterable(
         let status = call_function(
             agent,
             adder.get(agent),
-            target.into_value(),
+            target.get(agent).into_value(),
             Some(ArgumentsList(&[k, v])),
             gc.reborrow(),
         );

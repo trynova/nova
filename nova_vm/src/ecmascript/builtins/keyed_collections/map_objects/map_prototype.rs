@@ -232,7 +232,7 @@ impl MapPrototype {
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let m = require_map_data_internal_slot(agent, this_value, gc.nogc())?;
+        let mut m = require_map_data_internal_slot(agent, this_value, gc.nogc())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -241,10 +241,14 @@ impl MapPrototype {
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+
         // 4. Let entries be M.[[MapData]].
         // 5. Let numEntries be the number of elements in entries.
         let mut num_entries = agent[m].values().len();
+
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        let scoped_m = m.scope(agent, gc.nogc());
+
         // 6. Let index be 0.
         let mut index = 0;
         // 7. Repeat, while index < numEntries,
@@ -266,8 +270,10 @@ impl MapPrototype {
                     Some(ArgumentsList(&[v, k, m.into_value()])),
                     gc.reborrow(),
                 )?;
-                // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
+                // ii. NOTE: The number of elements in entries may have
+                //     increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
+                m = scoped_m.get(agent).bind(gc.nogc());
                 num_entries = agent[m].values().len();
             }
         }
@@ -526,7 +532,11 @@ impl MapPrototype {
 }
 
 #[inline(always)]
-fn require_map_data_internal_slot(agent: &mut Agent, value: Value, gc: NoGcScope) -> JsResult<Map> {
+fn require_map_data_internal_slot<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Map<'a>> {
     match value {
         Value::Map(map) => Ok(map),
         _ => Err(agent.throw_exception_with_static_message(
