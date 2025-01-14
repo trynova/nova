@@ -867,7 +867,11 @@ impl DatePrototype {
 }
 
 #[inline(always)]
-fn check_date_object(agent: &mut Agent, this_value: Value, gc: NoGcScope) -> JsResult<Date> {
+fn check_date_object<'a>(
+    agent: &mut Agent,
+    this_value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Date<'a>> {
     match this_value {
         Value::Date(date) => Ok(date),
         _ => Err(agent.throw_exception_with_static_message(

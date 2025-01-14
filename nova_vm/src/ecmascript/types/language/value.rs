@@ -160,7 +160,7 @@ pub enum Value {
     #[cfg(feature = "array-buffer")]
     DataView(DataView<'static>),
     #[cfg(feature = "date")]
-    Date(Date),
+    Date(Date<'static>),
     Error(Error),
     FinalizationRegistry(FinalizationRegistry),
     Map(Map),
