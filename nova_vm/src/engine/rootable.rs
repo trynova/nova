@@ -130,7 +130,7 @@ mod private {
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for DataView<'_> {}
     #[cfg(feature = "date")]
-    impl RootableSealed for Date {}
+    impl RootableSealed for Date<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject {}
     impl RootableSealed for Error {}
@@ -233,7 +233,7 @@ pub enum HeapRootData {
     #[cfg(feature = "array-buffer")]
     DataView(DataView<'static>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
-    Date(Date) = DATE_DISCRIMINANT,
+    Date(Date<'static>) = DATE_DISCRIMINANT,
     Error(Error) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map) = MAP_DISCRIMINANT,

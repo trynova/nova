@@ -139,7 +139,7 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "array-buffer")]
     pub data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
-    pub dates: Vec<Date>,
+    pub dates: Vec<Date<'static>>,
     pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
     pub e_2_10: Vec<(ElementIndex, u32)>,
     pub e_2_12: Vec<(ElementIndex, u32)>,
