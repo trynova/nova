@@ -302,12 +302,12 @@ pub(crate) fn evaluate_function_body(
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
-pub(crate) fn evaluate_async_function_body(
+pub(crate) fn evaluate_async_function_body<'a>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    mut gc: GcScope<'_, '_>,
-) -> Promise {
+    mut gc: GcScope<'a, '_>,
+) -> Promise<'a> {
     let function_object = function_object.bind(gc.nogc());
     let scoped_function_object = function_object.scope(agent, gc.nogc());
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
@@ -338,7 +338,7 @@ pub(crate) fn evaluate_async_function_body(
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability.resolve(agent, result, gc);
+            promise_capability.resolve(agent, result, gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -360,7 +360,7 @@ pub(crate) fn evaluate_async_function_body(
                 return_promise_capability: promise_capability,
             }));
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let promise = Promise::resolve(agent, awaited_value, gc);
+            let promise = Promise::resolve(agent, awaited_value, gc.reborrow());
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
             inner_promise_then(agent, promise, handler, handler, None);
         }
@@ -369,7 +369,7 @@ pub(crate) fn evaluate_async_function_body(
     //}
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: promiseCapability.[[Promise]], [[Target]]: empty }.
-    promise_capability.promise()
+    promise_capability.promise().bind(gc.into_nogc())
 }
 
 /// ### [15.5.2 Runtime Semantics: EvaluateGeneratorBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluategeneratorbody)

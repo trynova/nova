@@ -132,7 +132,7 @@ pub enum Object {
     Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
-    Promise(Promise) = PROMISE_DISCRIMINANT,
+    Promise(Promise<'static>) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
     RegExp(RegExp) = REGEXP_DISCRIMINANT,
