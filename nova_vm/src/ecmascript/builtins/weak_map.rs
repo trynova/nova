@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::{BaseIndex, WeakMapIndex},
         CreateHeapData, HeapMarkAndSweep,
@@ -24,9 +25,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct WeakMap(pub(crate) WeakMapIndex);
+pub struct WeakMap<'a>(pub(crate) WeakMapIndex<'a>);
 
-impl WeakMap {
+impl WeakMap<'_> {
+    /// Unbind this WeakMap from its current lifetime. This is necessary to use
+    /// the WeakMap as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> WeakMap<'static> {
+        unsafe { std::mem::transmute::<Self, WeakMap<'static>>(self) }
+    }
+
+    // Bind this WeakMap to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your WeakMaps cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_buffer = array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound WeakMap cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> WeakMap<'gc> {
+        unsafe { std::mem::transmute::<Self, WeakMap<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, WeakMap<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,43 +65,31 @@ impl WeakMap {
     }
 }
 
-impl From<WeakMap> for WeakMapIndex {
-    fn from(val: WeakMap) -> Self {
-        val.0
-    }
-}
-
-impl From<WeakMapIndex> for WeakMap {
-    fn from(value: WeakMapIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for WeakMap {
+impl IntoValue for WeakMap<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for WeakMap {
+impl IntoObject for WeakMap<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<WeakMap> for Value {
+impl From<WeakMap<'_>> for Value {
     fn from(val: WeakMap) -> Self {
-        Value::WeakMap(val)
+        Value::WeakMap(val.unbind())
     }
 }
 
-impl From<WeakMap> for Object {
+impl From<WeakMap<'_>> for Object {
     fn from(val: WeakMap) -> Self {
-        Object::WeakMap(val)
+        Object::WeakMap(val.unbind())
     }
 }
 
-impl InternalSlots for WeakMap {
+impl InternalSlots for WeakMap<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakMap;
 
     #[inline(always)]
@@ -88,9 +105,9 @@ impl InternalSlots for WeakMap {
     }
 }
 
-impl InternalMethods for WeakMap {}
+impl InternalMethods for WeakMap<'_> {}
 
-impl Index<WeakMap> for Agent {
+impl Index<WeakMap<'_>> for Agent {
     type Output = WeakMapHeapData;
 
     fn index(&self, index: WeakMap) -> &Self::Output {
@@ -98,13 +115,13 @@ impl Index<WeakMap> for Agent {
     }
 }
 
-impl IndexMut<WeakMap> for Agent {
+impl IndexMut<WeakMap<'_>> for Agent {
     fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
         &mut self.heap.weak_maps[index]
     }
 }
 
-impl Index<WeakMap> for Vec<Option<WeakMapHeapData>> {
+impl Index<WeakMap<'_>> for Vec<Option<WeakMapHeapData>> {
     type Output = WeakMapHeapData;
 
     fn index(&self, index: WeakMap) -> &Self::Output {
@@ -115,7 +132,7 @@ impl Index<WeakMap> for Vec<Option<WeakMapHeapData>> {
     }
 }
 
-impl IndexMut<WeakMap> for Vec<Option<WeakMapHeapData>> {
+impl IndexMut<WeakMap<'_>> for Vec<Option<WeakMapHeapData>> {
     fn index_mut(&mut self, index: WeakMap) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakMap out of bounds")
@@ -124,15 +141,28 @@ impl IndexMut<WeakMap> for Vec<Option<WeakMapHeapData>> {
     }
 }
 
-impl CreateHeapData<WeakMapHeapData, WeakMap> for Heap {
-    fn create(&mut self, data: WeakMapHeapData) -> WeakMap {
+impl TryFrom<HeapRootData> for WeakMap<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::WeakMap(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl CreateHeapData<WeakMapHeapData, WeakMap<'static>> for Heap {
+    fn create(&mut self, data: WeakMapHeapData) -> WeakMap<'static> {
         self.weak_maps.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         WeakMap(WeakMapIndex::last(&self.weak_maps))
     }
 }
 
-impl HeapMarkAndSweep for WeakMap {
+impl HeapMarkAndSweep for WeakMap<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.weak_maps.push(*self);
     }

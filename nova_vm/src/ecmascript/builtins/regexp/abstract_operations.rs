@@ -6,7 +6,7 @@ use oxc_ast::ast::RegExpFlags;
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{set, try_set};
 use crate::ecmascript::types::IntoObject;
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::ordinary::ordinary_create_from_constructor,
@@ -26,20 +26,24 @@ use super::{RegExp, RegExpHeapData, RegExpLastIndex};
 ///
 /// This is a variant for RegExp literal creation that cannot fail and skips
 /// all of the abstract operation busy-work.
-pub(crate) fn reg_exp_create_literal(
+pub(crate) fn reg_exp_create_literal<'a>(
     agent: &mut Agent,
     p: String,
     f: Option<RegExpFlags>,
-) -> RegExp {
+    gc: NoGcScope<'a, '_>,
+) -> RegExp<'a> {
     //     1. Let obj be ! RegExpAlloc(%RegExp%).
     //     2. Return ? RegExpInitialize(obj, P, F).
     let f = f.unwrap_or(RegExpFlags::empty());
-    agent.heap.create(RegExpHeapData {
-        object_index: None,
-        original_source: p.unbind(),
-        original_flags: f,
-        last_index: RegExpLastIndex::ZERO,
-    })
+    agent
+        .heap
+        .create(RegExpHeapData {
+            object_index: None,
+            original_source: p.unbind(),
+            original_flags: f,
+            last_index: RegExpLastIndex::ZERO,
+        })
+        .bind(gc)
 }
 
 /// ### [22.2.3.2 RegExpAlloc ( newTarget )]()
@@ -47,11 +51,11 @@ pub(crate) fn reg_exp_create_literal(
 /// The abstract operation RegExpAlloc takes argument newTarget (a constructor)
 /// and returns either a normal completion containing an Object or a throw
 /// completion.
-pub(crate) fn reg_exp_alloc(
+pub(crate) fn reg_exp_alloc<'a>(
     agent: &mut Agent,
     new_target: Function,
-    gc: GcScope<'_, '_>,
-) -> JsResult<RegExp> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<RegExp<'a>> {
     // 1. Let obj be ? OrdinaryCreateFromConstructor(newTarget, "%RegExp.prototype%", « [[OriginalSource]], [[OriginalFlags]], [[RegExpRecord]], [[RegExpMatcher]] »).
     let obj = RegExp::try_from(ordinary_create_from_constructor(
         agent,
@@ -72,13 +76,14 @@ pub(crate) fn reg_exp_alloc(
 /// pattern (an ECMAScript language value), and flags (an ECMAScript language
 /// value) and returns either a normal completion containing an Object or a
 /// throw completion.
-pub(crate) fn reg_exp_initialize_from_string(
+pub(crate) fn reg_exp_initialize_from_string<'a>(
     agent: &mut Agent,
     obj: RegExp,
     p: String,
     flags: Option<RegExpFlags>,
-    gc: GcScope,
-) -> JsResult<RegExp> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<RegExp<'a>> {
+    let obj = obj.bind(gc.nogc());
     //     3. If flags is undefined, let F be the empty String.
     let f = flags.unwrap_or(RegExpFlags::empty());
     //     4. Else, let F be ? ToString(flags).
@@ -115,7 +120,7 @@ pub(crate) fn reg_exp_initialize_from_string(
     )
     .is_continue()
     {
-        Ok(obj)
+        Ok(obj.unbind())
     } else {
         let scoped_obj = obj.into_object().scope(agent, gc.nogc());
         set(

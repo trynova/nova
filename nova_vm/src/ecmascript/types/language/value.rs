@@ -167,56 +167,56 @@ pub enum Value {
     Promise(Promise<'static>),
     Proxy(Proxy),
     #[cfg(feature = "regexp")]
-    RegExp(RegExp),
-    Set(Set),
+    RegExp(RegExp<'static>),
+    Set(Set<'static>),
     #[cfg(feature = "shared-array-buffer")]
-    SharedArrayBuffer(SharedArrayBuffer),
+    SharedArrayBuffer(SharedArrayBuffer<'static>),
     #[cfg(feature = "weak-refs")]
-    WeakMap(WeakMap),
+    WeakMap(WeakMap<'static>),
     #[cfg(feature = "weak-refs")]
-    WeakRef(WeakRef),
+    WeakRef(WeakRef<'static>),
     #[cfg(feature = "weak-refs")]
-    WeakSet(WeakSet),
+    WeakSet(WeakSet<'static>),
 
     // TypedArrays
     #[cfg(feature = "array-buffer")]
-    Int8Array(TypedArrayIndex),
+    Int8Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Uint8Array(TypedArrayIndex),
+    Uint8Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(TypedArrayIndex),
+    Uint8ClampedArray(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Int16Array(TypedArrayIndex),
+    Int16Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Uint16Array(TypedArrayIndex),
+    Uint16Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Int32Array(TypedArrayIndex),
+    Int32Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Uint32Array(TypedArrayIndex),
+    Uint32Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    BigInt64Array(TypedArrayIndex),
+    BigInt64Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    BigUint64Array(TypedArrayIndex),
+    BigUint64Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Float32Array(TypedArrayIndex),
+    Float32Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
-    Float64Array(TypedArrayIndex),
+    Float64Array(TypedArrayIndex<'static>),
 
     // Iterator objects
     // TODO: Figure out if these are needed at all.
     AsyncFromSyncIterator,
     AsyncIterator,
     Iterator,
-    ArrayIterator(ArrayIterator),
-    SetIterator(SetIterator),
-    MapIterator(MapIterator),
-    Generator(Generator),
+    ArrayIterator(ArrayIterator<'static>),
+    SetIterator(SetIterator<'static>),
+    MapIterator(MapIterator<'static>),
+    Generator(Generator<'static>),
 
     // ECMAScript Module
-    Module(Module),
+    Module(Module<'static>),
 
     // Embedder objects
-    EmbedderObject(EmbedderObject) = 0x7f,
+    EmbedderObject(EmbedderObject<'static>) = 0x7f,
 }
 
 /// We want to guarantee that all handles to JS values are register sized. This
@@ -491,6 +491,17 @@ impl Value {
 
     pub fn is_symbol(self) -> bool {
         matches!(self, Value::Symbol(_))
+    }
+
+    pub fn is_numeric(self) -> bool {
+        matches!(
+            self,
+            Value::Number(_)
+                | Value::SmallF64(_)
+                | Value::Integer(_)
+                | Value::BigInt(_)
+                | Value::SmallBigInt(_)
+        )
     }
 
     pub fn is_number(self) -> bool {

@@ -61,6 +61,7 @@ impl ArrayIteratorPrototype {
                 gc.nogc(),
             ));
         };
+        let mut iterator = iterator.bind(gc.nogc());
 
         // 23.1.5.1 CreateArrayIterator ( array, kind ), step 1. b
         // NOTE: We set `array` to None when the generator in the spec text has returned.
@@ -173,7 +174,12 @@ impl ArrayIteratorPrototype {
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),
-            _ => length_of_array_like(agent, array, gc.reborrow())?,
+            _ => {
+                let scoped_iterator = iterator.scope(agent, gc.nogc());
+                let res = length_of_array_like(agent, array, gc.reborrow())?;
+                iterator = scoped_iterator.get(agent).bind(gc.nogc());
+                res
+            }
         };
 
         // iii. If index ≥ len, return NormalCompletion(undefined).

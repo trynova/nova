@@ -285,7 +285,7 @@ impl SetPrototype {
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let s = require_set_data_internal_slot(agent, this_value, gc.nogc())?;
+        let mut s = require_set_data_internal_slot(agent, this_value, gc.nogc())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
         let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -294,12 +294,15 @@ impl SetPrototype {
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
         // 4. Let entries be S.[[SetData]].
         // 5. Let numEntries be the number of elements in entries.
         // Note: We must use the values vector length, not the size. The size
         // does not contain empty slots.
         let mut num_entries = agent[s].values().len() as u32;
+
+        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        let scoped_s = s.scope(agent, gc.nogc());
+
         // 6. Let index be 0.
         let mut index = 0;
         // 7. Repeat, while index < numEntries,
@@ -320,6 +323,7 @@ impl SetPrototype {
                 )?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
+                s = scoped_s.get(agent).bind(gc.nogc());
                 num_entries = agent[s].values().len() as u32;
             }
         }
@@ -456,7 +460,11 @@ impl SetPrototype {
 }
 
 #[inline(always)]
-fn require_set_data_internal_slot(agent: &mut Agent, value: Value, gc: NoGcScope) -> JsResult<Set> {
+fn require_set_data_internal_slot<'a>(
+    agent: &mut Agent,
+    value: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Set<'a>> {
     match value {
         Value::Set(map) => Ok(map),
         _ => Err(agent.throw_exception_with_static_message(

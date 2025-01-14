@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::ArrayIteratorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -18,9 +19,37 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ArrayIterator(ArrayIteratorIndex);
+pub struct ArrayIterator<'a>(ArrayIteratorIndex<'a>);
 
-impl ArrayIterator {
+impl ArrayIterator<'_> {
+    /// Unbind this ArrayIterator from its current lifetime. This is necessary to use
+    /// the ArrayIterator as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> ArrayIterator<'static> {
+        unsafe { std::mem::transmute::<Self, ArrayIterator<'static>>(self) }
+    }
+
+    // Bind this ArrayIterator to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your ArrayIterators cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_iterator = array_iterator.bind(&gc);
+    // ```
+    // to make sure that the unbound ArrayIterator cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ArrayIterator<'gc> {
+        unsafe { std::mem::transmute::<Self, ArrayIterator<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, ArrayIterator<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -45,37 +74,31 @@ impl ArrayIterator {
     }
 }
 
-impl IntoValue for ArrayIterator {
+impl IntoValue for ArrayIterator<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for ArrayIterator {
+impl IntoObject for ArrayIterator<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<ArrayIteratorIndex> for ArrayIterator {
-    fn from(value: ArrayIteratorIndex) -> Self {
-        ArrayIterator(value)
-    }
-}
-
-impl From<ArrayIterator> for Object {
+impl From<ArrayIterator<'_>> for Object {
     fn from(value: ArrayIterator) -> Self {
-        Self::ArrayIterator(value)
+        Self::ArrayIterator(value.unbind())
     }
 }
 
-impl From<ArrayIterator> for Value {
+impl From<ArrayIterator<'_>> for Value {
     fn from(value: ArrayIterator) -> Self {
-        Self::ArrayIterator(value)
+        Self::ArrayIterator(value.unbind())
     }
 }
 
-impl TryFrom<Value> for ArrayIterator {
+impl TryFrom<Value> for ArrayIterator<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -86,7 +109,7 @@ impl TryFrom<Value> for ArrayIterator {
     }
 }
 
-impl TryFrom<Object> for ArrayIterator {
+impl TryFrom<Object> for ArrayIterator<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -97,7 +120,7 @@ impl TryFrom<Object> for ArrayIterator {
     }
 }
 
-impl InternalSlots for ArrayIterator {
+impl InternalSlots for ArrayIterator<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -112,9 +135,9 @@ impl InternalSlots for ArrayIterator {
     }
 }
 
-impl InternalMethods for ArrayIterator {}
+impl InternalMethods for ArrayIterator<'_> {}
 
-impl Index<ArrayIterator> for Agent {
+impl Index<ArrayIterator<'_>> for Agent {
     type Output = ArrayIteratorHeapData;
 
     fn index(&self, index: ArrayIterator) -> &Self::Output {
@@ -122,13 +145,13 @@ impl Index<ArrayIterator> for Agent {
     }
 }
 
-impl IndexMut<ArrayIterator> for Agent {
+impl IndexMut<ArrayIterator<'_>> for Agent {
     fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
         &mut self.heap.array_iterators[index]
     }
 }
 
-impl Index<ArrayIterator> for Vec<Option<ArrayIteratorHeapData>> {
+impl Index<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData>> {
     type Output = ArrayIteratorHeapData;
 
     fn index(&self, index: ArrayIterator) -> &Self::Output {
@@ -139,7 +162,7 @@ impl Index<ArrayIterator> for Vec<Option<ArrayIteratorHeapData>> {
     }
 }
 
-impl IndexMut<ArrayIterator> for Vec<Option<ArrayIteratorHeapData>> {
+impl IndexMut<ArrayIterator<'_>> for Vec<Option<ArrayIteratorHeapData>> {
     fn index_mut(&mut self, index: ArrayIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("ArrayIterator out of bounds")
@@ -148,14 +171,27 @@ impl IndexMut<ArrayIterator> for Vec<Option<ArrayIteratorHeapData>> {
     }
 }
 
-impl CreateHeapData<ArrayIteratorHeapData, ArrayIterator> for Heap {
-    fn create(&mut self, data: ArrayIteratorHeapData) -> ArrayIterator {
-        self.array_iterators.push(Some(data));
-        ArrayIterator::from(ArrayIteratorIndex::last(&self.array_iterators))
+impl TryFrom<HeapRootData> for ArrayIterator<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::ArrayIterator(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
     }
 }
 
-impl HeapMarkAndSweep for ArrayIterator {
+impl CreateHeapData<ArrayIteratorHeapData, ArrayIterator<'static>> for Heap {
+    fn create(&mut self, data: ArrayIteratorHeapData) -> ArrayIterator<'static> {
+        self.array_iterators.push(Some(data));
+        ArrayIterator(ArrayIteratorIndex::last(&self.array_iterators))
+    }
+}
+
+impl HeapMarkAndSweep for ArrayIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.array_iterators.push(*self);
     }

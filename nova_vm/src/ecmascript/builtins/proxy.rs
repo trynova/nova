@@ -41,7 +41,7 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Proxy(pub(crate) ProxyIndex);
+pub struct Proxy(pub(crate) ProxyIndex<'static>);
 
 impl Proxy {
     pub(crate) const fn _def() -> Self {
@@ -53,14 +53,14 @@ impl Proxy {
     }
 }
 
-impl From<Proxy> for ProxyIndex {
+impl From<Proxy> for ProxyIndex<'static> {
     fn from(val: Proxy) -> Self {
         val.0
     }
 }
 
-impl From<ProxyIndex> for Proxy {
-    fn from(value: ProxyIndex) -> Self {
+impl From<ProxyIndex<'static>> for Proxy {
+    fn from(value: ProxyIndex<'static>) -> Self {
         Self(value)
     }
 }

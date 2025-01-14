@@ -675,10 +675,14 @@ fn typed_array_constructor<T: Viewable>(
     // b. If firstArgument is an Object, then
     if first_argument.is_object() {
         // i. Let O be ? AllocateTypedArray(constructorName, NewTarget, proto).
-        let o = allocate_typed_array::<T>(agent, new_target, proto, None, gc.reborrow())?;
+        let o = allocate_typed_array::<T>(agent, new_target, proto, None, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        let scoped_o = o.scope(agent, gc.nogc());
 
         // ii. If firstArgument has a [[TypedArrayName]] internal slot, then
         if let Ok(first_argument) = TypedArray::try_from(first_argument) {
+            let first_argument = first_argument.bind(gc.nogc());
             // 1. Perform ? InitializeTypedArrayFromTypedArray(O, firstArgument).
             match first_argument {
                 TypedArray::Int8Array(_) => initialize_typed_array_from_typed_array::<T, i8>(
@@ -749,6 +753,7 @@ fn typed_array_constructor<T: Viewable>(
                 )?,
             }
         } else if let Ok(first_argument) = ArrayBuffer::try_from(first_argument) {
+            let first_argument = first_argument.bind(gc.nogc());
             // iii. Else if firstArgument has an [[ArrayBufferData]] internal slot, then
             // 1. If numberOfArgs > 1, let byteOffset be args[1]; else let byteOffset be undefined.
             let byte_offset = if arguments.len() > 1 {
@@ -765,15 +770,17 @@ fn typed_array_constructor<T: Viewable>(
             };
 
             // 3. Perform ? InitializeTypedArrayFromArrayBuffer(O, firstArgument, byteOffset, length).
+
             initialize_typed_array_from_array_buffer::<T>(
                 agent,
-                o,
-                first_argument,
+                o.unbind(),
+                first_argument.unbind(),
                 byte_offset,
                 length,
                 gc.reborrow(),
             )?;
         } else {
+            let scoped_first_argument = first_argument.scope(agent, gc.nogc());
             // iv. Else,
 
             // 1. Assert: firstArgument is an Object and firstArgument does not have either a [[TypedArrayName]] or an [[ArrayBufferData]] internal slot.
@@ -790,21 +797,26 @@ fn typed_array_constructor<T: Viewable>(
                 // a. Let values be ? IteratorToList(? GetIteratorFromMethod(firstArgument, usingIterator)).
                 let iterator_record = &get_iterator_from_method(
                     agent,
-                    first_argument,
+                    scoped_first_argument.get(agent),
                     using_iterator.unbind(),
                     gc.reborrow(),
                 )?;
                 let values = iterator_to_list(agent, iterator_record, gc.reborrow())?;
                 // b. Perform ? InitializeTypedArrayFromList(O, values).
-                initialize_typed_array_from_list::<T>(agent, o, values, gc.reborrow())?;
+                initialize_typed_array_from_list::<T>(
+                    agent,
+                    scoped_o.get(agent),
+                    values,
+                    gc.reborrow(),
+                )?;
             } else {
                 // 4. Else,
                 // a. NOTE: firstArgument is not an iterable object, so assume it is already an array-like object.
-                let first_argument = Object::try_from(first_argument).unwrap();
+                let first_argument = Object::try_from(scoped_first_argument.get(agent)).unwrap();
                 // b. Perform ? InitializeTypedArrayFromArrayLike(O, firstArgument).
                 initialize_typed_array_from_array_like::<T>(
                     agent,
-                    o,
+                    scoped_o.get(agent),
                     first_argument,
                     gc.reborrow(),
                 )?;
@@ -812,7 +824,7 @@ fn typed_array_constructor<T: Viewable>(
         }
 
         // v. Return O.
-        return Ok(o.into_value());
+        return Ok(scoped_o.get(agent).into_value());
     }
 
     // c. Else,

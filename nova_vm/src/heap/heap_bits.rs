@@ -130,7 +130,7 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "array-buffer")]
     pub array_buffers: Vec<ArrayBuffer<'static>>,
     pub arrays: Vec<Array<'static>>,
-    pub array_iterators: Vec<ArrayIterator>,
+    pub array_iterators: Vec<ArrayIterator<'static>>,
     pub await_reactions: Vec<AwaitReactionIdentifier>,
     pub bigints: Vec<HeapBigInt<'static>>,
     pub bound_functions: Vec<BoundFunction<'static>>,
@@ -150,17 +150,17 @@ pub(crate) struct WorkQueues {
     pub e_2_6: Vec<(ElementIndex, u32)>,
     pub e_2_8: Vec<(ElementIndex, u32)>,
     pub ecmascript_functions: Vec<ECMAScriptFunction<'static>>,
-    pub embedder_objects: Vec<EmbedderObject>,
+    pub embedder_objects: Vec<EmbedderObject<'static>>,
     pub source_codes: Vec<SourceCode>,
     pub errors: Vec<Error<'static>>,
     pub executables: Vec<Executable>,
     pub finalization_registrys: Vec<FinalizationRegistry<'static>>,
     pub function_environments: Vec<FunctionEnvironmentIndex>,
-    pub generators: Vec<Generator>,
+    pub generators: Vec<Generator<'static>>,
     pub global_environments: Vec<GlobalEnvironmentIndex>,
     pub maps: Vec<Map<'static>>,
-    pub map_iterators: Vec<MapIterator>,
-    pub modules: Vec<Module>,
+    pub map_iterators: Vec<MapIterator<'static>>,
+    pub modules: Vec<Module<'static>>,
     pub numbers: Vec<HeapNumber<'static>>,
     pub object_environments: Vec<ObjectEnvironmentIndex>,
     pub objects: Vec<OrdinaryObject<'static>>,
@@ -171,22 +171,22 @@ pub(crate) struct WorkQueues {
     pub proxys: Vec<Proxy>,
     pub realms: Vec<RealmIdentifier>,
     #[cfg(feature = "regexp")]
-    pub regexps: Vec<RegExp>,
+    pub regexps: Vec<RegExp<'static>>,
     pub scripts: Vec<ScriptIdentifier>,
-    pub sets: Vec<Set>,
-    pub set_iterators: Vec<SetIterator>,
+    pub sets: Vec<Set<'static>>,
+    pub set_iterators: Vec<SetIterator<'static>>,
     #[cfg(feature = "shared-array-buffer")]
-    pub shared_array_buffers: Vec<SharedArrayBuffer>,
+    pub shared_array_buffers: Vec<SharedArrayBuffer<'static>>,
     pub strings: Vec<HeapString<'static>>,
     pub symbols: Vec<Symbol<'static>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_arrays: Vec<TypedArrayIndex>,
+    pub typed_arrays: Vec<TypedArrayIndex<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_maps: Vec<WeakMap>,
+    pub weak_maps: Vec<WeakMap<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_refs: Vec<WeakRef>,
+    pub weak_refs: Vec<WeakRef<'static>>,
     #[cfg(feature = "weak-refs")]
-    pub weak_sets: Vec<WeakSet>,
+    pub weak_sets: Vec<WeakSet<'static>>,
 }
 
 impl HeapBits {

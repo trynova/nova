@@ -4,7 +4,7 @@
 
 use std::ops::{Index, IndexMut};
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -17,7 +17,7 @@ use crate::{
         },
     },
     engine::{
-        rootable::{HeapRootData, HeapRootRef, Rootable, Scoped},
+        rootable::{HeapRootData, Scoped},
         Executable, ExecutionResult, SuspendedVm, Vm,
     },
     heap::{
@@ -27,9 +27,37 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Generator(pub(crate) GeneratorIndex);
+pub struct Generator<'a>(pub(crate) GeneratorIndex<'a>);
 
-impl Generator {
+impl Generator<'_> {
+    /// Unbind this Generator from its current lifetime. This is necessary to use
+    /// the Generator as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Generator<'static> {
+        unsafe { std::mem::transmute::<Self, Generator<'static>>(self) }
+    }
+
+    // Bind this Generator to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Generators cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_buffer = array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound Generator cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Generator<'gc> {
+        unsafe { std::mem::transmute::<Self, Generator<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Generator<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -40,13 +68,14 @@ impl Generator {
 
     /// [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
     pub(crate) fn resume(
-        mut self,
+        self,
         agent: &mut Agent,
         value: Value,
         mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
+        let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
-        match agent[self].generator_state.as_ref().unwrap() {
+        match agent[generator].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended { .. } => {
                 // 3. Assert: state is either suspended-start or suspended-yield.
             }
@@ -68,7 +97,7 @@ impl Generator {
             vm_or_args,
             executable,
             execution_context,
-        }) = agent[self]
+        }) = agent[generator]
             .generator_state
             .replace(GeneratorState::Executing)
         else {
@@ -82,7 +111,7 @@ impl Generator {
         // execution context.
         agent.execution_context_stack.push(execution_context);
 
-        let saved = Scoped::new(agent, self, gc.nogc());
+        let saved = generator.scope(agent, gc.nogc());
 
         // 9. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
@@ -94,7 +123,7 @@ impl Generator {
             VmOrArguments::Vm(vm) => vm.resume(agent, executable, value, gc.reborrow()),
         };
 
-        self = saved.get(agent);
+        let generator = saved.get(agent).bind(gc.nogc());
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -113,7 +142,7 @@ impl Generator {
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with acGenerator can be discarded at this point.
-                agent[self].generator_state = Some(GeneratorState::Completed);
+                agent[generator].generator_state = Some(GeneratorState::Completed);
                 // i. If result is a normal completion, then
                 //    i. Let resultValue be undefined.
                 // j. Else if result is a return completion, then
@@ -127,7 +156,7 @@ impl Generator {
                 // h. NOTE: Once a generator enters the completed state it never leaves it and its
                 // associated execution context is never resumed. Any execution state associated
                 // with acGenerator can be discarded at this point.
-                agent[self].generator_state = Some(GeneratorState::Completed);
+                agent[generator].generator_state = Some(GeneratorState::Completed);
                 // k. i. Assert: result is a throw completion.
                 //    ii. Return ? result.
                 Err(err)
@@ -138,7 +167,7 @@ impl Generator {
                 // GeneratorYield:
                 // 3. Let generator be the value of the Generator component of genContext.
                 // 5. Set generator.[[GeneratorState]] to suspended-yield.
-                agent[self].generator_state = Some(GeneratorState::Suspended {
+                agent[generator].generator_state = Some(GeneratorState::Suspended {
                     vm_or_args: VmOrArguments::Vm(vm),
                     executable,
                     execution_context,
@@ -250,43 +279,31 @@ impl Generator {
     }
 }
 
-impl From<Generator> for GeneratorIndex {
-    fn from(val: Generator) -> Self {
-        val.0
-    }
-}
-
-impl From<GeneratorIndex> for Generator {
-    fn from(value: GeneratorIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for Generator {
+impl IntoValue for Generator<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Generator {
+impl IntoObject for Generator<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<Generator> for Value {
+impl From<Generator<'_>> for Value {
     fn from(val: Generator) -> Self {
-        Value::Generator(val)
+        Value::Generator(val.unbind())
     }
 }
 
-impl From<Generator> for Object {
+impl From<Generator<'_>> for Object {
     fn from(value: Generator) -> Self {
-        Object::Generator(value)
+        Object::Generator(value.unbind())
     }
 }
 
-impl TryFrom<Value> for Generator {
+impl TryFrom<Value> for Generator<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -298,7 +315,7 @@ impl TryFrom<Value> for Generator {
     }
 }
 
-impl InternalSlots for Generator {
+impl InternalSlots for Generator<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -313,16 +330,16 @@ impl InternalSlots for Generator {
     }
 }
 
-impl InternalMethods for Generator {}
+impl InternalMethods for Generator<'_> {}
 
-impl CreateHeapData<GeneratorHeapData, Generator> for Heap {
-    fn create(&mut self, data: GeneratorHeapData) -> Generator {
+impl CreateHeapData<GeneratorHeapData, Generator<'static>> for Heap {
+    fn create(&mut self, data: GeneratorHeapData) -> Generator<'static> {
         self.generators.push(Some(data));
         Generator(GeneratorIndex::last(&self.generators))
     }
 }
 
-impl Index<Generator> for Agent {
+impl Index<Generator<'_>> for Agent {
     type Output = GeneratorHeapData;
 
     fn index(&self, index: Generator) -> &Self::Output {
@@ -330,13 +347,13 @@ impl Index<Generator> for Agent {
     }
 }
 
-impl IndexMut<Generator> for Agent {
+impl IndexMut<Generator<'_>> for Agent {
     fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
         &mut self.heap.generators[index]
     }
 }
 
-impl Index<Generator> for Vec<Option<GeneratorHeapData>> {
+impl Index<Generator<'_>> for Vec<Option<GeneratorHeapData>> {
     type Output = GeneratorHeapData;
 
     fn index(&self, index: Generator) -> &Self::Output {
@@ -347,7 +364,7 @@ impl Index<Generator> for Vec<Option<GeneratorHeapData>> {
     }
 }
 
-impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
+impl IndexMut<Generator<'_>> for Vec<Option<GeneratorHeapData>> {
     fn index_mut(&mut self, index: Generator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Generator out of bounds")
@@ -356,35 +373,20 @@ impl IndexMut<Generator> for Vec<Option<GeneratorHeapData>> {
     }
 }
 
-impl Rootable for Generator {
-    type RootRepr = HeapRootRef;
+impl TryFrom<HeapRootData> for Generator<'_> {
+    type Error = ();
 
     #[inline]
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Generator(value))
-    }
-
-    #[inline]
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    #[inline]
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    #[inline]
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        if let HeapRootData::Generator(value) = heap_data {
-            Some(value)
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::Generator(value) = value {
+            Ok(value)
         } else {
-            None
+            Err(())
         }
     }
 }
 
-impl HeapMarkAndSweep for Generator {
+impl HeapMarkAndSweep for Generator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.generators.push(*self);
     }

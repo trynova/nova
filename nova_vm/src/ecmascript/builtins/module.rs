@@ -5,7 +5,8 @@
 use std::ops::{Index, IndexMut};
 
 use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::{unwrap_try, TryResult};
+use crate::engine::rootable::HeapRootData;
+use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
@@ -30,45 +31,45 @@ use super::ordinary::{
 pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Module(pub(crate) ModuleIdentifier);
+pub struct Module<'a>(pub(crate) ModuleIdentifier<'a>);
 
-impl From<Module> for ModuleIdentifier {
-    fn from(val: Module) -> Self {
+impl<'a> From<Module<'a>> for ModuleIdentifier<'a> {
+    fn from(val: Module<'a>) -> Self {
         val.0
     }
 }
 
-impl From<ModuleIdentifier> for Module {
-    fn from(value: ModuleIdentifier) -> Self {
+impl<'a> From<ModuleIdentifier<'a>> for Module<'a> {
+    fn from(value: ModuleIdentifier<'a>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for Module {
+impl IntoValue for Module<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Module {
+impl IntoObject for Module<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<Module> for Value {
+impl From<Module<'_>> for Value {
     fn from(val: Module) -> Self {
-        Value::Module(val)
+        Value::Module(val.unbind())
     }
 }
 
-impl From<Module> for Object {
+impl From<Module<'_>> for Object {
     fn from(val: Module) -> Self {
-        Object::Module(val)
+        Object::Module(val.unbind())
     }
 }
 
-impl Index<Module> for Agent {
+impl Index<Module<'_>> for Agent {
     type Output = ModuleHeapData;
 
     fn index(&self, index: Module) -> &Self::Output {
@@ -76,13 +77,13 @@ impl Index<Module> for Agent {
     }
 }
 
-impl IndexMut<Module> for Agent {
+impl IndexMut<Module<'_>> for Agent {
     fn index_mut(&mut self, index: Module) -> &mut Self::Output {
         &mut self.heap.modules[index]
     }
 }
 
-impl Index<Module> for Vec<Option<ModuleHeapData>> {
+impl Index<Module<'_>> for Vec<Option<ModuleHeapData>> {
     type Output = ModuleHeapData;
 
     fn index(&self, index: Module) -> &Self::Output {
@@ -93,7 +94,7 @@ impl Index<Module> for Vec<Option<ModuleHeapData>> {
     }
 }
 
-impl IndexMut<Module> for Vec<Option<ModuleHeapData>> {
+impl IndexMut<Module<'_>> for Vec<Option<ModuleHeapData>> {
     fn index_mut(&mut self, index: Module) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Module out of bounds")
@@ -102,7 +103,35 @@ impl IndexMut<Module> for Vec<Option<ModuleHeapData>> {
     }
 }
 
-impl Module {
+impl Module<'_> {
+    /// Unbind this Module from its current lifetime. This is necessary to use
+    /// the Module as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Module<'static> {
+        unsafe { std::mem::transmute::<Self, Module<'static>>(self) }
+    }
+
+    // Bind this Module to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Modules cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let module = module.bind(&gc);
+    // ```
+    // to make sure that the unbound Module cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Module<'gc> {
+        unsafe { std::mem::transmute::<Self, Module<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Module<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(ModuleIdentifier::from_u32(0))
     }
@@ -112,7 +141,7 @@ impl Module {
     }
 }
 
-impl InternalSlots for Module {
+impl InternalSlots for Module<'_> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -142,7 +171,7 @@ impl InternalSlots for Module {
     fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {}
 }
 
-impl InternalMethods for Module {
+impl InternalMethods for Module<'_> {
     /// ### [10.4.6.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-getprototypeof)
     fn try_get_prototype_of(
         self,
@@ -639,7 +668,20 @@ impl InternalMethods for Module {
     }
 }
 
-impl HeapMarkAndSweep for Module {
+impl TryFrom<HeapRootData> for Module<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::Module(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Module<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.modules.push(*self);
     }

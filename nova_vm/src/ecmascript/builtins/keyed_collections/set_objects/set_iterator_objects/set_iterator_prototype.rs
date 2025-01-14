@@ -39,15 +39,17 @@ impl SetIteratorPrototype {
         _arguments: ArgumentsList,
         gc: GcScope<'_, '_>,
     ) -> JsResult<Value> {
+        let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::SetIterator(iterator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "SetIterator expected",
-                gc.nogc(),
+                gc,
             ));
         };
+        let iterator = iterator.bind(gc);
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // NOTE: We set `set` to None when the generator in the spec text has returned.
@@ -75,7 +77,7 @@ impl SetIteratorPrototype {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, &[e, e], gc.nogc()).into_value()
+                    create_array_from_list(agent, &[e, e], gc).into_value()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,

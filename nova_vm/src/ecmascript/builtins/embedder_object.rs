@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::{BaseIndex, EmbedderObjectIndex},
         HeapMarkAndSweep,
@@ -23,9 +24,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct EmbedderObject(pub(crate) EmbedderObjectIndex);
+pub struct EmbedderObject<'a>(pub(crate) EmbedderObjectIndex<'a>);
 
-impl EmbedderObject {
+impl EmbedderObject<'_> {
+    /// Unbind this EmbedderObject from its current lifetime. This is necessary to use
+    /// the EmbedderObject as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> EmbedderObject<'static> {
+        unsafe { std::mem::transmute::<Self, EmbedderObject<'static>>(self) }
+    }
+
+    // Bind this EmbedderObject to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your EmbedderObjects cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_buffer = array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound EmbedderObject cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> EmbedderObject<'gc> {
+        unsafe { std::mem::transmute::<Self, EmbedderObject<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, EmbedderObject<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -35,43 +64,31 @@ impl EmbedderObject {
     }
 }
 
-impl From<EmbedderObject> for EmbedderObjectIndex {
-    fn from(val: EmbedderObject) -> Self {
-        val.0
-    }
-}
-
-impl From<EmbedderObjectIndex> for EmbedderObject {
-    fn from(value: EmbedderObjectIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for EmbedderObject {
+impl IntoValue for EmbedderObject<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for EmbedderObject {
+impl IntoObject for EmbedderObject<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<EmbedderObject> for Value {
+impl From<EmbedderObject<'_>> for Value {
     fn from(val: EmbedderObject) -> Self {
-        Value::EmbedderObject(val)
+        Value::EmbedderObject(val.unbind().unbind())
     }
 }
 
-impl From<EmbedderObject> for Object {
+impl From<EmbedderObject<'_>> for Object {
     fn from(val: EmbedderObject) -> Self {
-        Object::EmbedderObject(val)
+        Object::EmbedderObject(val.unbind())
     }
 }
 
-impl InternalSlots for EmbedderObject {
+impl InternalSlots for EmbedderObject<'_> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
         todo!();
@@ -101,9 +118,9 @@ impl InternalSlots for EmbedderObject {
     }
 }
 
-impl InternalMethods for EmbedderObject {}
+impl InternalMethods for EmbedderObject<'_> {}
 
-impl Index<EmbedderObject> for Agent {
+impl Index<EmbedderObject<'_>> for Agent {
     type Output = EmbedderObjectHeapData;
 
     fn index(&self, index: EmbedderObject) -> &Self::Output {
@@ -111,13 +128,13 @@ impl Index<EmbedderObject> for Agent {
     }
 }
 
-impl IndexMut<EmbedderObject> for Agent {
+impl IndexMut<EmbedderObject<'_>> for Agent {
     fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
         &mut self.heap.embedder_objects[index]
     }
 }
 
-impl Index<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
+impl Index<EmbedderObject<'_>> for Vec<Option<EmbedderObjectHeapData>> {
     type Output = EmbedderObjectHeapData;
 
     fn index(&self, index: EmbedderObject) -> &Self::Output {
@@ -128,7 +145,7 @@ impl Index<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
     }
 }
 
-impl IndexMut<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
+impl IndexMut<EmbedderObject<'_>> for Vec<Option<EmbedderObjectHeapData>> {
     fn index_mut(&mut self, index: EmbedderObject) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("EmbedderObject out of bounds")
@@ -137,7 +154,20 @@ impl IndexMut<EmbedderObject> for Vec<Option<EmbedderObjectHeapData>> {
     }
 }
 
-impl HeapMarkAndSweep for EmbedderObject {
+impl TryFrom<HeapRootData> for EmbedderObject<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::EmbedderObject(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl HeapMarkAndSweep for EmbedderObject<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.embedder_objects.push(*self);
     }

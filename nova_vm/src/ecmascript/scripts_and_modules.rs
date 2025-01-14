@@ -15,7 +15,7 @@ pub mod source_code;
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum ScriptOrModule {
     Script(ScriptIdentifier),
-    Module(Module),
+    Module(Module<'static>),
 }
 
 impl HeapMarkAndSweep for ScriptOrModule {

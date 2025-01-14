@@ -1250,11 +1250,11 @@ impl TypedArrayPrototype {
 }
 
 #[inline]
-pub(crate) fn require_internal_slot_typed_array(
+pub(crate) fn require_internal_slot_typed_array<'a>(
     agent: &mut Agent,
     o: Value,
-    gc: NoGcScope,
-) -> JsResult<TypedArray> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     TypedArray::try_from(o).map_err(|_| {
         agent.throw_exception_with_static_message(
