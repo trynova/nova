@@ -133,7 +133,7 @@ mod private {
     impl RootableSealed for Date<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
     impl RootableSealed for EmbedderObject {}
-    impl RootableSealed for Error {}
+    impl RootableSealed for Error<'_> {}
     impl RootableSealed for FinalizationRegistry<'_> {}
     impl RootableSealed for Function<'_> {}
     impl RootableSealed for Generator {}
