@@ -161,7 +161,7 @@ pub enum Value {
     DataView(DataView<'static>),
     #[cfg(feature = "date")]
     Date(Date<'static>),
-    Error(Error),
+    Error(Error<'static>),
     FinalizationRegistry(FinalizationRegistry<'static>),
     Map(Map),
     Promise(Promise),

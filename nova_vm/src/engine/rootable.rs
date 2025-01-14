@@ -234,7 +234,7 @@ pub enum HeapRootData {
     DataView(DataView<'static>) = DATA_VIEW_DISCRIMINANT,
     #[cfg(feature = "date")]
     Date(Date<'static>) = DATE_DISCRIMINANT,
-    Error(Error) = ERROR_DISCRIMINANT,
+    Error(Error<'static>) = ERROR_DISCRIMINANT,
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,
