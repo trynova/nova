@@ -162,7 +162,7 @@ pub enum Value {
     #[cfg(feature = "date")]
     Date(Date),
     Error(Error),
-    FinalizationRegistry(FinalizationRegistry),
+    FinalizationRegistry(FinalizationRegistry<'static>),
     Map(Map),
     Promise(Promise),
     Proxy(Proxy),

@@ -130,7 +130,7 @@ pub enum Object {
     #[cfg(feature = "date")]
     Date(Date) = DATE_DISCRIMINANT,
     Error(Error) = ERROR_DISCRIMINANT,
-    FinalizationRegistry(FinalizationRegistry) = FINALIZATION_REGISTRY_DISCRIMINANT,
+    FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map) = MAP_DISCRIMINANT,
     Promise(Promise) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
