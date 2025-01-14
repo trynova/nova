@@ -26,7 +26,7 @@ use super::{
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PromiseResolveThenableJob {
-    promise_to_resolve: Promise,
+    promise_to_resolve: Promise<'static>,
     thenable: Object,
     then: Function<'static>,
 }
@@ -93,7 +93,7 @@ pub(crate) fn new_promise_resolve_thenable_job(
     Job {
         realm: Some(then_realm),
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
-            promise_to_resolve,
+            promise_to_resolve: promise_to_resolve.unbind(),
             thenable,
             then: then.unbind(),
         }),

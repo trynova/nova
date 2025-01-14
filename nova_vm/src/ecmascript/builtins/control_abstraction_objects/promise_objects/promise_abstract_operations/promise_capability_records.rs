@@ -40,7 +40,7 @@ use super::promise_jobs::new_promise_resolve_thenable_job;
 /// if it's Pending but `is_resolved` is set to true.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PromiseCapability {
-    promise: Promise,
+    promise: Promise<'static>,
     must_be_unresolved: bool,
 }
 
@@ -54,12 +54,12 @@ impl PromiseCapability {
 
     pub fn from_promise(promise: Promise, must_be_unresolved: bool) -> Self {
         Self {
-            promise,
+            promise: promise.unbind(),
             must_be_unresolved,
         }
     }
 
-    pub fn promise(&self) -> Promise {
+    pub fn promise(&self) -> Promise<'static> {
         self.promise
     }
 
