@@ -65,7 +65,7 @@ impl Job {
         self.realm
     }
 
-    pub fn run(&self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<()> {
+    pub fn run(&self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm_id() != realm {
@@ -184,8 +184,12 @@ impl GcAgent {
     /// [`GcAgent::remove_realm`] is called.
     pub fn create_realm(
         &mut self,
-        create_global_object: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
-        create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
+        create_global_object: Option<
+            impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+        >,
+        create_global_this_value: Option<
+            impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+        >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
     ) -> RealmRoot {
         let realm = self.agent.create_realm(
@@ -294,8 +298,12 @@ impl Agent {
     /// This is intended for usage within BuiltinFunction calls.
     pub fn create_realm(
         &mut self,
-        create_global_object: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
-        create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope) -> Object>,
+        create_global_object: Option<
+            impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+        >,
+        create_global_this_value: Option<
+            impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+        >,
         initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
     ) -> RealmIdentifier {
         let (mut gc, mut scope) = unsafe { GcScope::create_root() };

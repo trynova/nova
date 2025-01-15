@@ -404,7 +404,7 @@ impl Heap {
             extensible: true,
             keys,
             values,
-            prototype: Some(prototype),
+            prototype: Some(prototype.unbind()),
         };
         self.objects.push(Some(object_data));
         ObjectIndex::last(&self.objects).into()

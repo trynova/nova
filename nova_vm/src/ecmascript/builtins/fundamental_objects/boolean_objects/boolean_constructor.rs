@@ -43,7 +43,7 @@ impl BooleanConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
         let b = to_boolean(agent, value);

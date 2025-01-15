@@ -50,7 +50,7 @@ impl ArrayIteratorPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
@@ -66,7 +66,9 @@ impl ArrayIteratorPrototype {
         // 23.1.5.1 CreateArrayIterator ( array, kind ), step 1. b
         // NOTE: We set `array` to None when the generator in the spec text has returned.
         let Some(array) = agent[iterator].array else {
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return Ok(
+                create_iter_result_object(agent, Value::Undefined, true, gc.nogc()).into_value(),
+            );
         };
 
         let len: i64 = match array {
@@ -185,7 +187,9 @@ impl ArrayIteratorPrototype {
         // iii. If index ≥ len, return NormalCompletion(undefined).
         if agent[iterator].next_index >= len {
             agent[iterator].array = None;
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return Ok(
+                create_iter_result_object(agent, Value::Undefined, true, gc.nogc()).into_value(),
+            );
         }
 
         // iv. Let indexNumber be 𝔽(index).
@@ -241,7 +245,7 @@ impl ArrayIteratorPrototype {
         };
 
         // vii. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-        Ok(create_iter_result_object(agent, result, false).into_value())
+        Ok(create_iter_result_object(agent, result, false, gc.nogc()).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

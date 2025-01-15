@@ -71,8 +71,8 @@ impl IntoValue for WeakMap<'_> {
     }
 }
 
-impl IntoObject for WeakMap<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for WeakMap<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -83,13 +83,13 @@ impl From<WeakMap<'_>> for Value {
     }
 }
 
-impl From<WeakMap<'_>> for Object {
+impl<'a> From<WeakMap<'a>> for Object<'a> {
     fn from(val: WeakMap) -> Self {
         Object::WeakMap(val.unbind())
     }
 }
 
-impl InternalSlots for WeakMap<'_> {
+impl<'a> InternalSlots<'a> for WeakMap<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakMap;
 
     #[inline(always)]
@@ -105,7 +105,7 @@ impl InternalSlots for WeakMap<'_> {
     }
 }
 
-impl InternalMethods for WeakMap<'_> {}
+impl<'a> InternalMethods<'a> for WeakMap<'a> {}
 
 impl Index<WeakMap<'_>> for Agent {
     type Output = WeakMapHeapData;

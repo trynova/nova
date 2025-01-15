@@ -131,7 +131,7 @@ pub struct Realm {
     /// ### \[\[GlobalObject]]
     ///
     /// The global object for this realm.
-    pub(crate) global_object: Object,
+    pub(crate) global_object: Object<'static>,
 
     /// ### \[\[GlobalEnv]]
     ///
@@ -297,7 +297,7 @@ pub(crate) fn set_realm_global_object(
     let this_value = this_value.unwrap_or(global_object);
 
     // 4. Set realmRec.[[GlobalObject]] to globalObj.
-    agent[realm_id].global_object = global_object;
+    agent[realm_id].global_object = global_object.unbind();
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
     let new_global_env = GlobalEnvironment::new(agent, global_object, this_value);
@@ -318,11 +318,11 @@ pub(crate) fn set_realm_global_object(
 /// The abstract operation SetDefaultGlobalBindings takes argument realmRec (a
 /// Realm Record) and returns either a normal completion containing an Object
 /// or a throw completion.
-pub(crate) fn set_default_global_bindings(
+pub(crate) fn set_default_global_bindings<'a>(
     agent: &mut Agent,
     realm_id: RealmIdentifier,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Object> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
     // 1. Let global be realmRec.[[GlobalObject]].
     let global = agent[realm_id].global_object;
 
@@ -340,7 +340,12 @@ pub(crate) fn set_default_global_bindings(
 
         let global_env = agent[realm_id].global_env;
         let desc = PropertyDescriptor {
-            value: Some(global_env.unwrap().get_this_binding(agent).into_value()),
+            value: Some(
+                global_env
+                    .unwrap()
+                    .get_this_binding(agent, gc.nogc())
+                    .into_value(),
+            ),
             ..Default::default()
         };
 
@@ -1067,10 +1072,12 @@ pub(crate) fn set_default_global_bindings(
 /// ### [9.6 InitializeHostDefinedRealm ( )](https://tc39.es/ecma262/#sec-initializehostdefinedrealm)
 pub(crate) fn initialize_host_defined_realm(
     agent: &mut Agent,
-    create_global_object: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>) -> Object>,
-    create_global_this_value: Option<impl FnOnce(&mut Agent, GcScope<'_, '_>) -> Object>,
-    initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope<'_, '_>)>,
-    mut gc: GcScope<'_, '_>,
+    create_global_object: Option<impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>>,
+    create_global_this_value: Option<
+        impl for<'a> FnOnce(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
+    >,
+    initialize_global_object: Option<impl FnOnce(&mut Agent, Object, GcScope)>,
+    mut gc: GcScope,
 ) {
     // 1. Let realm be CreateRealm().
     let realm = create_realm(agent, gc.nogc());
@@ -1098,7 +1105,9 @@ pub(crate) fn initialize_host_defined_realm(
     // let global be such an object created in a host-defined manner.
     // Otherwise, let global be undefined, indicating that an ordinary object should be created as the global object.
     let global = create_global_this_value
-        .map(|create_global_this_value| create_global_this_value(agent, gc.reborrow()));
+        .map(|create_global_this_value| create_global_this_value(agent, gc.reborrow()))
+        .map(|g| g.unbind())
+        .map(|g| g.scope(agent, gc.nogc()));
 
     // 8. If the host requires that the this binding in realm's global scope return an object other than the global object,
     // let thisValue be such an object created in a host-defined manner.
@@ -1107,23 +1116,27 @@ pub(crate) fn initialize_host_defined_realm(
         create_global_object.map(|create_global_object| create_global_object(agent, gc.reborrow()));
 
     // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
-    set_realm_global_object(agent, realm, global, this_value);
+    set_realm_global_object(agent, realm, global.map(|g| g.get(agent)), this_value);
 
     // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
-    let global_object = set_default_global_bindings(agent, realm, gc.reborrow()).unwrap();
+    let global_object = set_default_global_bindings(agent, realm, gc.reborrow())
+        .unwrap()
+        .unbind()
+        .bind(gc.nogc());
 
     // 11. Create any host-defined global object properties on globalObj.
     if let Some(initialize_global_object) = initialize_global_object {
-        initialize_global_object(agent, global_object, gc.reborrow());
+        initialize_global_object(agent, global_object.unbind(), gc.reborrow());
     };
 
     // 12. Return UNUSED.
 }
 
-pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope<'_, '_>) {
-    let create_global_object: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
-    let create_global_this_value: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
-    let initialize_global_object: Option<fn(&mut Agent, Object, GcScope<'_, '_>)> = None;
+pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope) {
+    let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> = None;
+    let create_global_this_value: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
+        None;
+    let initialize_global_object: Option<fn(&mut Agent, Object, GcScope)> = None;
     initialize_host_defined_realm(
         agent,
         create_global_object,

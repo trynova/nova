@@ -42,7 +42,7 @@ use crate::{
             StringHeapData, SymbolHeapData, Value,
         },
     },
-    engine::context::GcToken,
+    engine::context::{GcToken, NoGcScope},
 };
 use core::fmt::Debug;
 use std::{
@@ -227,6 +227,28 @@ pub type WeakMapIndex<'a> = BaseIndex<'a, WeakMapHeapData>;
 pub type WeakRefIndex<'a> = BaseIndex<'a, WeakRefHeapData>;
 #[cfg(feature = "weak-refs")]
 pub type WeakSetIndex<'a> = BaseIndex<'a, WeakSetHeapData>;
+
+impl TypedArrayIndex<'_> {
+    /// Unbind this TypedArrayIndex from its current lifetime. This is necessary to use
+    /// the TypedArrayIndex as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> TypedArrayIndex<'static> {
+        unsafe { std::mem::transmute::<Self, TypedArrayIndex<'static>>(self) }
+    }
+
+    // Bind this TypedArrayIndex to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your TypedArrayIndexs cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let ta_idx = ta_idx.bind(&gc);
+    // ```
+    // to make sure that the unbound TypedArrayIndex cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> TypedArrayIndex<'gc> {
+        unsafe { std::mem::transmute::<Self, TypedArrayIndex<'gc>>(self) }
+    }
+}
 
 // Implement Default for ElementIndex: This is done to support Default
 // constructor of ElementsVector.

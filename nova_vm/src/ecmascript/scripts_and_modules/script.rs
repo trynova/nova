@@ -248,11 +248,7 @@ pub fn parse_script(
 /// The abstract operation ScriptEvaluation takes argument scriptRecord (a
 /// Script Record) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub fn script_evaluation(
-    agent: &mut Agent,
-    script: Script,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Value> {
+pub fn script_evaluation(agent: &mut Agent, script: Script, mut gc: GcScope) -> JsResult<Value> {
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.source_type.is_strict();
     let source_code = script.source_code;
@@ -342,7 +338,7 @@ pub(crate) fn global_declaration_instantiation(
     agent: &mut Agent,
     script: ScriptIdentifier,
     env: GlobalEnvironmentIndex,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     // 11. Let script be scriptRecord.[[ECMAScriptCode]].
     // SAFETY: Analysing the script cannot cause the environment to move even though we change other parts of the Heap.
@@ -356,8 +352,7 @@ pub(crate) fn global_declaration_instantiation(
         // long as the Script is alive in the heap as they are not reallocated.
         // Thus in effect VarScopedDeclaration<'_> is valid for the duration
         // of the global_declaration_instantiation call.
-        let script =
-            unsafe { std::mem::transmute::<&Program<'_>, &'static Program<'static>>(script) };
+        let script = unsafe { std::mem::transmute::<&Program, &'static Program<'static>>(script) };
         // 1. Let lexNames be the LexicallyDeclaredNames of script.
         let lex_names = script_lexically_declared_names(script);
         // 2. Let varNames be the VarDeclaredNames of script.
@@ -1060,7 +1055,7 @@ mod test {
             const LENGTH: u8 = 1;
 
             const BEHAVIOUR: Behaviour = Behaviour::Regular(
-                |_: &mut Agent, _: Value, arguments_list: ArgumentsList, _: GcScope<'_, '_>| {
+                |_: &mut Agent, _: Value, arguments_list: ArgumentsList, _: GcScope| {
                     let arg_0 = arguments_list.get(0);
                     if Value::Boolean(true) == arg_0 {
                         Ok(Value::from(3))

@@ -125,9 +125,9 @@ pub(crate) fn to_primitive<'a>(
     }
 }
 
-pub(crate) fn to_primitive_object<'a>(
+pub(crate) fn to_primitive_object<'a, 'b>(
     agent: &mut Agent,
-    input: impl IntoObject,
+    input: impl IntoObject<'b>,
     preferred_type: Option<PreferredType>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Primitive<'a>> {
@@ -1079,7 +1079,11 @@ pub(crate) fn to_string_primitive<'gc>(
 /// language value) and returns either a normal completion containing an Object
 /// or a throw completion. It converts argument to a value of type Object
 /// according to [Table 13](https://tc39.es/ecma262/#table-toobject-conversions):
-pub(crate) fn to_object(agent: &mut Agent, argument: Value, gc: NoGcScope) -> JsResult<Object> {
+pub(crate) fn to_object<'a>(
+    agent: &mut Agent,
+    argument: Value,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
     match argument {
         Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -1300,6 +1304,29 @@ pub(crate) fn to_length(agent: &mut Agent, argument: Value, gc: GcScope) -> JsRe
 
     // 3. Return 𝔽(min(len, 2**53 - 1)).
     Ok(len.min(SmallInteger::MAX_NUMBER))
+}
+
+/// ### [7.1.20 ToLength ( argument )](https://tc39.es/ecma262/#sec-tolength)
+pub(crate) fn try_to_length(
+    agent: &mut Agent,
+    argument: Value,
+    gc: NoGcScope,
+) -> TryResult<JsResult<i64>> {
+    // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
+
+    // 1. Let len be ? ToIntegerOrInfinity(argument).
+    let len = match try_to_integer_or_infinity(agent, argument, gc)? {
+        Ok(len) => len.into_i64(),
+        Err(err) => return TryResult::Continue(Err(err)),
+    };
+
+    // 2. If len ≤ 0, return +0𝔽.
+    if len <= 0 {
+        return TryResult::Continue(Ok(0));
+    }
+
+    // 3. Return 𝔽(min(len, 2**53 - 1)).
+    TryResult::Continue(Ok(len.min(SmallInteger::MAX_NUMBER)))
 }
 
 /// ### [7.1.21 CanonicalNumericIndexString ( argument )](https://tc39.es/ecma262/#sec-canonicalnumericindexstring)

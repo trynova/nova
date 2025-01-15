@@ -137,7 +137,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn resolve(self, agent: &mut Agent, resolution: Value, gc: GcScope<'_, '_>) {
+    pub fn resolve(self, agent: &mut Agent, resolution: Value, gc: GcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].

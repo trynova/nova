@@ -51,7 +51,7 @@ pub struct GlobalEnvironment {
     ///
     /// The value returned by this in global scope. Hosts may provide any
     /// ECMAScript Object value.
-    pub(crate) global_this_value: Object,
+    pub(crate) global_this_value: Object<'static>,
 
     /// ### \[\[DeclarativeRecord\]\]
     ///
@@ -95,7 +95,7 @@ impl GlobalEnvironment {
             object_record,
 
             // 5. Set env.[[GlobalThisValue]] to thisValue.
-            global_this_value: this_value,
+            global_this_value: this_value.unbind(),
 
             // 6. Set env.[[DeclarativeRecord]] to dclRec.
             declarative_record,
@@ -157,7 +157,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -182,7 +182,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -272,7 +272,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -304,7 +304,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -339,7 +339,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -372,7 +372,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         value: Value,
         is_strict: bool,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -404,7 +404,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<Value>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -436,7 +436,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -463,7 +463,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<bool>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -510,7 +510,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
@@ -573,7 +573,7 @@ impl GlobalEnvironmentIndex {
     ///
     /// The WithBaseObject concrete method of a Global Environment Record
     /// envRec takes no arguments and returns undefined.
-    pub(crate) fn with_base_object(self) -> Option<Object> {
+    pub(crate) fn with_base_object(self) -> Option<Object<'static>> {
         // 1. Return undefined.
         None
     }
@@ -583,10 +583,10 @@ impl GlobalEnvironmentIndex {
     /// The GetThisBinding concrete method of a Global Environment Record
     /// envRec takes no arguments and returns a normal completion containing an
     /// Object.
-    pub(crate) fn get_this_binding(self, agent: &Agent) -> Object {
+    pub(crate) fn get_this_binding<'a>(self, agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
         let env_rec = &agent[self];
         // 1. Return envRec.[[GlobalThisValue]].
-        env_rec.global_this_value
+        env_rec.global_this_value.bind(gc)
     }
 
     /// ### [9.1.1.4.12 HasVarDeclaration ( N )](https://tc39.es/ecma262/#sec-hasvardeclaration)
@@ -631,7 +631,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -661,7 +661,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -692,7 +692,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -723,7 +723,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -753,7 +753,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -792,7 +792,7 @@ impl GlobalEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -834,7 +834,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -881,7 +881,7 @@ impl GlobalEnvironmentIndex {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -925,7 +925,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         value: Value,
         d: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
@@ -996,7 +996,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         value: Value,
         d: bool,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].

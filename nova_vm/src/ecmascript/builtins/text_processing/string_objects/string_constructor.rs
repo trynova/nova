@@ -62,7 +62,7 @@ impl StringConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. If value is not present, then
         let s = if arguments.is_empty() {
@@ -93,13 +93,16 @@ impl StringConstructor {
             Function::try_from(new_target).unwrap(),
             ProtoIntrinsics::String,
             gc.reborrow(),
-        )?;
+        )?
+        .map(|p| p.unbind())
+        .map(|p| p.bind(gc.nogc()));
         // StringCreate: Returns a String exotic object.
         // 1. Let S be MakeBasicObject(« [[Prototype]], [[Extensible]], [[StringData]] »).
         let s = PrimitiveObject::try_from(ordinary_object_create_with_intrinsics(
             agent,
             Some(ProtoIntrinsics::String),
             prototype,
+            gc.nogc(),
         ))
         .unwrap();
 
@@ -127,7 +130,7 @@ impl StringConstructor {
         agent: &mut Agent,
         _this_value: Value,
         code_units: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
         // 2. For each element next of codeUnits, do
@@ -166,7 +169,7 @@ impl StringConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let result be the empty String.
         // 2. For each element next of codePoints, do
@@ -184,7 +187,7 @@ impl StringConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!();
     }

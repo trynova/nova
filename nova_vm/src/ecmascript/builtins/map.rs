@@ -74,8 +74,8 @@ impl IntoValue for Map<'_> {
     }
 }
 
-impl IntoObject for Map<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Map<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -86,16 +86,16 @@ impl From<Map<'_>> for Value {
     }
 }
 
-impl From<Map<'_>> for Object {
+impl<'a> From<Map<'a>> for Object<'a> {
     fn from(val: Map) -> Self {
         Object::Map(val.unbind())
     }
 }
 
-impl TryFrom<Object> for Map<'_> {
+impl<'a> TryFrom<Object<'a>> for Map<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::Map(data) => Ok(data),
             _ => Err(()),
@@ -103,7 +103,7 @@ impl TryFrom<Object> for Map<'_> {
     }
 }
 
-impl InternalSlots for Map<'_> {
+impl<'a> InternalSlots<'a> for Map<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Map;
 
     #[inline(always)]
@@ -119,7 +119,7 @@ impl InternalSlots for Map<'_> {
     }
 }
 
-impl InternalMethods for Map<'_> {}
+impl<'a> InternalMethods<'a> for Map<'a> {}
 
 impl HeapMarkAndSweep for Map<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

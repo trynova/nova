@@ -23,7 +23,7 @@ use crate::{
 
 pub trait IntoFunction<'a>
 where
-    Self: Sized + Copy + IntoObject,
+    Self: 'a + Sized + Copy + IntoObject<'a>,
 {
     fn into_function(self) -> Function<'a>;
 }
@@ -32,7 +32,7 @@ where
 /// These are used when the function hasn't had a backing object created.
 pub(crate) trait FunctionInternalProperties<'a>
 where
-    Self: IntoObject + IntoFunction<'a> + InternalSlots + InternalMethods,
+    Self: IntoObject<'a> + IntoFunction<'a> + InternalSlots<'a> + InternalMethods<'a>,
 {
     /// Value of the 'name' property.
     fn get_name(self, agent: &Agent) -> String<'static>;
@@ -112,7 +112,7 @@ pub(crate) fn function_internal_define_own_property<'a>(
     agent: &mut Agent,
     property_key: PropertyKey,
     property_descriptor: PropertyDescriptor,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> bool {
     let backing_object = func
         .get_backing_object(agent)
@@ -124,7 +124,7 @@ pub(crate) fn function_try_has_property<'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_has_property(agent, property_key, gc)
@@ -144,7 +144,7 @@ pub(crate) fn function_internal_has_property<'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<bool> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
@@ -156,7 +156,9 @@ pub(crate) fn function_internal_has_property<'a>(
     } else {
         let parent = unwrap_try(func.try_get_prototype_of(agent, gc.nogc()));
         if let Some(parent) = parent {
-            parent.internal_has_property(agent, property_key.unbind(), gc)
+            parent
+                .unbind()
+                .internal_has_property(agent, property_key.unbind(), gc)
         } else {
             Ok(false)
         }
@@ -168,7 +170,7 @@ pub(crate) fn function_try_get<'a>(
     agent: &mut Agent,
     property_key: PropertyKey,
     receiver: Value,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<Value> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_get(agent, property_key, receiver, gc)
@@ -189,7 +191,7 @@ pub(crate) fn function_internal_get<'a>(
     agent: &mut Agent,
     property_key: PropertyKey,
     receiver: Value,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<Value> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
@@ -202,7 +204,9 @@ pub(crate) fn function_internal_get<'a>(
         // Note: Getting a function's prototype never calls JavaScript.
         let parent = unwrap_try(func.try_get_prototype_of(agent, gc.nogc()));
         if let Some(parent) = parent {
-            parent.internal_get(agent, property_key.unbind(), receiver, gc)
+            parent
+                .unbind()
+                .internal_get(agent, property_key.unbind(), receiver, gc)
         } else {
             Ok(Value::Undefined)
         }
@@ -215,7 +219,7 @@ pub(crate) fn function_try_set<'a>(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> TryResult<bool> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_set(agent, property_key, value, receiver, gc)
@@ -235,7 +239,7 @@ pub(crate) fn function_internal_set<'a>(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<bool> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
@@ -261,7 +265,7 @@ pub(crate) fn function_internal_delete<'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> bool {
     if let Some(backing_object) = func.get_backing_object(agent) {
         unwrap_try(backing_object.try_delete(agent, property_key, gc))

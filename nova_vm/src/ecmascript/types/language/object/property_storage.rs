@@ -16,14 +16,14 @@ use crate::{
 use super::{Object, ObjectHeapData, PropertyKey};
 
 #[derive(Debug, Clone, Copy)]
-pub struct PropertyStorage(Object);
+pub struct PropertyStorage<'a>(Object<'a>);
 
-impl PropertyStorage {
-    pub fn new(object: Object) -> Self {
+impl<'a> PropertyStorage<'a> {
+    pub fn new(object: Object<'a>) -> Self {
         Self(object)
     }
 
-    fn into_object(self) -> Object {
+    fn into_object(self) -> Object<'a> {
         self.0
     }
 

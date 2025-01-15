@@ -61,7 +61,7 @@ impl SharedArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -70,7 +70,7 @@ impl SharedArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -79,7 +79,7 @@ impl SharedArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -88,7 +88,7 @@ impl SharedArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -97,7 +97,7 @@ impl SharedArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }

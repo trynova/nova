@@ -84,6 +84,7 @@ pub(crate) fn reg_exp_initialize_from_string<'a>(
     gc: GcScope<'a, '_>,
 ) -> JsResult<RegExp<'a>> {
     let obj = obj.bind(gc.nogc());
+    let p = p.bind(gc.nogc());
     //     3. If flags is undefined, let F be the empty String.
     let f = flags.unwrap_or(RegExpFlags::empty());
     //     4. Else, let F be ? ToString(flags).
@@ -125,7 +126,7 @@ pub(crate) fn reg_exp_initialize_from_string<'a>(
         let scoped_obj = obj.into_object().scope(agent, gc.nogc());
         set(
             agent,
-            obj.into_object(),
+            obj.unbind().into_object(),
             BUILTIN_STRING_MEMORY.lastIndex.into(),
             0.into(),
             true,

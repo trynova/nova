@@ -49,7 +49,7 @@ impl RegExpConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -58,7 +58,7 @@ impl RegExpConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         Ok(this_value)
     }

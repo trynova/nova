@@ -45,7 +45,7 @@ impl VmIterator {
     // let number = number.bind(&gc);
     // ```
     // to make sure that the unbound VmIterator cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'_, '_>) -> VmIterator {
+    pub const fn bind(self, _: NoGcScope) -> VmIterator {
         self
     }
 
@@ -58,7 +58,7 @@ impl VmIterator {
     pub(super) fn step_value(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Option<Value>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
@@ -144,11 +144,7 @@ impl VmIterator {
     /// Iterator Record or a throw completion.
     ///
     /// This method version performs the SYNC version of the method.
-    pub(super) fn from_value(
-        agent: &mut Agent,
-        value: Value,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Self> {
+    pub(super) fn from_value(agent: &mut Agent, value: Value, mut gc: GcScope) -> JsResult<Self> {
         // a. Let method be ? GetMethod(obj, %Symbol.iterator%).
         let method = get_method(
             agent,
@@ -189,7 +185,7 @@ impl VmIterator {
 
 #[derive(Debug)]
 pub(super) struct ObjectPropertiesIterator {
-    object: Object,
+    object: Object<'static>,
     object_was_visited: bool,
     visited_keys: Vec<PropertyKey<'static>>,
     remaining_keys: VecDeque<PropertyKey<'static>>,
@@ -198,7 +194,7 @@ pub(super) struct ObjectPropertiesIterator {
 impl ObjectPropertiesIterator {
     pub(super) fn new(object: Object) -> Self {
         Self {
-            object,
+            object: object.unbind(),
             object_was_visited: false,
             visited_keys: Default::default(),
             remaining_keys: Default::default(),
@@ -210,10 +206,12 @@ impl ObjectPropertiesIterator {
         agent: &mut Agent,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<Option<PropertyKey<'a>>> {
+        let object = self.object.scope(agent, gc.nogc());
         loop {
-            let object = self.object;
             if !self.object_was_visited {
-                let keys = object.internal_own_property_keys(agent, gc.reborrow())?;
+                let keys = object
+                    .get(agent)
+                    .internal_own_property_keys(agent, gc.reborrow())?;
                 for key in keys {
                     if let PropertyKey::Symbol(_) = key {
                         continue;
@@ -229,7 +227,9 @@ impl ObjectPropertiesIterator {
                     continue;
                 }
                 // TODO: Properly handle potential GC.
-                let desc = object.internal_get_own_property(agent, r, gc.reborrow())?;
+                let desc = object
+                    .get(agent)
+                    .internal_get_own_property(agent, r, gc.reborrow())?;
                 if let Some(desc) = desc {
                     self.visited_keys.push(r);
                     if desc.enumerable == Some(true) {
@@ -238,10 +238,12 @@ impl ObjectPropertiesIterator {
                 }
             }
             // TODO: Properly handle potential GC.
-            let prototype = object.internal_get_prototype_of(agent, gc.reborrow())?;
+            let prototype = object
+                .get(agent)
+                .internal_get_prototype_of(agent, gc.reborrow())?;
             if let Some(prototype) = prototype {
                 self.object_was_visited = false;
-                self.object = prototype;
+                self.object = prototype.unbind();
             } else {
                 return Ok(None);
             }
@@ -264,11 +266,7 @@ impl ArrayValuesIterator {
         }
     }
 
-    pub(super) fn next(
-        &mut self,
-        agent: &mut Agent,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Option<Value>> {
+    pub(super) fn next(&mut self, agent: &mut Agent, gc: GcScope) -> JsResult<Option<Value>> {
         // b. Repeat,
         let array = self.array;
         // iv. Let indexNumber be 𝔽(index).

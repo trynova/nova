@@ -42,7 +42,7 @@ impl BooleanPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let b = this_boolean_value(agent, this_value, gc.nogc())?;
         if b {
@@ -56,7 +56,7 @@ impl BooleanPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         this_boolean_value(agent, this_value, gc.nogc()).map(|result| result.into())
     }

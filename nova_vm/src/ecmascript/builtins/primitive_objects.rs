@@ -46,7 +46,7 @@ impl<'a> From<PrimitiveObjectIndex<'a>> for PrimitiveObject<'a> {
     }
 }
 
-impl From<PrimitiveObject<'_>> for Object {
+impl<'a> From<PrimitiveObject<'a>> for Object<'a> {
     fn from(value: PrimitiveObject) -> Self {
         Self::PrimitiveObject(value.unbind())
     }
@@ -58,8 +58,8 @@ impl From<PrimitiveObject<'_>> for Value {
     }
 }
 
-impl IntoObject for PrimitiveObject<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for PrimitiveObject<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -70,10 +70,10 @@ impl IntoValue for PrimitiveObject<'_> {
     }
 }
 
-impl TryFrom<Object> for PrimitiveObject<'_> {
+impl<'a> TryFrom<Object<'a>> for PrimitiveObject<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::PrimitiveObject(obj) => Ok(obj),
             _ => Err(()),
@@ -131,7 +131,7 @@ impl<'a> PrimitiveObject<'a> {
     /// the PrimitiveObject as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> PrimitiveObject<'static> {
-        unsafe { std::mem::transmute::<PrimitiveObject<'_>, PrimitiveObject<'static>>(self) }
+        unsafe { std::mem::transmute::<PrimitiveObject, PrimitiveObject<'static>>(self) }
     }
 
     // Bind this PrimitiveObject to the garbage collection lifetime. This enables Rust's
@@ -191,7 +191,7 @@ impl<'a> PrimitiveObject<'a> {
     }
 }
 
-impl InternalSlots for PrimitiveObject<'_> {
+impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -204,10 +204,7 @@ impl InternalSlots for PrimitiveObject<'_> {
             .is_none());
     }
 
-    fn internal_prototype(
-        self,
-        agent: &crate::ecmascript::execution::Agent,
-    ) -> Option<crate::ecmascript::types::Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         match self.get_backing_object(agent) {
             Some(obj) => obj.internal_prototype(agent),
             None => {
@@ -237,12 +234,12 @@ impl InternalSlots for PrimitiveObject<'_> {
     }
 }
 
-impl InternalMethods for PrimitiveObject<'_> {
+impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _: NoGcScope<'_, '_>,
+        _: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         // For non-string primitive objects:
         // 1. Return OrdinaryGetOwnProperty(O, P).
@@ -270,7 +267,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // For string exotic objects:
@@ -306,7 +303,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
@@ -342,7 +339,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -367,7 +364,9 @@ impl InternalMethods for PrimitiveObject<'_> {
                 // 4. If parent is not null, then
                 if let Some(parent) = parent {
                     // a. Return ? parent.[[HasProperty]](P).
-                    parent.internal_has_property(agent, property_key.unbind(), gc)
+                    parent
+                        .unbind()
+                        .internal_has_property(agent, property_key.unbind(), gc)
                 } else {
                     // 5. Return false.
                     Ok(false)
@@ -381,7 +380,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
@@ -412,7 +411,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -434,7 +433,9 @@ impl InternalMethods for PrimitiveObject<'_> {
                 };
 
                 // c. Return ? parent.[[Get]](P, Receiver).
-                parent.internal_get(agent, property_key.unbind(), receiver, gc)
+                parent
+                    .unbind()
+                    .internal_get(agent, property_key.unbind(), receiver, gc)
             }
         }
     }
@@ -445,7 +446,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if string
@@ -466,7 +467,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
@@ -493,7 +494,7 @@ impl InternalMethods for PrimitiveObject<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         if let Ok(string) = String::try_from(agent[self].data) {
             // A String will return unconfigurable descriptors for length and
@@ -517,11 +518,11 @@ impl InternalMethods for PrimitiveObject<'_> {
         }
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             let len = string.utf16_len(agent);
             let mut keys = Vec::with_capacity(len + 1);

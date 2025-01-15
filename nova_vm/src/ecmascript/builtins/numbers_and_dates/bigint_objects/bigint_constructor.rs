@@ -65,7 +65,7 @@ impl BigIntConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
@@ -95,7 +95,7 @@ impl BigIntConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
@@ -173,7 +173,7 @@ impl BigIntConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {

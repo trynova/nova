@@ -48,7 +48,7 @@ impl DataViewConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -133,9 +133,11 @@ impl DataViewConstructor {
             new_target,
             ProtoIntrinsics::DataView,
             gc.reborrow(),
-        )?;
+        )?
+        .unbind();
 
         let gc = gc.into_nogc();
+        let o = o.bind(gc);
         let buffer = scoped_buffer.get(agent).bind(gc);
         // 11. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
         if is_detached_buffer(agent, buffer) {
@@ -187,11 +189,11 @@ impl DataViewConstructor {
             agent
                 .heap
                 .data_view_byte_lengths
-                .insert(o, view_byte_length.unwrap());
+                .insert(o.unbind(), view_byte_length.unwrap());
         }
 
         if byte_offset == ViewedArrayBufferByteOffset::heap() {
-            agent.heap.data_view_byte_offsets.insert(o, offset);
+            agent.heap.data_view_byte_offsets.insert(o.unbind(), offset);
         }
 
         // 18. Return O.

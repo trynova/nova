@@ -231,7 +231,7 @@ impl PropertyDescriptor {
     pub fn to_property_descriptor(
         agent: &mut Agent,
         obj: Value,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Self> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {
@@ -383,7 +383,7 @@ impl PropertyDescriptor {
     pub(crate) fn try_to_property_descriptor(
         agent: &mut Agent,
         obj: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<Self>> {
         // 1. If Obj is not an Object, throw a TypeError exception.
         let Ok(obj) = Object::try_from(obj) else {

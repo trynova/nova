@@ -7,7 +7,7 @@ use std::ops::{Index, IndexMut};
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult};
+use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -86,8 +86,8 @@ impl IntoValue for BoundFunction<'_> {
     }
 }
 
-impl IntoObject for BoundFunction<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for BoundFunction<'a> {
+    fn into_object(self) -> Object<'a> {
         Object::BoundFunction(self.unbind())
     }
 }
@@ -122,7 +122,9 @@ pub(crate) fn bound_function_create<'a>(
         let scoped_target_function = target_function.scope(agent, gc.nogc());
         let proto = target_function
             .unbind()
-            .internal_get_prototype_of(agent, gc.reborrow())?;
+            .internal_get_prototype_of(agent, gc.reborrow())?
+            .map(|p| p.unbind())
+            .map(|p| p.bind(gc.nogc()));
         target_function = scoped_target_function.get(agent).bind(gc.nogc());
         proto
     };
@@ -154,8 +156,7 @@ pub(crate) fn bound_function_create<'a>(
     // 8. Set obj.[[BoundThis]] to boundThis.
     // 9. Set obj.[[BoundArguments]] to boundArgs.
     let obj = agent.heap.create(data);
-    obj.internal_set_prototype_of(agent, proto, gc.reborrow())
-        .unwrap();
+    unwrap_try(obj.try_set_prototype_of(agent, proto, gc.nogc()));
     // 10. Return obj.
     Ok(obj)
 }
@@ -170,7 +171,7 @@ impl<'a> FunctionInternalProperties<'a> for BoundFunction<'a> {
     }
 }
 
-impl InternalSlots for BoundFunction<'_> {
+impl<'a> InternalSlots<'a> for BoundFunction<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -190,12 +191,12 @@ impl InternalSlots for BoundFunction<'_> {
     }
 }
 
-impl InternalMethods for BoundFunction<'_> {
+impl<'a> InternalMethods<'a> for BoundFunction<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope<'_, '_>,
+        _gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
@@ -209,7 +210,7 @@ impl InternalMethods for BoundFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_define_own_property(
             self,
@@ -224,7 +225,7 @@ impl InternalMethods for BoundFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_has_property(self, agent, property_key, gc)
     }
@@ -233,7 +234,7 @@ impl InternalMethods for BoundFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
@@ -243,7 +244,7 @@ impl InternalMethods for BoundFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
@@ -253,7 +254,7 @@ impl InternalMethods for BoundFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
@@ -264,7 +265,7 @@ impl InternalMethods for BoundFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
@@ -275,7 +276,7 @@ impl InternalMethods for BoundFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
@@ -284,16 +285,16 @@ impl InternalMethods for BoundFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
@@ -309,7 +310,7 @@ impl InternalMethods for BoundFunction<'_> {
         agent: &mut Agent,
         _: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
@@ -343,16 +344,16 @@ impl InternalMethods for BoundFunction<'_> {
     /// takes arguments argumentsList (a List of ECMAScript language values)
     /// and newTarget (a constructor) and returns either a normal completion
     /// containing an Object or a throw completion.
-    fn internal_construct(
+    fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
         new_target: Function,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Object> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Object<'gc>> {
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
-        let target = agent[self].bound_target_function;
+        let target = agent[self].bound_target_function.bind(gc.nogc());
         // 2. Assert: IsConstructor(target) is true.
         assert!(is_constructor(agent, target).is_some());
         // 3. Let boundArgs be F.[[BoundArguments]].
@@ -376,10 +377,10 @@ impl InternalMethods for BoundFunction<'_> {
         // 6. Return ? Construct(target, args, newTarget).
         construct(
             agent,
-            target,
+            target.unbind(),
             Some(ArgumentsList(&args)),
             Some(new_target.unbind()),
-            gc.reborrow(),
+            gc,
         )
     }
 }

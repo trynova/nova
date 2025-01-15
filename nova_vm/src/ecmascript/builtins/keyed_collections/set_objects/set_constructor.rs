@@ -60,7 +60,7 @@ impl SetConstructor {
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let iterable = arguments.get(0);
         // 1. If NewTarget is undefined, throw a TypeError exception.
@@ -79,14 +79,22 @@ impl SetConstructor {
             ProtoIntrinsics::Set,
             gc.reborrow(),
         )?)
-        .unwrap();
+        .unwrap()
+        .unbind()
+        .bind(gc.nogc());
+        let scoped_set = set.scope(agent, gc.nogc());
         // 3. Set set.[[SetData]] to a new empty List.
         // 4. If iterable is either undefined or null, return set.
         if iterable.is_undefined() || iterable.is_null() {
             return Ok(set.into_value());
         }
         // 5. Let adder be ? Get(set, "add").
-        let adder = get(agent, set, BUILTIN_STRING_MEMORY.add.into(), gc.reborrow())?;
+        let adder = get(
+            agent,
+            set.into_object().unbind(),
+            BUILTIN_STRING_MEMORY.add.into(),
+            gc.reborrow(),
+        )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
         let Some(adder) = is_callable(adder, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -97,11 +105,13 @@ impl SetConstructor {
         };
         let adder = adder.scope(agent, gc.nogc());
         if let Value::Array(iterable) = iterable {
+            let iterable = iterable.bind(gc.nogc());
+            let scoped_iterable = iterable.scope(agent, gc.nogc());
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)
                 && get_method(
                     agent,
-                    iterable.into_value(),
+                    iterable.unbind().into_value(),
                     PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                     gc.reborrow(),
                 )? == Some(
@@ -114,7 +124,8 @@ impl SetConstructor {
             {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
-
+                let set = scoped_set.get(agent).bind(gc.nogc());
+                let iterable = scoped_iterable.get(agent).bind(gc.nogc());
                 let Heap {
                     elements,
                     arrays,
@@ -177,13 +188,13 @@ impl SetConstructor {
             let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
-                return Ok(set.into_value());
+                return Ok(scoped_set.get(agent).into_value());
             };
             // c. Let status be Completion(Call(adder, set, « next »)).
             let status = call_function(
                 agent,
                 adder.get(agent),
-                set.into_value(),
+                scoped_set.get(agent).into_value(),
                 Some(ArgumentsList(&[next])),
                 gc.reborrow(),
             );
@@ -196,7 +207,7 @@ impl SetConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         Ok(this_value)
     }

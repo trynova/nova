@@ -100,7 +100,7 @@ impl NativeErrorConstructors {
         error_kind: ExceptionType,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let message = arguments.get(0);
         let options = arguments.get(1);
@@ -123,12 +123,16 @@ impl NativeErrorConstructors {
                 .unwrap()
                 .into_object()
         });
+        let new_target = new_target.bind(gc.nogc());
         let o = ordinary_create_from_constructor(
             agent,
-            Function::try_from(new_target).unwrap(),
+            Function::try_from(new_target.unbind()).unwrap(),
             intrinsic,
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc())
+        .scope(agent, gc.nogc());
         let msg = if !message.is_undefined() {
             Some(
                 to_string(agent, message, gc.reborrow())?
@@ -139,7 +143,7 @@ impl NativeErrorConstructors {
             None
         };
         let cause = get_error_cause(agent, options, gc.reborrow())?;
-        let o = Error::try_from(o).unwrap();
+        let o = Error::try_from(o.get(agent).bind(gc.nogc())).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let msg = msg.map(|msg| msg.get(agent));
         let heap_data = &mut agent[o];
@@ -154,7 +158,7 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
@@ -164,7 +168,7 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
@@ -174,7 +178,7 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::constructor(
             agent,
@@ -190,7 +194,7 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
@@ -200,7 +204,7 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
@@ -210,7 +214,7 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }

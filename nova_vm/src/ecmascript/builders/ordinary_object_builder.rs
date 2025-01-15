@@ -23,7 +23,7 @@ use super::{
 pub struct NoPrototype;
 
 #[derive(Clone, Copy)]
-pub struct CreatorPrototype<T: IntoObject>(T);
+pub struct CreatorPrototype<T: IntoObject<'static>>(T);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoProperties;
@@ -94,7 +94,7 @@ impl<'agent, P, Pr> OrdinaryObjectBuilder<'agent, P, Pr> {
 
 impl<'agent, Pr> OrdinaryObjectBuilder<'agent, NoPrototype, Pr> {
     #[must_use]
-    pub fn with_prototype<T: IntoObject>(
+    pub fn with_prototype<T: IntoObject<'static>>(
         self,
         prototype: T,
     ) -> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, Pr> {
@@ -280,7 +280,9 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     }
 }
 
-impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, NoProperties> {
+impl<'agent, T: IntoObject<'static>>
+    OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, NoProperties>
+{
     pub fn build(self) -> OrdinaryObject<'static> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
@@ -336,7 +338,9 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
     }
 }
 
-impl<'agent, T: IntoObject> OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties> {
+impl<'agent, T: IntoObject<'static>>
+    OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties>
+{
     pub fn build(self) -> OrdinaryObject<'static> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {

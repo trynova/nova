@@ -71,8 +71,8 @@ impl IntoValue for WeakSet<'_> {
     }
 }
 
-impl IntoObject for WeakSet<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for WeakSet<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -83,13 +83,13 @@ impl From<WeakSet<'_>> for Value {
     }
 }
 
-impl From<WeakSet<'_>> for Object {
+impl<'a> From<WeakSet<'a>> for Object<'a> {
     fn from(val: WeakSet) -> Self {
         Object::WeakSet(val.unbind())
     }
 }
 
-impl InternalSlots for WeakSet<'_> {
+impl<'a> InternalSlots<'a> for WeakSet<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakSet;
 
     #[inline(always)]
@@ -105,7 +105,7 @@ impl InternalSlots for WeakSet<'_> {
     }
 }
 
-impl InternalMethods for WeakSet<'_> {}
+impl<'a> InternalMethods<'a> for WeakSet<'a> {}
 
 impl HeapMarkAndSweep for WeakSetHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {

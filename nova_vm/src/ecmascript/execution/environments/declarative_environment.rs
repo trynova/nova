@@ -382,7 +382,7 @@ impl DeclarativeEnvironmentIndex {
     ///
     /// The WithBaseObject concrete method of a Declarative Environment Record
     /// envRec takes no arguments and returns undefined.
-    pub(crate) fn with_base_object(self) -> Option<Object> {
+    pub(crate) fn with_base_object(self) -> Option<Object<'static>> {
         // 1. Return undefined.
         None
     }

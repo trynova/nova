@@ -42,7 +42,7 @@ impl GeneratorFunctionConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -82,6 +82,7 @@ impl GeneratorFunctionConstructor {
                     .generator_prototype()
                     .into_object(),
             ),
+            gc,
         );
         //   b. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
         unwrap_try(try_define_property_or_throw(

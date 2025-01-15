@@ -102,8 +102,8 @@ impl IntoValue for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl IntoObject for BuiltinConstructorFunction<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for BuiltinConstructorFunction<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -120,7 +120,7 @@ impl From<BuiltinConstructorFunction<'_>> for Value {
     }
 }
 
-impl From<BuiltinConstructorFunction<'_>> for Object {
+impl<'a> From<BuiltinConstructorFunction<'a>> for Object<'a> {
     fn from(value: BuiltinConstructorFunction) -> Self {
         Self::BuiltinConstructorFunction(value.unbind())
     }
@@ -143,10 +143,10 @@ impl TryFrom<Value> for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl TryFrom<Object> for BuiltinConstructorFunction<'_> {
+impl<'a> TryFrom<Object<'a>> for BuiltinConstructorFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::BuiltinConstructorFunction(data) => Ok(data),
             _ => Err(()),
@@ -209,7 +209,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinConstructorFunction<'a> {
     }
 }
 
-impl InternalSlots for BuiltinConstructorFunction<'_> {
+impl<'a> InternalSlots<'a> for BuiltinConstructorFunction<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -229,12 +229,12 @@ impl InternalSlots for BuiltinConstructorFunction<'_> {
     }
 }
 
-impl InternalMethods for BuiltinConstructorFunction<'_> {
+impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope<'_, '_>,
+        _gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
@@ -248,7 +248,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_define_own_property(
             self,
@@ -263,7 +263,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_has_property(self, agent, property_key, gc)
     }
@@ -272,7 +272,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
@@ -282,7 +282,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
@@ -292,7 +292,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
@@ -303,7 +303,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
@@ -314,7 +314,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
@@ -323,16 +323,16 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
@@ -348,7 +348,7 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
         agent: &mut Agent,
         _: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
@@ -365,13 +365,13 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
     /// the method is present) takes arguments argumentsList (a List of
     /// ECMAScript language values) and newTarget (a constructor) and returns
     /// either a normal completion containing an Object or a throw completion.
-    fn internal_construct(
+    fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
         new_target: Function,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Object> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Object<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, arguments_list, new_target, gc)
     }
@@ -384,13 +384,13 @@ impl InternalMethods for BuiltinConstructorFunction<'_> {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-fn builtin_call_or_construct(
+fn builtin_call_or_construct<'a>(
     agent: &mut Agent,
     f: BuiltinConstructorFunction,
     arguments_list: ArgumentsList,
     new_target: Function,
-    gc: GcScope<'_, '_>,
-) -> JsResult<Object> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
     let f = f.bind(gc.nogc());
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
@@ -443,8 +443,8 @@ fn builtin_call_or_construct(
 pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) is_derived: bool,
     pub(crate) class_name: String<'a>,
-    pub(crate) prototype: Option<Object>,
-    pub(crate) prototype_property: Object,
+    pub(crate) prototype: Option<Object<'static>>,
+    pub(crate) prototype_property: Object<'static>,
     pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: EnvironmentIndex,
     pub(crate) private_env: Option<PrivateEnvironmentIndex>,

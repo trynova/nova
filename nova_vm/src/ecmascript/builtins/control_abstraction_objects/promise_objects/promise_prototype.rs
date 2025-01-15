@@ -57,7 +57,7 @@ impl PromisePrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
@@ -77,7 +77,7 @@ impl PromisePrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -86,7 +86,7 @@ impl PromisePrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.

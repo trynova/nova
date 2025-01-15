@@ -92,7 +92,7 @@ impl JSONObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let text = arguments.get(0);
         let reviver = arguments.get(1);
@@ -136,9 +136,12 @@ impl JSONObject {
         if let Some(reviver) = is_callable(reviver, gc.nogc()) {
             let reviver = reviver.bind(gc.nogc());
             // a. Let root be OrdinaryObjectCreate(%Object.prototype%).
-            let Object::Object(root) =
-                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None)
-            else {
+            let Object::Object(root) = ordinary_object_create_with_intrinsics(
+                agent,
+                Some(ProtoIntrinsics::Object),
+                None,
+                gc.nogc(),
+            ) else {
                 unreachable!()
             };
 
@@ -170,7 +173,7 @@ impl JSONObject {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -213,7 +216,7 @@ impl JSONObject {
 /// > lexically preceding values for the same key shall be overwritten.
 fn internalize_json_property<'a>(
     agent: &mut Agent,
-    holder: Scoped<'a, Object>,
+    holder: Scoped<'a, Object<'static>>,
     name: Scoped<'a, PropertyKey<'static>>,
     reviver: Scoped<'a, Function<'static>>,
     mut gc: GcScope<'_, 'a>,
@@ -317,11 +320,7 @@ fn internalize_json_property<'a>(
     )
 }
 
-pub(crate) fn value_from_json(
-    agent: &mut Agent,
-    json: &sonic_rs::Value,
-    gc: NoGcScope<'_, '_>,
-) -> Value {
+pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value, gc: NoGcScope) -> Value {
     match json.get_type() {
         sonic_rs::JsonType::Null => Value::Null,
         sonic_rs::JsonType::Boolean => Value::Boolean(json.is_true()),
@@ -342,9 +341,12 @@ pub(crate) fn value_from_json(
         }
         sonic_rs::JsonType::Object => {
             let json_object = json.as_object().unwrap();
-            let Object::Object(object) =
-                ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None)
-            else {
+            let Object::Object(object) = ordinary_object_create_with_intrinsics(
+                agent,
+                Some(ProtoIntrinsics::Object),
+                None,
+                gc,
+            ) else {
                 unreachable!()
             };
             for (key, value) in json_object.iter() {

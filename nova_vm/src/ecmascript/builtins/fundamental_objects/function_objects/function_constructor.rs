@@ -46,7 +46,7 @@ impl FunctionConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
@@ -69,11 +69,13 @@ impl FunctionConstructor {
             parameter_args,
             body_arg,
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // 20.2.1.1.1 CreateDynamicFunction ( constructor, newTarget, kind, parameterArgs, bodyArg )
         // 32. Else if kind is normal, then
         //   a. Perform MakeConstructor(F).
-        make_constructor(agent, f, None, None);
+        make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
         Ok(f.into_value())
     }
@@ -290,7 +292,9 @@ pub(crate) fn create_dynamic_function<'a>(
             constructor.unbind(),
             kind.intrinsic_prototype(),
             gc.reborrow(),
-        )?,
+        )?
+        .map(|p| p.unbind())
+        .map(|p| p.bind(gc.nogc())),
         source_code: Some(source_code),
         source_text: function.span,
         parameters_list: &function.params,
@@ -302,8 +306,9 @@ pub(crate) fn create_dynamic_function<'a>(
         env: EnvironmentIndex::Global(agent.current_realm().global_env.unwrap()),
         private_env: None,
     };
+    let f = ordinary_function_create(agent, params, gc.nogc()).unbind();
     let gc = gc.into_nogc();
-    let f = ordinary_function_create(agent, params, gc);
+    let f = f.bind(gc);
 
     set_function_name(
         agent,

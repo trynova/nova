@@ -67,12 +67,12 @@ impl Generator<'_> {
     }
 
     /// [27.5.3.3 GeneratorResume ( generator, value, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresume)
-    pub(crate) fn resume(
+    pub(crate) fn resume<'a>(
         self,
         agent: &mut Agent,
         value: Value,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Object> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<Object<'a>> {
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[generator].generator_state.as_ref().unwrap() {
@@ -88,7 +88,12 @@ impl Generator<'_> {
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).
-                return Ok(create_iter_result_object(agent, Value::Undefined, true));
+                return Ok(create_iter_result_object(
+                    agent,
+                    Value::Undefined,
+                    true,
+                    gc.into_nogc(),
+                ));
             }
         };
 
@@ -148,7 +153,12 @@ impl Generator<'_> {
                 // j. Else if result is a return completion, then
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
-                Ok(create_iter_result_object(agent, result_value, true))
+                Ok(create_iter_result_object(
+                    agent,
+                    result_value,
+                    true,
+                    gc.into_nogc(),
+                ))
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -174,7 +184,12 @@ impl Generator<'_> {
                 });
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
                 // NOTE: `callerContext` here is the `GeneratorResume` execution context.
-                Ok(create_iter_result_object(agent, yielded_value, false))
+                Ok(create_iter_result_object(
+                    agent,
+                    yielded_value,
+                    false,
+                    gc.into_nogc(),
+                ))
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -182,12 +197,12 @@ impl Generator<'_> {
 
     /// [27.5.3.4 GeneratorResumeAbrupt ( generator, abruptCompletion, generatorBrand )](https://tc39.es/ecma262/#sec-generatorresumeabrupt)
     /// NOTE: This method only accepts throw completions.
-    pub(crate) fn resume_throw(
+    pub(crate) fn resume_throw<'a>(
         self,
         agent: &mut Agent,
         value: Value,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Object> {
+        mut gc: GcScope<'a, '_>,
+    ) -> JsResult<Object<'a>> {
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended {
@@ -260,7 +275,12 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(agent, result, true))
+                Ok(create_iter_result_object(
+                    agent,
+                    result,
+                    true,
+                    gc.into_nogc(),
+                ))
             }
             ExecutionResult::Throw(err) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
@@ -272,7 +292,12 @@ impl Generator<'_> {
                     executable,
                     execution_context,
                 });
-                Ok(create_iter_result_object(agent, yielded_value, false))
+                Ok(create_iter_result_object(
+                    agent,
+                    yielded_value,
+                    false,
+                    gc.into_nogc(),
+                ))
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -285,8 +310,8 @@ impl IntoValue for Generator<'_> {
     }
 }
 
-impl IntoObject for Generator<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Generator<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -297,7 +322,7 @@ impl From<Generator<'_>> for Value {
     }
 }
 
-impl From<Generator<'_>> for Object {
+impl<'a> From<Generator<'a>> for Object<'a> {
     fn from(value: Generator) -> Self {
         Object::Generator(value.unbind())
     }
@@ -315,7 +340,7 @@ impl TryFrom<Value> for Generator<'_> {
     }
 }
 
-impl InternalSlots for Generator<'_> {
+impl<'a> InternalSlots<'a> for Generator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -330,7 +355,7 @@ impl InternalSlots for Generator<'_> {
     }
 }
 
-impl InternalMethods for Generator<'_> {}
+impl<'a> InternalMethods<'a> for Generator<'a> {}
 
 impl CreateHeapData<GeneratorHeapData, Generator<'static>> for Heap {
     fn create(&mut self, data: GeneratorHeapData) -> Generator<'static> {

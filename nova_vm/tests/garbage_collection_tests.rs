@@ -12,7 +12,7 @@ use nova_vm::{
     engine::context::GcScope,
 };
 
-fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope<'_, '_>) {
+fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     use nova_vm::ecmascript::{
         builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
         execution::JsResult,
@@ -24,7 +24,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope<'_, '
         agent: &mut Agent,
         _this: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         if args.len() == 0 {
             println!();
@@ -77,8 +77,9 @@ fn garbage_collection_tests() {
         fs::read_to_string(d.clone()).expect("Should have been able to read the file");
 
     let mut agent = GcAgent::new(Options::default(), &DefaultHostHooks);
-    let create_global_object: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
-    let create_global_this_value: Option<fn(&mut Agent, GcScope<'_, '_>) -> Object> = None;
+    let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> = None;
+    let create_global_this_value: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
+        None;
     let realm = agent.create_realm(
         create_global_object,
         create_global_this_value,

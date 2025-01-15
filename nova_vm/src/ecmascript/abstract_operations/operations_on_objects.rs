@@ -9,7 +9,7 @@ use ahash::AHashSet;
 use super::{
     operations_on_iterator_objects::{get_iterator, if_abrupt_close_iterator, iterator_close},
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
-    type_conversion::{to_length, to_object, to_property_key},
+    type_conversion::{to_length, to_object, to_property_key, try_to_length},
 };
 use crate::{
     ecmascript::types::{bind_property_keys, scope_property_keys, unbind_property_keys},
@@ -57,7 +57,7 @@ use crate::{
 /// > overriding some or all of that object's internal methods. In order to
 /// > encapsulate exotic object creation, the object's essential internal
 /// > methods are never modified outside those operations.
-pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) -> Object {
+pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) -> Object<'static> {
     // 1. Let obj be a newly created object with an internal slot for each name in internalSlotsList.
     // 2. Set obj's essential internal methods to the default ordinary object definitions specified in 10.1.
     // 3. Assert: If the caller will not be overriding both obj's [[GetPrototypeOf]] and [[SetPrototypeOf]] essential
@@ -76,9 +76,9 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
 #[inline]
-pub(crate) fn get(
+pub(crate) fn get<'a>(
     agent: &mut Agent,
-    o: impl IntoObject,
+    o: impl IntoObject<'a>,
     p: PropertyKey,
     gc: GcScope,
 ) -> JsResult<Value> {
@@ -95,9 +95,9 @@ pub(crate) fn get(
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
 #[inline]
-pub(crate) fn try_get(
+pub(crate) fn try_get<'a>(
     agent: &mut Agent,
-    o: impl IntoObject,
+    o: impl IntoObject<'a>,
     p: PropertyKey,
     gc: NoGcScope,
 ) -> TryResult<Value> {
@@ -117,7 +117,7 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey, gc: GcScope) ->
     let mut p = p.bind(gc.nogc());
     // 1. Let O be ? ToObject(V).
     let o = if let Ok(o) = Object::try_from(v) {
-        o
+        o.bind(gc.nogc())
     } else {
         let scoped_p = p.scope(agent, gc.nogc());
         let o = to_object(agent, v, gc.nogc())?;
@@ -125,7 +125,7 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey, gc: GcScope) ->
         o
     };
     // 2. Return ? O.[[Get]](P, V).
-    o.internal_get(agent, p.unbind(), o.into(), gc)
+    o.unbind().internal_get(agent, p.unbind(), o.into(), gc)
 }
 
 /// ### Try [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -228,9 +228,9 @@ pub(crate) fn try_set(
 /// > assignment operator. Normally, the property will not already exist. If it
 /// > does exist and is not configurable or if O is not extensible,
 /// > [\[DefineOwnProperty]] will return false.
-pub(crate) fn try_create_data_property(
+pub(crate) fn try_create_data_property<'a>(
     agent: &mut Agent,
-    object: impl InternalMethods,
+    object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     value: Value,
     gc: NoGcScope,
@@ -260,9 +260,9 @@ pub(crate) fn try_create_data_property(
 /// > assignment operator. Normally, the property will not already exist. If it
 /// > does exist and is not configurable or if O as not extensible,
 /// > [\[DefineOwnProperty]] will return false.
-pub(crate) fn create_data_property(
+pub(crate) fn create_data_property<'a>(
     agent: &mut Agent,
-    object: impl InternalMethods,
+    object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     value: Value,
     gc: GcScope,
@@ -288,9 +288,9 @@ pub(crate) fn create_data_property(
 /// returns either a normal completion containing UNUSED or a throw completion.
 /// It is used to create a new own property of an object. at throws a TypeError
 /// exception if the requested property update cannot be performed.
-pub(crate) fn try_create_data_property_or_throw(
+pub(crate) fn try_create_data_property_or_throw<'a>(
     agent: &mut Agent,
-    object: impl InternalMethods,
+    object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     value: Value,
     gc: NoGcScope,
@@ -317,9 +317,9 @@ pub(crate) fn try_create_data_property_or_throw(
 /// returns either a normal completion containing UNUSED or a throw completion.
 /// It is used to create a new own property of an object. at throws a TypeError
 /// exception if the requested property update cannot be performed.
-pub(crate) fn create_data_property_or_throw(
+pub(crate) fn create_data_property_or_throw<'a>(
     agent: &mut Agent,
-    object: impl InternalMethods,
+    object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     value: Value,
     mut gc: GcScope,
@@ -352,9 +352,9 @@ pub(crate) fn create_data_property_or_throw(
 /// call the \[\[DefineOwnProperty]] internal method of an object in a manner
 /// that will throw a TypeError exception if tae requested property update
 /// cannot be performed.
-pub(crate) fn try_define_property_or_throw(
+pub(crate) fn try_define_property_or_throw<'a>(
     agent: &mut Agent,
-    object: impl InternalMethods,
+    object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     desc: PropertyDescriptor,
     gc: NoGcScope,
@@ -382,9 +382,9 @@ pub(crate) fn try_define_property_or_throw(
 /// call the \[\[DefineOwnProperty]] internal method of an object in a manner
 /// that will throw a TypeError exception if tae requested property update
 /// cannot be performed.
-pub(crate) fn define_property_or_throw(
+pub(crate) fn define_property_or_throw<'a>(
     agent: &mut Agent,
-    object: impl InternalMethods,
+    object: impl InternalMethods<'a>,
     property_key: PropertyKey,
     desc: PropertyDescriptor,
     mut gc: GcScope,
@@ -412,9 +412,9 @@ pub(crate) fn define_property_or_throw(
 /// and P (a property key) and returns either a normal completion containing
 /// unused or a throw completion. It is used to removeaa specific own property
 /// of an object. It throws an exception if the property is not configurable.
-pub(crate) fn try_delete_property_or_throw(
+pub(crate) fn try_delete_property_or_throw<'a>(
     agent: &mut Agent,
-    o: impl InternalMethods,
+    o: impl InternalMethods<'a>,
     p: PropertyKey,
     gc: NoGcScope,
 ) -> TryResult<JsResult<()>> {
@@ -439,9 +439,9 @@ pub(crate) fn try_delete_property_or_throw(
 /// and P (a property key) and returns either a normal completion containing
 /// unused or a throw completion. It is used to remove a specific own property
 /// of an object. It throws an exception if the property is not configurable.
-pub(crate) fn delete_property_or_throw(
+pub(crate) fn delete_property_or_throw<'a>(
     agent: &mut Agent,
-    o: impl InternalMethods,
+    o: impl InternalMethods<'a>,
     p: PropertyKey,
     mut gc: GcScope,
 ) -> JsResult<()> {
@@ -1006,6 +1006,32 @@ pub(crate) fn length_of_array_like(
     to_length(agent, property, gc)
 }
 
+/// ### [7.3.18 LengthOfArrayLike ( obj )](https://tc39.es/ecma262/#sec-lengthofarraylike)
+///
+/// The abstract operation LengthOfArrayLike takes argument obj (an Object) and
+/// returns either a normal completion containing a non-negative integer or a
+/// throw completion. It returns the value of the "length" property of an
+/// array-like object.
+pub(crate) fn try_length_of_array_like(
+    agent: &mut Agent,
+    obj: Object,
+    gc: NoGcScope,
+) -> TryResult<JsResult<i64>> {
+    // NOTE: Fast path for Array objects.
+    if let Ok(array) = Array::try_from(obj) {
+        return TryResult::Continue(Ok(array.len(agent) as i64));
+    }
+
+    // 1. Return ℝ(? ToLength(? Get(obj, "length"))).
+    let property = try_get(
+        agent,
+        obj,
+        PropertyKey::from(BUILTIN_STRING_MEMORY.length),
+        gc,
+    )?;
+    try_to_length(agent, property, gc)
+}
+
 /// ### [7.3.19 CreateListFromArrayLike ( obj [ , elementTypes ] )](https://tc39.es/ecma262/#sec-createlistfromarraylike)
 ///
 /// The abstract operation CreateListFromArrayLike takes argument obj (an ECMAScript language value)
@@ -1078,13 +1104,13 @@ pub(crate) fn call_function(
     result
 }
 
-pub(crate) fn construct(
+pub(crate) fn construct<'a>(
     agent: &mut Agent,
     f: Function,
     arguments_list: Option<ArgumentsList>,
     new_target: Option<Function>,
-    gc: GcScope,
-) -> JsResult<Object> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
     let f = f.bind(gc.nogc());
     // 1. If newTarget is not present, set newTarget to F.
     let new_target = new_target.unwrap_or(f);
@@ -1170,9 +1196,10 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
 pub(crate) fn is_prototype_of_loop(
     agent: &mut Agent,
     o: Object,
-    mut v: Object,
+    v: Object,
     mut gc: GcScope,
 ) -> JsResult<bool> {
+    let mut v = v.bind(gc.nogc());
     {
         let gc = gc.nogc();
         loop {
@@ -1192,7 +1219,11 @@ pub(crate) fn is_prototype_of_loop(
     }
     let o = o.scope(agent, gc.nogc());
     loop {
-        let proto = v.internal_get_prototype_of(agent, gc.reborrow())?;
+        let proto = v
+            .unbind()
+            .internal_get_prototype_of(agent, gc.reborrow())?
+            .map(|f| f.unbind())
+            .map(|f| f.bind(gc.nogc()));
         if let Some(proto) = proto {
             v = proto;
             if o.get(agent) == v {
@@ -1242,7 +1273,7 @@ pub(crate) mod enumerable_properties_kind {
 /// ECMAScript property keys or a throw completion.
 pub(crate) fn scoped_enumerable_own_keys<'a>(
     agent: &mut Agent,
-    o: Scoped<'a, Object>,
+    o: Scoped<'a, Object<'static>>,
     mut gc: GcScope<'_, 'a>,
 ) -> JsResult<Vec<Scoped<'a, PropertyKey<'static>>>> {
     // Note: Only Proxy and possibly Module and EmbedderObject can run JS in
@@ -1515,7 +1546,10 @@ fn enumerable_own_properties_slow<Kind: EnumerablePropertiesKind>(
 /// The abstract operation GetFunctionRealm takes argument obj (a function
 /// object) and returns either a normal completion containing a Realm Record or
 /// a throw completion.
-pub(crate) fn get_function_realm(agent: &Agent, obj: impl IntoObject) -> JsResult<RealmIdentifier> {
+pub(crate) fn get_function_realm<'a>(
+    agent: &Agent,
+    obj: impl IntoObject<'a>,
+) -> JsResult<RealmIdentifier> {
     // 1. If obj has a [[Realm]] internal slot, then
     // a. Return obj.[[Realm]].
     let obj = obj.into_object();
@@ -1554,18 +1588,33 @@ pub(crate) fn copy_data_properties(
     source: Value,
     mut gc: GcScope,
 ) -> JsResult<()> {
+    let mut target = target.bind(gc.nogc());
     // 1. If source is either undefined or null, return unused.
     if source.is_undefined() || source.is_null() {
         return Ok(());
     }
     // 2. Let from be ! ToObject(source).
-    let from = to_object(agent, source, gc.nogc()).unwrap();
+    let mut from = to_object(agent, source, gc.nogc()).unwrap();
+    let mut scoped_target = None;
+    let mut scoped_from = None;
 
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
-    let mut keys = bind_property_keys(
-        unbind_property_keys(from.internal_own_property_keys(agent, gc.reborrow())?),
-        gc.nogc(),
-    );
+    let mut keys = if let TryResult::Continue(keys) = from.try_own_property_keys(agent, gc.nogc()) {
+        keys
+    } else {
+        scoped_target = Some(target.scope(agent, gc.nogc()));
+        scoped_from = Some(from.scope(agent, gc.nogc()));
+        let keys = bind_property_keys(
+            unbind_property_keys(
+                from.unbind()
+                    .internal_own_property_keys(agent, gc.reborrow())?,
+            ),
+            gc.nogc(),
+        );
+        target = scoped_target.as_ref().unwrap().get(agent).bind(gc.nogc());
+        from = scoped_from.as_ref().unwrap().get(agent).bind(gc.nogc());
+        keys
+    };
     // Reserve space in the target's vectors.
     {
         let new_size = agent[target]
@@ -1612,6 +1661,8 @@ pub(crate) fn copy_data_properties(
     if broke {
         let _ = keys.drain(..i);
         let keys = unbind_property_keys(keys);
+        let target = scoped_target.unwrap_or_else(|| target.scope(agent, gc.nogc()));
+        let from = scoped_from.unwrap_or_else(|| from.scope(agent, gc.nogc()));
         copy_data_properties_slow(agent, target, from, keys, gc)
     } else {
         // 5. Return UNUSED.
@@ -1621,8 +1672,8 @@ pub(crate) fn copy_data_properties(
 
 fn copy_data_properties_slow(
     agent: &mut Agent,
-    target: OrdinaryObject,
-    from: Object,
+    target: Scoped<'_, OrdinaryObject<'static>>,
+    from: Scoped<'_, Object<'static>>,
     keys: Vec<PropertyKey>,
     mut gc: GcScope,
 ) -> JsResult<()> {
@@ -1631,15 +1682,16 @@ fn copy_data_properties_slow(
         // i. Let desc be ? from.[[GetOwnProperty]](nextKey).
         // ii. If desc is not undefined and desc.[[Enumerable]] is true, then
         if let Some(dest) =
-            from.internal_get_own_property(agent, next_key.get(agent), gc.reborrow())?
+            from.get(agent)
+                .internal_get_own_property(agent, next_key.get(agent), gc.reborrow())?
         {
             if dest.enumerable.unwrap() {
                 // 1. Let propValue be ? Get(from, nextKey).
-                let prop_value = get(agent, from, next_key.get(agent), gc.reborrow())?;
+                let prop_value = get(agent, from.get(agent), next_key.get(agent), gc.reborrow())?;
                 // 2. Perform ! CreateDataPropertyOrThrow(target, nextKey, propValue).
                 create_data_property(
                     agent,
-                    target,
+                    target.get(agent),
                     next_key.get(agent),
                     prop_value,
                     gc.reborrow(),
@@ -1660,9 +1712,9 @@ fn copy_data_properties_slow(
 /// NOTE: This implementation of CopyDataProperties also creates the target object with
 /// `OrdinaryObjectCreate(%Object.prototype%)`. This can be used to implement the rest operator in
 /// object destructuring, but not the spread operator in object literals.
-pub(crate) fn try_copy_data_properties_into_object<'a>(
+pub(crate) fn try_copy_data_properties_into_object<'a, 'b>(
     agent: &mut Agent,
-    source: impl IntoObject,
+    source: impl IntoObject<'b>,
     excluded_items: &AHashSet<PropertyKey>,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<OrdinaryObject<'a>> {
@@ -1717,9 +1769,9 @@ pub(crate) fn try_copy_data_properties_into_object<'a>(
 /// NOTE: This implementation of CopyDataProperties also creates the target object with
 /// `OrdinaryObjectCreate(%Object.prototype%)`. This can be used to implement the rest operator in
 /// object destructuring, but not the spread operator in object literals.
-pub(crate) fn copy_data_properties_into_object<'a>(
+pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     agent: &mut Agent,
-    source: impl IntoObject,
+    source: impl IntoObject<'b>,
     excluded_items: &AHashSet<PropertyKey<'a>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<OrdinaryObject<'a>> {

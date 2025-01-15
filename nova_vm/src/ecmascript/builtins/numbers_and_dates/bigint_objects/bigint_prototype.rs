@@ -50,7 +50,7 @@ impl BigIntPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         Self::to_string(agent, this_value, arguments, gc)
     }
@@ -59,7 +59,7 @@ impl BigIntPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let _x = this_big_int_value(agent, this_value, gc.nogc())?;
         let radix = arguments.get(0);
@@ -75,7 +75,7 @@ impl BigIntPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value())
     }

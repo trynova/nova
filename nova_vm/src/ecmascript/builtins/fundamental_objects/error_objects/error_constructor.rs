@@ -48,7 +48,7 @@ impl ErrorConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let message = arguments.get(0);
         let options = arguments.get(1);
@@ -104,7 +104,7 @@ impl ErrorConstructor {
 pub(super) fn get_error_cause(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Option<Value>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);

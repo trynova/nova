@@ -196,8 +196,8 @@ impl IntoValue for Array<'_> {
     }
 }
 
-impl IntoObject for Array<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Array<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -208,7 +208,7 @@ impl<'a> From<ArrayIndex<'a>> for Array<'a> {
     }
 }
 
-impl From<Array<'_>> for Object {
+impl<'a> From<Array<'a>> for Object<'a> {
     fn from(value: Array) -> Self {
         Self::Array(value.unbind())
     }
@@ -231,10 +231,10 @@ impl TryFrom<Value> for Array<'_> {
     }
 }
 
-impl TryFrom<Object> for Array<'_> {
+impl<'a> TryFrom<Object<'a>> for Array<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::Array(data) => Ok(data),
             _ => Err(()),
@@ -242,7 +242,7 @@ impl TryFrom<Object> for Array<'_> {
     }
 }
 
-impl InternalSlots for Array<'_> {
+impl<'a> InternalSlots<'a> for Array<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Array;
 
     #[inline(always)]
@@ -283,7 +283,7 @@ impl InternalSlots for Array<'_> {
     }
 }
 
-impl InternalMethods for Array<'_> {
+impl<'a> InternalMethods<'a> for Array<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -494,7 +494,9 @@ impl InternalMethods for Array<'_> {
         // 4. If parent is not null, then
         if let Some(parent) = parent {
             // a. Return ? parent.[[HasProperty]](P).
-            return parent.internal_has_property(agent, property_key.unbind(), gc);
+            return parent
+                .unbind()
+                .internal_has_property(agent, property_key.unbind(), gc);
         }
 
         // 5. Return false.
@@ -669,11 +671,11 @@ impl InternalMethods for Array<'_> {
         }
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         let backing_keys = if let Some(backing_object) = self.get_backing_object(agent) {
             unwrap_try(backing_object.try_own_property_keys(agent, gc))
         } else {

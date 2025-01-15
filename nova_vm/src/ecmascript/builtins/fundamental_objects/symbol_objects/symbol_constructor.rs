@@ -64,7 +64,7 @@ impl SymbolConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
@@ -92,7 +92,7 @@ impl SymbolConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         Ok(arguments.get(0))
     }
@@ -101,7 +101,7 @@ impl SymbolConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         Ok(arguments.get(0))
     }

@@ -31,7 +31,7 @@ impl AggregateErrorConstructor {
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }

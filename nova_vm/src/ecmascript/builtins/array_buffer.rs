@@ -102,12 +102,7 @@ impl<'a> ArrayBuffer<'a> {
         }
     }
 
-    pub fn detach(
-        self,
-        agent: &mut Agent,
-        key: Option<DetachKey>,
-        gc: NoGcScope<'_, '_>,
-    ) -> JsResult<()> {
+    pub fn detach(self, agent: &mut Agent, key: Option<DetachKey>, gc: NoGcScope) -> JsResult<()> {
         detach_array_buffer(agent, self, key, gc)
     }
 
@@ -157,8 +152,8 @@ impl<'a> ArrayBuffer<'a> {
     }
 }
 
-impl IntoObject for ArrayBuffer<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for ArrayBuffer<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -192,7 +187,7 @@ impl IntoBaseIndex<'_, ArrayBufferHeapData> for ArrayBuffer<'static> {
     }
 }
 
-impl From<ArrayBuffer<'_>> for Object {
+impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
     fn from(value: ArrayBuffer) -> Self {
         Self::ArrayBuffer(value.unbind())
     }
@@ -238,7 +233,7 @@ impl IndexMut<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
     }
 }
 
-impl InternalSlots for ArrayBuffer<'_> {
+impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
 
     #[inline(always)]
@@ -254,7 +249,7 @@ impl InternalSlots for ArrayBuffer<'_> {
     }
 }
 
-impl InternalMethods for ArrayBuffer<'_> {}
+impl<'a> InternalMethods<'a> for ArrayBuffer<'a> {}
 
 impl Rootable for ArrayBuffer<'static> {
     type RootRepr = HeapRootRef;

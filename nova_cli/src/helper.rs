@@ -7,14 +7,9 @@ use nova_vm::engine::context::GcScope;
 use oxc_diagnostics::OxcDiagnostic;
 
 /// Initialize the global object with the built-in functions.
-pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcScope<'_, '_>) {
+pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcScope) {
     // `print` function
-    fn print(
-        agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Value> {
+    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList, gc: GcScope) -> JsResult<Value> {
         if args.len() == 0 {
             println!();
         } else {
@@ -28,7 +23,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         agent: &mut Agent,
         _: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         if args.len() != 1 {
             return Err(agent.throw_exception_with_static_message(
@@ -55,7 +50,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         agent: &mut Agent,
         _this: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let Value::ArrayBuffer(array_buffer) = args.get(0) else {
             return Err(agent.throw_exception_with_static_message(

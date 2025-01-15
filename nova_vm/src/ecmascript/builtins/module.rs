@@ -51,8 +51,8 @@ impl IntoValue for Module<'_> {
     }
 }
 
-impl IntoObject for Module<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Module<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -63,7 +63,7 @@ impl From<Module<'_>> for Value {
     }
 }
 
-impl From<Module<'_>> for Object {
+impl<'a> From<Module<'a>> for Object<'a> {
     fn from(val: Module) -> Self {
         Object::Module(val.unbind())
     }
@@ -141,7 +141,7 @@ impl Module<'_> {
     }
 }
 
-impl InternalSlots for Module<'_> {
+impl<'a> InternalSlots<'a> for Module<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -164,20 +164,20 @@ impl InternalSlots for Module<'_> {
 
     fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {}
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
         None
     }
 
     fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {}
 }
 
-impl InternalMethods for Module<'_> {
+impl<'a> InternalMethods<'a> for Module<'a> {
     /// ### [10.4.6.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-getprototypeof)
-    fn try_get_prototype_of(
+    fn try_get_prototype_of<'gc>(
         self,
         _: &mut Agent,
-        _: NoGcScope<'_, '_>,
-    ) -> TryResult<Option<Object>> {
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<Object<'gc>>> {
         TryResult::Continue(None)
     }
 
@@ -186,19 +186,19 @@ impl InternalMethods for Module<'_> {
         self,
         _: &mut Agent,
         prototype: Option<Object>,
-        _: NoGcScope<'_, '_>,
+        _: NoGcScope,
     ) -> TryResult<bool> {
         // This is what it all comes down to in the end.
         TryResult::Continue(prototype.is_none())
     }
 
     /// ### [10.4.6.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-isextensible)
-    fn try_is_extensible(self, _: &mut Agent, _: NoGcScope<'_, '_>) -> TryResult<bool> {
+    fn try_is_extensible(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
         TryResult::Continue(false)
     }
 
     /// ### [10.4.6.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-preventextensions)
-    fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope<'_, '_>) -> TryResult<bool> {
+    fn try_prevent_extensions(self, _: &mut Agent, _: NoGcScope) -> TryResult<bool> {
         TryResult::Continue(true)
     }
 
@@ -206,7 +206,7 @@ impl InternalMethods for Module<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -250,7 +250,7 @@ impl InternalMethods for Module<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Option<PropertyDescriptor>> {
         let property_key = property_key.bind(gc.nogc());
         match property_key {
@@ -295,7 +295,7 @@ impl InternalMethods for Module<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {
@@ -350,7 +350,7 @@ impl InternalMethods for Module<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         match property_key {
@@ -406,7 +406,7 @@ impl InternalMethods for Module<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
@@ -441,7 +441,7 @@ impl InternalMethods for Module<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
@@ -515,7 +515,7 @@ impl InternalMethods for Module<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let property_key = property_key.bind(gc.nogc());
 
@@ -601,7 +601,7 @@ impl InternalMethods for Module<'_> {
         _: PropertyKey,
         _: Value,
         _: Value,
-        _: NoGcScope<'_, '_>,
+        _: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(false)
     }
@@ -611,7 +611,7 @@ impl InternalMethods for Module<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match property_key {
             PropertyKey::Symbol(_) => {

@@ -156,7 +156,7 @@ impl SuspendedVm {
         agent: &mut Agent,
         executable: Executable,
         value: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> ExecutionResult {
         let vm = Vm::from_suspended(self);
         vm.resume(agent, executable, value, gc)
@@ -167,7 +167,7 @@ impl SuspendedVm {
         agent: &mut Agent,
         executable: Executable,
         err: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> ExecutionResult {
         // Optimisation: Avoid unsuspending the Vm if we're just going to throw
         // out of it immediately.
@@ -224,7 +224,7 @@ impl<'a> Vm {
         agent: &mut Agent,
         executable: Executable,
         arguments: Option<&[Value]>,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> ExecutionResult {
         let mut vm = Vm::new();
 
@@ -258,7 +258,7 @@ impl<'a> Vm {
         agent: &mut Agent,
         executable: Executable,
         value: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> ExecutionResult {
         self.result = Some(value);
         self.inner_execute(agent, executable, gc)
@@ -269,7 +269,7 @@ impl<'a> Vm {
         agent: &mut Agent,
         executable: Executable,
         err: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> ExecutionResult {
         let err = JsError::new(err);
         if !self.handle_error(agent, err) {
@@ -441,7 +441,9 @@ impl<'a> Vm {
                 vm.result = Some(match env_rec {
                     EnvironmentIndex::Declarative(_) => unreachable!(),
                     EnvironmentIndex::Function(idx) => idx.get_this_binding(agent, gc.nogc())?,
-                    EnvironmentIndex::Global(idx) => idx.get_this_binding(agent).into_value(),
+                    EnvironmentIndex::Global(idx) => {
+                        idx.get_this_binding(agent, gc.nogc()).into_value()
+                    }
                     EnvironmentIndex::Object(_) => unreachable!(),
                 });
             }
@@ -838,6 +840,7 @@ impl<'a> Vm {
                     agent,
                     Some(ProtoIntrinsics::Object),
                     None,
+                    gc.nogc(),
                 );
                 vm.stack.push(object.into())
             }
@@ -1018,7 +1021,7 @@ impl<'a> Vm {
                 }
                 set_function_name(agent, function, name, None, gc.nogc());
                 if !function_expression.r#async && !function_expression.generator {
-                    make_constructor(agent, function, None, None);
+                    make_constructor(agent, function, None, None, gc.nogc());
                 }
 
                 if function_expression.generator {
@@ -1036,6 +1039,7 @@ impl<'a> Vm {
                                 .generator_prototype()
                                 .into_object(),
                         ),
+                        gc.nogc(),
                     );
                     // 8. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
                     unwrap_try(try_define_property_or_throw(
@@ -1124,7 +1128,7 @@ impl<'a> Vm {
                     agent[function].compiled_bytecode = Some(compiled_bytecode);
                 }
                 set_function_name(agent, function, class_name.into(), None, gc.nogc());
-                make_constructor(agent, function, Some(false), Some(proto));
+                make_constructor(agent, function, Some(false), Some(proto), gc.nogc());
                 agent[function].ecmascript_function.home_object = Some(proto.into_object());
                 agent[function].ecmascript_function.constructor_status =
                     if has_constructor_parent || is_null_derived_class {
@@ -1406,11 +1410,13 @@ impl<'a> Vm {
                 // 6. Let result be ? Construct(func, argList, newTarget).
                 let result = construct(
                     agent,
-                    func,
+                    func.unbind(),
                     Some(ArgumentsList(&arg_list)),
                     Some(new_target),
                     gc.reborrow(),
-                )?;
+                )?
+                .unbind()
+                .bind(gc.nogc());
                 // 7. Let thisER be GetThisEnvironment().
                 let EnvironmentIndex::Function(this_er) = get_this_environment(agent) else {
                     unreachable!();
@@ -1826,7 +1832,14 @@ impl<'a> Vm {
                     None
                 };
                 let object = to_object(agent, vm.stack.pop().unwrap(), gc.nogc())?;
-                execute_simple_object_binding(agent, vm, executable, object, env, gc.reborrow())?
+                execute_simple_object_binding(
+                    agent,
+                    vm,
+                    executable,
+                    object.unbind(),
+                    env,
+                    gc.reborrow(),
+                )?
             }
             Instruction::BindingPatternBind
             | Instruction::BindingPatternBindNamed
@@ -1885,7 +1898,7 @@ impl<'a> Vm {
                         // TODO: Is this relevant?
                         // i. Set ref.[[ReferencedName]] to ? ToPropertyKey(ref.[[ReferencedName]]).
                         // e. Let deleteStatus be ? baseObj.[[Delete]](ref.[[ReferencedName]]).
-                        let delete_status = base_obj.internal_delete(
+                        let delete_status = base_obj.unbind().internal_delete(
                             agent,
                             refer.referenced_name,
                             gc.reborrow(),
@@ -2018,8 +2031,9 @@ impl<'a> Vm {
                 let Some(VmIterator::SliceIterator(slice)) = vm.iterator_stack.last() else {
                     unreachable!()
                 };
-                vm.result =
-                    Some(create_unmapped_arguments_object(agent, slice.get(), gc).into_value());
+                vm.result = Some(
+                    create_unmapped_arguments_object(agent, slice.get(), gc.nogc()).into_value(),
+                );
             }
             other => todo!("{other:?}"),
         }
@@ -2057,7 +2071,7 @@ fn apply_string_or_numeric_binary_operator(
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     let mut lnum: Numeric;
     let rnum: Numeric;
@@ -2322,7 +2336,7 @@ pub(crate) fn instanceof_operator(
     agent: &mut Agent,
     value: impl IntoValue,
     target: impl IntoValue,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     // 1. If target is not an Object, throw a TypeError exception.
     let Ok(target) = Object::try_from(target.into_value()) else {

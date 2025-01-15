@@ -70,8 +70,8 @@ impl IntoValue for EmbedderObject<'_> {
     }
 }
 
-impl IntoObject for EmbedderObject<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for EmbedderObject<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -82,13 +82,13 @@ impl From<EmbedderObject<'_>> for Value {
     }
 }
 
-impl From<EmbedderObject<'_>> for Object {
+impl<'a> From<EmbedderObject<'a>> for Object<'a> {
     fn from(val: EmbedderObject) -> Self {
         Object::EmbedderObject(val.unbind())
     }
 }
 
-impl InternalSlots for EmbedderObject<'_> {
+impl<'a> InternalSlots<'a> for EmbedderObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
         todo!();
@@ -109,7 +109,7 @@ impl InternalSlots for EmbedderObject<'_> {
         todo!();
     }
 
-    fn internal_prototype(self, _agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
         todo!();
     }
 
@@ -118,7 +118,7 @@ impl InternalSlots for EmbedderObject<'_> {
     }
 }
 
-impl InternalMethods for EmbedderObject<'_> {}
+impl<'a> InternalMethods<'a> for EmbedderObject<'a> {}
 
 impl Index<EmbedderObject<'_>> for Agent {
     type Output = EmbedderObjectHeapData;

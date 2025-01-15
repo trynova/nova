@@ -75,8 +75,8 @@ impl IntoValue for Function<'_> {
     }
 }
 
-impl IntoObject for Function<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Function<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -94,9 +94,9 @@ impl<'a> From<BoundFunction<'a>> for Function<'a> {
     }
 }
 
-impl TryFrom<Object> for Function<'_> {
+impl<'a> TryFrom<Object<'a>> for Function<'a> {
     type Error = ();
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::BoundFunction(d) => Ok(Function::BoundFunction(d)),
             Object::BuiltinFunction(d) => Ok(Function::BuiltinFunction(d)),
@@ -138,8 +138,8 @@ impl TryFrom<Value> for Function<'_> {
     }
 }
 
-impl From<Function<'_>> for Object {
-    fn from(value: Function) -> Self {
+impl<'a> From<Function<'a>> for Object<'a> {
+    fn from(value: Function<'a>) -> Self {
         match value {
             Function::BoundFunction(d) => Object::from(d),
             Function::BuiltinFunction(d) => Object::from(d),
@@ -219,7 +219,7 @@ impl<'a> Function<'a> {
     }
 }
 
-impl InternalSlots for Function<'_> {
+impl<'a> InternalSlots<'a> for Function<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
@@ -271,12 +271,12 @@ impl InternalSlots for Function<'_> {
     }
 }
 
-impl InternalMethods for Function<'_> {
-    fn try_get_prototype_of(
+impl<'a> InternalMethods<'a> for Function<'a> {
+    fn try_get_prototype_of<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> TryResult<Option<Object>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<Object<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_get_prototype_of(agent, gc),
             Function::BuiltinFunction(x) => x.try_get_prototype_of(agent, gc),
@@ -293,7 +293,7 @@ impl InternalMethods for Function<'_> {
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
@@ -309,7 +309,7 @@ impl InternalMethods for Function<'_> {
         }
     }
 
-    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> TryResult<bool> {
+    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_is_extensible(agent, gc),
             Function::BuiltinFunction(x) => x.try_is_extensible(agent, gc),
@@ -322,7 +322,7 @@ impl InternalMethods for Function<'_> {
         }
     }
 
-    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope<'_, '_>) -> TryResult<bool> {
+    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_prevent_extensions(agent, gc),
             Function::BuiltinFunction(x) => x.try_prevent_extensions(agent, gc),
@@ -339,7 +339,7 @@ impl InternalMethods for Function<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         match self {
             Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
@@ -362,7 +362,7 @@ impl InternalMethods for Function<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => {
@@ -390,7 +390,7 @@ impl InternalMethods for Function<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_has_property(agent, property_key, gc),
@@ -410,7 +410,7 @@ impl InternalMethods for Function<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         match self {
             Function::BoundFunction(x) => x.internal_has_property(agent, property_key, gc),
@@ -433,7 +433,7 @@ impl InternalMethods for Function<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         match self {
             Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
@@ -454,7 +454,7 @@ impl InternalMethods for Function<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         match self {
             Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
@@ -478,7 +478,7 @@ impl InternalMethods for Function<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
@@ -502,7 +502,7 @@ impl InternalMethods for Function<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         match self {
             Function::BoundFunction(x) => x.internal_set(agent, property_key, value, receiver, gc),
@@ -528,7 +528,7 @@ impl InternalMethods for Function<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
@@ -542,11 +542,11 @@ impl InternalMethods for Function<'_> {
         }
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         match self {
             Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
             Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),
@@ -564,7 +564,7 @@ impl InternalMethods for Function<'_> {
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         match self {
             Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments_list, gc),
@@ -586,13 +586,13 @@ impl InternalMethods for Function<'_> {
         }
     }
 
-    fn internal_construct(
+    fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
         new_target: Function,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Object> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Object<'gc>> {
         match self {
             Function::BoundFunction(x) => {
                 x.internal_construct(agent, arguments_list, new_target, gc)
@@ -650,7 +650,7 @@ impl Function<'_> {
         agent: &mut Agent,
         this_argument: Value,
         args: &[Value],
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         self.internal_call(agent, this_argument, ArgumentsList(args), gc)
     }

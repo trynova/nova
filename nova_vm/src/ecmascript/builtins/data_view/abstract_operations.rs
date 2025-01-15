@@ -257,7 +257,7 @@ pub(crate) fn set_view_value<T: Viewable>(
     // 6. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
     value: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.

@@ -85,27 +85,27 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let p = to_property_key(agent, arguments.get(0), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
         let o = to_object(agent, this_value, gc.nogc())?;
-        has_own_property(agent, o, p.unbind(), gc.reborrow()).map(|result| result.into())
+        has_own_property(agent, o.unbind(), p.unbind(), gc.reborrow()).map(|result| result.into())
     }
 
     fn is_prototype_of(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let v = arguments.get(0);
         let Ok(v) = Object::try_from(v) else {
             return Ok(false.into());
         };
         let o = to_object(agent, this_value, gc.nogc())?;
-        let result = is_prototype_of_loop(agent, o, v, gc)?;
+        let result = is_prototype_of_loop(agent, o.unbind(), v, gc)?;
         Ok(result.into())
     }
 
@@ -113,13 +113,15 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let p = to_property_key(agent, arguments.get(0), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
         let o = to_object(agent, this_value, gc.nogc())?;
-        let desc = o.internal_get_own_property(agent, p.unbind(), gc.reborrow())?;
+        let desc = o
+            .unbind()
+            .internal_get_own_property(agent, p.unbind(), gc.reborrow())?;
         if let Some(desc) = desc {
             Ok(desc.enumerable.unwrap_or(false).into())
         } else {
@@ -131,7 +133,7 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
@@ -142,7 +144,7 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         match this_value {
             // 1. If the this value is undefined, return "[object Undefined]".
@@ -202,7 +204,7 @@ impl ObjectPrototype {
                     let o = to_object(agent, this_value, gc.nogc()).unwrap();
                     let tag = get(
                         agent,
-                        o,
+                        o.unbind(),
                         WellKnownSymbolIndexes::ToStringTag.into(),
                         gc.reborrow(),
                     )?;
@@ -223,7 +225,7 @@ impl ObjectPrototype {
                 let o = to_object(agent, this_value, gc.nogc()).unwrap();
                 let tag = get(
                     agent,
-                    o,
+                    o.unbind(),
                     WellKnownSymbolIndexes::ToStringTag.into(),
                     gc.reborrow(),
                 )?;
@@ -243,7 +245,7 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         to_object(agent, this_value, gc.nogc()).map(|result| result.into_value())
     }

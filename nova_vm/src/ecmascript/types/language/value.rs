@@ -368,7 +368,7 @@ impl Value {
     // let value = value.bind(&gc);
     // ```
     // to make sure that the unbound Value cannot be used after binding.
-    pub fn bind(self, _gc: NoGcScope<'_, '_>) -> Self {
+    pub fn bind(self, _gc: NoGcScope) -> Self {
         self
     }
 
@@ -380,7 +380,7 @@ impl Value {
         Scoped::new(agent, self.unbind(), gc)
     }
 
-    pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'_, '_>) -> Value {
+    pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope) -> Value {
         String::from_str(agent, str, gc).into_value()
     }
 
@@ -392,7 +392,7 @@ impl Value {
         String::from_static_str(agent, str, gc).into_value()
     }
 
-    pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'_, '_>) -> Value {
+    pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope) -> Value {
         Number::from_f64(agent, value, gc).into_value()
     }
 
@@ -539,19 +539,19 @@ impl Value {
         to_numeric(agent, self, gc)
     }
 
-    pub fn to_int32(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<i32> {
+    pub fn to_int32(self, agent: &mut Agent, gc: GcScope) -> JsResult<i32> {
         to_int32(agent, self, gc)
     }
 
-    pub fn to_uint32(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<u32> {
+    pub fn to_uint32(self, agent: &mut Agent, gc: GcScope) -> JsResult<u32> {
         to_uint32(agent, self, gc)
     }
 
-    pub fn to_int16(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<i16> {
+    pub fn to_int16(self, agent: &mut Agent, gc: GcScope) -> JsResult<i16> {
         to_int16(agent, self, gc)
     }
 
-    pub fn to_uint16(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<u16> {
+    pub fn to_uint16(self, agent: &mut Agent, gc: GcScope) -> JsResult<u16> {
         to_uint16(agent, self, gc)
     }
 
@@ -602,7 +602,7 @@ impl Value {
     }
 
     /// ### [ℝ](https://tc39.es/ecma262/#%E2%84%9D)
-    pub fn to_real(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<f64> {
+    pub fn to_real(self, agent: &mut Agent, gc: GcScope) -> JsResult<f64> {
         Ok(match self {
             Value::Number(n) => agent[n],
             Value::Integer(i) => i.into_i64() as f64,

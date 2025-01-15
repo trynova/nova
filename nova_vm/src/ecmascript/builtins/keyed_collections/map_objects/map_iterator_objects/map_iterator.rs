@@ -80,13 +80,13 @@ impl IntoValue for MapIterator<'_> {
     }
 }
 
-impl IntoObject for MapIterator<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for MapIterator<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl From<MapIterator<'_>> for Object {
+impl<'a> From<MapIterator<'a>> for Object<'a> {
     fn from(value: MapIterator) -> Self {
         Self::MapIterator(value.unbind())
     }
@@ -109,10 +109,10 @@ impl TryFrom<Value> for MapIterator<'_> {
     }
 }
 
-impl TryFrom<Object> for MapIterator<'_> {
+impl<'a> TryFrom<Object<'a>> for MapIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::MapIterator(data) => Ok(data),
             _ => Err(()),
@@ -120,7 +120,7 @@ impl TryFrom<Object> for MapIterator<'_> {
     }
 }
 
-impl InternalSlots for MapIterator<'_> {
+impl<'a> InternalSlots<'a> for MapIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::MapIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -135,7 +135,7 @@ impl InternalSlots for MapIterator<'_> {
     }
 }
 
-impl InternalMethods for MapIterator<'_> {}
+impl<'a> InternalMethods<'a> for MapIterator<'a> {}
 
 impl Index<MapIterator<'_>> for Agent {
     type Output = MapIteratorHeapData;

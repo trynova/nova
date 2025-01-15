@@ -26,7 +26,7 @@ use super::property_builder::{self, PropertyBuilder};
 pub struct NoPrototype;
 
 #[derive(Clone, Copy)]
-pub struct CreatorPrototype(Option<Object>);
+pub struct CreatorPrototype(Option<Object<'static>>);
 
 #[derive(Default, Clone, Copy)]
 pub struct NoLength;
@@ -187,7 +187,7 @@ impl<'agent, L, N, B, Pr> BuiltinFunctionBuilder<'agent, NoPrototype, L, N, B, P
     #[must_use]
     pub fn with_prototype(
         self,
-        prototype: Object,
+        prototype: Object<'static>,
     ) -> BuiltinFunctionBuilder<'agent, CreatorPrototype, L, N, B, Pr> {
         let object_index = if prototype
             != self
@@ -451,7 +451,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     }
 
     #[must_use]
-    pub fn with_prototype_property(mut self, prototype: Object) -> Self {
+    pub fn with_prototype_property(mut self, prototype: Object<'static>) -> Self {
         let property = PropertyBuilder::new(self.agent)
             .with_configurable(false)
             .with_enumerable(false)

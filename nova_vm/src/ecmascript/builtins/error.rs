@@ -79,13 +79,13 @@ impl From<Error<'_>> for Value {
     }
 }
 
-impl IntoObject for Error<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Error<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl From<Error<'_>> for Object {
+impl<'a> From<Error<'a>> for Object<'a> {
     fn from(value: Error) -> Self {
         Object::Error(value.unbind())
     }
@@ -102,10 +102,10 @@ impl TryFrom<Value> for Error<'_> {
     }
 }
 
-impl TryFrom<Object> for Error<'_> {
+impl<'a> TryFrom<Object<'a>> for Error<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, ()> {
+    fn try_from(value: Object<'a>) -> Result<Self, ()> {
         match value {
             Object::Error(idx) => Ok(idx),
             _ => Err(()),
@@ -113,7 +113,7 @@ impl TryFrom<Object> for Error<'_> {
     }
 }
 
-impl InternalSlots for Error<'_> {
+impl<'a> InternalSlots<'a> for Error<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Error;
 
     #[inline(always)]
@@ -171,7 +171,7 @@ impl InternalSlots for Error<'_> {
         backing_object
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
@@ -195,12 +195,12 @@ impl InternalSlots for Error<'_> {
     }
 }
 
-impl InternalMethods for Error<'_> {
+impl<'a> InternalMethods<'a> for Error<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get_own_property(agent, property_key, gc),
@@ -229,7 +229,7 @@ impl InternalMethods for Error<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_has_property(agent, property_key, gc),
@@ -249,7 +249,7 @@ impl InternalMethods for Error<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
@@ -273,7 +273,7 @@ impl InternalMethods for Error<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get(agent, property_key, receiver, gc),
@@ -303,7 +303,7 @@ impl InternalMethods for Error<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
@@ -326,7 +326,9 @@ impl InternalMethods for Error<'_> {
                     // Note: Error is never a prototype so [[GetPrototypeOf]]
                     // cannot call user code.
                     // c. Return ? parent.[[Get]](P, Receiver).
-                    parent.internal_get(agent, property_key.unbind(), receiver, gc)
+                    parent
+                        .unbind()
+                        .internal_get(agent, property_key.unbind(), receiver, gc)
                 } else {
                     Ok(Value::Undefined)
                 }
@@ -340,7 +342,7 @@ impl InternalMethods for Error<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -369,7 +371,7 @@ impl InternalMethods for Error<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
@@ -397,7 +399,7 @@ impl InternalMethods for Error<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self.get_backing_object(agent) {
             Some(backing_object) => TryResult::Continue(unwrap_try(backing_object.try_delete(
@@ -416,11 +418,11 @@ impl InternalMethods for Error<'_> {
         }
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => {
                 TryResult::Continue(unwrap_try(backing_object.try_own_property_keys(agent, gc)))

@@ -71,7 +71,7 @@ use crate::{
 pub fn heap_gc(
     agent: &mut Agent,
     root_realms: &mut [Option<RealmIdentifier>],
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) {
     let Agent {
         heap,
@@ -1003,7 +1003,7 @@ fn sweep(
     agent: &mut Agent,
     bits: &HeapBits,
     root_realms: &mut [Option<RealmIdentifier>],
-    _: GcScope<'_, '_>,
+    _: GcScope,
 ) {
     let compactions = CompactionLists::create_from_bits(bits);
 
