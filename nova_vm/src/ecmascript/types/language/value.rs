@@ -165,7 +165,7 @@ pub enum Value {
     FinalizationRegistry(FinalizationRegistry<'static>),
     Map(Map<'static>),
     Promise(Promise<'static>),
-    Proxy(Proxy),
+    Proxy(Proxy<'static>),
     #[cfg(feature = "regexp")]
     RegExp(RegExp<'static>),
     Set(Set<'static>),
