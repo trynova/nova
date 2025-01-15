@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, length_of_array_like},
+            operations_on_objects::{get, length_of_array_like, set, try_set},
             type_conversion::to_index,
         },
         builtins::{
@@ -24,11 +24,14 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, Object, PropertyKey, U8Clamped,
+            Function, InternalSlots, IntoFunction, IntoObject, Object, PropertyKey, U8Clamped,
             Value, Viewable,
         },
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{GcScope, NoGcScope},
+        unwrap_try,
+    },
     heap::indexes::TypedArrayIndex,
     SmallInteger,
 };
@@ -71,8 +74,8 @@ impl From<CachedBufferByteLength> for Option<usize> {
     }
 }
 
-pub(crate) struct TypedArrayWithBufferWitnessRecords {
-    pub object: TypedArray,
+pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
+    pub object: TypedArray<'a>,
     pub cached_buffer_byte_length: CachedBufferByteLength,
 }
 
@@ -81,12 +84,12 @@ pub(crate) struct TypedArrayWithBufferWitnessRecords {
 /// The abstract operation MakeTypedArrayWithBufferWitnessRecord takes arguments
 /// obj (a TypedArray) and order (seq-cst or unordered) and returns a TypedArray
 /// With Buffer Witness Record.
-pub(crate) fn make_typed_array_with_buffer_witness_record(
+pub(crate) fn make_typed_array_with_buffer_witness_record<'a>(
     agent: &mut Agent,
     obj: TypedArray,
     order: Ordering,
-    gc: NoGcScope,
-) -> TypedArrayWithBufferWitnessRecords {
+    gc: NoGcScope<'a, '_>,
+) -> TypedArrayWithBufferWitnessRecords<'a> {
     // 1. Let buffer be obj.[[ViewedArrayBuffer]].
     let buffer = obj.get_viewed_array_buffer(agent, gc);
 
@@ -102,7 +105,7 @@ pub(crate) fn make_typed_array_with_buffer_witness_record(
 
     // 4. Return the TypedArray With Buffer Witness Record { [[Object]]: obj, [[CachedBufferByteLength]]: byteLength }.
     TypedArrayWithBufferWitnessRecords {
-        object: obj,
+        object: obj.bind(gc),
         cached_buffer_byte_length: byte_length,
     }
 }
@@ -111,10 +114,11 @@ pub(crate) fn make_typed_array_with_buffer_witness_record(
 ///
 /// The abstract operation TypedArrayCreate takes argument prototype (an Object)
 /// and returns a TypedArray. It is used to specify the creation of new TypedArrays.
-pub(crate) fn typed_array_create<T: Viewable>(
+pub(crate) fn typed_array_create<'a, T: Viewable>(
     agent: &mut Agent,
     prototype: Option<Object>,
-) -> TypedArray {
+    gc: NoGcScope<'a, '_>,
+) -> TypedArray<'a> {
     // 1. Let internalSlotsList be « [[Prototype]], [[Extensible]], [[ViewedArrayBuffer]], [[TypedArrayName]], [[ContentType]], [[ByteLength]], [[ByteOffset]], [[ArrayLength]] ».
     // 2. Let A be MakeBasicObject(internalSlotsList).
     // 3. Set A.[[GetOwnProperty]] as specified in 10.4.5.1.
@@ -150,7 +154,7 @@ pub(crate) fn typed_array_create<T: Viewable>(
         a.internal_set_prototype(agent, prototype);
     }
 
-    a
+    a.bind(gc)
 }
 
 /// ### [10.4.5.11 TypedArrayByteLength ( taRecord )](https://tc39.es/ecma262/#sec-typedarraybytelength)
@@ -287,12 +291,12 @@ pub(crate) fn is_typed_array_out_of_bounds<T: Viewable>(
 /// language value) and order (seq-cst or unordered) and returns either a normal
 /// completion containing a TypedArray With Buffer Witness Record or a throw
 /// completion.
-pub(crate) fn validate_typed_array(
+pub(crate) fn validate_typed_array<'a>(
     agent: &mut Agent,
     o: Value,
     order: Ordering,
-    gc: NoGcScope,
-) -> JsResult<TypedArrayWithBufferWitnessRecords> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<TypedArrayWithBufferWitnessRecords<'a>> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
     let o = require_internal_slot_typed_array(agent, o, gc)?;
     // 2. Assert: O has a [[ViewedArrayBuffer]] internal slot.
@@ -336,20 +340,21 @@ pub(crate) fn validate_typed_array(
 /// passed, an ArrayBuffer of that length is also allocated and associated with
 /// the new TypedArray instance. AllocateTypedArray provides common semantics
 /// that is used by TypedArray.
-pub(crate) fn allocate_typed_array<T: Viewable>(
+pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     agent: &mut Agent,
     new_target: Function,
     default_proto: ProtoIntrinsics,
     length: Option<usize>,
-    mut gc: GcScope,
-) -> JsResult<TypedArray> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
     let new_target = new_target.bind(gc.nogc());
     // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
     let proto =
         get_prototype_from_constructor(agent, new_target.unbind(), default_proto, gc.reborrow())?;
 
     // 2. Let obj be TypedArrayCreate(proto).
-    let obj = typed_array_create::<T>(agent, proto);
+    let gc = gc.into_nogc();
+    let obj = typed_array_create::<T>(agent, proto, gc);
 
     // NOTE: Steps 3-7 are skipped, it's the defaults for TypedArrayHeapData.
     // 3. Assert: obj.[[ViewedArrayBuffer]] is undefined.
@@ -364,7 +369,7 @@ pub(crate) fn allocate_typed_array<T: Viewable>(
     if let Some(length) = length {
         // 8. Else,
         // a. Perform ? AllocateTypedArrayBuffer(obj, length).
-        allocate_typed_array_buffer::<T>(agent, obj, length, gc.nogc())?;
+        allocate_typed_array_buffer::<T>(agent, obj, length, gc)?;
     }
 
     // 9. Return obj.
@@ -512,6 +517,8 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
     length: Option<Value>,
     mut gc: GcScope,
 ) -> JsResult<()> {
+    let o = o.bind(gc.nogc());
+    let scoped_o = o.scope(agent, gc.nogc());
     let buffer = buffer.bind(gc.nogc());
     let scoped_buffer = buffer.scope(agent, gc.nogc());
     // 1. Let elementSize be TypedArrayElementSize(O).
@@ -557,6 +564,7 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
     // 7. Let bufferByteLength be ArrayBufferByteLength(buffer, seq-cst).
     let buffer_byte_length = array_buffer_byte_length(agent, buffer, Ordering::SeqCst);
 
+    let o = scoped_o.get(agent).bind(gc.nogc());
     let o_heap_data = &mut agent[o];
 
     // 8. If length is undefined and bufferIsFixedLength is false, then
@@ -640,9 +648,12 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
     values: Vec<Value>,
     mut gc: GcScope,
 ) -> JsResult<()> {
+    let mut o = o.bind(gc.nogc());
     // 1. Let len be the number of elements in values.
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
     allocate_typed_array_buffer::<T>(agent, o, values.len(), gc.nogc())?;
+
+    let scoped_o = o.scope(agent, gc.nogc());
 
     // 3. Let k be 0.
     // 4. Repeat, while k < len,
@@ -653,7 +664,19 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
         // d. Perform ? Set(O, Pk, kValue, true).
-        o.internal_set(agent, pk, k_value, Value::Boolean(true), gc.reborrow())?;
+        if k_value.is_numeric() {
+            unwrap_try(try_set(
+                agent,
+                o.into_object(),
+                pk,
+                k_value,
+                true,
+                gc.nogc(),
+            ))?;
+        } else {
+            set(agent, o.into_object(), pk, k_value, true, gc.reborrow())?;
+            o = scoped_o.get(agent).bind(gc.nogc());
+        }
     }
 
     // 5. Assert: values is now an empty List.
@@ -673,11 +696,12 @@ pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
     array_like: Object,
     mut gc: GcScope,
 ) -> JsResult<()> {
+    let o = o.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let len be ? LengthOfArrayLike(arrayLike).
     let len = length_of_array_like(agent, array_like, gc.reborrow())? as usize;
 
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
-    allocate_typed_array_buffer::<T>(agent, o, len, gc.nogc())?;
+    allocate_typed_array_buffer::<T>(agent, o.get(agent), len, gc.nogc())?;
 
     // 3. Let k be 0.
     let mut k = 0;
@@ -688,7 +712,14 @@ pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
         // b. Let kValue be ? Get(arrayLike, Pk).
         let k_value = get(agent, array_like, pk, gc.reborrow())?;
         // c. Perform ? Set(O, Pk, kValue, true).
-        o.internal_set(agent, pk, k_value, Value::Boolean(true), gc.reborrow())?;
+        set(
+            agent,
+            o.get(agent).into_object(),
+            pk,
+            k_value,
+            true,
+            gc.reborrow(),
+        )?;
         // d. Set k to k + 1.
         k += 1;
     }
@@ -741,11 +772,17 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
     let is_heap_array_length = o_heap_data.array_length == TypedArrayArrayLength::heap();
 
     if is_heap_byte_length {
-        agent.heap.typed_array_byte_offsets.insert(o, byte_length);
+        agent
+            .heap
+            .typed_array_byte_offsets
+            .insert(o.unbind(), byte_length);
     }
 
     if is_heap_array_length {
-        agent.heap.typed_array_array_lengths.insert(o, length);
+        agent
+            .heap
+            .typed_array_array_lengths
+            .insert(o.unbind(), length);
     }
 
     // 9. Return unused.

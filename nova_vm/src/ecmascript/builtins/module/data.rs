@@ -7,7 +7,6 @@ use small_string::SmallString;
 use crate::{
     ecmascript::{
         execution::{ModuleEnvironmentIndex, RealmIdentifier},
-        scripts_and_modules::module::ModuleIdentifier,
         types::{HeapString, OrdinaryObject, PropertyKey, String},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -37,7 +36,7 @@ pub(crate) struct ModuleRecord {
     ///
     /// The Module Namespace Object (28.3) if one has been created for this
     /// module.
-    namespace: Option<Module>,
+    namespace: Option<Module<'static>>,
     /// \[\[HostDefined]]
     ///
     /// Field reserved for use by host environments that need to associate
@@ -55,7 +54,7 @@ pub(crate) enum ResolvedBindingName {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ResolvedBinding {
     /// \[\[Module]]
-    pub(super) module: Option<ModuleIdentifier>,
+    pub(super) module: Option<Module<'static>>,
     /// \[\[BindingName]]
     pub(super) binding_name: ResolvedBindingName,
 }

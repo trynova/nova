@@ -146,11 +146,11 @@ pub struct Heap {
     #[cfg(feature = "array-buffer")]
     pub typed_arrays: Vec<Option<TypedArrayHeapData>>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_byte_lengths: AHashMap<TypedArray, usize>,
+    pub typed_array_byte_lengths: AHashMap<TypedArray<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_byte_offsets: AHashMap<TypedArray, usize>,
+    pub typed_array_byte_offsets: AHashMap<TypedArray<'static>, usize>,
     #[cfg(feature = "array-buffer")]
-    pub typed_array_array_lengths: AHashMap<TypedArray, usize>,
+    pub typed_array_array_lengths: AHashMap<TypedArray<'static>, usize>,
     #[cfg(feature = "weak-refs")]
     pub weak_maps: Vec<Option<WeakMapHeapData>>,
     #[cfg(feature = "weak-refs")]
@@ -280,7 +280,7 @@ impl Heap {
         heap
     }
 
-    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> ModuleIdentifier {
+    pub(crate) fn add_module(&mut self, module: ModuleHeapData) -> ModuleIdentifier<'static> {
         self.modules.push(Some(module));
         ModuleIdentifier::last(&self.modules)
     }

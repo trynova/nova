@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::SharedArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -23,9 +24,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct SharedArrayBuffer(pub(crate) SharedArrayBufferIndex);
+pub struct SharedArrayBuffer<'a>(pub(crate) SharedArrayBufferIndex<'a>);
 
-impl SharedArrayBuffer {
+impl SharedArrayBuffer<'_> {
+    /// Unbind this SharedArrayBuffer from its current lifetime. This is necessary to use
+    /// the SharedArrayBuffer as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> SharedArrayBuffer<'static> {
+        unsafe { std::mem::transmute::<Self, SharedArrayBuffer<'static>>(self) }
+    }
+
+    // Bind this SharedArrayBuffer to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your SharedArrayBuffers cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let shared_array_buffer = shared_array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound SharedArrayBuffer cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> SharedArrayBuffer<'gc> {
+        unsafe { std::mem::transmute::<Self, SharedArrayBuffer<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, SharedArrayBuffer<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0))
     }
@@ -35,43 +64,31 @@ impl SharedArrayBuffer {
     }
 }
 
-impl From<SharedArrayBuffer> for SharedArrayBufferIndex {
-    fn from(val: SharedArrayBuffer) -> Self {
-        val.0
-    }
-}
-
-impl From<SharedArrayBufferIndex> for SharedArrayBuffer {
-    fn from(value: SharedArrayBufferIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for SharedArrayBuffer {
+impl IntoValue for SharedArrayBuffer<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for SharedArrayBuffer {
+impl IntoObject for SharedArrayBuffer<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<SharedArrayBuffer> for Value {
+impl From<SharedArrayBuffer<'_>> for Value {
     fn from(val: SharedArrayBuffer) -> Self {
-        Value::SharedArrayBuffer(val)
+        Value::SharedArrayBuffer(val.unbind())
     }
 }
 
-impl From<SharedArrayBuffer> for Object {
+impl From<SharedArrayBuffer<'_>> for Object {
     fn from(val: SharedArrayBuffer) -> Self {
-        Object::SharedArrayBuffer(val)
+        Object::SharedArrayBuffer(val.unbind())
     }
 }
 
-impl Index<SharedArrayBuffer> for Agent {
+impl Index<SharedArrayBuffer<'_>> for Agent {
     type Output = SharedArrayBufferHeapData;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
@@ -79,13 +96,13 @@ impl Index<SharedArrayBuffer> for Agent {
     }
 }
 
-impl IndexMut<SharedArrayBuffer> for Agent {
+impl IndexMut<SharedArrayBuffer<'_>> for Agent {
     fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
         &mut self.heap.shared_array_buffers[index]
     }
 }
 
-impl Index<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
+impl Index<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData>> {
     type Output = SharedArrayBufferHeapData;
 
     fn index(&self, index: SharedArrayBuffer) -> &Self::Output {
@@ -96,7 +113,7 @@ impl Index<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
     }
 }
 
-impl IndexMut<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
+impl IndexMut<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData>> {
     fn index_mut(&mut self, index: SharedArrayBuffer) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("SharedArrayBuffer out of bounds")
@@ -105,7 +122,7 @@ impl IndexMut<SharedArrayBuffer> for Vec<Option<SharedArrayBufferHeapData>> {
     }
 }
 
-impl InternalSlots for SharedArrayBuffer {
+impl InternalSlots for SharedArrayBuffer<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SharedArrayBuffer;
 
     #[inline(always)]
@@ -121,9 +138,22 @@ impl InternalSlots for SharedArrayBuffer {
     }
 }
 
-impl InternalMethods for SharedArrayBuffer {}
+impl InternalMethods for SharedArrayBuffer<'_> {}
 
-impl HeapMarkAndSweep for SharedArrayBuffer {
+impl TryFrom<HeapRootData> for SharedArrayBuffer<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::SharedArrayBuffer(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl HeapMarkAndSweep for SharedArrayBuffer<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.shared_array_buffers.push(*self);
     }
@@ -133,8 +163,8 @@ impl HeapMarkAndSweep for SharedArrayBuffer {
     }
 }
 
-impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer> for Heap {
-    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer {
+impl CreateHeapData<SharedArrayBufferHeapData, SharedArrayBuffer<'static>> for Heap {
+    fn create(&mut self, data: SharedArrayBufferHeapData) -> SharedArrayBuffer<'static> {
         self.shared_array_buffers.push(Some(data));
         SharedArrayBuffer(SharedArrayBufferIndex::last(&self.shared_array_buffers))
     }

@@ -15,6 +15,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::SetIteratorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -22,9 +23,37 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SetIterator(SetIteratorIndex);
+pub struct SetIterator<'a>(SetIteratorIndex<'a>);
 
-impl SetIterator {
+impl SetIterator<'_> {
+    /// Unbind this SetIterator from its current lifetime. This is necessary to use
+    /// the SetIterator as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> SetIterator<'static> {
+        unsafe { std::mem::transmute::<Self, SetIterator<'static>>(self) }
+    }
+
+    // Bind this SetIterator to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your SetIterators cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let set_iterator = set_iterator.bind(&gc);
+    // ```
+    // to make sure that the unbound SetIterator cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> SetIterator<'gc> {
+        unsafe { std::mem::transmute::<Self, SetIterator<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, SetIterator<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -38,44 +67,38 @@ impl SetIterator {
     pub(crate) fn from_set(agent: &mut Agent, set: Set, kind: CollectionIteratorKind) -> Self {
         agent.heap.create(SetIteratorHeapData {
             object_index: None,
-            set: Some(set),
+            set: Some(set.unbind()),
             next_index: 0,
             kind,
         })
     }
 }
 
-impl IntoValue for SetIterator {
+impl IntoValue for SetIterator<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for SetIterator {
+impl IntoObject for SetIterator<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<SetIteratorIndex> for SetIterator {
-    fn from(value: SetIteratorIndex) -> Self {
-        SetIterator(value)
-    }
-}
-
-impl From<SetIterator> for Object {
+impl From<SetIterator<'_>> for Object {
     fn from(value: SetIterator) -> Self {
-        Self::SetIterator(value)
+        Self::SetIterator(value.unbind())
     }
 }
 
-impl From<SetIterator> for Value {
+impl From<SetIterator<'_>> for Value {
     fn from(value: SetIterator) -> Self {
-        Self::SetIterator(value)
+        Self::SetIterator(value.unbind())
     }
 }
 
-impl TryFrom<Value> for SetIterator {
+impl TryFrom<Value> for SetIterator<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -86,7 +109,7 @@ impl TryFrom<Value> for SetIterator {
     }
 }
 
-impl TryFrom<Object> for SetIterator {
+impl TryFrom<Object> for SetIterator<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -97,7 +120,7 @@ impl TryFrom<Object> for SetIterator {
     }
 }
 
-impl InternalSlots for SetIterator {
+impl InternalSlots for SetIterator<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SetIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -112,9 +135,9 @@ impl InternalSlots for SetIterator {
     }
 }
 
-impl InternalMethods for SetIterator {}
+impl InternalMethods for SetIterator<'_> {}
 
-impl Index<SetIterator> for Agent {
+impl Index<SetIterator<'_>> for Agent {
     type Output = SetIteratorHeapData;
 
     fn index(&self, index: SetIterator) -> &Self::Output {
@@ -122,13 +145,13 @@ impl Index<SetIterator> for Agent {
     }
 }
 
-impl IndexMut<SetIterator> for Agent {
+impl IndexMut<SetIterator<'_>> for Agent {
     fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
         &mut self.heap.set_iterators[index]
     }
 }
 
-impl Index<SetIterator> for Vec<Option<SetIteratorHeapData>> {
+impl Index<SetIterator<'_>> for Vec<Option<SetIteratorHeapData>> {
     type Output = SetIteratorHeapData;
 
     fn index(&self, index: SetIterator) -> &Self::Output {
@@ -139,7 +162,7 @@ impl Index<SetIterator> for Vec<Option<SetIteratorHeapData>> {
     }
 }
 
-impl IndexMut<SetIterator> for Vec<Option<SetIteratorHeapData>> {
+impl IndexMut<SetIterator<'_>> for Vec<Option<SetIteratorHeapData>> {
     fn index_mut(&mut self, index: SetIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("SetIterator out of bounds")
@@ -148,14 +171,27 @@ impl IndexMut<SetIterator> for Vec<Option<SetIteratorHeapData>> {
     }
 }
 
-impl CreateHeapData<SetIteratorHeapData, SetIterator> for Heap {
-    fn create(&mut self, data: SetIteratorHeapData) -> SetIterator {
-        self.set_iterators.push(Some(data));
-        SetIterator::from(SetIteratorIndex::last(&self.set_iterators))
+impl TryFrom<HeapRootData> for SetIterator<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::SetIterator(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
     }
 }
 
-impl HeapMarkAndSweep for SetIterator {
+impl CreateHeapData<SetIteratorHeapData, SetIterator<'static>> for Heap {
+    fn create(&mut self, data: SetIteratorHeapData) -> SetIterator<'static> {
+        self.set_iterators.push(Some(data));
+        SetIterator(SetIteratorIndex::last(&self.set_iterators))
+    }
+}
+
+impl HeapMarkAndSweep for SetIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.set_iterators.push(*self);
     }
@@ -168,7 +204,7 @@ impl HeapMarkAndSweep for SetIterator {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SetIteratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) set: Option<Set>,
+    pub(crate) set: Option<Set<'static>>,
     pub(crate) next_index: usize,
     pub(crate) kind: CollectionIteratorKind,
 }

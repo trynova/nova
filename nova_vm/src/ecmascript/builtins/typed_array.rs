@@ -18,7 +18,7 @@ use crate::{
             UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    engine::context::NoGcScope,
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::{IntoBaseIndex, TypedArrayIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -37,21 +37,49 @@ pub mod data;
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(u8)]
-pub enum TypedArray {
-    Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
-    Uint8Array(TypedArrayIndex) = UINT_8_ARRAY_DISCRIMINANT,
-    Uint8ClampedArray(TypedArrayIndex) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
-    Int16Array(TypedArrayIndex) = INT_16_ARRAY_DISCRIMINANT,
-    Uint16Array(TypedArrayIndex) = UINT_16_ARRAY_DISCRIMINANT,
-    Int32Array(TypedArrayIndex) = INT_32_ARRAY_DISCRIMINANT,
-    Uint32Array(TypedArrayIndex) = UINT_32_ARRAY_DISCRIMINANT,
-    BigInt64Array(TypedArrayIndex) = BIGINT_64_ARRAY_DISCRIMINANT,
-    BigUint64Array(TypedArrayIndex) = BIGUINT_64_ARRAY_DISCRIMINANT,
-    Float32Array(TypedArrayIndex) = FLOAT_32_ARRAY_DISCRIMINANT,
-    Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
+pub enum TypedArray<'a> {
+    Int8Array(TypedArrayIndex<'a>) = INT_8_ARRAY_DISCRIMINANT,
+    Uint8Array(TypedArrayIndex<'a>) = UINT_8_ARRAY_DISCRIMINANT,
+    Uint8ClampedArray(TypedArrayIndex<'a>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    Int16Array(TypedArrayIndex<'a>) = INT_16_ARRAY_DISCRIMINANT,
+    Uint16Array(TypedArrayIndex<'a>) = UINT_16_ARRAY_DISCRIMINANT,
+    Int32Array(TypedArrayIndex<'a>) = INT_32_ARRAY_DISCRIMINANT,
+    Uint32Array(TypedArrayIndex<'a>) = UINT_32_ARRAY_DISCRIMINANT,
+    BigInt64Array(TypedArrayIndex<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
+    BigUint64Array(TypedArrayIndex<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
+    Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
 }
 
-impl TypedArray {
+impl TypedArray<'_> {
+    /// Unbind this TypedArray from its current lifetime. This is necessary to use
+    /// the TypedArray as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> TypedArray<'static> {
+        unsafe { std::mem::transmute::<Self, TypedArray<'static>>(self) }
+    }
+
+    // Bind this TypedArray to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your TypedArrays cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let typed_array = typed_array.bind(&gc);
+    // ```
+    // to make sure that the unbound TypedArray cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> TypedArray<'gc> {
+        unsafe { std::mem::transmute::<Self, TypedArray<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, TypedArray<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) fn get_index(self) -> usize {
         match self {
             TypedArray::Int8Array(index)
@@ -112,20 +140,32 @@ impl TypedArray {
     }
 }
 
-impl From<TypedArrayIndex> for TypedArray {
-    fn from(value: TypedArrayIndex) -> Self {
+impl<'a> From<TypedArrayIndex<'a>> for TypedArray<'a> {
+    fn from(value: TypedArrayIndex<'a>) -> Self {
         TypedArray::Uint8Array(value)
     }
 }
 
-impl IntoBaseIndex<'_, TypedArrayHeapData> for TypedArray {
-    fn into_base_index(self) -> TypedArrayIndex {
-        self.into()
+impl<'a> IntoBaseIndex<'a, TypedArrayHeapData> for TypedArray<'a> {
+    fn into_base_index(self) -> TypedArrayIndex<'a> {
+        match self {
+            TypedArray::Int8Array(i)
+            | TypedArray::Uint8Array(i)
+            | TypedArray::Uint8ClampedArray(i)
+            | TypedArray::Int16Array(i)
+            | TypedArray::Uint16Array(i)
+            | TypedArray::Int32Array(i)
+            | TypedArray::Uint32Array(i)
+            | TypedArray::BigInt64Array(i)
+            | TypedArray::BigUint64Array(i)
+            | TypedArray::Float32Array(i)
+            | TypedArray::Float64Array(i) => i,
+        }
     }
 }
 
-impl From<TypedArray> for TypedArrayIndex {
-    fn from(val: TypedArray) -> Self {
+impl<'a> From<TypedArray<'a>> for TypedArrayIndex<'a> {
+    fn from(val: TypedArray<'a>) -> Self {
         match val {
             TypedArray::Int8Array(idx)
             | TypedArray::Uint8Array(idx)
@@ -142,21 +182,21 @@ impl From<TypedArray> for TypedArrayIndex {
     }
 }
 
-impl IntoValue for TypedArray {
+impl IntoValue for TypedArray<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for TypedArray {
+impl IntoObject for TypedArray<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<TypedArray> for Value {
+impl From<TypedArray<'_>> for Value {
     fn from(val: TypedArray) -> Self {
-        match val {
+        match val.unbind() {
             TypedArray::Int8Array(idx) => Value::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Value::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Value::Uint8ClampedArray(idx),
@@ -172,9 +212,9 @@ impl From<TypedArray> for Value {
     }
 }
 
-impl From<TypedArray> for Object {
+impl From<TypedArray<'_>> for Object {
     fn from(val: TypedArray) -> Self {
-        match val {
+        match val.unbind() {
             TypedArray::Int8Array(idx) => Object::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Object::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Object::Uint8ClampedArray(idx),
@@ -190,7 +230,7 @@ impl From<TypedArray> for Object {
     }
 }
 
-impl TryFrom<Value> for TypedArray {
+impl TryFrom<Value> for TypedArray<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -211,7 +251,7 @@ impl TryFrom<Value> for TypedArray {
     }
 }
 
-impl Index<TypedArray> for Agent {
+impl Index<TypedArray<'_>> for Agent {
     type Output = TypedArrayHeapData;
 
     fn index(&self, index: TypedArray) -> &Self::Output {
@@ -219,13 +259,13 @@ impl Index<TypedArray> for Agent {
     }
 }
 
-impl IndexMut<TypedArray> for Agent {
+impl IndexMut<TypedArray<'_>> for Agent {
     fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
         &mut self.heap.typed_arrays[index]
     }
 }
 
-impl Index<TypedArray> for Vec<Option<TypedArrayHeapData>> {
+impl Index<TypedArray<'_>> for Vec<Option<TypedArrayHeapData>> {
     type Output = TypedArrayHeapData;
 
     fn index(&self, index: TypedArray) -> &Self::Output {
@@ -236,7 +276,7 @@ impl Index<TypedArray> for Vec<Option<TypedArrayHeapData>> {
     }
 }
 
-impl IndexMut<TypedArray> for Vec<Option<TypedArrayHeapData>> {
+impl IndexMut<TypedArray<'_>> for Vec<Option<TypedArrayHeapData>> {
     fn index_mut(&mut self, index: TypedArray) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("TypedArray out of bounds")
@@ -245,7 +285,7 @@ impl IndexMut<TypedArray> for Vec<Option<TypedArrayHeapData>> {
     }
 }
 
-impl InternalSlots for TypedArray {
+impl InternalSlots for TypedArray<'_> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -281,17 +321,40 @@ impl InternalSlots for TypedArray {
     }
 }
 
-impl InternalMethods for TypedArray {}
+impl InternalMethods for TypedArray<'_> {}
 
-impl CreateHeapData<TypedArrayHeapData, TypedArray> for Heap {
-    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray {
+impl TryFrom<HeapRootData> for TypedArray<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        match value {
+            HeapRootData::Int8Array(ta) => Ok(Self::Int8Array(ta)),
+            HeapRootData::Uint8Array(ta) => Ok(Self::Uint8Array(ta)),
+            HeapRootData::Uint8ClampedArray(ta) => Ok(Self::Uint8ClampedArray(ta)),
+            HeapRootData::Int16Array(ta) => Ok(Self::Int16Array(ta)),
+            HeapRootData::Uint16Array(ta) => Ok(Self::Uint16Array(ta)),
+            HeapRootData::Int32Array(ta) => Ok(Self::Int32Array(ta)),
+            HeapRootData::Uint32Array(ta) => Ok(Self::Uint32Array(ta)),
+            HeapRootData::BigInt64Array(ta) => Ok(Self::BigInt64Array(ta)),
+            HeapRootData::BigUint64Array(ta) => Ok(Self::BigUint64Array(ta)),
+            // HeapRootData::Float16Array(ta) => Ok(Self::Float16Array(ta)),
+            HeapRootData::Float32Array(ta) => Ok(Self::Float32Array(ta)),
+            HeapRootData::Float64Array(ta) => Ok(Self::Float64Array(ta)),
+            _ => Err(()),
+        }
+    }
+}
+
+impl CreateHeapData<TypedArrayHeapData, TypedArray<'static>> for Heap {
+    fn create(&mut self, data: TypedArrayHeapData) -> TypedArray<'static> {
         self.typed_arrays.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         TypedArray::Uint8Array(TypedArrayIndex::last(&self.typed_arrays))
     }
 }
 
-impl HeapMarkAndSweep for TypedArrayIndex {
+impl HeapMarkAndSweep for TypedArrayIndex<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.typed_arrays.push(*self);
     }
@@ -301,7 +364,7 @@ impl HeapMarkAndSweep for TypedArrayIndex {
     }
 }
 
-impl HeapMarkAndSweep for TypedArray {
+impl HeapMarkAndSweep for TypedArray<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         match self {
             TypedArray::Int8Array(data)

@@ -15,6 +15,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::MapIteratorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -22,9 +23,37 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MapIterator(MapIteratorIndex);
+pub struct MapIterator<'a>(MapIteratorIndex<'a>);
 
-impl MapIterator {
+impl MapIterator<'_> {
+    /// Unbind this MapIterator from its current lifetime. This is necessary to use
+    /// the MapIterator as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> MapIterator<'static> {
+        unsafe { std::mem::transmute::<Self, MapIterator<'static>>(self) }
+    }
+
+    // Bind this MapIterator to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your MapIterators cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let map_iterator = map_iterator.bind(&gc);
+    // ```
+    // to make sure that the unbound MapIterator cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> MapIterator<'gc> {
+        unsafe { std::mem::transmute::<Self, MapIterator<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, MapIterator<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -45,37 +74,31 @@ impl MapIterator {
     }
 }
 
-impl IntoValue for MapIterator {
+impl IntoValue for MapIterator<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for MapIterator {
+impl IntoObject for MapIterator<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<MapIteratorIndex> for MapIterator {
-    fn from(value: MapIteratorIndex) -> Self {
-        MapIterator(value)
-    }
-}
-
-impl From<MapIterator> for Object {
+impl From<MapIterator<'_>> for Object {
     fn from(value: MapIterator) -> Self {
-        Self::MapIterator(value)
+        Self::MapIterator(value.unbind())
     }
 }
 
-impl From<MapIterator> for Value {
+impl From<MapIterator<'_>> for Value {
     fn from(value: MapIterator) -> Self {
-        Self::MapIterator(value)
+        Self::MapIterator(value.unbind())
     }
 }
 
-impl TryFrom<Value> for MapIterator {
+impl TryFrom<Value> for MapIterator<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -86,7 +109,7 @@ impl TryFrom<Value> for MapIterator {
     }
 }
 
-impl TryFrom<Object> for MapIterator {
+impl TryFrom<Object> for MapIterator<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -97,7 +120,7 @@ impl TryFrom<Object> for MapIterator {
     }
 }
 
-impl InternalSlots for MapIterator {
+impl InternalSlots for MapIterator<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::MapIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -112,9 +135,9 @@ impl InternalSlots for MapIterator {
     }
 }
 
-impl InternalMethods for MapIterator {}
+impl InternalMethods for MapIterator<'_> {}
 
-impl Index<MapIterator> for Agent {
+impl Index<MapIterator<'_>> for Agent {
     type Output = MapIteratorHeapData;
 
     fn index(&self, index: MapIterator) -> &Self::Output {
@@ -122,13 +145,13 @@ impl Index<MapIterator> for Agent {
     }
 }
 
-impl IndexMut<MapIterator> for Agent {
+impl IndexMut<MapIterator<'_>> for Agent {
     fn index_mut(&mut self, index: MapIterator) -> &mut Self::Output {
         &mut self.heap.map_iterators[index]
     }
 }
 
-impl Index<MapIterator> for Vec<Option<MapIteratorHeapData>> {
+impl Index<MapIterator<'_>> for Vec<Option<MapIteratorHeapData>> {
     type Output = MapIteratorHeapData;
 
     fn index(&self, index: MapIterator) -> &Self::Output {
@@ -139,7 +162,7 @@ impl Index<MapIterator> for Vec<Option<MapIteratorHeapData>> {
     }
 }
 
-impl IndexMut<MapIterator> for Vec<Option<MapIteratorHeapData>> {
+impl IndexMut<MapIterator<'_>> for Vec<Option<MapIteratorHeapData>> {
     fn index_mut(&mut self, index: MapIterator) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("MapIterator out of bounds")
@@ -148,14 +171,27 @@ impl IndexMut<MapIterator> for Vec<Option<MapIteratorHeapData>> {
     }
 }
 
-impl CreateHeapData<MapIteratorHeapData, MapIterator> for Heap {
-    fn create(&mut self, data: MapIteratorHeapData) -> MapIterator {
-        self.map_iterators.push(Some(data));
-        MapIterator::from(MapIteratorIndex::last(&self.map_iterators))
+impl TryFrom<HeapRootData> for MapIterator<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::MapIterator(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
     }
 }
 
-impl HeapMarkAndSweep for MapIterator {
+impl CreateHeapData<MapIteratorHeapData, MapIterator<'static>> for Heap {
+    fn create(&mut self, data: MapIteratorHeapData) -> MapIterator<'static> {
+        self.map_iterators.push(Some(data));
+        MapIterator(MapIteratorIndex::last(&self.map_iterators))
+    }
+}
+
+impl HeapMarkAndSweep for MapIterator<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.map_iterators.push(*self);
     }

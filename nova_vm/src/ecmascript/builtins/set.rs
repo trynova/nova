@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::{BaseIndex, SetIndex},
         CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
@@ -24,9 +25,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Set(pub(crate) SetIndex);
+pub struct Set<'a>(pub(crate) SetIndex<'a>);
 
-impl Set {
+impl Set<'_> {
+    /// Unbind this Set from its current lifetime. This is necessary to use
+    /// the Set as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Set<'static> {
+        unsafe { std::mem::transmute::<Self, Set<'static>>(self) }
+    }
+
+    // Bind this Set to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Sets cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let set = set.bind(&gc);
+    // ```
+    // to make sure that the unbound Set cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Set<'gc> {
+        unsafe { std::mem::transmute::<Self, Set<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Set<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,43 +65,31 @@ impl Set {
     }
 }
 
-impl From<Set> for SetIndex {
-    fn from(val: Set) -> Self {
-        val.0
-    }
-}
-
-impl From<SetIndex> for Set {
-    fn from(value: SetIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for Set {
+impl IntoValue for Set<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Set {
+impl IntoObject for Set<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<Set> for Value {
+impl From<Set<'_>> for Value {
     fn from(val: Set) -> Self {
-        Value::Set(val)
+        Value::Set(val.unbind())
     }
 }
 
-impl From<Set> for Object {
+impl From<Set<'_>> for Object {
     fn from(val: Set) -> Self {
-        Object::Set(val)
+        Object::Set(val.unbind())
     }
 }
 
-impl TryFrom<Value> for Set {
+impl TryFrom<Value> for Set<'_> {
     type Error = ();
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -84,7 +101,7 @@ impl TryFrom<Value> for Set {
     }
 }
 
-impl TryFrom<Object> for Set {
+impl TryFrom<Object> for Set<'_> {
     type Error = ();
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
@@ -96,7 +113,7 @@ impl TryFrom<Object> for Set {
     }
 }
 
-impl InternalSlots for Set {
+impl InternalSlots for Set<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
 
     #[inline(always)]
@@ -112,9 +129,9 @@ impl InternalSlots for Set {
     }
 }
 
-impl InternalMethods for Set {}
+impl InternalMethods for Set<'_> {}
 
-impl HeapMarkAndSweep for Set {
+impl HeapMarkAndSweep for Set<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.sets.push(*self);
     }
@@ -124,7 +141,7 @@ impl HeapMarkAndSweep for Set {
     }
 }
 
-impl Index<Set> for Agent {
+impl Index<Set<'_>> for Agent {
     type Output = SetHeapData;
 
     fn index(&self, index: Set) -> &Self::Output {
@@ -132,13 +149,13 @@ impl Index<Set> for Agent {
     }
 }
 
-impl IndexMut<Set> for Agent {
+impl IndexMut<Set<'_>> for Agent {
     fn index_mut(&mut self, index: Set) -> &mut Self::Output {
         &mut self.heap.sets[index]
     }
 }
 
-impl Index<Set> for Vec<Option<SetHeapData>> {
+impl Index<Set<'_>> for Vec<Option<SetHeapData>> {
     type Output = SetHeapData;
 
     fn index(&self, index: Set) -> &Self::Output {
@@ -149,7 +166,7 @@ impl Index<Set> for Vec<Option<SetHeapData>> {
     }
 }
 
-impl IndexMut<Set> for Vec<Option<SetHeapData>> {
+impl IndexMut<Set<'_>> for Vec<Option<SetHeapData>> {
     fn index_mut(&mut self, index: Set) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Set out of bounds")
@@ -158,8 +175,21 @@ impl IndexMut<Set> for Vec<Option<SetHeapData>> {
     }
 }
 
-impl CreateHeapData<SetHeapData, Set> for Heap {
-    fn create(&mut self, data: SetHeapData) -> Set {
+impl TryFrom<HeapRootData> for Set<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::Set(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl CreateHeapData<SetHeapData, Set<'static>> for Heap {
+    fn create(&mut self, data: SetHeapData) -> Set<'static> {
         self.sets.push(Some(data));
         Set(SetIndex::last(&self.sets))
     }

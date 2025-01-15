@@ -11,6 +11,7 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
+    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
     heap::{
         indexes::{BaseIndex, WeakSetIndex},
         CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
@@ -24,9 +25,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct WeakSet(pub(crate) WeakSetIndex);
+pub struct WeakSet<'a>(pub(crate) WeakSetIndex<'a>);
 
-impl WeakSet {
+impl WeakSet<'_> {
+    /// Unbind this WeakSet from its current lifetime. This is necessary to use
+    /// the WeakSet as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> WeakSet<'static> {
+        unsafe { std::mem::transmute::<Self, WeakSet<'static>>(self) }
+    }
+
+    // Bind this WeakSet to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your WeakSets cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let weak_set = weak_set.bind(&gc);
+    // ```
+    // to make sure that the unbound WeakSet cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> WeakSet<'gc> {
+        unsafe { std::mem::transmute::<Self, WeakSet<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, WeakSet<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -36,43 +65,31 @@ impl WeakSet {
     }
 }
 
-impl From<WeakSet> for WeakSetIndex {
-    fn from(val: WeakSet) -> Self {
-        val.0
-    }
-}
-
-impl From<WeakSetIndex> for WeakSet {
-    fn from(value: WeakSetIndex) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for WeakSet {
+impl IntoValue for WeakSet<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for WeakSet {
+impl IntoObject for WeakSet<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<WeakSet> for Value {
+impl From<WeakSet<'_>> for Value {
     fn from(val: WeakSet) -> Self {
-        Value::WeakSet(val)
+        Value::WeakSet(val.unbind())
     }
 }
 
-impl From<WeakSet> for Object {
+impl From<WeakSet<'_>> for Object {
     fn from(val: WeakSet) -> Self {
-        Object::WeakSet(val)
+        Object::WeakSet(val.unbind())
     }
 }
 
-impl InternalSlots for WeakSet {
+impl InternalSlots for WeakSet<'_> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakSet;
 
     #[inline(always)]
@@ -88,7 +105,7 @@ impl InternalSlots for WeakSet {
     }
 }
 
-impl InternalMethods for WeakSet {}
+impl InternalMethods for WeakSet<'_> {}
 
 impl HeapMarkAndSweep for WeakSetHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
@@ -100,7 +117,7 @@ impl HeapMarkAndSweep for WeakSetHeapData {
     }
 }
 
-impl Index<WeakSet> for Agent {
+impl Index<WeakSet<'_>> for Agent {
     type Output = WeakSetHeapData;
 
     fn index(&self, index: WeakSet) -> &Self::Output {
@@ -108,13 +125,13 @@ impl Index<WeakSet> for Agent {
     }
 }
 
-impl IndexMut<WeakSet> for Agent {
+impl IndexMut<WeakSet<'_>> for Agent {
     fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
         &mut self.heap.weak_sets[index]
     }
 }
 
-impl Index<WeakSet> for Vec<Option<WeakSetHeapData>> {
+impl Index<WeakSet<'_>> for Vec<Option<WeakSetHeapData>> {
     type Output = WeakSetHeapData;
 
     fn index(&self, index: WeakSet) -> &Self::Output {
@@ -125,7 +142,7 @@ impl Index<WeakSet> for Vec<Option<WeakSetHeapData>> {
     }
 }
 
-impl IndexMut<WeakSet> for Vec<Option<WeakSetHeapData>> {
+impl IndexMut<WeakSet<'_>> for Vec<Option<WeakSetHeapData>> {
     fn index_mut(&mut self, index: WeakSet) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("WeakSet out of bounds")
@@ -134,15 +151,28 @@ impl IndexMut<WeakSet> for Vec<Option<WeakSetHeapData>> {
     }
 }
 
-impl CreateHeapData<WeakSetHeapData, WeakSet> for Heap {
-    fn create(&mut self, data: WeakSetHeapData) -> WeakSet {
+impl TryFrom<HeapRootData> for WeakSet<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::WeakSet(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl CreateHeapData<WeakSetHeapData, WeakSet<'static>> for Heap {
+    fn create(&mut self, data: WeakSetHeapData) -> WeakSet<'static> {
         self.weak_sets.push(Some(data));
         // TODO: The type should be checked based on data or something equally stupid
         WeakSet(WeakSetIndex::last(&self.weak_sets))
     }
 }
 
-impl HeapMarkAndSweep for WeakSet {
+impl HeapMarkAndSweep for WeakSet<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.weak_sets.push(*self);
     }

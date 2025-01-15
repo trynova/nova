@@ -60,7 +60,7 @@ use crate::{
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
-            bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
+            bigint::HeapBigInt, HeapNumber, HeapString, IntoObject, Object, OrdinaryObject, Symbol,
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
             ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
             BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
@@ -121,7 +121,7 @@ mod private {
     impl RootableSealed for Array<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer<'_> {}
-    impl RootableSealed for ArrayIterator {}
+    impl RootableSealed for ArrayIterator<'_> {}
     impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction<'_> {}
     impl RootableSealed for BuiltinConstructorFunction<'_> {}
@@ -132,14 +132,14 @@ mod private {
     #[cfg(feature = "date")]
     impl RootableSealed for Date<'_> {}
     impl RootableSealed for ECMAScriptFunction<'_> {}
-    impl RootableSealed for EmbedderObject {}
+    impl RootableSealed for EmbedderObject<'_> {}
     impl RootableSealed for Error<'_> {}
     impl RootableSealed for FinalizationRegistry<'_> {}
     impl RootableSealed for Function<'_> {}
-    impl RootableSealed for Generator {}
+    impl RootableSealed for Generator<'_> {}
     impl RootableSealed for Map<'_> {}
-    impl RootableSealed for MapIterator {}
-    impl RootableSealed for Module {}
+    impl RootableSealed for MapIterator<'_> {}
+    impl RootableSealed for Module<'_> {}
     impl RootableSealed for Number<'_> {}
     impl RootableSealed for Numeric<'_> {}
     impl RootableSealed for Object {}
@@ -150,22 +150,22 @@ mod private {
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy {}
     #[cfg(feature = "regexp")]
-    impl RootableSealed for RegExp {}
-    impl RootableSealed for Set {}
-    impl RootableSealed for SetIterator {}
+    impl RootableSealed for RegExp<'_> {}
+    impl RootableSealed for Set<'_> {}
+    impl RootableSealed for SetIterator<'_> {}
     #[cfg(feature = "shared-array-buffer")]
-    impl RootableSealed for SharedArrayBuffer {}
+    impl RootableSealed for SharedArrayBuffer<'_> {}
     impl RootableSealed for String<'_> {}
     impl RootableSealed for Symbol<'_> {}
     #[cfg(feature = "array-buffer")]
-    impl RootableSealed for TypedArray {}
+    impl RootableSealed for TypedArray<'_> {}
     impl RootableSealed for Value {}
     #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakMap {}
+    impl RootableSealed for WeakMap<'_> {}
     #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakRef {}
+    impl RootableSealed for WeakRef<'_> {}
     #[cfg(feature = "weak-refs")]
-    impl RootableSealed for WeakSet {}
+    impl RootableSealed for WeakSet<'_> {}
 }
 
 pub use global::Global;
@@ -191,6 +191,31 @@ pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
     /// to convert indicates that the heap is corrupted or the value's root
     /// representation was misused and points to a reused heap root data slot.
     fn from_heap_data(heap_data: HeapRootData) -> Option<Self>;
+}
+
+// Blanket impl for Objects
+impl<T: std::fmt::Debug + RootableSealed + IntoObject + TryFrom<HeapRootData>> Rootable for T {
+    type RootRepr = HeapRootRef;
+
+    #[inline]
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(value.into_object().unbind().into())
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    #[inline]
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        Self::try_from(heap_data).ok()
+    }
 }
 
 /// Internal type that enables rooting any heap-allocated type mentioned here.
@@ -240,47 +265,47 @@ pub enum HeapRootData {
     Promise(Promise<'static>) = PROMISE_DISCRIMINANT,
     Proxy(Proxy) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
-    RegExp(RegExp) = REGEXP_DISCRIMINANT,
-    Set(Set) = SET_DISCRIMINANT,
+    RegExp(RegExp<'static>) = REGEXP_DISCRIMINANT,
+    Set(Set<'static>) = SET_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
-    SharedArrayBuffer(SharedArrayBuffer) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
+    SharedArrayBuffer(SharedArrayBuffer<'static>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
-    WeakMap(WeakMap) = WEAK_MAP_DISCRIMINANT,
+    WeakMap(WeakMap<'static>) = WEAK_MAP_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
-    WeakRef(WeakRef) = WEAK_REF_DISCRIMINANT,
+    WeakRef(WeakRef<'static>) = WEAK_REF_DISCRIMINANT,
     #[cfg(feature = "weak-refs")]
-    WeakSet(WeakSet) = WEAK_SET_DISCRIMINANT,
+    WeakSet(WeakSet<'static>) = WEAK_SET_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int8Array(TypedArrayIndex) = INT_8_ARRAY_DISCRIMINANT,
+    Int8Array(TypedArrayIndex<'static>) = INT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint8Array(TypedArrayIndex) = UINT_8_ARRAY_DISCRIMINANT,
+    Uint8Array(TypedArrayIndex<'static>) = UINT_8_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(TypedArrayIndex) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    Uint8ClampedArray(TypedArrayIndex<'static>) = UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int16Array(TypedArrayIndex) = INT_16_ARRAY_DISCRIMINANT,
+    Int16Array(TypedArrayIndex<'static>) = INT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint16Array(TypedArrayIndex) = UINT_16_ARRAY_DISCRIMINANT,
+    Uint16Array(TypedArrayIndex<'static>) = UINT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Int32Array(TypedArrayIndex) = INT_32_ARRAY_DISCRIMINANT,
+    Int32Array(TypedArrayIndex<'static>) = INT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Uint32Array(TypedArrayIndex) = UINT_32_ARRAY_DISCRIMINANT,
+    Uint32Array(TypedArrayIndex<'static>) = UINT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    BigInt64Array(TypedArrayIndex) = BIGINT_64_ARRAY_DISCRIMINANT,
+    BigInt64Array(TypedArrayIndex<'static>) = BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    BigUint64Array(TypedArrayIndex) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    BigUint64Array(TypedArrayIndex<'static>) = BIGUINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Float32Array(TypedArrayIndex) = FLOAT_32_ARRAY_DISCRIMINANT,
+    Float32Array(TypedArrayIndex<'static>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
-    Float64Array(TypedArrayIndex) = FLOAT_64_ARRAY_DISCRIMINANT,
+    Float64Array(TypedArrayIndex<'static>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
-    ArrayIterator(ArrayIterator) = ARRAY_ITERATOR_DISCRIMINANT,
-    SetIterator(SetIterator) = SET_ITERATOR_DISCRIMINANT,
-    MapIterator(MapIterator) = MAP_ITERATOR_DISCRIMINANT,
-    Generator(Generator) = GENERATOR_DISCRIMINANT,
-    Module(Module) = MODULE_DISCRIMINANT,
-    EmbedderObject(EmbedderObject) = EMBEDDER_OBJECT_DISCRIMINANT,
+    ArrayIterator(ArrayIterator<'static>) = ARRAY_ITERATOR_DISCRIMINANT,
+    SetIterator(SetIterator<'static>) = SET_ITERATOR_DISCRIMINANT,
+    MapIterator(MapIterator<'static>) = MAP_ITERATOR_DISCRIMINANT,
+    Generator(Generator<'static>) = GENERATOR_DISCRIMINANT,
+    Module(Module<'static>) = MODULE_DISCRIMINANT,
+    EmbedderObject(EmbedderObject<'static>) = EMBEDDER_OBJECT_DISCRIMINANT,
     // Non-Value types go here. If the 128 variants here are not enough, we can
     // eventually take into use leftover "on-stack" discriminants but that has
     // to be done carefully, accepting that Value's TryFrom<InnerHeapRoot> must
@@ -288,6 +313,70 @@ pub enum HeapRootData {
     //
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
+}
+
+impl From<Object> for HeapRootData {
+    #[inline]
+    fn from(value: Object) -> Self {
+        match value {
+            Object::Object(ordinary_object) => Self::Object(ordinary_object),
+            Object::BoundFunction(bound_function) => Self::BoundFunction(bound_function),
+            Object::BuiltinFunction(builtin_function) => Self::BuiltinFunction(builtin_function),
+            Object::ECMAScriptFunction(ecmascript_function) => {
+                Self::ECMAScriptFunction(ecmascript_function)
+            }
+            Object::BuiltinGeneratorFunction => Self::BuiltinGeneratorFunction,
+            Object::BuiltinConstructorFunction(builtin_constructor_function) => {
+                Self::BuiltinConstructorFunction(builtin_constructor_function)
+            }
+            Object::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+                Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function)
+            }
+            Object::BuiltinPromiseCollectorFunction => Self::BuiltinPromiseCollectorFunction,
+            Object::BuiltinProxyRevokerFunction => Self::BuiltinProxyRevokerFunction,
+            Object::PrimitiveObject(primitive_object) => Self::PrimitiveObject(primitive_object),
+            Object::Arguments(ordinary_object) => Self::Arguments(ordinary_object),
+            Object::Array(array) => Self::Array(array),
+            Object::ArrayBuffer(array_buffer) => Self::ArrayBuffer(array_buffer),
+            Object::DataView(data_view) => Self::DataView(data_view),
+            Object::Date(date) => Self::Date(date),
+            Object::Error(error) => Self::Error(error),
+            Object::FinalizationRegistry(finalization_registry) => {
+                Self::FinalizationRegistry(finalization_registry)
+            }
+            Object::Map(map) => Self::Map(map),
+            Object::Promise(promise) => Self::Promise(promise),
+            Object::Proxy(proxy) => Self::Proxy(proxy),
+            Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
+            Object::Set(set) => Self::Set(set),
+            Object::SharedArrayBuffer(shared_array_buffer) => {
+                Self::SharedArrayBuffer(shared_array_buffer)
+            }
+            Object::WeakMap(weak_map) => Self::WeakMap(weak_map),
+            Object::WeakRef(weak_ref) => Self::WeakRef(weak_ref),
+            Object::WeakSet(weak_set) => Self::WeakSet(weak_set),
+            Object::Int8Array(base_index) => Self::Int8Array(base_index),
+            Object::Uint8Array(base_index) => Self::Uint8Array(base_index),
+            Object::Uint8ClampedArray(base_index) => Self::Uint8ClampedArray(base_index),
+            Object::Int16Array(base_index) => Self::Int16Array(base_index),
+            Object::Uint16Array(base_index) => Self::Uint16Array(base_index),
+            Object::Int32Array(base_index) => Self::Int32Array(base_index),
+            Object::Uint32Array(base_index) => Self::Uint32Array(base_index),
+            Object::BigInt64Array(base_index) => Self::BigInt64Array(base_index),
+            Object::BigUint64Array(base_index) => Self::BigUint64Array(base_index),
+            Object::Float32Array(base_index) => Self::Float32Array(base_index),
+            Object::Float64Array(base_index) => Self::Float64Array(base_index),
+            Object::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
+            Object::AsyncIterator => Self::AsyncIterator,
+            Object::Iterator => Self::Iterator,
+            Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
+            Object::SetIterator(set_iterator) => Self::SetIterator(set_iterator),
+            Object::MapIterator(map_iterator) => Self::MapIterator(map_iterator),
+            Object::Generator(generator) => Self::Generator(generator),
+            Object::Module(module) => Self::Module(module),
+            Object::EmbedderObject(embedder_object) => Self::EmbedderObject(embedder_object),
+        }
+    }
 }
 
 /// Internal type that is used to refer from user-controlled memory (stack or
