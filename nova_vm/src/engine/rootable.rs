@@ -148,7 +148,7 @@ mod private {
     impl RootableSealed for PrimitiveObject<'_> {}
     impl RootableSealed for Promise<'_> {}
     impl RootableSealed for PropertyKey<'_> {}
-    impl RootableSealed for Proxy {}
+    impl RootableSealed for Proxy<'_> {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp<'_> {}
     impl RootableSealed for Set<'_> {}
@@ -263,7 +263,7 @@ pub enum HeapRootData {
     FinalizationRegistry(FinalizationRegistry<'static>) = FINALIZATION_REGISTRY_DISCRIMINANT,
     Map(Map<'static>) = MAP_DISCRIMINANT,
     Promise(Promise<'static>) = PROMISE_DISCRIMINANT,
-    Proxy(Proxy) = PROXY_DISCRIMINANT,
+    Proxy(Proxy<'static>) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
     RegExp(RegExp<'static>) = REGEXP_DISCRIMINANT,
     Set(Set<'static>) = SET_DISCRIMINANT,

@@ -58,7 +58,7 @@ pub(crate) fn require_object_coercible(
 pub(crate) fn is_array(
     agent: &mut Agent,
     argument: impl IntoValue,
-    gc: NoGcScope<'_, '_>,
+    gc: NoGcScope,
 ) -> JsResult<bool> {
     let argument = argument.into_value();
 
@@ -139,11 +139,7 @@ pub(crate) fn is_constructor<'a>(
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn try_is_extensible(
-    agent: &mut Agent,
-    o: Object,
-    gc: NoGcScope<'_, '_>,
-) -> TryResult<bool> {
+pub(crate) fn try_is_extensible(agent: &mut Agent, o: Object, gc: NoGcScope) -> TryResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.try_is_extensible(agent, gc)
 }
@@ -152,11 +148,7 @@ pub(crate) fn try_is_extensible(
 ///
 /// The abstract operation IsRegExp takes argument
 /// argument (an ECMAScript language value) and returns either a normal completion containing a Boolean or a throw completion.
-pub(crate) fn is_reg_exp(
-    agent: &mut Agent,
-    argument: Value,
-    gc: GcScope<'_, '_>,
-) -> JsResult<bool> {
+pub(crate) fn is_reg_exp(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<bool> {
     // 1. If argument is not an Object, return false.
     if !argument.is_object() {
         return Ok(false);
@@ -190,7 +182,7 @@ pub(crate) fn is_reg_exp(
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn is_extensible(agent: &mut Agent, o: Object, gc: GcScope<'_, '_>) -> JsResult<bool> {
+pub(crate) fn is_extensible(agent: &mut Agent, o: Object, gc: GcScope) -> JsResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
     o.internal_is_extensible(agent, gc)
 }
@@ -210,7 +202,7 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 pub(crate) fn is_integral_number(
     agent: &mut Agent,
     argument: impl Copy + Into<Value>,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> bool {
     let argument = argument.into();
 
@@ -349,7 +341,7 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     agent: &mut Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Option<bool>> {
     let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
         (Ok(px), Ok(py)) => {
@@ -553,7 +545,7 @@ pub(crate) fn is_loosely_equal(
     agent: &mut Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     let x: Value = x.into();
     let y: Value = y.into();

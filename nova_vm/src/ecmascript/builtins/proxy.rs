@@ -26,7 +26,8 @@ use crate::{
     },
     engine::{
         context::{GcScope, NoGcScope},
-        TryResult,
+        rootable::HeapRootData,
+        Scoped, TryResult,
     },
     heap::{
         indexes::{BaseIndex, ProxyIndex},
@@ -41,9 +42,37 @@ pub mod data;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
-pub struct Proxy(pub(crate) ProxyIndex<'static>);
+pub struct Proxy<'a>(pub(crate) ProxyIndex<'a>);
 
-impl Proxy {
+impl Proxy<'_> {
+    /// Unbind this Proxy from its current lifetime. This is necessary to use
+    /// the Proxy as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Proxy<'static> {
+        unsafe { std::mem::transmute::<Self, Proxy<'static>>(self) }
+    }
+
+    // Bind this Proxy to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your Proxys cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let proxy = proxy.bind(&gc);
+    // ```
+    // to make sure that the unbound Proxy cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Proxy<'gc> {
+        unsafe { std::mem::transmute::<Self, Proxy<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Proxy<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -53,43 +82,31 @@ impl Proxy {
     }
 }
 
-impl From<Proxy> for ProxyIndex<'static> {
-    fn from(val: Proxy) -> Self {
-        val.0
-    }
-}
-
-impl From<ProxyIndex<'static>> for Proxy {
-    fn from(value: ProxyIndex<'static>) -> Self {
-        Self(value)
-    }
-}
-
-impl IntoValue for Proxy {
+impl IntoValue for Proxy<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Proxy {
+impl IntoObject for Proxy<'_> {
     fn into_object(self) -> Object {
         self.into()
     }
 }
 
-impl From<Proxy> for Value {
+impl From<Proxy<'_>> for Value {
     fn from(val: Proxy) -> Self {
-        Value::Proxy(val)
+        Value::Proxy(val.unbind())
     }
 }
 
-impl From<Proxy> for Object {
+impl From<Proxy<'_>> for Object {
     fn from(val: Proxy) -> Self {
-        Object::Proxy(val)
+        Object::Proxy(val.unbind())
     }
 }
 
-impl InternalSlots for Proxy {
+impl InternalSlots for Proxy<'_> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
         todo!()
@@ -120,19 +137,15 @@ impl InternalSlots for Proxy {
     }
 }
 
-impl InternalMethods for Proxy {
-    fn try_get_prototype_of(
-        self,
-        _: &mut Agent,
-        _: NoGcScope<'_, '_>,
-    ) -> TryResult<Option<Object>> {
+impl InternalMethods for Proxy<'_> {
+    fn try_get_prototype_of(self, _: &mut Agent, _: NoGcScope) -> TryResult<Option<Object>> {
         TryResult::Break(())
     }
 
     fn internal_get_prototype_of(
         self,
         agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Option<Object>> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -238,7 +251,7 @@ impl InternalMethods for Proxy {
         self,
         agent: &mut Agent,
         prototype: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -314,7 +327,7 @@ impl InternalMethods for Proxy {
         TryResult::Break(())
     }
 
-    fn internal_is_extensible(self, agent: &mut Agent, mut gc: GcScope<'_, '_>) -> JsResult<bool> {
+    fn internal_is_extensible(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<bool> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -383,11 +396,7 @@ impl InternalMethods for Proxy {
         TryResult::Break(())
     }
 
-    fn internal_prevent_extensions(
-        self,
-        agent: &mut Agent,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<bool> {
+    fn internal_prevent_extensions(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<bool> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -474,7 +483,7 @@ impl InternalMethods for Proxy {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Option<PropertyDescriptor>> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -644,7 +653,7 @@ impl InternalMethods for Proxy {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -807,7 +816,7 @@ impl InternalMethods for Proxy {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         let mut property_key = property_key.bind(gc.nogc());
 
@@ -922,7 +931,7 @@ impl InternalMethods for Proxy {
         agent: &mut Agent,
         property_key: PropertyKey,
         mut receiver: Value,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let mut property_key = property_key.bind(gc.nogc());
         // 1. Perform ? ValidateNonRevokedProxy(O).
@@ -1033,7 +1042,7 @@ impl InternalMethods for Proxy {
         property_key: PropertyKey,
         value: Value,
         mut receiver: Value,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         let mut property_key = property_key.bind(gc.nogc());
         // 1. Perform ? ValidateNonRevokedProxy(O).
@@ -1131,7 +1140,7 @@ impl InternalMethods for Proxy {
         self,
         agent: &mut Agent,
         mut property_key: PropertyKey,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -1248,7 +1257,7 @@ impl InternalMethods for Proxy {
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let this_argument = arguments.get(1);
         let arguments_list = arguments.get(2);
@@ -1316,7 +1325,7 @@ impl InternalMethods for Proxy {
         _agent: &mut Agent,
         _arguments_list: ArgumentsList,
         _new_target: Function,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Object> {
         todo!()
     }
@@ -1328,12 +1337,12 @@ impl InternalMethods for Proxy {
 /// language value) and handler (an ECMAScript language value) and returns
 /// either a normal completion containing a Proxy exotic object or a throw
 /// completion. It is used to specify the creation of new Proxy objects.
-pub(crate) fn proxy_create(
+pub(crate) fn proxy_create<'a>(
     agent: &mut Agent,
     target: Value,
     handler: Value,
-    gc: NoGcScope,
-) -> JsResult<Proxy> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<Proxy<'a>> {
     // 1. If target is not an Object, throw a TypeError exception.
     let Ok(target) = Object::try_from(target) else {
         return Err(agent.throw_exception_with_static_message(
@@ -1367,7 +1376,7 @@ pub(crate) fn proxy_create(
     Ok(p)
 }
 
-impl Index<Proxy> for Agent {
+impl Index<Proxy<'_>> for Agent {
     type Output = ProxyHeapData;
 
     fn index(&self, index: Proxy) -> &Self::Output {
@@ -1375,13 +1384,13 @@ impl Index<Proxy> for Agent {
     }
 }
 
-impl IndexMut<Proxy> for Agent {
+impl IndexMut<Proxy<'_>> for Agent {
     fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
         &mut self.heap.proxys[index]
     }
 }
 
-impl Index<Proxy> for Vec<Option<ProxyHeapData>> {
+impl Index<Proxy<'_>> for Vec<Option<ProxyHeapData>> {
     type Output = ProxyHeapData;
 
     fn index(&self, index: Proxy) -> &Self::Output {
@@ -1392,7 +1401,7 @@ impl Index<Proxy> for Vec<Option<ProxyHeapData>> {
     }
 }
 
-impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
+impl IndexMut<Proxy<'_>> for Vec<Option<ProxyHeapData>> {
     fn index_mut(&mut self, index: Proxy) -> &mut Self::Output {
         self.get_mut(index.get_index())
             .expect("Proxy out of bounds")
@@ -1401,14 +1410,27 @@ impl IndexMut<Proxy> for Vec<Option<ProxyHeapData>> {
     }
 }
 
-impl CreateHeapData<ProxyHeapData, Proxy> for Heap {
-    fn create(&mut self, data: ProxyHeapData) -> Proxy {
+impl TryFrom<HeapRootData> for Proxy<'_> {
+    type Error = ();
+
+    #[inline]
+    fn try_from(value: HeapRootData) -> Result<Self, Self::Error> {
+        if let HeapRootData::Proxy(value) = value {
+            Ok(value)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl CreateHeapData<ProxyHeapData, Proxy<'static>> for Heap {
+    fn create(&mut self, data: ProxyHeapData) -> Proxy<'static> {
         self.proxys.push(Some(data));
         Proxy(ProxyIndex::last(&self.proxys))
     }
 }
 
-impl HeapMarkAndSweep for Proxy {
+impl HeapMarkAndSweep for Proxy<'static> {
     fn mark_values(&self, queues: &mut crate::heap::WorkQueues) {
         queues.proxys.push(*self);
     }
