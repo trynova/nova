@@ -237,7 +237,7 @@ impl TypedArrayIndex<'_> {
     }
 
     // Bind this TypedArrayIndex to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your TypedArrayIndexs cannot not be invalidated by
+    // borrow checker to verify that your TypedArrayIndexes cannot not be invalidated by
     // garbage collection being performed.
     //
     // This function is best called with the form
