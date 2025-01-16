@@ -11,10 +11,10 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, create_array_from_list, get_object_method,
+                call, call_function, construct, create_array_from_list, get_object_method,
                 try_get_object_method,
             },
-            testing_and_comparison::{is_extensible, same_value},
+            testing_and_comparison::{is_constructor, is_extensible, same_value},
             type_conversion::to_boolean,
         },
         builtins::ArgumentsList,
@@ -1322,12 +1322,71 @@ impl InternalMethods for Proxy<'_> {
 
     fn internal_construct(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
-        _gc: GcScope,
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
+        mut gc: GcScope<'_, '_>,
     ) -> JsResult<Object> {
-        todo!()
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 4. Let handler be O.[[ProxyHandler]].
+        // 5. Assert: handler is an Object.
+        let NonRevokedProxy {
+            target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 3. Assert: IsConstructor(target) is true.
+        let target = is_constructor(agent, target).unwrap();
+        // 6. Let trap be ? GetMethod(handler, "construct").
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.construct.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler,
+                BUILTIN_STRING_MEMORY.construct.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            trap
+        };
+        // 7. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? Construct(target, argumentsList, newTarget).
+            return construct(agent, target, Some(arguments_list), Some(new_target), gc);
+        };
+        // 8. Let argArray be CreateArrayFromList(argumentsList).
+        let arg_array = create_array_from_list(agent, arguments_list.0, gc.nogc());
+        // 9. Let newObj be ? Call(trap, handler, « target, argArray, newTarget »).
+        let new_obj = call_function(
+            agent,
+            trap.unbind(),
+            handler.into_value(),
+            Some(ArgumentsList(&[
+                target.into_value(),
+                arg_array.into_value(),
+                new_target.into_value(),
+            ])),
+            gc.reborrow(),
+        )?;
+        // 11. Return newObj.
+        new_obj
+            .try_into()
+            // 10. If newObj is not an Object, throw a TypeError exception.
+            .or(Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "proxy [[Construct]] must return an object",
+                gc.nogc(),
+            )))
     }
 }
 
