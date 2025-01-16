@@ -245,7 +245,7 @@ pub fn perform_eval(
 
     // 12. If strictCaller is true, let strictEval be true.
     // 13. Else, let strictEval be ScriptIsStrict of script.
-    let strict_eval = script.source_type.is_strict();
+    let strict_eval = strict_caller || script.has_use_strict_directive();
     if strict_caller {
         debug_assert!(strict_eval);
     }
