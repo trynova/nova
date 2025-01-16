@@ -2412,7 +2412,6 @@
   "built-ins/Object/getOwnPropertySymbols/proxy-invariant-not-extensible-extra-string-key.js": "CRASH",
   "built-ins/Object/getPrototypeOf/15.2.3.2-2-25.js": "CRASH",
   "built-ins/Object/getPrototypeOf/15.2.3.2-2-26.js": "CRASH",
-  "built-ins/Object/groupBy/null-prototype.js": "CRASH",
   "built-ins/Object/groupBy/string.js": "CRASH",
   "built-ins/Object/internals/DefineOwnProperty/consistent-value-regexp-dollar1.js": "CRASH",
   "built-ins/Object/isFrozen/proxy-no-ownkeys-returned-keys-order.js": "CRASH",
