@@ -254,7 +254,7 @@ pub fn script_evaluation(
     mut gc: GcScope<'_, '_>,
 ) -> JsResult<Value> {
     let realm_id = script.realm;
-    let is_strict_mode = script.ecmascript_code.is_strict();
+    let is_strict_mode = script.ecmascript_code.source_type.is_strict();
     let source_code = script.source_code;
     let script = agent.heap.add_script(script);
     let realm = agent.get_realm(realm_id);
