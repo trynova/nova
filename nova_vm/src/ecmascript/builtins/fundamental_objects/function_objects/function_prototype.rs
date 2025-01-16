@@ -460,12 +460,7 @@ impl BuiltinIntrinsic for ThrowTypeError {
 }
 
 impl ThrowTypeError {
-    fn behaviour(
-        agent: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+    fn behaviour(agent: &mut Agent, _: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
     }
 

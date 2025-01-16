@@ -3622,11 +3622,7 @@ impl ArrayPrototype {
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
 
-fn is_concat_spreadable<'a>(
-    agent: &mut Agent,
-    o: Value,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<bool> {
+fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResult<bool> {
     // 1. If O is not an Object, return false.
     let Ok(o) = Object::try_from(o) else {
         return Ok(false);

@@ -20,12 +20,7 @@ fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     };
 
     // `print` function
-    fn print(
-        agent: &mut Agent,
-        _this: Value,
-        args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList, gc: GcScope) -> JsResult<Value> {
         if args.len() == 0 {
             println!();
         } else {

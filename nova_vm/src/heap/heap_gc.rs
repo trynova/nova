@@ -68,11 +68,7 @@ use crate::{
     engine::{context::GcScope, Executable},
 };
 
-pub fn heap_gc(
-    agent: &mut Agent,
-    root_realms: &mut [Option<RealmIdentifier>],
-    gc: GcScope,
-) {
+pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], gc: GcScope) {
     let Agent {
         heap,
         execution_context_stack,
