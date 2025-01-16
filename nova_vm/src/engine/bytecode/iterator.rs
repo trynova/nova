@@ -206,8 +206,8 @@ impl ObjectPropertiesIterator {
         agent: &mut Agent,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<Option<PropertyKey<'a>>> {
-        let object = self.object.scope(agent, gc.nogc());
         loop {
+            let object = self.object.scope(agent, gc.nogc());
             if !self.object_was_visited {
                 let keys = object
                     .get(agent)
