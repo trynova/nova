@@ -142,7 +142,7 @@ mod private {
     impl RootableSealed for Module<'_> {}
     impl RootableSealed for Number<'_> {}
     impl RootableSealed for Numeric<'_> {}
-    impl RootableSealed for Object {}
+    impl RootableSealed for Object<'_> {}
     impl RootableSealed for OrdinaryObject<'_> {}
     impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject<'_> {}
@@ -194,7 +194,9 @@ pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
 }
 
 // Blanket impl for Objects
-impl<T: std::fmt::Debug + RootableSealed + IntoObject + TryFrom<HeapRootData>> Rootable for T {
+impl<'a, T: std::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable
+    for T
+{
     type RootRepr = HeapRootRef;
 
     #[inline]
@@ -315,9 +317,9 @@ pub enum HeapRootData {
     // these in alphabetical order.
 }
 
-impl From<Object> for HeapRootData {
+impl From<Object<'static>> for HeapRootData {
     #[inline]
-    fn from(value: Object) -> Self {
+    fn from(value: Object<'static>) -> Self {
         match value {
             Object::Object(ordinary_object) => Self::Object(ordinary_object),
             Object::BoundFunction(bound_function) => Self::BoundFunction(bound_function),

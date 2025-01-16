@@ -188,8 +188,8 @@ impl IntoValue for TypedArray<'_> {
     }
 }
 
-impl IntoObject for TypedArray<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for TypedArray<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -212,7 +212,7 @@ impl From<TypedArray<'_>> for Value {
     }
 }
 
-impl From<TypedArray<'_>> for Object {
+impl<'a> From<TypedArray<'a>> for Object<'a> {
     fn from(val: TypedArray) -> Self {
         match val.unbind() {
             TypedArray::Int8Array(idx) => Object::Int8Array(idx),
@@ -285,7 +285,7 @@ impl IndexMut<TypedArray<'_>> for Vec<Option<TypedArrayHeapData>> {
     }
 }
 
-impl InternalSlots for TypedArray<'_> {
+impl<'a> InternalSlots<'a> for TypedArray<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
@@ -298,7 +298,7 @@ impl InternalSlots for TypedArray<'_> {
             .is_none());
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(object_index) = agent[self].object_index {
             object_index.internal_prototype(agent)
         } else {
@@ -321,7 +321,7 @@ impl InternalSlots for TypedArray<'_> {
     }
 }
 
-impl InternalMethods for TypedArray<'_> {}
+impl<'a> InternalMethods<'a> for TypedArray<'a> {}
 
 impl TryFrom<HeapRootData> for TypedArray<'_> {
     type Error = ();

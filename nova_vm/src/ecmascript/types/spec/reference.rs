@@ -126,7 +126,7 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 pub(crate) fn get_value(
     agent: &mut Agent,
     reference: &Reference,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     let referenced_name = reference.referenced_name.bind(gc.nogc());
     match reference.base {
@@ -243,7 +243,7 @@ pub(crate) fn put_value(
     agent: &mut Agent,
     v: &Reference,
     w: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
@@ -261,10 +261,10 @@ pub(crate) fn put_value(
             ));
         }
         // b. Let globalObj be GetGlobalObject().
-        let global_obj = get_global_object(agent);
+        let global_obj = get_global_object(agent, gc.nogc());
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = v.referenced_name;
-        set(agent, global_obj, referenced_name, w, false, gc)?;
+        set(agent, global_obj.unbind(), referenced_name, w, false, gc)?;
         // d. Return UNUSED.
         Ok(())
     } else if is_property_reference(v) {
@@ -283,11 +283,17 @@ pub(crate) fn put_value(
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
         let referenced_name = v.referenced_name;
+        let scoped_base_obj = base_obj.scope(agent, gc.nogc());
         let succeeded =
-            base_obj.internal_set(agent, referenced_name, w, this_value, gc.reborrow())?;
+            base_obj
+                .unbind()
+                .internal_set(agent, referenced_name, w, this_value, gc.reborrow())?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            let base_obj_repr = base_obj.into_value().string_repr(agent, gc.reborrow());
+            let base_obj_repr = scoped_base_obj
+                .get(agent)
+                .into_value()
+                .string_repr(agent, gc.reborrow());
             let error_message = format!(
                 "Could not set property '{}' of {}.",
                 referenced_name.as_display(agent),
@@ -344,7 +350,7 @@ pub(crate) fn try_put_value<'a>(
             )));
         }
         // b. Let globalObj be GetGlobalObject().
-        let global_obj = get_global_object(agent);
+        let global_obj = get_global_object(agent, gc);
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
         let referenced_name = v.referenced_name;
         if let Err(err) = try_set(agent, global_obj, referenced_name, w, false, gc)? {
@@ -416,7 +422,7 @@ pub(crate) fn initialize_referenced_binding(
     agent: &mut Agent,
     v: Reference,
     w: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     // 1. Assert: IsUnresolvableReference(V) is false.
     debug_assert!(!is_unresolvable_reference(&v));

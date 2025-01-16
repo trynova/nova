@@ -155,7 +155,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let this_argument = arguments.get(1);
@@ -188,7 +188,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let arguments_list = arguments.get(1);
@@ -236,20 +236,21 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut attributes = arguments.get(2);
 
         // 1. If target is not an Object, throw a TypeError exception.
-        let Ok(mut target) = Object::try_from(target) else {
+        let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Value is not an object",
                 gc.nogc(),
             ));
         };
+        let mut target = target.bind(gc.nogc());
 
         let mut scoped_target = None;
 
@@ -286,7 +287,12 @@ impl ReflectObject {
             desc
         };
         // 4. Return ? target.[[DefineOwnProperty]](key, desc).
-        let ret = target.internal_define_own_property(agent, key.unbind(), desc, gc.reborrow())?;
+        let ret = target.unbind().internal_define_own_property(
+            agent,
+            key.unbind(),
+            desc,
+            gc.reborrow(),
+        )?;
 
         Ok(ret.into())
     }
@@ -296,7 +302,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -334,7 +340,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -345,13 +351,14 @@ impl ReflectObject {
         };
 
         // 1. If target is not an Object, throw a TypeError exception.
-        let Ok(mut target) = Object::try_from(target) else {
+        let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Value is not an object",
                 gc.nogc(),
             ));
         };
+        let mut target = target.bind(gc.nogc());
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
         let key = if let TryResult::Continue(key) =
@@ -372,7 +379,9 @@ impl ReflectObject {
         //   a. Set receiver to target.
         let receiver = receiver.unwrap_or(target.into_value());
         // 4. Return ? target.[[Get]](key, receiver).
-        target.internal_get(agent, key.unbind(), receiver, gc.reborrow())
+        target
+            .unbind()
+            .internal_get(agent, key.unbind(), receiver, gc.reborrow())
     }
 
     /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
@@ -380,19 +389,20 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
         // 1. If target is not an Object, throw a TypeError exception.
-        let Ok(mut target) = Object::try_from(target) else {
+        let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Value is not an object",
                 gc.nogc(),
             ));
         };
+        let mut target = target.bind(gc.nogc());
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
         let key = if let TryResult::Continue(key) =
@@ -408,7 +418,9 @@ impl ReflectObject {
             key
         };
         // 3. Let desc be ? target.[[GetOwnProperty]](key).
-        let desc = target.internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
+        let desc = target
+            .unbind()
+            .internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
         match PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc()) {
             Some(ret) => Ok(ret.into_value()),
@@ -421,7 +433,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
@@ -446,19 +458,20 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
         // 1. If target is not an Object, throw a TypeError exception.
-        let Ok(mut target) = Object::try_from(target) else {
+        let Ok(target) = Object::try_from(target) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Value is not an object",
                 gc.nogc(),
             ));
         };
+        let mut target = target.bind(gc.nogc());
 
         // 2. Let key be ? ToPropertyKey(propertyKey).
         let key = if let TryResult::Continue(key) =
@@ -474,7 +487,9 @@ impl ReflectObject {
             key
         };
         // 3. Return ? target.[[HasProperty]](key).
-        let ret = target.internal_has_property(agent, key.unbind(), gc.reborrow())?;
+        let ret = target
+            .unbind()
+            .internal_has_property(agent, key.unbind(), gc.reborrow())?;
         Ok(ret.into())
     }
 
@@ -483,7 +498,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
@@ -506,7 +521,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
@@ -538,7 +553,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
 
@@ -561,7 +576,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
@@ -613,7 +628,7 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let target = arguments.get(0);
         let proto = arguments.get(1);

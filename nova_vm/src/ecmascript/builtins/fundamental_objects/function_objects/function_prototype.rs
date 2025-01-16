@@ -103,7 +103,7 @@ impl Builtin for FunctionPrototypeHasInstance {
 }
 
 impl FunctionPrototype {
-    fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList, _: GcScope<'_, '_>) -> JsResult<Value> {
+    fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList, _: GcScope) -> JsResult<Value> {
         Ok(Value::Undefined)
     }
 
@@ -112,7 +112,7 @@ impl FunctionPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value, gc.nogc()) else {
@@ -157,7 +157,7 @@ impl FunctionPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let this_arg = args.get(0);
         let args = if args.len() > 1 { &args[1..] } else { &[] };
@@ -298,7 +298,7 @@ impl FunctionPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let Some(func) = is_callable(this_value, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
@@ -318,7 +318,7 @@ impl FunctionPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
@@ -396,7 +396,7 @@ impl FunctionPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let v = args.get(0);
         let f = this_value;
@@ -460,12 +460,7 @@ impl BuiltinIntrinsic for ThrowTypeError {
 }
 
 impl ThrowTypeError {
-    fn behaviour(
-        agent: &mut Agent,
-        _: Value,
-        _: ArgumentsList,
-        gc: GcScope<'_, '_>,
-    ) -> JsResult<Value> {
+    fn behaviour(agent: &mut Agent, _: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
     }
 

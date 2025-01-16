@@ -98,14 +98,14 @@ impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
 }
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl InternalMethods for OrdinaryObject<'_> {}
+impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
-pub(crate) fn ordinary_get_prototype_of(
+pub(crate) fn ordinary_get_prototype_of<'a>(
     agent: &mut Agent,
     object: OrdinaryObject,
-    _: NoGcScope,
-) -> Option<Object> {
+    _: NoGcScope<'a, '_>,
+) -> Option<Object<'a>> {
     // 1. Return O.[[Prototype]].
     object.internal_prototype(agent)
 }
@@ -552,12 +552,17 @@ pub(crate) fn ordinary_has_property(
     property_key: PropertyKey,
     mut gc: GcScope,
 ) -> JsResult<bool> {
+    let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
+    let scoped_object = object.scope(agent, gc.nogc());
     let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
 
-    let has_own = object.internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
+    let has_own =
+        object
+            .unbind()
+            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
 
     // 2. If hasOwn is not undefined, return true.
     if has_own.is_some() {
@@ -565,13 +570,17 @@ pub(crate) fn ordinary_has_property(
     }
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
+    let object = scoped_object.get(agent).bind(gc.nogc());
     let (parent, property_key) =
         if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
             (parent, scoped_property_key.get(agent).bind(gc.nogc()))
         } else {
-            // Note: We should root property_key here.
             (
-                object.internal_get_prototype_of(agent, gc.reborrow())?,
+                object
+                    .unbind()
+                    .internal_get_prototype_of(agent, gc.reborrow())?
+                    .map(|f| f.unbind())
+                    .map(|f| f.bind(gc.nogc())),
                 scoped_property_key.get(agent).bind(gc.nogc()),
             )
         };
@@ -579,7 +588,9 @@ pub(crate) fn ordinary_has_property(
     // 4. If parent is not null, then
     if let Some(parent) = parent {
         // a. Return ? parent.[[HasProperty]](P).
-        return parent.internal_has_property(agent, property_key.unbind(), gc);
+        return parent
+            .unbind()
+            .internal_has_property(agent, property_key.unbind(), gc);
     }
 
     // 5. Return false.
@@ -643,16 +654,21 @@ pub(crate) fn ordinary_get(
     receiver: Value,
     mut gc: GcScope,
 ) -> JsResult<Value> {
+    let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
+    let scoped_object = object.scope(agent, gc.nogc());
     let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) =
-        object.internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?
+        object
+            .unbind()
+            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?
     else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
+        let object = scoped_object.get(agent).bind(gc.nogc());
         let (parent, property_key, receiver) =
             if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
                 let Some(parent) = parent else {
@@ -666,9 +682,13 @@ pub(crate) fn ordinary_get(
             } else {
                 // Note: We should root property_key and receiver here.
                 let receiver = receiver.scope(agent, gc.nogc());
-                let Some(parent) = object.internal_get_prototype_of(agent, gc.reborrow())? else {
+                let Some(parent) = object
+                    .unbind()
+                    .internal_get_prototype_of(agent, gc.reborrow())?
+                else {
                     return Ok(Value::Undefined);
                 };
+                let parent = parent.unbind().bind(gc.nogc());
                 let receiver = receiver.get(agent);
                 (
                     parent,
@@ -678,7 +698,9 @@ pub(crate) fn ordinary_get(
             };
 
         // c. Return ? parent.[[Get]](P, Receiver).
-        return parent.internal_get(agent, property_key.unbind(), receiver, gc);
+        return parent
+            .unbind()
+            .internal_get(agent, property_key.unbind(), receiver, gc.reborrow());
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -868,7 +890,7 @@ fn ordinary_try_set_with_own_descriptor(
 fn ordinary_set_with_own_descriptor(
     agent: &mut Agent,
     object: Object,
-    scoped_property_key: Scoped<'_, PropertyKey>,
+    scoped_property_key: Scoped<'_, PropertyKey<'static>>,
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
@@ -887,7 +909,9 @@ fn ordinary_set_with_own_descriptor(
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
             // Note: Prototype might be a Proxy or contain a setter.
-            return parent.internal_set(agent, property_key.unbind(), value, receiver, gc);
+            return parent
+                .unbind()
+                .internal_set(agent, property_key.unbind(), value, receiver, gc);
         }
         // c. Else,
         else {
@@ -1094,11 +1118,12 @@ pub(crate) fn ordinary_own_property_keys<'a>(
 /// default prototype from the intrinsics, otherwise with the given prototype.
 /// To create an object with null prototype, both `proto_intrinsics` and
 /// `prototype` must be None.
-pub(crate) fn ordinary_object_create_with_intrinsics(
+pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     agent: &mut Agent,
     proto_intrinsics: Option<ProtoIntrinsics>,
     prototype: Option<Object>,
-) -> Object {
+    gc: NoGcScope<'a, '_>,
+) -> Object<'a> {
     let Some(proto_intrinsics) = proto_intrinsics else {
         assert!(prototype.is_none());
         return agent.heap.create_null_object(&[]).into();
@@ -1291,7 +1316,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
         object.internal_set_prototype(agent, Some(prototype));
     }
 
-    object
+    object.bind(gc)
 }
 
 /// ### [10.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto \[ , internalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinarycreatefromconstructor)
@@ -1310,27 +1335,32 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 /// NOTE: In this implementation, `intrinsic_default_proto` also defines which
 /// kind of heap data type the created object uses, and therefore which internal
 /// slots it has. Therefore the `internalSlotsList` property isn't present.
-pub(crate) fn ordinary_create_from_constructor(
+pub(crate) fn ordinary_create_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    gc: GcScope,
-) -> JsResult<Object> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
     let constructor = constructor.bind(gc.nogc());
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
 
     // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
-    let proto =
-        get_prototype_from_constructor(agent, constructor.unbind(), intrinsic_default_proto, gc)?;
+    let proto = get_prototype_from_constructor(
+        agent,
+        constructor.unbind(),
+        intrinsic_default_proto,
+        gc.reborrow(),
+    )?;
     // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
     // 4. Else, let slotsList be a new empty List.
     // 5. Return OrdinaryObjectCreate(proto, slotsList).
     Ok(ordinary_object_create_with_intrinsics(
         agent,
         Some(intrinsic_default_proto),
-        proto,
+        proto.map(|f| f.unbind()),
+        gc.into_nogc(),
     ))
 }
 
@@ -1348,12 +1378,12 @@ pub(crate) fn ordinary_create_from_constructor(
 /// NOTE: In this implementation, the function returns None if the prototype it
 /// would otherwise return is the prototype that corresponds to
 /// `intrinsic_default_proto`.
-pub(crate) fn get_prototype_from_constructor(
+pub(crate) fn get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-    gc: GcScope,
-) -> JsResult<Option<Object>> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<Option<Object<'a>>> {
     let constructor = constructor.bind(gc.nogc());
     let function_realm = get_function_realm(agent, constructor);
     // NOTE: %Constructor%.prototype is an immutable property; we can thus

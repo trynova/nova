@@ -67,7 +67,7 @@ impl ArrayIterator<'_> {
     ) -> Self {
         agent.heap.create(ArrayIteratorHeapData {
             object_index: None,
-            array: Some(array),
+            array: Some(array.unbind()),
             next_index: 0,
             kind,
         })
@@ -80,13 +80,13 @@ impl IntoValue for ArrayIterator<'_> {
     }
 }
 
-impl IntoObject for ArrayIterator<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for ArrayIterator<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl From<ArrayIterator<'_>> for Object {
+impl<'a> From<ArrayIterator<'a>> for Object<'a> {
     fn from(value: ArrayIterator) -> Self {
         Self::ArrayIterator(value.unbind())
     }
@@ -109,10 +109,10 @@ impl TryFrom<Value> for ArrayIterator<'_> {
     }
 }
 
-impl TryFrom<Object> for ArrayIterator<'_> {
+impl<'a> TryFrom<Object<'a>> for ArrayIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::ArrayIterator(data) => Ok(data),
             _ => Err(()),
@@ -120,7 +120,7 @@ impl TryFrom<Object> for ArrayIterator<'_> {
     }
 }
 
-impl InternalSlots for ArrayIterator<'_> {
+impl<'a> InternalSlots<'a> for ArrayIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -135,7 +135,7 @@ impl InternalSlots for ArrayIterator<'_> {
     }
 }
 
-impl InternalMethods for ArrayIterator<'_> {}
+impl<'a> InternalMethods<'a> for ArrayIterator<'a> {}
 
 impl Index<ArrayIterator<'_>> for Agent {
     type Output = ArrayIteratorHeapData;
@@ -212,7 +212,7 @@ pub(crate) enum CollectionIteratorKind {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ArrayIteratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) array: Option<Object>,
+    pub(crate) array: Option<Object<'static>>,
     pub(crate) next_index: i64,
     pub(crate) kind: CollectionIteratorKind,
 }

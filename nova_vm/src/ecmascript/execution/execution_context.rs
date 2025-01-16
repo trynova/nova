@@ -8,6 +8,7 @@ use crate::{
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         types::*,
     },
+    engine::context::NoGcScope,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -159,9 +160,9 @@ impl HeapMarkAndSweep for ExecutionContext {
 /// The abstract operation GetGlobalObject takes no arguments and returns an
 /// Object. It returns the global object used by the currently running
 /// execution context.
-pub(crate) fn get_global_object(agent: &Agent) -> Object {
+pub(crate) fn get_global_object<'a>(agent: &Agent, gc: NoGcScope<'a, '_>) -> Object<'a> {
     // 1. Let currentRealm be the current Realm Record.
     let current_realm = agent.current_realm();
     // 2. Return currentRealm.[[GlobalObject]].
-    current_realm.global_object
+    current_realm.global_object.bind(gc)
 }

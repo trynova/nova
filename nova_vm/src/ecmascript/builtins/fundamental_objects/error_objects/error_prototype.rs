@@ -32,7 +32,7 @@ impl ErrorPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.

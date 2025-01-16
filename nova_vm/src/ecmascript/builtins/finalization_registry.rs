@@ -74,8 +74,8 @@ impl IntoValue for FinalizationRegistry<'_> {
     }
 }
 
-impl IntoObject for FinalizationRegistry<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for FinalizationRegistry<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -86,13 +86,13 @@ impl From<FinalizationRegistry<'_>> for Value {
     }
 }
 
-impl From<FinalizationRegistry<'_>> for Object {
+impl<'a> From<FinalizationRegistry<'a>> for Object<'a> {
     fn from(val: FinalizationRegistry) -> Self {
         Object::FinalizationRegistry(val.unbind())
     }
 }
 
-impl InternalSlots for FinalizationRegistry<'_> {
+impl<'a> InternalSlots<'a> for FinalizationRegistry<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::FinalizationRegistry;
 
     #[inline(always)]
@@ -108,7 +108,7 @@ impl InternalSlots for FinalizationRegistry<'_> {
     }
 }
 
-impl InternalMethods for FinalizationRegistry<'_> {}
+impl<'a> InternalMethods<'a> for FinalizationRegistry<'a> {}
 
 impl Index<FinalizationRegistry<'_>> for Agent {
     type Output = FinalizationRegistryHeapData;

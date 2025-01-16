@@ -134,7 +134,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
     set_function_name(agent, f, pk_name, None, gc);
     // 5. Perform MakeConstructor(F).
     if !function.r#async && !function.generator {
-        make_constructor(agent, f, None, None);
+        make_constructor(agent, f, None, None, gc);
     }
 
     if function.generator {
@@ -162,6 +162,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
                     .generator_prototype()
                     .into_object()
             }),
+            gc,
         );
         // 6. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor {
         unwrap_try(try_define_property_or_throw(
@@ -240,7 +241,7 @@ pub(crate) fn instantiate_ordinary_function_expression<'a>(
         set_function_name(agent, closure, name, None, gc);
         // 7. Perform MakeConstructor(closure).
         if !function.expression.get().r#async && !function.expression.get().generator {
-            make_constructor(agent, closure, None, None);
+            make_constructor(agent, closure, None, None, gc);
         }
         // 8. Return closure.
         closure
@@ -284,7 +285,7 @@ pub(crate) fn evaluate_function_body(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<Value> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
@@ -381,7 +382,7 @@ pub(crate) fn evaluate_generator_body(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
@@ -401,7 +402,10 @@ pub(crate) fn evaluate_generator_body(
         function_object.into_function().unbind(),
         ProtoIntrinsics::Generator,
         gc.reborrow(),
-    )?;
+    )?
+    .unbind();
+    let gc = gc.into_nogc();
+    let generator = generator.bind(gc);
     let Object::Generator(generator) = generator else {
         unreachable!()
     };
@@ -409,7 +413,7 @@ pub(crate) fn evaluate_generator_body(
     // 4. Perform GeneratorStart(G, FunctionBody).
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
-    let executable = Executable::compile_function_body(agent, data, gc.nogc());
+    let executable = Executable::compile_function_body(agent, data, gc);
     agent[generator].generator_state = Some(GeneratorState::Suspended {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,

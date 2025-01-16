@@ -68,11 +68,7 @@ use crate::{
     engine::{context::GcScope, Executable},
 };
 
-pub fn heap_gc(
-    agent: &mut Agent,
-    root_realms: &mut [Option<RealmIdentifier>],
-    gc: GcScope<'_, '_>,
-) {
+pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], gc: GcScope) {
     let Agent {
         heap,
         execution_context_stack,
@@ -1003,7 +999,7 @@ fn sweep(
     agent: &mut Agent,
     bits: &HeapBits,
     root_realms: &mut [Option<RealmIdentifier>],
-    _: GcScope<'_, '_>,
+    _: GcScope,
 ) {
     let compactions = CompactionLists::create_from_bits(bits);
 

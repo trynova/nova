@@ -28,7 +28,7 @@ pub(super) fn execute_simple_array_binding(
     executable: Executable,
     mut iterator: VmIterator,
     environment: Option<EnvironmentIndex>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     let mut iterator_is_done = false;
 
@@ -132,8 +132,9 @@ pub(super) fn execute_simple_object_binding(
     executable: Executable,
     object: Object,
     environment: Option<EnvironmentIndex>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
+    let object = object.scope(agent, gc.nogc());
     let mut excluded_names = AHashSet::new();
 
     loop {
@@ -158,7 +159,12 @@ pub(super) fn execute_simple_object_binding(
                 let property_key = property_key.unbind();
                 let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
                     .unbind();
-                let v = get(agent, object, property_key.unbind(), gc.reborrow())?;
+                let v = get(
+                    agent,
+                    object.get(agent),
+                    property_key.unbind(),
+                    gc.reborrow(),
+                )?;
                 if environment.is_none() {
                     put_value(agent, &lhs, v, gc.reborrow())?;
                 } else {
@@ -176,7 +182,12 @@ pub(super) fn execute_simple_object_binding(
                 };
 
                 excluded_names.insert(property_key.unbind());
-                let v = get(agent, object, property_key.unbind(), gc.reborrow())?;
+                let v = get(
+                    agent,
+                    object.get(agent),
+                    property_key.unbind(),
+                    gc.reborrow(),
+                )?;
                 execute_nested_simple_binding(
                     agent,
                     vm,
@@ -198,7 +209,7 @@ pub(super) fn execute_simple_object_binding(
                 // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                 let rest_obj = copy_data_properties_into_object(
                     agent,
-                    object,
+                    object.get(agent),
                     &excluded_names,
                     gc.reborrow(),
                 )?
@@ -225,7 +236,7 @@ pub(super) fn execute_nested_simple_binding(
     executable: Executable,
     value: Value,
     environment: Option<EnvironmentIndex>,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     let instr = executable.get_instruction(agent, &mut vm.ip).unwrap();
     match instr.kind {
@@ -242,7 +253,14 @@ pub(super) fn execute_nested_simple_binding(
         }
         Instruction::BeginSimpleObjectBindingPattern => {
             let object = to_object(agent, value, gc.nogc())?;
-            execute_simple_object_binding(agent, vm, executable, object, environment, gc.reborrow())
+            execute_simple_object_binding(
+                agent,
+                vm,
+                executable,
+                object.unbind(),
+                environment,
+                gc.reborrow(),
+            )
         }
         _ => unreachable!(),
     }

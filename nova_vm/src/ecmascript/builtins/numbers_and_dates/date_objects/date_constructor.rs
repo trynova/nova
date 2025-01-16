@@ -62,7 +62,7 @@ impl DateConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
@@ -129,7 +129,7 @@ impl DateConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         let time_value = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -148,7 +148,7 @@ impl DateConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!();
     }
@@ -158,7 +158,7 @@ impl DateConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).

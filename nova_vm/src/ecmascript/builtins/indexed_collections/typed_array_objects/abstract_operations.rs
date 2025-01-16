@@ -350,11 +350,12 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     let new_target = new_target.bind(gc.nogc());
     // 1. Let proto be ? GetPrototypeFromConstructor(newTarget, defaultProto).
     let proto =
-        get_prototype_from_constructor(agent, new_target.unbind(), default_proto, gc.reborrow())?;
+        get_prototype_from_constructor(agent, new_target.unbind(), default_proto, gc.reborrow())?
+            .map(|p| p.unbind())
+            .map(|p| p.bind(gc.nogc()));
 
     // 2. Let obj be TypedArrayCreate(proto).
-    let gc = gc.into_nogc();
-    let obj = typed_array_create::<T>(agent, proto, gc);
+    let obj = typed_array_create::<T>(agent, proto, gc.nogc());
 
     // NOTE: Steps 3-7 are skipped, it's the defaults for TypedArrayHeapData.
     // 3. Assert: obj.[[ViewedArrayBuffer]] is undefined.
@@ -369,11 +370,11 @@ pub(crate) fn allocate_typed_array<'a, T: Viewable>(
     if let Some(length) = length {
         // 8. Else,
         // a. Perform ? AllocateTypedArrayBuffer(obj, length).
-        allocate_typed_array_buffer::<T>(agent, obj, length, gc)?;
+        allocate_typed_array_buffer::<T>(agent, obj, length, gc.nogc())?;
     }
 
     // 9. Return obj.
-    Ok(obj)
+    Ok(obj.unbind().bind(gc.into_nogc()))
 }
 
 /// ### [23.2.5.1.2 InitializeTypedArrayFromTypedArray ( O, srcArray )](https://tc39.es/ecma262/#sec-initializetypedarrayfromtypedarray)
@@ -674,7 +675,14 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
                 gc.nogc(),
             ))?;
         } else {
-            set(agent, o.into_object(), pk, k_value, true, gc.reborrow())?;
+            set(
+                agent,
+                o.unbind().into_object(),
+                pk,
+                k_value,
+                true,
+                gc.reborrow(),
+            )?;
             o = scoped_o.get(agent).bind(gc.nogc());
         }
     }

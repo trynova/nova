@@ -13,9 +13,9 @@ use crate::{
 use super::Proxy;
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct NonRevokedProxy {
-    pub(crate) target: Object,
-    pub(crate) handler: Object,
+pub(crate) struct NonRevokedProxy<'a> {
+    pub(crate) target: Object<'a>,
+    pub(crate) handler: Object<'a>,
 }
 
 /// ### [10.5.14 ValidateNonRevokedProxy ( proxy )](https://tc39.es/ecma262/#sec-validatenonrevokedproxy)
@@ -23,11 +23,11 @@ pub(crate) struct NonRevokedProxy {
 /// The abstract operation ValidateNonRevokedProxy takes argument
 /// proxy (a Proxy exotic object) and returns either a normal completion containing unused or a throw completion.
 /// It throws a TypeError exception if proxy has been revoked.
-pub(crate) fn validate_non_revoked_proxy(
+pub(crate) fn validate_non_revoked_proxy<'a>(
     agent: &mut Agent,
     proxy: Proxy,
-    gc: NoGcScope,
-) -> JsResult<NonRevokedProxy> {
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<NonRevokedProxy<'a>> {
     let proxy_data = &agent[proxy];
 
     // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.

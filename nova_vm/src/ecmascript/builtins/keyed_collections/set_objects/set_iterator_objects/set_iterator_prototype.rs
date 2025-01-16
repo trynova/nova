@@ -37,7 +37,7 @@ impl SetIteratorPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
@@ -54,7 +54,7 @@ impl SetIteratorPrototype {
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // NOTE: We set `set` to None when the generator in the spec text has returned.
         let Some(set) = agent[iterator].set else {
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return Ok(create_iter_result_object(agent, Value::Undefined, true, gc).into_value());
         };
 
         // b. Let entries be set.[[SetData]].
@@ -87,14 +87,14 @@ impl SetIteratorPrototype {
                 }
             };
 
-            return Ok(create_iter_result_object(agent, result, false).into_value());
+            return Ok(create_iter_result_object(agent, result, false, gc).into_value());
         }
 
         debug_assert_eq!(agent[iterator].next_index, agent[set].values().len());
 
         // e. Return undefined.
         agent[iterator].set = None;
-        Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
+        Ok(create_iter_result_object(agent, Value::Undefined, true, gc).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

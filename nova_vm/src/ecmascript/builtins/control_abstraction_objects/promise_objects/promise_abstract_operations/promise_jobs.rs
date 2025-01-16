@@ -27,11 +27,11 @@ use super::{
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PromiseResolveThenableJob {
     promise_to_resolve: Promise<'static>,
-    thenable: Object,
+    thenable: Object<'static>,
     then: Function<'static>,
 }
 impl PromiseResolveThenableJob {
-    pub(crate) fn run(self, agent: &mut Agent, gc: GcScope<'_, '_>) -> JsResult<()> {
+    pub(crate) fn run(self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
         // The following are substeps of point 1 in NewPromiseResolveThenableJob.
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
         let promise_capability = PromiseCapability::from_promise(self.promise_to_resolve, false);
@@ -94,7 +94,7 @@ pub(crate) fn new_promise_resolve_thenable_job(
         realm: Some(then_realm),
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
             promise_to_resolve: promise_to_resolve.unbind(),
-            thenable,
+            thenable: thenable.unbind(),
             then: then.unbind(),
         }),
     }
@@ -106,7 +106,7 @@ pub(crate) struct PromiseReactionJob {
     argument: Value,
 }
 impl PromiseReactionJob {
-    pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope<'_, '_>) -> JsResult<()> {
+    pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[self.reaction].handler {
             PromiseReactionHandler::Empty => match agent[self.reaction].reaction_type {

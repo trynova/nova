@@ -75,7 +75,7 @@ impl SymbolPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
@@ -90,7 +90,7 @@ impl SymbolPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let symb = this_symbol_value(agent, this_value, gc.nogc())?;
         Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value())
@@ -100,7 +100,7 @@ impl SymbolPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value())
     }

@@ -368,7 +368,7 @@ impl Intrinsics {
     pub(crate) fn get_intrinsic_default_proto(
         &self,
         intrinsic_default_proto: ProtoIntrinsics,
-    ) -> Object {
+    ) -> Object<'static> {
         match intrinsic_default_proto {
             ProtoIntrinsics::Array => self.array_prototype().into(),
             #[cfg(feature = "array-buffer")]

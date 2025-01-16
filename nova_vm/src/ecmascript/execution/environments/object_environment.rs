@@ -40,7 +40,7 @@ pub struct ObjectEnvironment {
     /// ### \[\[BindingObject\]\]
     ///
     /// The binding object of this Environment Record.
-    pub(crate) binding_object: Object,
+    pub(crate) binding_object: Object<'static>,
 
     /// ### \[\[IsWithEnvironment\]\]
     ///
@@ -68,7 +68,7 @@ impl ObjectEnvironment {
         // 1. Let env be a new Object Environment Record.
         ObjectEnvironment {
             // 2. Set env.[[BindingObject]] to O.
-            binding_object,
+            binding_object: binding_object.unbind(),
             // 3. Set env.[[IsWithEnvironment]] to W.
             is_with_environment,
             // 4. Set env.[[OuterEnv]] to E.
@@ -111,7 +111,7 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         n: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -158,7 +158,7 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         n: String,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -209,7 +209,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         d: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -252,7 +252,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         d: bool,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -299,7 +299,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         v: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         // 2. Return UNUSED.
@@ -324,7 +324,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         v: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         // 1. Perform ? envRec.SetMutableBinding(N, V, false).
         self.set_mutable_binding(agent, n, v, false, gc)?;
@@ -354,7 +354,7 @@ impl ObjectEnvironmentIndex {
         n: String,
         v: Value,
         s: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -396,7 +396,7 @@ impl ObjectEnvironmentIndex {
         n: String,
         v: Value,
         s: bool,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<()> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -436,7 +436,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<Value>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -479,7 +479,7 @@ impl ObjectEnvironmentIndex {
         agent: &mut Agent,
         n: String,
         s: bool,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -520,7 +520,7 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
@@ -541,7 +541,7 @@ impl ObjectEnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].

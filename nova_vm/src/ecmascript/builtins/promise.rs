@@ -92,8 +92,8 @@ impl IntoValue for Promise<'_> {
     }
 }
 
-impl IntoObject for Promise<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Promise<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -104,13 +104,13 @@ impl From<Promise<'_>> for Value {
     }
 }
 
-impl From<Promise<'_>> for Object {
+impl<'a> From<Promise<'a>> for Object<'a> {
     fn from(val: Promise) -> Self {
         Object::Promise(val.unbind())
     }
 }
 
-impl InternalSlots for Promise<'_> {
+impl<'a> InternalSlots<'a> for Promise<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Promise;
 
     #[inline(always)]
@@ -126,7 +126,7 @@ impl InternalSlots for Promise<'_> {
     }
 }
 
-impl InternalMethods for Promise<'_> {}
+impl<'a> InternalMethods<'a> for Promise<'a> {}
 
 impl CreateHeapData<PromiseHeapData, Promise<'static>> for Heap {
     fn create(&mut self, data: PromiseHeapData) -> Promise<'static> {

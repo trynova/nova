@@ -52,7 +52,7 @@ impl GeneratorPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
@@ -71,8 +71,9 @@ impl GeneratorPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
+        let gc = gc.into_nogc();
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
         // 3. Return ? GeneratorResumeAbrupt(g, C, empty).
@@ -83,9 +84,10 @@ impl GeneratorPrototype {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Generator expected",
-                gc.nogc(),
+                gc,
             ));
         };
+        let generator = generator.bind(gc);
 
         match agent[generator].generator_state.as_ref().unwrap() {
             // 2. If state is suspended-start, then
@@ -109,7 +111,7 @@ impl GeneratorPrototype {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "The generator is currently running",
-                    gc.nogc(),
+                    gc,
                 ))
             }
             GeneratorState::Completed => {}
@@ -119,14 +121,14 @@ impl GeneratorPrototype {
         // 3. If state is completed, then
         //    a. If abruptCompletion is a return completion, then
         //       i. Return CreateIterResultObject(abruptCompletion.[[Value]], true).
-        Ok(create_iter_result_object(agent, arguments.get(0), true).into_value())
+        Ok(create_iter_result_object(agent, arguments.get(0), true, gc).into_value())
     }
 
     fn throw(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {

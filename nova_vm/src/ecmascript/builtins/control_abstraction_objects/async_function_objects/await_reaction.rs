@@ -59,7 +59,7 @@ impl AwaitReactionIdentifier {
         agent: &mut Agent,
         reaction_type: PromiseReactionType,
         value: Value,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) {
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.

@@ -10,9 +10,9 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct ProxyHeapData {
     /// [[ProxyTarget]]
-    pub(crate) proxy_target: Option<Object>,
+    pub(crate) proxy_target: Option<Object<'static>>,
     /// [[ProxyHandler]]
-    pub(crate) proxy_handler: Option<Object>,
+    pub(crate) proxy_handler: Option<Object<'static>>,
 }
 
 impl HeapMarkAndSweep for ProxyHeapData {

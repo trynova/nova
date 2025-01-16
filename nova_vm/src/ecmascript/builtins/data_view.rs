@@ -119,8 +119,8 @@ impl IntoValue for DataView<'_> {
     }
 }
 
-impl IntoObject for DataView<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for DataView<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -131,16 +131,16 @@ impl From<DataView<'_>> for Value {
     }
 }
 
-impl From<DataView<'_>> for Object {
+impl<'a> From<DataView<'a>> for Object<'a> {
     fn from(val: DataView) -> Self {
         Object::DataView(val.unbind())
     }
 }
 
-impl TryFrom<Object> for DataView<'_> {
+impl<'a> TryFrom<Object<'a>> for DataView<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::DataView(data) => Ok(data),
             _ => Err(()),
@@ -182,7 +182,7 @@ impl IndexMut<DataView<'_>> for Vec<Option<DataViewHeapData>> {
     }
 }
 
-impl InternalSlots for DataView<'_> {
+impl<'a> InternalSlots<'a> for DataView<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::DataView;
 
     #[inline(always)]
@@ -198,7 +198,7 @@ impl InternalSlots for DataView<'_> {
     }
 }
 
-impl InternalMethods for DataView<'_> {}
+impl<'a> InternalMethods<'a> for DataView<'a> {}
 
 impl Rootable for DataView<'_> {
     type RootRepr = HeapRootRef;

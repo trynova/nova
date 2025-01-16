@@ -77,8 +77,8 @@ impl IntoValue for ECMAScriptFunction<'_> {
     }
 }
 
-impl IntoObject for ECMAScriptFunction<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for ECMAScriptFunction<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -101,10 +101,10 @@ impl TryFrom<Value> for ECMAScriptFunction<'_> {
     }
 }
 
-impl TryFrom<Object> for ECMAScriptFunction<'_> {
+impl<'a> TryFrom<Object<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         if let Object::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -131,7 +131,7 @@ impl From<ECMAScriptFunction<'_>> for Value {
     }
 }
 
-impl From<ECMAScriptFunction<'_>> for Object {
+impl<'a> From<ECMAScriptFunction<'a>> for Object<'a> {
     fn from(val: ECMAScriptFunction) -> Self {
         Object::ECMAScriptFunction(val.unbind())
     }
@@ -222,7 +222,7 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     pub strict: bool,
 
     /// \[\[HomeObject]]
-    pub home_object: Option<Object>,
+    pub home_object: Option<Object<'static>>,
 
     ///  \[\[SourceText]]
     pub source_text: Span,
@@ -235,8 +235,8 @@ pub(crate) struct ECMAScriptFunctionObjectHeapData {
     // TODO: [[Fields]],  [[PrivateMethods]], [[ClassFieldInitializerName]]
 }
 
-pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program> {
-    pub function_prototype: Option<Object>,
+pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program, 'gc> {
+    pub function_prototype: Option<Object<'gc>>,
     pub source_code: Option<SourceCode>,
     pub source_text: Span,
     pub parameters_list: &'agent FormalParameters<'program>,
@@ -327,7 +327,7 @@ impl<'a> ECMAScriptFunction<'a> {
     }
 }
 
-impl InternalSlots for ECMAScriptFunction<'_> {
+impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -346,7 +346,7 @@ impl InternalSlots for ECMAScriptFunction<'_> {
         function_create_backing_object(self, agent)
     }
 
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             object_index.internal_prototype(agent)
         } else {
@@ -378,12 +378,12 @@ impl<'a> FunctionInternalProperties<'a> for ECMAScriptFunction<'a> {
     }
 }
 
-impl InternalMethods for ECMAScriptFunction<'_> {
+impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope<'_, '_>,
+        _gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
@@ -397,7 +397,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_define_own_property(
             self,
@@ -412,7 +412,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_has_property(self, agent, property_key, gc)
     }
@@ -421,7 +421,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
@@ -431,7 +431,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
@@ -441,7 +441,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
@@ -452,7 +452,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
@@ -463,7 +463,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
@@ -472,16 +472,16 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
@@ -496,8 +496,8 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         self,
         agent: &mut Agent,
         this_argument: Value,
-        arguments_list: ArgumentsList<'_>,
-        gc: GcScope<'_, '_>,
+        arguments_list: ArgumentsList,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
@@ -546,21 +546,23 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         result
     }
 
-    fn internal_construct(
+    fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
         new_target: Function,
-        mut gc: GcScope<'_, '_>,
-    ) -> JsResult<Object> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Object<'gc>> {
+        let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
         // 2. Let kind be F.[[ConstructorKind]].
-        let is_base = !agent[self]
+        let is_base = !agent[self_fn]
             .ecmascript_function
             .constructor_status
             .is_derived_class();
         // 3. If kind is BASE, then
         let this_argument = if is_base {
+            let scoped_self_fn = self_fn.scope(agent, gc.nogc());
             let scoped_new_target = new_target.scope(agent, gc.nogc());
             // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
             let this_argument = ordinary_create_from_constructor(
@@ -568,7 +570,10 @@ impl InternalMethods for ECMAScriptFunction<'_> {
                 new_target.unbind(),
                 ProtoIntrinsics::Object,
                 gc.reborrow(),
-            )?;
+            )?
+            .unbind()
+            .bind(gc.nogc());
+            self_fn = scoped_self_fn.get(agent).bind(gc.nogc());
             new_target = scoped_new_target.get(agent).bind(gc.nogc());
             Some(this_argument)
         } else {
@@ -576,7 +581,8 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         };
 
         // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
-        let callee_context = prepare_for_ordinary_call(agent, self, Some(new_target.into_object()));
+        let callee_context =
+            prepare_for_ordinary_call(agent, self_fn, Some(new_target.into_object()));
         // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
         let constructor_env = callee_context
             .ecmascript_code
@@ -607,8 +613,11 @@ impl InternalMethods for ECMAScriptFunction<'_> {
             // TODO: Classes.
         }
 
+        let scoped_this_argument = this_argument.map(|f| f.scope(agent, gc.nogc()));
+
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result = ordinary_call_evaluate_body(agent, self, arguments_list, gc.reborrow());
+        let result =
+            ordinary_call_evaluate_body(agent, self_fn.unbind(), arguments_list, gc.reborrow());
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
         agent.execution_context_stack.pop();
@@ -623,7 +632,7 @@ impl InternalMethods for ECMAScriptFunction<'_> {
         } else
         //   b. If kind is base, return thisArgument.
         if is_base {
-            Ok(this_argument.unwrap())
+            Ok(scoped_this_argument.unwrap().get(agent))
         } else
         //   c. If result.[[Value]] is not undefined, throw a TypeError exception.
         if !value.is_undefined() {
@@ -734,7 +743,7 @@ pub(crate) fn ordinary_call_bind_this(
             // ii. Assert: globalEnv is a Global Environment Record.
             let global_env = global_env.unwrap();
             // iii. Let thisValue be globalEnv.[[GlobalThisValue]].
-            global_env.get_this_binding(agent).into_value()
+            global_env.get_this_binding(agent, gc).into_value()
         } else {
             // b. Else,
             // i. Let thisValue be ! ToObject(thisArgument).
@@ -763,7 +772,7 @@ pub(crate) fn evaluate_body(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<Value> {
     let function_object = function_object.bind(gc.nogc());
     let function_heap_data = &agent[function_object].ecmascript_function;
@@ -834,7 +843,7 @@ pub(crate) fn ordinary_call_evaluate_body(
     agent: &mut Agent,
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope<'_, '_>,
+    gc: GcScope,
 ) -> JsResult<Value> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
     evaluate_body(agent, f, arguments_list, gc)
@@ -854,7 +863,7 @@ pub(crate) fn ordinary_call_evaluate_body(
 /// the syntactic definition of the function to be created.
 pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     agent: &'agent mut Agent,
-    params: OrdinaryFunctionCreateParams<'agent, 'program>,
+    params: OrdinaryFunctionCreateParams<'agent, 'program, 'gc>,
     gc: NoGcScope<'gc, '_>,
 ) -> ECMAScriptFunction<'gc> {
     let (source_code, outer_env_is_strict) = if let Some(source_code) = params.source_code {
@@ -966,9 +975,10 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
 /// UNUSED. It converts F into a constructor.
 pub(crate) fn make_constructor<'a>(
     agent: &mut Agent,
-    function: impl IntoFunction<'a> + InternalMethods,
+    function: impl IntoFunction<'a> + InternalMethods<'a>,
     writable_prototype: Option<bool>,
     prototype: Option<OrdinaryObject>,
+    gc: NoGcScope,
 ) {
     // 4. If writablePrototype is not present, set writablePrototype to true.
     let writable_prototype = writable_prototype.unwrap_or(true);
@@ -1001,6 +1011,7 @@ pub(crate) fn make_constructor<'a>(
             agent,
             Some(ProtoIntrinsics::Object),
             None,
+            gc,
         ))
         .unwrap();
         // b. Perform ! DefinePropertyOrThrow(prototype, "constructor", PropertyDescriptor { [[Value]]: F, [[Writable]]: writablePrototype, [[Enumerable]]: false, [[Configurable]]: true }).
@@ -1047,7 +1058,7 @@ pub(crate) fn make_constructor<'a>(
 pub(crate) fn make_method(agent: &mut Agent, f: ECMAScriptFunction, home_object: Object) {
     // 1. Assert: homeObject is an ordinary object.
     // 2. Set F.[[HomeObject]] to homeObject.
-    agent[f].ecmascript_function.home_object = Some(home_object);
+    agent[f].ecmascript_function.home_object = Some(home_object.unbind());
     // 3. Return unused.
 }
 

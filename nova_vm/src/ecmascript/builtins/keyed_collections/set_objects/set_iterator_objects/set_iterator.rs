@@ -80,13 +80,13 @@ impl IntoValue for SetIterator<'_> {
     }
 }
 
-impl IntoObject for SetIterator<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for SetIterator<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl From<SetIterator<'_>> for Object {
+impl<'a> From<SetIterator<'a>> for Object<'a> {
     fn from(value: SetIterator) -> Self {
         Self::SetIterator(value.unbind())
     }
@@ -109,10 +109,10 @@ impl TryFrom<Value> for SetIterator<'_> {
     }
 }
 
-impl TryFrom<Object> for SetIterator<'_> {
+impl<'a> TryFrom<Object<'a>> for SetIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::SetIterator(data) => Ok(data),
             _ => Err(()),
@@ -120,7 +120,7 @@ impl TryFrom<Object> for SetIterator<'_> {
     }
 }
 
-impl InternalSlots for SetIterator<'_> {
+impl<'a> InternalSlots<'a> for SetIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SetIterator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -135,7 +135,7 @@ impl InternalSlots for SetIterator<'_> {
     }
 }
 
-impl InternalMethods for SetIterator<'_> {}
+impl<'a> InternalMethods<'a> for SetIterator<'a> {}
 
 impl Index<SetIterator<'_>> for Agent {
     type Output = SetIteratorHeapData;

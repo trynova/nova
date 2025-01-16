@@ -9,9 +9,9 @@ use crate::{
 };
 
 /// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-pub trait InternalSlots
+pub trait InternalSlots<'a>
 where
-    Self: Sized + Copy + Into<Object> + IntoObject,
+    Self: 'a + Sized + Copy + Into<Object<'a>> + IntoObject<'a>,
 {
     /// Default prototype of the object; this is used by
     /// [OrdinaryObjectInternalSlots::internal_prototype].
@@ -78,7 +78,7 @@ where
     /// All ordinary objects have an internal slot called \[\[Prototype\]\].
     /// The value of this internal slot is either null or an object and is used
     /// for implementing inheritance.
-    fn internal_prototype(self, agent: &Agent) -> Option<Object> {
+    fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
         if let Some(backing_object) = self.get_backing_object(agent) {
             backing_object.internal_prototype(agent)
         } else {

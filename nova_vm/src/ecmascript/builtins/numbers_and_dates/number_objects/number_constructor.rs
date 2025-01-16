@@ -75,7 +75,7 @@ impl NumberConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let value = arguments.get(0);
 
@@ -144,7 +144,7 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
@@ -163,7 +163,7 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
@@ -176,7 +176,7 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 
@@ -195,7 +195,7 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         let maybe_number = arguments.get(0);
 

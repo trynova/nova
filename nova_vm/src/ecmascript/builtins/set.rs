@@ -71,8 +71,8 @@ impl IntoValue for Set<'_> {
     }
 }
 
-impl IntoObject for Set<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Set<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -83,7 +83,7 @@ impl From<Set<'_>> for Value {
     }
 }
 
-impl From<Set<'_>> for Object {
+impl<'a> From<Set<'a>> for Object<'a> {
     fn from(val: Set) -> Self {
         Object::Set(val.unbind())
     }
@@ -101,10 +101,10 @@ impl TryFrom<Value> for Set<'_> {
     }
 }
 
-impl TryFrom<Object> for Set<'_> {
+impl<'a> TryFrom<Object<'a>> for Set<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         if let Object::Set(set) = value {
             Ok(set)
         } else {
@@ -113,7 +113,7 @@ impl TryFrom<Object> for Set<'_> {
     }
 }
 
-impl InternalSlots for Set<'_> {
+impl<'a> InternalSlots<'a> for Set<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Set;
 
     #[inline(always)]
@@ -129,7 +129,7 @@ impl InternalSlots for Set<'_> {
     }
 }
 
-impl InternalMethods for Set<'_> {}
+impl<'a> InternalMethods<'a> for Set<'a> {}
 
 impl HeapMarkAndSweep for Set<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {

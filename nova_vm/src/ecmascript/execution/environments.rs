@@ -223,7 +223,7 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => TryResult::Continue(idx.has_binding(agent, name)),
@@ -241,7 +241,7 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.has_binding(agent, name)),
@@ -261,7 +261,7 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -291,7 +291,7 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         is_deletable: bool,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -355,7 +355,7 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -382,7 +382,7 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         value: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -411,7 +411,7 @@ impl EnvironmentIndex {
         name: String,
         value: Value,
         is_strict: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<()>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -442,7 +442,7 @@ impl EnvironmentIndex {
         name: String,
         value: Value,
         is_strict: bool,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<()> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -474,7 +474,7 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<Value>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -502,7 +502,7 @@ impl EnvironmentIndex {
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -526,7 +526,7 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<JsResult<bool>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
@@ -552,7 +552,7 @@ impl EnvironmentIndex {
         self,
         agent: &mut Agent,
         name: String,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         match self {
             EnvironmentIndex::Declarative(idx) => Ok(idx.delete_binding(agent, name)),

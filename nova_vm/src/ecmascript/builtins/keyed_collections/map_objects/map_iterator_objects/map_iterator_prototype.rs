@@ -37,7 +37,7 @@ impl MapIteratorPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
@@ -54,7 +54,7 @@ impl MapIteratorPrototype {
         // 24.1.5.1 CreateMapIterator ( map, kind ), step 2
         // NOTE: We set `map` to None when the generator in the spec text has returned.
         let Some(map) = agent[iterator].map else {
-            return Ok(create_iter_result_object(agent, Value::Undefined, true).into_value());
+            return Ok(create_iter_result_object(agent, Value::Undefined, true, gc).into_value());
         };
 
         // a. Let entries be map.[[MapData]].
@@ -99,14 +99,14 @@ impl MapIteratorPrototype {
             };
 
             // 4. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-            return Ok(create_iter_result_object(agent, result, false).into_value());
+            return Ok(create_iter_result_object(agent, result, false, gc).into_value());
         }
 
         debug_assert_eq!(agent[iterator].next_index, agent[map].keys().len());
 
         // e. Return undefined.
         agent[iterator].map = None;
-        Ok(create_iter_result_object(agent, Value::Undefined, true).into_value())
+        Ok(create_iter_result_object(agent, Value::Undefined, true, gc).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

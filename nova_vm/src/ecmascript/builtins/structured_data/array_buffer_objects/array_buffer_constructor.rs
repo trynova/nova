@@ -61,7 +61,7 @@ impl ArrayBufferConstructor {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -95,7 +95,7 @@ impl ArrayBufferConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         // 1. If arg is not an Object, return false.
         // 2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
@@ -133,7 +133,7 @@ impl ArrayBufferConstructor {
         _agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Return the this value.
         // The value of the "name" property of this function is "get [Symbol.species]".
@@ -162,7 +162,7 @@ impl ArrayBufferConstructor {
 fn get_array_buffer_max_byte_length_option(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Option<u64>> {
     // 1. If options is not an Object, return empty.
     let Ok(options) = Object::try_from(options) else {

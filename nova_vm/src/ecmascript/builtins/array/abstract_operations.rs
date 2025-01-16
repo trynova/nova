@@ -91,23 +91,24 @@ pub(crate) fn array_create<'a>(
 /// > execution context. This maintains compatibility with Web browsers that
 /// > have historically had that behaviour for the Array.prototype methods
 /// > that now are defined using ArraySpeciesCreate.
-pub(crate) fn array_species_create(
+pub(crate) fn array_species_create<'a>(
     agent: &mut Agent,
     original_array: Object,
     length: usize,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Object> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
+    let original_array = original_array.bind(gc.nogc());
     // 1. Let isArray be ? IsArray(originalArray).
     let original_is_array = is_array(agent, original_array.into_value(), gc.nogc())?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
-        let new_array = array_create(agent, length, length, None, gc.nogc())?;
+        let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
         return Ok(new_array.into_object());
     }
     // 3. Let C be ? Get(originalArray, "constructor").
     let mut c = get(
         agent,
-        original_array,
+        original_array.unbind(),
         BUILTIN_STRING_MEMORY.constructor.into(),
         gc.reborrow(),
     )?;
@@ -141,7 +142,7 @@ pub(crate) fn array_species_create(
     }
     // 6. If C is undefined, return ? ArrayCreate(length).
     if c.is_undefined() {
-        let new_array = array_create(agent, length, length, None, gc.nogc())?;
+        let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
         return Ok(new_array.into_object());
     }
     // 7. If IsConstructor(C) is false, throw a TypeError exception.
@@ -164,7 +165,7 @@ pub(crate) fn array_set_length(
     agent: &mut Agent,
     a: Array,
     desc: PropertyDescriptor,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     let a = a.bind(gc.nogc());
     // 1. If Desc does not have a [[Value]] field, then

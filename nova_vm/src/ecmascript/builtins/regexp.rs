@@ -80,16 +80,16 @@ impl From<RegExp<'_>> for Value {
     }
 }
 
-impl From<RegExp<'_>> for Object {
+impl<'a> From<RegExp<'a>> for Object<'a> {
     fn from(value: RegExp) -> Self {
         Self::RegExp(value.unbind())
     }
 }
 
-impl TryFrom<Object> for RegExp<'_> {
+impl<'a> TryFrom<Object<'a>> for RegExp<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
             Object::RegExp(regexp) => Ok(regexp),
             _ => Err(()),
@@ -114,13 +114,13 @@ impl IntoValue for RegExp<'_> {
     }
 }
 
-impl IntoObject for RegExp<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for RegExp<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl InternalSlots for RegExp<'_> {
+impl<'a> InternalSlots<'a> for RegExp<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::RegExp;
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -160,7 +160,7 @@ impl InternalSlots for RegExp<'_> {
     }
 }
 
-impl InternalMethods for RegExp<'_> {
+impl<'a> InternalMethods<'a> for RegExp<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -362,11 +362,11 @@ impl InternalMethods for RegExp<'_> {
         }
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(
             if let Some(backing_object) = self.get_backing_object(agent) {
                 // Note: If backing object exists, it also contains the

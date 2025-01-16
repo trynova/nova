@@ -264,7 +264,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let pos = args.get(0);
         let (s, relative_index) =
@@ -306,7 +306,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let pos = args.get(0);
         let (s, position) = if let (Ok(s), Value::Integer(position)) =
@@ -340,7 +340,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let pos = args.get(0);
         let (s, position) = if let (Ok(s), Value::Integer(position)) =
@@ -375,7 +375,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let pos = args.get(0);
         let (s, position) = if let (Ok(s), Value::Integer(position)) =
@@ -414,7 +414,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let nogc = gc.nogc();
         let (s, args) = if let Ok(s) = String::try_from(this_value) {
@@ -473,7 +473,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let search_string = args.get(0);
         let end_position = args.get(1);
@@ -562,7 +562,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let search_string = args.get(0);
         let position = args.get(1);
@@ -636,7 +636,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let search_string = args.get(0);
         let position = args.get(1);
@@ -702,7 +702,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -730,7 +730,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let search_string = args.get(0);
         let position = args.get(1);
@@ -823,7 +823,7 @@ impl StringPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -832,7 +832,7 @@ impl StringPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -841,7 +841,7 @@ impl StringPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -851,7 +851,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let form = arguments.get(0);
 
@@ -902,7 +902,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let max_length = arguments.get(0);
         let fill_string = arguments.get(1);
@@ -919,7 +919,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let max_length = arguments.get(0);
         let fill_string = arguments.get(1);
@@ -936,7 +936,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let count = arguments.get(0);
 
@@ -998,7 +998,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1102,7 +1102,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1240,7 +1240,7 @@ impl StringPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1249,7 +1249,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1335,7 +1335,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1445,7 +1445,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1509,7 +1509,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let nogc = gc.nogc();
         let start = args.get(0).bind(nogc);
@@ -1585,7 +1585,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o: Value = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1604,7 +1604,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1624,7 +1624,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1644,7 +1644,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1663,7 +1663,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
@@ -1693,7 +1693,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, start+end).
@@ -1705,7 +1705,7 @@ impl StringPrototype {
         agent: &mut Agent,
         value: Value,
         trim_where: TrimWhere,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let str be ? RequireObjectCoercible(string).
         let str = require_object_coercible(agent, value, gc.nogc())?;
@@ -1744,7 +1744,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, end).
@@ -1756,7 +1756,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, start).
@@ -1772,7 +1772,7 @@ impl StringPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         // 1. Return ? ThisStringValue(this value).
         this_string_value(agent, this_value, gc.nogc()).map(|string| string.into_value())
@@ -1782,7 +1782,7 @@ impl StringPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1861,7 +1861,7 @@ fn string_padding_builtins_impl(
     max_length: Value,
     fill_string: Value,
     placement_start: bool,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     // 1. Let S be ? ToString(O).
     let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());

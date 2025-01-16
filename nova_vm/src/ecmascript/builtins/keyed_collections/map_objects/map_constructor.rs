@@ -6,7 +6,9 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
+use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
 use crate::engine::context::GcScope;
+use crate::engine::TryResult;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -68,7 +70,7 @@ impl MapConstructor {
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -80,13 +82,15 @@ impl MapConstructor {
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%Map.prototype%", « [[MapData]] »).
-        let map = Map::try_from(ordinary_create_from_constructor(
+        let mut map = Map::try_from(ordinary_create_from_constructor(
             agent,
             new_target,
             ProtoIntrinsics::Map,
             gc.reborrow(),
         )?)
-        .unwrap();
+        .unwrap()
+        .unbind()
+        .bind(gc.nogc());
         // 3. Set map.[[MapData]] to a new empty List.
         let iterable = arguments.get(0);
         // 4. If iterable is either undefined or null, return map.
@@ -102,12 +106,24 @@ impl MapConstructor {
             // key.
 
             // 5. Let adder be ? Get(map, "set").
-            let adder = get(
+            let adder = if let TryResult::Continue(adder) = try_get(
                 agent,
-                map.into_object(),
+                map.into_object().unbind(),
                 BUILTIN_STRING_MEMORY.set.to_property_key(),
-                gc.reborrow(),
-            )?;
+                gc.nogc(),
+            ) {
+                adder
+            } else {
+                let scoped_map = map.scope(agent, gc.nogc());
+                let adder = get(
+                    agent,
+                    map.into_object().unbind(),
+                    BUILTIN_STRING_MEMORY.set.to_property_key(),
+                    gc.reborrow(),
+                )?;
+                map = scoped_map.get(agent).bind(gc.nogc());
+                adder
+            };
             // 6. If IsCallable(adder) is false, throw a TypeError exception.
             let Some(adder) = is_callable(adder, gc.nogc()) else {
                 return Err(agent.throw_exception_with_static_message(
@@ -119,7 +135,7 @@ impl MapConstructor {
             // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
             add_entries_from_iterable_map_constructor(
                 agent,
-                map,
+                map.unbind(),
                 iterable,
                 adder.unbind(),
                 gc.reborrow(),
@@ -132,7 +148,7 @@ impl MapConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -141,7 +157,7 @@ impl MapConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         Ok(this_value)
     }

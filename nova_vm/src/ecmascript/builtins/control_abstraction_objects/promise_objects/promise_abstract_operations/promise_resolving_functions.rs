@@ -106,14 +106,14 @@ impl<'a> IntoFunction<'a> for BuiltinPromiseResolvingFunction<'a> {
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction<'_>> for Object {
+impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Object<'a> {
     fn from(value: BuiltinPromiseResolvingFunction) -> Self {
         Self::BuiltinPromiseResolvingFunction(value.unbind())
     }
 }
 
-impl IntoObject for BuiltinPromiseResolvingFunction<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for BuiltinPromiseResolvingFunction<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -140,7 +140,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinPromiseResolvingFunction<'a> 
     }
 }
 
-impl InternalSlots for BuiltinPromiseResolvingFunction<'_> {
+impl<'a> InternalSlots<'a> for BuiltinPromiseResolvingFunction<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -160,12 +160,12 @@ impl InternalSlots for BuiltinPromiseResolvingFunction<'_> {
     }
 }
 
-impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
+impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        _gc: NoGcScope<'_, '_>,
+        _gc: NoGcScope,
     ) -> TryResult<Option<PropertyDescriptor>> {
         TryResult::Continue(function_internal_get_own_property(
             self,
@@ -179,7 +179,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         property_descriptor: PropertyDescriptor,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_define_own_property(
             self,
@@ -194,7 +194,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_has_property(self, agent, property_key, gc)
     }
@@ -203,7 +203,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_has_property(self, agent, property_key, gc)
     }
@@ -213,7 +213,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<Value> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
@@ -223,7 +223,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
@@ -234,7 +234,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         function_try_set(self, agent, property_key, value, receiver, gc)
     }
@@ -245,7 +245,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         property_key: PropertyKey,
         value: Value,
         receiver: Value,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<bool> {
         function_internal_set(self, agent, property_key, value, receiver, gc)
     }
@@ -254,16 +254,16 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        gc: NoGcScope<'_, '_>,
+        gc: NoGcScope,
     ) -> TryResult<bool> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
@@ -272,7 +272,7 @@ impl InternalMethods for BuiltinPromiseResolvingFunction<'_> {
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,
-        gc: GcScope<'_, '_>,
+        gc: GcScope,
     ) -> JsResult<Value> {
         let arg = args.get(0);
         let promise_capability = agent[self].promise_capability;

@@ -48,9 +48,9 @@ impl ArgumentsList<'_> {
     }
 }
 
-pub type RegularFn = fn(&mut Agent, Value, ArgumentsList<'_>, GcScope) -> JsResult<Value>;
+pub type RegularFn = fn(&mut Agent, Value, ArgumentsList, GcScope) -> JsResult<Value>;
 pub type ConstructorFn =
-    fn(&mut Agent, Value, ArgumentsList<'_>, Option<Object>, GcScope) -> JsResult<Value>;
+    fn(&mut Agent, Value, ArgumentsList, Option<Object>, GcScope) -> JsResult<Value>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -93,15 +93,15 @@ pub(crate) trait BuiltinIntrinsic: Builtin {
 pub trait BuiltinGetter: Builtin {}
 
 #[derive(Debug, Default)]
-pub struct BuiltinFunctionArgs {
+pub struct BuiltinFunctionArgs<'a> {
     pub length: u32,
     pub name: &'static str,
     pub realm: Option<RealmIdentifier>,
-    pub prototype: Option<Object>,
+    pub prototype: Option<Object<'a>>,
     pub prefix: Option<&'static str>,
 }
 
-impl BuiltinFunctionArgs {
+impl BuiltinFunctionArgs<'static> {
     pub fn new(length: u32, name: &'static str, realm: RealmIdentifier) -> Self {
         Self {
             length,
@@ -171,8 +171,8 @@ impl IntoValue for BuiltinFunction<'_> {
     }
 }
 
-impl IntoObject for BuiltinFunction<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for BuiltinFunction<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -189,7 +189,7 @@ impl From<BuiltinFunction<'_>> for Value {
     }
 }
 
-impl From<BuiltinFunction<'_>> for Object {
+impl<'a> From<BuiltinFunction<'a>> for Object<'a> {
     fn from(value: BuiltinFunction) -> Self {
         Object::BuiltinFunction(value.unbind())
     }
@@ -245,7 +245,7 @@ impl<'a> FunctionInternalProperties<'a> for BuiltinFunction<'a> {
     }
 }
 
-impl InternalSlots for BuiltinFunction<'_> {
+impl<'a> InternalSlots<'a> for BuiltinFunction<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
     #[inline(always)]
@@ -265,7 +265,7 @@ impl InternalSlots for BuiltinFunction<'_> {
     }
 }
 
-impl InternalMethods for BuiltinFunction<'_> {
+impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
     fn try_get_own_property(
         self,
         agent: &mut Agent,
@@ -364,11 +364,11 @@ impl InternalMethods for BuiltinFunction<'_> {
         TryResult::Continue(function_internal_delete(self, agent, property_key, gc))
     }
 
-    fn try_own_property_keys<'a>(
+    fn try_own_property_keys<'gc>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'a, '_>,
-    ) -> TryResult<Vec<PropertyKey<'a>>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
@@ -396,13 +396,13 @@ impl InternalMethods for BuiltinFunction<'_> {
     /// the method is present) takes arguments argumentsList (a List of
     /// ECMAScript language values) and newTarget (a constructor) and returns
     /// either a normal completion containing an Object or a throw completion.
-    fn internal_construct(
+    fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
         arguments_list: ArgumentsList,
         new_target: Function,
-        gc: GcScope,
-    ) -> JsResult<Object> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Object<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, uninitialized, argumentsList, newTarget).
         builtin_call_or_construct(agent, self, None, arguments_list, Some(new_target), gc)
             .map(|result| result.try_into().unwrap())
@@ -425,6 +425,7 @@ pub(crate) fn builtin_call_or_construct(
     gc: GcScope,
 ) -> JsResult<Value> {
     let f = f.bind(gc.nogc());
+    let new_target = new_target.map(|f| f.bind(gc.nogc()));
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -477,7 +478,7 @@ pub(crate) fn builtin_call_or_construct(
             agent,
             this_argument.unwrap_or(Value::Undefined),
             arguments_list,
-            new_target.map(|target| target.into_object()),
+            new_target.map(|target| target.into_object().unbind()),
             gc,
         ),
     };

@@ -26,11 +26,12 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::NoGcScope;
+use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
-            create_data_property_or_throw, define_property_or_throw,
+            try_create_data_property_or_throw, try_define_property_or_throw,
         },
         execution::{agent::Agent, ProtoIntrinsics},
         types::{
@@ -121,23 +122,24 @@ use super::ordinary::ordinary_object_create_with_intrinsics;
 /// The abstract operation CreateUnmappedArgumentsObject takes argument
 /// argumentsList (a List of ECMAScript language values) and returns an
 /// ordinary object.
-pub(crate) fn create_unmapped_arguments_object(
+pub(crate) fn create_unmapped_arguments_object<'a>(
     agent: &mut Agent,
     arguments_list: &[Value],
-    mut gc: GcScope<'_, '_>,
-) -> Object {
+    gc: NoGcScope<'a, '_>,
+) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
-    let len = Number::from_f64(agent, len as f64, gc.nogc()).into_value();
+    let len = Number::from_f64(agent, len as f64, gc).into_value();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
-    let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None);
+    let obj =
+        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc);
     let Object::Object(obj) = obj else {
         unreachable!()
     };
     // 3. Set obj.[[ParameterMap]] to undefined.
     // 4. Perform ! DefinePropertyOrThrow(obj, "length", PropertyDescriptor {
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
-    define_property_or_throw(
+    unwrap_try(try_define_property_or_throw(
         agent,
         obj,
         key,
@@ -152,25 +154,25 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(true),
             ..Default::default()
         },
-        gc.reborrow(),
-    )
+        gc,
+    ))
     .unwrap();
     // 5. Let index be 0.
     // 6. Repeat, while index < len,
-    for (index, val) in arguments_list.iter().enumerate() {
+    for (index, &val) in arguments_list.iter().enumerate() {
         // a. Let val be argumentsList[index].
         // b. Perform ! CreateDataPropertyOrThrow(obj, ! ToString(𝔽(index)), val).
         debug_assert!(index < u32::MAX as usize);
         let index = index as u32;
         let key = PropertyKey::Integer(index.into());
-        create_data_property_or_throw(agent, obj, key, *val, gc.reborrow()).unwrap();
+        unwrap_try(try_create_data_property_or_throw(agent, obj, key, val, gc)).unwrap();
         // c. Set index to index + 1.
     }
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
     let key = PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into());
     // TODO: "as if the property was accessed prior to any ECMAScript code being evaluated"
     // let array_prototype_values = agent.current_realm().intrinsics().array_prototype();
-    define_property_or_throw(
+    unwrap_try(try_define_property_or_throw(
         agent,
         obj,
         key,
@@ -191,13 +193,13 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(true),
             ..Default::default()
         },
-        gc.reborrow(),
-    )
+        gc,
+    ))
     .unwrap();
     let throw_type_error = agent.current_realm().intrinsics().throw_type_error();
     // 8. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor {
     let key = PropertyKey::from(BUILTIN_STRING_MEMORY.callee);
-    define_property_or_throw(
+    unwrap_try(try_define_property_or_throw(
         agent,
         obj,
         key,
@@ -212,8 +214,8 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(false),
             ..Default::default()
         },
-        gc.reborrow(),
-    )
+        gc,
+    ))
     .unwrap();
     // 9. Return obj.
     Object::Arguments(obj)

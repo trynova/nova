@@ -60,7 +60,7 @@ pub(crate) struct FunctionEnvironment {
     /// internal method, \[\[NewTarget\]\] is the value of the
     /// \[\[Construct\]\] newTarget parameter. Otherwise, its value is
     /// undefined.
-    pub(crate) new_target: Option<Object>,
+    pub(crate) new_target: Option<Object<'static>>,
 
     /// Function Environment Records support all of the Declarative Environment
     /// Record methods listed in Table 16 and share the same specifications for
@@ -135,7 +135,7 @@ pub(crate) fn new_function_environment(
         this_binding_status,
 
         // 5. Set env.[[NewTarget]] to newTarget.
-        new_target,
+        new_target: new_target.map(|f| f.unbind()),
 
         // 6. Set env.[[OuterEnv]] to F.[[Environment]].
         declarative_environment,
@@ -362,7 +362,7 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.10 WithBaseObject ( )](https://tc39.es/ecma262/#sec-declarative-environment-records-withbaseobject)
-    pub(crate) fn with_base_object(self) -> Option<Object> {
+    pub(crate) fn with_base_object(self) -> Option<Object<'static>> {
         // 1. Return undefined.
         None
     }
@@ -445,11 +445,11 @@ impl FunctionEnvironmentIndex {
     /// The GetSuperBase concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing either an Object, null, or undefined.
-    pub(crate) fn get_super_base(
+    pub(crate) fn get_super_base<'a>(
         self,
         agent: &mut Agent,
-        gc: NoGcScope<'_, '_>,
-    ) -> Option<Option<Object>> {
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<Option<Object<'a>>> {
         let env_rec: &FunctionEnvironment = &agent[self];
 
         // 1. Let home be envRec.[[FunctionObject]].[[HomeObject]].

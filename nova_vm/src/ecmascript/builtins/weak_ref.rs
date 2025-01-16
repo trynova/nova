@@ -70,8 +70,8 @@ impl IntoValue for WeakRef<'_> {
     }
 }
 
-impl IntoObject for WeakRef<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for WeakRef<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -82,13 +82,13 @@ impl From<WeakRef<'_>> for Value {
     }
 }
 
-impl From<WeakRef<'_>> for Object {
+impl<'a> From<WeakRef<'a>> for Object<'a> {
     fn from(val: WeakRef) -> Self {
         Object::WeakRef(val.unbind())
     }
 }
 
-impl InternalSlots for WeakRef<'_> {
+impl<'a> InternalSlots<'a> for WeakRef<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::WeakRef;
 
     #[inline(always)]
@@ -104,7 +104,7 @@ impl InternalSlots for WeakRef<'_> {
     }
 }
 
-impl InternalMethods for WeakRef<'_> {}
+impl<'a> InternalMethods<'a> for WeakRef<'a> {}
 
 impl Index<WeakRef<'_>> for Agent {
     type Output = WeakRefHeapData;

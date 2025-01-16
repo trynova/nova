@@ -79,13 +79,13 @@ impl From<Date<'_>> for Value {
     }
 }
 
-impl IntoObject for Date<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Date<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl From<Date<'_>> for Object {
+impl<'a> From<Date<'a>> for Object<'a> {
     fn from(value: Date) -> Self {
         Object::Date(value.unbind())
     }
@@ -102,10 +102,10 @@ impl TryFrom<Value> for Date<'_> {
     }
 }
 
-impl TryFrom<Object> for Date<'_> {
+impl<'a> TryFrom<Object<'a>> for Date<'a> {
     type Error = ();
 
-    fn try_from(value: Object) -> Result<Self, ()> {
+    fn try_from(value: Object<'a>) -> Result<Self, ()> {
         match value {
             Object::Date(idx) => Ok(idx),
             _ => Err(()),
@@ -113,7 +113,7 @@ impl TryFrom<Object> for Date<'_> {
     }
 }
 
-impl InternalSlots for Date<'_> {
+impl<'a> InternalSlots<'a> for Date<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Date;
 
     #[inline(always)]
@@ -129,7 +129,7 @@ impl InternalSlots for Date<'_> {
     }
 }
 
-impl InternalMethods for Date<'_> {}
+impl<'a> InternalMethods<'a> for Date<'a> {}
 
 impl Index<Date<'_>> for Agent {
     type Output = DateHeapData;

@@ -70,8 +70,8 @@ impl IntoValue for SharedArrayBuffer<'_> {
     }
 }
 
-impl IntoObject for SharedArrayBuffer<'_> {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for SharedArrayBuffer<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
@@ -82,7 +82,7 @@ impl From<SharedArrayBuffer<'_>> for Value {
     }
 }
 
-impl From<SharedArrayBuffer<'_>> for Object {
+impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
     fn from(val: SharedArrayBuffer) -> Self {
         Object::SharedArrayBuffer(val.unbind())
     }
@@ -122,7 +122,7 @@ impl IndexMut<SharedArrayBuffer<'_>> for Vec<Option<SharedArrayBufferHeapData>> 
     }
 }
 
-impl InternalSlots for SharedArrayBuffer<'_> {
+impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SharedArrayBuffer;
 
     #[inline(always)]
@@ -138,7 +138,7 @@ impl InternalSlots for SharedArrayBuffer<'_> {
     }
 }
 
-impl InternalMethods for SharedArrayBuffer<'_> {}
+impl<'a> InternalMethods<'a> for SharedArrayBuffer<'a> {}
 
 impl TryFrom<HeapRootData> for SharedArrayBuffer<'_> {
     type Error = ();

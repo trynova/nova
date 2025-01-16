@@ -116,7 +116,7 @@ impl SourceCode {
         }
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
-        let program = unsafe { std::mem::transmute::<Program<'_>, Program<'static>>(program) };
+        let program = unsafe { std::mem::transmute::<Program, Program<'static>>(program) };
         let source_code = agent.heap.create(SourceCodeHeapData {
             source: source.unbind(),
             allocator,

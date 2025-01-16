@@ -150,7 +150,7 @@ pub fn perform_eval(
     x: Value,
     direct: bool,
     strict_caller: bool,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<Value> {
     // 1. Assert: If direct is false, then strictCaller is also false.
     assert!(direct || !strict_caller);
@@ -373,7 +373,7 @@ pub fn eval_declaration_instantiation(
     lex_env: EnvironmentIndex,
     private_env: Option<PrivateEnvironmentIndex>,
     strict_eval: bool,
-    mut gc: GcScope<'_, '_>,
+    mut gc: GcScope,
 ) -> JsResult<()> {
     // 1. Let varNames be the VarDeclaredNames of body.
     let var_names = script_var_declared_names(script);
@@ -713,7 +713,7 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let x = arguments.get(0);
 
@@ -728,7 +728,7 @@ impl GlobalObject {
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
@@ -749,7 +749,7 @@ impl GlobalObject {
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
@@ -767,7 +767,7 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         if arguments.len() == 0 {
             return Ok(Value::nan());
@@ -836,7 +836,7 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'_, '_>,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
         let string = arguments.get(0);
         let radix = arguments.get(1);
@@ -1013,7 +1013,7 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1021,7 +1021,7 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1029,7 +1029,7 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1037,7 +1037,7 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1045,7 +1045,7 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }
@@ -1053,7 +1053,7 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'_, '_>,
+        _gc: GcScope,
     ) -> JsResult<Value> {
         todo!()
     }

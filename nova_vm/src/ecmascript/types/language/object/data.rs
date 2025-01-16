@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectHeapData {
     pub extensible: bool,
-    pub prototype: Option<Object>,
+    pub prototype: Option<Object<'static>>,
     pub keys: ElementsVector,
     pub values: ElementsVector,
 }
