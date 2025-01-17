@@ -300,7 +300,7 @@ the `into_nogc` method, this can be done:
 let a = a.unbind();
 // No garbage collection or JS call can happen after this point. We no longer need the GcToken.
 let gc = gc.into_nogc();
-let a = a.bind(gc); // With this we're back to beign bound; temporary unbinding like this is okay.
+let a = a.bind(gc); // With this we're back to being bound; temporary unbinding like this is okay.
 ```
 
 **Bad example:**
@@ -335,7 +335,7 @@ let a = a.scope(agent, gc.nogc());
 ```
 
 A `Scoped<'_, Value<'static>>` is valid for the entire call (at least) and are
-trivially clonable (they're currently not `Copy` but there is no real reason
+trivially cloneable (they're currently not `Copy` but there is no real reason
 they couldn't be). Creating one from a `Value` is however a non-trivial
 operation that always includes allocating new heap space (though this is
 amortized).
