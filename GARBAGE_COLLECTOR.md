@@ -344,3 +344,19 @@ One might think that the above code ends up with the `a: Value` moved onto the
 heap once and the two other scopings just deduplicating to that same `Value`,
 but in reality no deduplication is done. This code would store the same `Value`
 on the heap thrice.
+
+### Only call `gc.reborrow()` at the call site, never before
+
+Example:
+
+```rs
+method(agent, gc.reborrow());
+```
+
+**Bad example:**
+```rs
+let gc_reborrow = gc.reborrow();
+method(agent, gc_reborrow);
+```
+
+This just doesn't really serve any purpose. Don't do it.
