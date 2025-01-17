@@ -231,6 +231,12 @@ That being said, we do not have performance metrics at present. Therefore, it is
 also not a supremely important or reasonable thing to require code to be
 supremely optimal since we cannot prove it one way or the other.
 
+## What are all the `bind(gc.nogc())`, `unbind()`, `scope(agent, gc.nogc())` and other those calls?
+
+Those are part of the garbage collector. See the
+[contributor's guide to the garbage collector](./GARBAGE_COLLECTOR.md) for
+details.
+
 ## List of active development ideas
 
 Here are some good ideas on what you can contribute to.
@@ -311,27 +317,44 @@ while (true) {
 ```
 
 We want to interleave garbage collection together with running JavaScript, but
-this is not a trivial piece of work. Right now calls in the engine look like
-this:
+this is not a trivial piece of work. Right now a function in the engine might
+look like this:
 
 ```rs
-fn call(agent: &mut Agent, mut gc: Gc<'_, '_>,  value: Value) -> Value {
-    // ...
+fn call(agent: &mut Agent, obj: Value, mut gc: Gc) -> JsResult<Value> {
+    if !obj.is_object() {
+        return Err(agent.throw_error(agent, "Not object", gc));
+    }
+    let is_extensible = is_extensible(agent, obj, gc)?;
+    if is_extensible {
+        set(agent, obj, "foo".into(), "bar".into(), gc)?;
+    }
+    get(agent, obj, "length", gc)
 }
 ```
 
-For interleaved work, we'd want to ensure that either:
+If `obj` is a Proxy, then it the all three of the internal calls
+(`is_extensible`, `set`, and `get`) can call user code. Even for non-Proxies,
+the `set` and `get` methods may call user code through getters and setters. Now,
+if that user code performs a lot of allocation then we'll eventually need to
+perform garbage collection. The question is then "are we sure that `obj` is
+still valid to use"?
 
-1. `Value` is safe to keep on stack. This means changing these to be
-   `Local<'a, Value>`s that have an extra level of indirection between the stack
-   and the heap, and the garbage collection can access that extra indirection.
-2. `Value` cannot be used after a potential garbage collection point. This would
-   mean adding a lifetime to `Value` that is bound to the `&'a mut` lifetime.
-   The Rust borrow checker will stand in opposition to us here.
+We obviously must make sure that somehow we can keep using `obj`, otherwise
+interleaved garbage collection cannot be done. There are two ways to do this:
+
+1. We make all `Value`s safe to keep on stack. In our case, this means that
+   `Value` must point to an in-heap reference that points to the `Value`'s
+   actual heap data (the things that contains properties etc.). The in-heap
+   reference is dropped when the scope is dropped, so the `Value` is safe to
+   keep within call scope.
+2. Alternatively, `Value` cannot be used after a potential garbage collection
+   point. A separate type is added that can be used to move the `Value` onto the
+   heap and point to it. That type is safe to keep within call scope.
 
 Some additional thoughts on the two approaches is found below.
 
-##### `Local<'a, Value>`
+##### Make `Value` safe to keep on stack
 
 Any problem can always be fixed by adding an extra level of indirection. In this
 case the problem of "where did you put that Value, is it still needed, and can I
@@ -341,16 +364,13 @@ be given access to the `HandleScope`'s memory so that it can trace items "on the
 stack" and fix them to point to the proper items after garbage collection.
 
 This would be the easiest solution, as this could optionally even be made to
-work in terms of actual pointers to `Value`s. That would be a pretty poor
-solution, honestly, but it would work. One of the biggest downsides with this
-approach would be that we'd need not only `Local<'a, Value>` but also
-`Local<'a, Object>` and `Local<'a, Array>` and so on and so forth. This is
-effectively a second layer of `Value` definitions on top of the first.
+work in terms of actual pointers to `Value`s. The big downside is that this is
+an extra indirection which is often honestly unnecessary.
 
-If the `Local<'a, Value>` is not pointer based, then another downside is that we
-cannot drop the `Local` values automatically once they're no longer needed using
-`impl Drop` because we'd need access to the `HandleScope` inside the `Drop`.
-Something called linear types could fix this issue.
+If the `Value` is not pointer based, then another downside is that we cannot
+drop them automatically once they're no longer needed using `impl Drop` because
+we'd need access to the `HandleScope` inside the `Drop`. Something called linear
+types could fix this issue.
 
 ##### `Value` lifetime bound to garbage collection safepoints
 
@@ -361,7 +381,7 @@ sure that Values are never on the stack when garbage collection might happen.
 This isn't too hard, really, it just means calls change to be:
 
 ```rs
-fn call<'a>(agent: &'a mut Agent, value: Value<'a>) -> Value<'a> {
+fn call(agent: &'a mut Agent, value: Value<'a>) -> Value<'a> {
     // ...
 }
 ```
@@ -372,7 +392,7 @@ this is called a reborrow and it's fine within a function but it cannot be done
 intra-procedurally. What we could do is this:
 
 ```rs
-fn call(agent: &mut Agent, mut gc: Gc<'_, '_>,  value: Register<Value<'_>>) -> Register<Value<'_>> {
+fn call(agent: &mut Agent,  value: Value, mut gc: Gc) -> Value {
     // SAFETY: We've not called any methods that take `&mut Agent` before this.
     // `Value` is thus still a valid reference.
     let value = unsafe { value.bind(agent) };
@@ -391,7 +411,7 @@ But what about when we call some mutable function and need to keep a reference
 to a stack value past that call? This is how that would look:
 
 ```rs
-fn call(agent: &mut Agent, mut gc: Gc<'_, '_>,  value: Register<Value<'_>>) -> JsResult<Register<Value<'_>>> {
+fn call(agent: &mut Agent, value: Value, mut gc: Gc) -> JsResult<Value> {
     let value = unsafe { value.bind(agent) };
     let kept_value: Global<Value<'static>> = value.make_global(value);
     other_call(agent, gc.reborrow(), value.into_register())?;
@@ -408,8 +428,8 @@ In this case we can see that if `other_call` returns early with an error, then
 we accidentally leak `kept_value`'s data. This is again not good.
 
 So we'd need a `Local<'a, Value<'_>>` type of indirection in this case as well.
-Whether or not the whole `Register<Value<'_>>` system makes any sense with that
-added in is then very much up for debate.
+Whether or not the whole `Value` system makes any sense with that added in is
+then very much up for debate.
 
 ### Other things
 
@@ -458,12 +478,15 @@ Some more long-term prospects and/or wild ideas:
 - Consider a register based VM instead of going stack based
 
 # Running the test262 suite
+
 1. Clone this repository with submodules:
 
-    `git clone --recurse-submodules git@github.com:trynova/nova.git`
+   `git clone --recurse-submodules git@github.com:trynova/nova.git`
 
 2. Execute the test262 runner:
 
-    `cargo build -p nova_cli && cargo run --bin test262`
+   `cargo build -p nova_cli && cargo run --bin test262`
 
-   **Important:** The test runner executes the compiled `nova_cli` directly. If you have made changes to CLI or VM, ensure that the `nova_cli` target is rebuilt before executing the test runner.
+   **Important:** The test runner executes the compiled `nova_cli` directly. If
+   you have made changes to CLI or VM, ensure that the `nova_cli` target is
+   rebuilt before executing the test runner.
