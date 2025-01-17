@@ -24,12 +24,12 @@ The "set of roots" in Nova's case is a list of global JavaScript `Value`s, a
 list of "scoped" JavaScript `Value`s, a list of `Vm` structs that are currently
 waiting for an inner function call to return, and maybe some others. The
 important thing for a developer here is the list of "scoped" `Value`s. When our
-Nova engine code is working with `Value`s, they automatically or magically
-reachable by the garbage collector. Thus, if interleaved garbage collection
-happens, the `Value` will not be traced nor will its pointed-to location be
-fixed post-compaction. Effectively, the `Value` will likely point to either out
-of bounds data or to data that is different than what it was before the garbage
-collection.
+Nova engine code is working with `Value`s, they are **not** automatically or
+magically reachable by the garbage collector. Thus, if interleaved garbage
+collection happens, the `Value` will not be traced nor will its pointed-to
+location be fixed post-compaction. Effectively, the `Value` will likely point to
+either out of bounds data or to data that is different than what it was before
+the garbage collection.
 
 To avoid this, we want to add the `Value` to the list of "scoped" `Value`s, and
 refer to the entry in that list: The garbage collector does not move `Value`s
