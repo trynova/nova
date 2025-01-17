@@ -201,7 +201,14 @@ through! TODO: We should allow binding `ArgumentsList` directly as well.
 Example:
 
 ```rs
-method(agent, a.unbind(), b.unbind(), c.unbind(), ArgumentsList(&[arg0.unbind(), arg1.unbind(), arg2.unbind()]), gc.reborrow());
+method(
+    agent,
+    a.unbind(),
+    b.unbind(),
+    c.unbind(),
+    ArgumentsList(&[arg0.unbind(), arg1.unbind(), arg2.unbind()]),
+    gc.reborrow()
+);
 ```
 
 Yes, this is also annoying. If you don't do it, the borrow checker will yell at
@@ -220,7 +227,8 @@ method(agent, scoped_a.get(agent), gc.reborrow());
 Example:
 
 ```rs
-let result = method(agent, a.unbind(), gc.reborrow()).unbind().bind(gc.nogc());
+let result = method(agent, a.unbind(), gc.reborrow())
+    .unbind().bind(gc.nogc());
 ```
 
 The reason to do this is that the `result` as returned from `method` extends the
@@ -268,7 +276,8 @@ as the borrow checker would force you to again unbind both `Value`s immediately.
 Example:
 
 ```rs
-let result = method(agent, a.unbind(), gc.reborrow()).unbind().bind(gc.nogc());
+let result = method(agent, a.unbind(), gc.reborrow())
+    .unbind().bind(gc.nogc());
 a.internal_set_prototype(agent, result.unbind(), gc.reborrow()); // Error! `gc` is immutably borrowed here but mutably borrowed above
 ```
 
@@ -277,8 +286,9 @@ correct in erroring here), then scope the offending `Value`:
 
 ```rs
 let scoped_a = a.scope(agent, gc.nogc());
-let result = method(agent, a.unbind(), gc.reborrow()).unbind().bind(gc.nogc());
-scoped_a.get(agent).internal_set_prototype(agent, result.unbind(), gc.reborrow()); // Error! `gc` is immutably borrowed here but mutably borrowed above
+let result = method(agent, a.unbind(), gc.reborrow())
+    .unbind().bind(gc.nogc());
+scoped_a.get(agent).internal_set_prototype(agent, result.unbind(), gc.reborrow());
 ```
 
 ### NEVER unbind a `Value` into a local variable
