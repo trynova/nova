@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub mod bigint;
+mod callable;
 mod function;
 mod into_numeric;
 mod into_primitive;
@@ -16,6 +17,7 @@ mod symbol;
 mod value;
 
 pub use bigint::{BigInt, BigIntHeapData};
+pub use callable::Callable;
 pub(crate) use function::{
     function_create_backing_object, function_internal_define_own_property,
     function_internal_delete, function_internal_get, function_internal_get_own_property,

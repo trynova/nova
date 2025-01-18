@@ -111,8 +111,8 @@ mod private {
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
-            BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
-            String, Symbol, Value,
+            BigInt, Callable, Function, Number, Numeric, Object, OrdinaryObject, Primitive,
+            PropertyKey, String, Symbol, Value,
         },
     };
 
@@ -166,6 +166,7 @@ mod private {
     impl RootableSealed for WeakRef<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakSet<'_> {}
+    impl RootableSealed for Callable<'_> {}
 }
 
 pub use global::Global;
