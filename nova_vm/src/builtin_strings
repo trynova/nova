@@ -106,6 +106,7 @@ endsWith
 entries
 enumerable
 EPSILON
+errors
 Error
 escape
 eval
