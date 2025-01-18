@@ -253,7 +253,7 @@ impl<'a> InternalSlots<'a> for Callable<'a> {
             Callable::BuiltinPromiseResolvingFunction(d) => agent[d].object_index,
             Callable::BuiltinPromiseCollectorFunction => todo!(),
             Callable::BuiltinProxyRevokerFunction => todo!(),
-            Callable::Proxy(_) => todo!(),
+            Callable::Proxy(_) => None,
         }
     }
 
