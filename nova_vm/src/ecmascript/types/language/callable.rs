@@ -54,7 +54,7 @@ impl std::fmt::Debug for Callable<'_> {
             }
             Callable::BuiltinPromiseCollectorFunction => todo!(),
             Callable::BuiltinProxyRevokerFunction => todo!(),
-            Callable::Proxy(d) => write!(f, "PROXY_DISCRIMINANT({:?})", d),
+            Callable::Proxy(d) => write!(f, "Proxy({:?})", d),
         }
     }
 }
