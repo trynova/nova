@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::invoke,
@@ -110,6 +110,7 @@ impl PromisePrototype {
             args.get(0),
             args.get(1),
             Some(result_capability),
+            gc.into_nogc(),
         );
         Ok(result_capability.promise().into_value())
     }
@@ -146,6 +147,7 @@ pub(crate) fn perform_promise_then(
     on_fulfilled: Value,
     on_rejected: Value,
     result_capability: Option<PromiseCapability>,
+    gc: NoGcScope,
 ) {
     // 3. If IsCallable(onFulfilled) is false, then
     //     a. Let onFulfilledJobCallback be empty.
@@ -172,6 +174,7 @@ pub(crate) fn perform_promise_then(
         on_fulfilled_job_callback,
         on_rejected_job_callback,
         result_capability,
+        gc,
     )
 }
 
@@ -183,6 +186,7 @@ pub(crate) fn inner_promise_then(
     on_fulfilled: PromiseReactionHandler,
     on_rejected: PromiseReactionHandler,
     result_capability: Option<PromiseCapability>,
+    gc: NoGcScope,
 ) {
     // 7. Let fulfillReaction be the PromiseReaction Record { [[Capability]]: resultCapability, [[Type]]: fulfill, [[Handler]]: onFulfilledJobCallback }.
     let fulfill_reaction = agent.heap.create(PromiseReactionRecord {
@@ -228,7 +232,7 @@ pub(crate) fn inner_promise_then(
             let promise_result = *promise_result;
             // a. Let value be promise.[[PromiseResult]].
             // b. Let fulfillJob be NewPromiseReactionJob(fulfillReaction, value).
-            let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result);
+            let fulfill_job = new_promise_reaction_job(agent, fulfill_reaction, promise_result, gc);
             // c. Perform HostEnqueuePromiseJob(fulfillJob.[[Job]], fulfillJob.[[Realm]]).
             agent.host_hooks.enqueue_promise_job(fulfill_job);
         }
@@ -252,7 +256,7 @@ pub(crate) fn inner_promise_then(
                     .promise_rejection_tracker(promise, PromiseRejectionTrackerOperation::Handle);
             }
             // d. Let rejectJob be NewPromiseReactionJob(rejectReaction, reason).
-            let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result);
+            let reject_job = new_promise_reaction_job(agent, reject_reaction, promise_result, gc);
             // e. Perform HostEnqueuePromiseJob(rejectJob.[[Job]], rejectJob.[[Realm]]).
             agent.host_hooks.enqueue_promise_job(reject_job);
         }

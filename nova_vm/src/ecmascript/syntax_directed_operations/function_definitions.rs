@@ -345,7 +345,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. g. i. Assert: result is a throw completion.
             //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
-            promise_capability.reject(agent, err.value());
+            promise_capability.reject(agent, err.value(), gc.nogc());
         }
         ExecutionResult::Await { vm, awaited_value } => {
             // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
@@ -363,7 +363,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
             let promise = Promise::resolve(agent, awaited_value, gc.reborrow());
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-            inner_promise_then(agent, promise, handler, handler, None);
+            inner_promise_then(agent, promise.unbind(), handler, handler, None, gc.nogc());
         }
         ExecutionResult::Yield { .. } => unreachable!(),
     }

@@ -65,7 +65,7 @@ impl Job {
         self.realm
     }
 
-    pub fn run(&self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
+    pub fn run(self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
         let mut pushed_context = false;
         if let Some(realm) = self.realm {
             if agent.current_realm_id() != realm {

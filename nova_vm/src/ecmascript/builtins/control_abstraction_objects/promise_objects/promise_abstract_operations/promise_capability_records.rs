@@ -4,7 +4,7 @@
 
 //! ## [27.2.1.1 PromiseCapability Records]()
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
@@ -80,7 +80,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.4 FulfillPromise ( promise, value )](https://tc39.es/ecma262/#sec-fulfillpromise)
-    fn internal_fulfill(self, agent: &mut Agent, value: Value) {
+    fn internal_fulfill(self, agent: &mut Agent, value: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseFulfillReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -99,12 +99,12 @@ impl PromiseCapability {
         };
         // 7. Perform TriggerPromiseReactions(reactions, value)
         if let Some(reactions) = reactions {
-            reactions.trigger(agent, value);
+            reactions.trigger(agent, value, gc);
         }
     }
 
     /// [27.2.1.7 RejectPromise ( promise, reason )](https://tc39.es/ecma262/#sec-rejectpromise)
-    fn internal_reject(self, agent: &mut Agent, reason: Value) {
+    fn internal_reject(self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Assert: The value of promise.[[PromiseState]] is pending.
         // 2. Let reactions be promise.[[PromiseRejectReactions]].
         let promise_state = &mut agent[self.promise].promise_state;
@@ -132,12 +132,12 @@ impl PromiseCapability {
 
         // 8. Perform TriggerPromiseReactions(reactions, reason)
         if let Some(reactions) = reactions {
-            reactions.trigger(agent, reason);
+            reactions.trigger(agent, reason, gc);
         }
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn resolve(self, agent: &mut Agent, resolution: Value, gc: GcScope) {
+    pub fn resolve(self, agent: &mut Agent, resolution: Value, mut gc: GcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -161,7 +161,7 @@ impl PromiseCapability {
                 "Tried to resolve a promise with itself.",
                 gc.nogc(),
             );
-            self.internal_reject(agent, exception);
+            self.internal_reject(agent, exception, gc.into_nogc());
             // c. Return undefined.
             return;
         }
@@ -169,19 +169,24 @@ impl PromiseCapability {
         // 8. If resolution is not an Object, then
         let Ok(resolution) = Object::try_from(resolution) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution);
+            self.internal_fulfill(agent, resolution, gc.into_nogc());
             // b. Return undefined.
             return;
         };
 
         // 9. Let then be Completion(Get(resolution, "then")).
-        let then_action = match get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc) {
+        let then_action = match get(
+            agent,
+            resolution,
+            BUILTIN_STRING_MEMORY.then.into(),
+            gc.reborrow(),
+        ) {
             // 11. Let thenAction be then.[[Value]].
             Ok(then_action) => then_action,
             // 10. If then is an abrupt completion, then
             Err(err) => {
                 // a. Perform RejectPromise(promise, then.[[Value]]).
-                self.internal_reject(agent, err.value());
+                self.internal_reject(agent, err.value(), gc.into_nogc());
                 // b. Return undefined.
                 return;
             }
@@ -191,7 +196,7 @@ impl PromiseCapability {
         // TODO: Callable proxies
         let Ok(then_action) = Function::try_from(then_action) else {
             // a. Perform FulfillPromise(promise, resolution).
-            self.internal_fulfill(agent, resolution.into_value());
+            self.internal_fulfill(agent, resolution.into_value(), gc.into_nogc());
             // b. Return undefined.
             return;
         };
@@ -200,14 +205,20 @@ impl PromiseCapability {
         // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in
         // implementations other than browsers, [[HostDefine]] must be EMPTY.
         // 14. Let job be NewPromiseResolveThenableJob(promise, resolution, thenJobCallback).
-        let job = new_promise_resolve_thenable_job(agent, self.promise, resolution, then_action);
+        let job = new_promise_resolve_thenable_job(
+            agent,
+            self.promise,
+            resolution,
+            then_action,
+            gc.into_nogc(),
+        );
         // 15. Perform HostEnqueuePromiseJob(job.[[Job]], job.[[Realm]]).
         agent.host_hooks.enqueue_promise_job(job);
         // 16. Return undefined.
     }
 
     /// [27.2.1.3.1 Promise Reject Functions](https://tc39.es/ecma262/#sec-promise-reject-functions)
-    pub fn reject(self, agent: &mut Agent, reason: Value) {
+    pub fn reject(self, agent: &mut Agent, reason: Value, gc: NoGcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -218,7 +229,7 @@ impl PromiseCapability {
         }
 
         // 7. Perform RejectPromise(promise, reason).
-        self.internal_reject(agent, reason);
+        self.internal_reject(agent, reason, gc);
 
         // 6. Set alreadyResolved.[[Value]] to true.
         debug_assert!(matches!(
@@ -269,9 +280,10 @@ pub(crate) fn if_abrupt_reject_promise<T>(
     agent: &mut Agent,
     value: JsResult<T>,
     capability: PromiseCapability,
+    gc: NoGcScope,
 ) -> JsResult<T> {
     value.map_err(|err| {
-        capability.reject(agent, err.value());
+        capability.reject(agent, err.value(), gc);
 
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator

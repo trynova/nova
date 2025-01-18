@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::NoGcScope;
 use crate::{
     ecmascript::execution::Agent,
     engine::rootable::{HeapRootRef, Rootable},
@@ -74,7 +74,7 @@ impl<T: Rootable> Global<T> {
 
     /// Access the rooted value from inside this Global without releasing the
     /// Global.
-    pub fn get(&self, agent: &mut Agent, _: GcScope) -> T {
+    pub fn get(&self, agent: &mut Agent, _: NoGcScope) -> T {
         let heap_ref = match T::from_root_repr(&self.0) {
             Ok(value) => {
                 // The value didn't need rooting
@@ -100,7 +100,7 @@ impl<T: Rootable> Global<T> {
     /// original Global and the cloned one must be explicitly released before
     /// the rooted value can be garbage collected.
     #[must_use]
-    pub fn clone(&self, agent: &mut Agent, gc: GcScope) -> Self {
+    pub fn clone(&self, agent: &mut Agent, gc: NoGcScope) -> Self {
         let value = self.get(agent, gc);
         Self::new(agent, value)
     }

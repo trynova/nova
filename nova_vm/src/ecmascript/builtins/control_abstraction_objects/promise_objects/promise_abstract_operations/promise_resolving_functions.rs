@@ -278,7 +278,9 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {
             PromiseResolvingFunctionType::Resolve => promise_capability.resolve(agent, arg, gc),
-            PromiseResolvingFunctionType::Reject => promise_capability.reject(agent, arg),
+            PromiseResolvingFunctionType::Reject => {
+                promise_capability.reject(agent, arg, gc.nogc())
+            }
         };
         Ok(Value::Undefined)
     }

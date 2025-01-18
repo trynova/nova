@@ -4,7 +4,8 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::Global;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{call_function, get_function_realm},
@@ -24,17 +25,23 @@ use super::{
     promise_resolving_functions::{PromiseResolvingFunctionHeapData, PromiseResolvingFunctionType},
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(crate) struct PromiseResolveThenableJob {
-    promise_to_resolve: Promise<'static>,
-    thenable: Object<'static>,
-    then: Function<'static>,
+    promise_to_resolve: Global<Promise<'static>>,
+    thenable: Global<Object<'static>>,
+    then: Global<Function<'static>>,
 }
 impl PromiseResolveThenableJob {
-    pub(crate) fn run(self, agent: &mut Agent, gc: GcScope) -> JsResult<()> {
+    pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
+        let Self {
+            promise_to_resolve,
+            thenable,
+            then,
+        } = self;
         // The following are substeps of point 1 in NewPromiseResolveThenableJob.
         // a. Let resolvingFunctions be CreateResolvingFunctions(promiseToResolve).
-        let promise_capability = PromiseCapability::from_promise(self.promise_to_resolve, false);
+        let promise_capability =
+            PromiseCapability::from_promise(promise_to_resolve.take(agent), false);
         let resolve_function = agent
             .heap
             .create(PromiseResolvingFunctionHeapData {
@@ -56,18 +63,20 @@ impl PromiseResolveThenableJob {
         // TODO: Add the HostCallJobCallback host hook. For now we're using its default
         // implementation, which is calling the thenable, since only browsers should use a different
         // implementation.
+        let then = then.take(agent).bind(gc.nogc());
+        let thenable = thenable.take(agent).bind(gc.nogc()).into_value();
         let then_call_result = call_function(
             agent,
-            self.then,
-            self.thenable.into_value(),
+            then.unbind(),
+            thenable.unbind(),
             Some(ArgumentsList(&[resolve_function, reject_function])),
-            gc,
+            gc.reborrow(),
         );
 
         // c. If thenCallResult is an abrupt completion, then
         if let Err(err) = then_call_result {
             // i. Return ? Call(resolvingFunctions.[[Reject]], undefined, « thenCallResult.[[Value]] »).
-            promise_capability.reject(agent, err.value());
+            promise_capability.reject(agent, err.value(), gc.nogc());
         }
         // d. Return ? thenCallResult.
         Ok(())
@@ -75,11 +84,12 @@ impl PromiseResolveThenableJob {
 }
 
 /// ### [27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )](https://tc39.es/ecma262/#sec-newpromiseresolvethenablejob)
-pub(crate) fn new_promise_resolve_thenable_job(
+pub(crate) fn new_promise_resolve_thenable_job<'a>(
     agent: &mut Agent,
     promise_to_resolve: Promise,
     thenable: Object,
     then: Function,
+    _: NoGcScope<'a, '_>,
 ) -> Job {
     // 2. Let getThenRealmResult be Completion(GetFunctionRealm(then.[[Callback]])).
     // 5. NOTE: thenRealm is never null. When then.[[Callback]] is a revoked Proxy and no code runs, thenRealm is used to create error objects.
@@ -93,9 +103,9 @@ pub(crate) fn new_promise_resolve_thenable_job(
     Job {
         realm: Some(then_realm),
         inner: InnerJob::PromiseResolveThenable(PromiseResolveThenableJob {
-            promise_to_resolve: promise_to_resolve.unbind(),
-            thenable: thenable.unbind(),
-            then: then.unbind(),
+            promise_to_resolve: Global::new(agent, promise_to_resolve.unbind()),
+            thenable: Global::new(agent, thenable.unbind()),
+            then: Global::new(agent, then.unbind()),
         }),
     }
 }
@@ -152,7 +162,7 @@ impl PromiseReactionJob {
             // h. If handlerResult is an abrupt completion, then
             Err(err) => {
                 // i. Return ? Call(promiseCapability.[[Reject]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.reject(agent, err.value())
+                promise_capability.reject(agent, err.value(), gc.nogc())
             }
             // i. Else,
             Ok(value) => {
@@ -165,10 +175,11 @@ impl PromiseReactionJob {
 }
 
 /// ### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
-pub(crate) fn new_promise_reaction_job(
+pub(crate) fn new_promise_reaction_job<'a>(
     agent: &mut Agent,
     reaction: PromiseReaction,
     argument: Value,
+    _: NoGcScope<'a, '_>,
 ) -> Job {
     let handler_realm = match agent[reaction].handler {
         // 3. If reaction.[[Handler]] is not empty, then

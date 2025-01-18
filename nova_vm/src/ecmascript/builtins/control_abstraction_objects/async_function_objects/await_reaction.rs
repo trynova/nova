@@ -97,7 +97,7 @@ impl AwaitReactionIdentifier {
                 //       ii. Perform ! Call(promiseCapability.[[Reject]], undefined, « result.[[Value]] »).
                 agent[self]
                     .return_promise_capability
-                    .reject(agent, err.value());
+                    .reject(agent, err.value(), gc.nogc());
             }
             ExecutionResult::Await { vm, awaited_value } => {
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
@@ -109,9 +109,11 @@ impl AwaitReactionIdentifier {
                 // which resume execution of the function.
                 let handler = PromiseReactionHandler::Await(self);
                 // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise = Promise::resolve(agent, awaited_value, gc);
+                let promise = Promise::resolve(agent, awaited_value, gc.reborrow())
+                    .unbind()
+                    .bind(gc.nogc());
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-                inner_promise_then(agent, promise, handler, handler, None);
+                inner_promise_then(agent, promise, handler, handler, None, gc.nogc());
             }
             ExecutionResult::Yield { .. } => unreachable!(),
         }
