@@ -363,7 +363,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
             let promise = Promise::resolve(agent, awaited_value, gc.reborrow());
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-            inner_promise_then(agent, promise, handler, handler, None);
+            inner_promise_then(agent, promise.unbind(), handler, handler, None);
         }
         ExecutionResult::Yield { .. } => unreachable!(),
     }

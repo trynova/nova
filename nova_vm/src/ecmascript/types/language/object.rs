@@ -3714,8 +3714,10 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Module(module) => Ok(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {
                 Ok(Self::EmbedderObject(embedder_object))
-            } // Note: Do not use _ => Err(()) to make sure any added
-              // HeapRootData Value variants cause compile errors if not handled.
+            }
+            HeapRootData::PromiseReaction(_) => Err(()),
+            // Note: Do not use _ => Err(()) to make sure any added
+            // HeapRootData Value variants cause compile errors if not handled.
         }
     }
 }

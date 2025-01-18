@@ -137,7 +137,7 @@ impl PromiseCapability {
     }
 
     /// [27.2.1.3.2 Promise Resolve Functions](https://tc39.es/ecma262/#sec-promise-resolve-functions)
-    pub fn resolve(self, agent: &mut Agent, resolution: Value, gc: GcScope) {
+    pub fn resolve(self, agent: &mut Agent, resolution: Value, mut gc: GcScope) {
         // 1. Let F be the active function object.
         // 2. Assert: F has a [[Promise]] internal slot whose value is an Object.
         // 3. Let promise be F.[[Promise]].
@@ -175,7 +175,12 @@ impl PromiseCapability {
         };
 
         // 9. Let then be Completion(Get(resolution, "then")).
-        let then_action = match get(agent, resolution, BUILTIN_STRING_MEMORY.then.into(), gc) {
+        let then_action = match get(
+            agent,
+            resolution,
+            BUILTIN_STRING_MEMORY.then.into(),
+            gc.reborrow(),
+        ) {
             // 11. Let thenAction be then.[[Value]].
             Ok(then_action) => then_action,
             // 10. If then is an abrupt completion, then
