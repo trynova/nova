@@ -1369,8 +1369,10 @@ impl Rootable for Value {
             HeapRootData::Module(module) => Some(Self::Module(module)),
             HeapRootData::EmbedderObject(embedder_object) => {
                 Some(Self::EmbedderObject(embedder_object))
-            } // Note: Do not use _ => Err(()) to make sure any added
-              // HeapRootData Value variants cause compile errors if not handled.
+            }
+            HeapRootData::PromiseReaction(_) => None,
+            // Note: Do not use _ => Err(()) to make sure any added
+            // HeapRootData Value variants cause compile errors if not handled.
         }
     }
 }

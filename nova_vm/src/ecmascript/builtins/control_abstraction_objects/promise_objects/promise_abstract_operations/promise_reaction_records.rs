@@ -9,6 +9,7 @@ use crate::{
         builtins::control_abstraction_objects::async_function_objects::await_reaction::AwaitReactionIdentifier,
         execution::Agent, types::Function,
     },
+    engine::rootable::{HeapRootData, HeapRootRef, Rootable},
     heap::{indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep},
 };
 
@@ -116,6 +117,30 @@ impl HeapMarkAndSweep for PromiseReaction {
         compactions
             .promise_reaction_records
             .shift_index(&mut self.0);
+    }
+}
+
+impl Rootable for PromiseReaction {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::PromiseReaction(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        if let HeapRootData::PromiseReaction(data) = heap_data {
+            Some(data)
+        } else {
+            None
+        }
     }
 }
 

@@ -4,7 +4,7 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::GcScope;
 use crate::engine::Global;
 use crate::{
     ecmascript::{
@@ -76,7 +76,7 @@ impl PromiseResolveThenableJob {
         // c. If thenCallResult is an abrupt completion, then
         if let Err(err) = then_call_result {
             // i. Return ? Call(resolvingFunctions.[[Reject]], undefined, « thenCallResult.[[Value]] »).
-            promise_capability.reject(agent, err.value(), gc.nogc());
+            promise_capability.reject(agent, err.value());
         }
         // d. Return ? thenCallResult.
         Ok(())
@@ -84,12 +84,11 @@ impl PromiseResolveThenableJob {
 }
 
 /// ### [27.2.2.2 NewPromiseResolveThenableJob ( promiseToResolve, thenable, then )](https://tc39.es/ecma262/#sec-newpromiseresolvethenablejob)
-pub(crate) fn new_promise_resolve_thenable_job<'a>(
+pub(crate) fn new_promise_resolve_thenable_job(
     agent: &mut Agent,
     promise_to_resolve: Promise,
     thenable: Object,
     then: Function,
-    _: NoGcScope<'a, '_>,
 ) -> Job {
     // 2. Let getThenRealmResult be Completion(GetFunctionRealm(then.[[Callback]])).
     // 5. NOTE: thenRealm is never null. When then.[[Callback]] is a revoked Proxy and no code runs, thenRealm is used to create error objects.
@@ -110,23 +109,26 @@ pub(crate) fn new_promise_resolve_thenable_job<'a>(
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub(crate) struct PromiseReactionJob {
-    reaction: PromiseReaction,
-    argument: Value,
+    reaction: Global<PromiseReaction>,
+    argument: Global<Value>,
 }
 impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
+        let Self { reaction, argument } = self;
+        let reaction = reaction.take(agent);
+        let argument = argument.take(agent).bind(gc.nogc());
         // The following are substeps of point 1 in NewPromiseReactionJob.
-        let handler_result = match agent[self.reaction].handler {
-            PromiseReactionHandler::Empty => match agent[self.reaction].reaction_type {
+        let handler_result = match agent[reaction].handler {
+            PromiseReactionHandler::Empty => match agent[reaction].reaction_type {
                 PromiseReactionType::Fulfill => {
                     // d.i.1. Let handlerResult be NormalCompletion(argument).
-                    Ok(self.argument)
+                    Ok(argument)
                 }
                 PromiseReactionType::Reject => {
                     // d.ii.1. Let handlerResult be ThrowCompletion(argument).
-                    Err(JsError::new(self.argument))
+                    Err(JsError::new(argument))
                 }
             },
             // e.1. Let handlerResult be Completion(HostCallJobCallback(handler, undefined, « argument »)).
@@ -137,13 +139,13 @@ impl PromiseReactionJob {
                 agent,
                 callback,
                 Value::Undefined,
-                Some(ArgumentsList(&[self.argument])),
+                Some(ArgumentsList(&[argument])),
                 gc.reborrow(),
             ),
             PromiseReactionHandler::Await(await_reaction) => {
-                assert!(agent[self.reaction].capability.is_none());
-                let reaction_type = agent[self.reaction].reaction_type;
-                await_reaction.resume(agent, reaction_type, self.argument, gc.reborrow());
+                assert!(agent[reaction].capability.is_none());
+                let reaction_type = agent[reaction].reaction_type;
+                await_reaction.resume(agent, reaction_type, argument, gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
                 // 3. f. Return undefined.
                 // 5. f. Return undefined.
@@ -152,7 +154,7 @@ impl PromiseReactionJob {
         };
 
         // f. If promiseCapability is undefined, then
-        let Some(promise_capability) = agent[self.reaction].capability else {
+        let Some(promise_capability) = agent[reaction].capability else {
             // i. Assert: handlerResult is not an abrupt completion.
             handler_result.unwrap();
             // ii. Return empty.
@@ -162,7 +164,7 @@ impl PromiseReactionJob {
             // h. If handlerResult is an abrupt completion, then
             Err(err) => {
                 // i. Return ? Call(promiseCapability.[[Reject]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.reject(agent, err.value(), gc.nogc())
+                promise_capability.reject(agent, err.value())
             }
             // i. Else,
             Ok(value) => {
@@ -175,11 +177,10 @@ impl PromiseReactionJob {
 }
 
 /// ### [27.2.2.1 NewPromiseReactionJob ( reaction, argument )](https://tc39.es/ecma262/#sec-newpromisereactionjob)
-pub(crate) fn new_promise_reaction_job<'a>(
+pub(crate) fn new_promise_reaction_job(
     agent: &mut Agent,
     reaction: PromiseReaction,
     argument: Value,
-    _: NoGcScope<'a, '_>,
 ) -> Job {
     let handler_realm = match agent[reaction].handler {
         // 3. If reaction.[[Handler]] is not empty, then
@@ -208,6 +209,8 @@ pub(crate) fn new_promise_reaction_job<'a>(
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
+    let reaction = Global::new(agent, reaction);
+    let argument = Global::new(agent, argument);
     Job {
         realm: handler_realm,
         inner: InnerJob::PromiseReaction(PromiseReactionJob { reaction, argument }),

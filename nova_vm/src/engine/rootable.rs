@@ -54,7 +54,10 @@ use crate::{
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            promise_objects::promise_abstract_operations::{
+                promise_reaction_records::PromiseReaction,
+                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
             proxy::Proxy,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
@@ -105,7 +108,10 @@ mod private {
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
-            promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            promise_objects::promise_abstract_operations::{
+                promise_reaction_records::PromiseReaction,
+                promise_resolving_functions::BuiltinPromiseResolvingFunction,
+            },
             proxy::Proxy,
             set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
@@ -147,6 +153,7 @@ mod private {
     impl RootableSealed for Primitive<'_> {}
     impl RootableSealed for PrimitiveObject<'_> {}
     impl RootableSealed for Promise<'_> {}
+    impl RootableSealed for PromiseReaction {}
     impl RootableSealed for PropertyKey<'_> {}
     impl RootableSealed for Proxy<'_> {}
     #[cfg(feature = "regexp")]
@@ -315,6 +322,7 @@ pub enum HeapRootData {
     //
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
+    PromiseReaction(PromiseReaction),
 }
 
 impl From<Object<'static>> for HeapRootData {
@@ -500,6 +508,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Generator(generator) => generator.mark_values(queues),
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
+            HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
         }
     }
 
@@ -589,6 +598,9 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Module(module) => module.sweep_values(compactions),
             HeapRootData::EmbedderObject(embedder_object) => {
                 embedder_object.sweep_values(compactions)
+            }
+            HeapRootData::PromiseReaction(promise_reaction) => {
+                promise_reaction.sweep_values(compactions)
             }
         }
     }

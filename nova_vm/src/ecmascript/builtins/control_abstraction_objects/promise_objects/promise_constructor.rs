@@ -184,7 +184,7 @@ impl PromiseConstructor {
             gc.reborrow(),
         ) {
             // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
-            promise_capability.reject(agent, err.value(), gc.nogc());
+            promise_capability.reject(agent, err.value());
         }
 
         // 11. Return promise.
