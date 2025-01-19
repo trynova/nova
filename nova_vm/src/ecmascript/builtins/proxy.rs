@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use std::{
+    collections::VecDeque,
+    ops::{Index, IndexMut},
+};
 
 use abstract_operations::{validate_non_revoked_proxy, NonRevokedProxy};
 use data::ProxyHeapData;
@@ -11,8 +14,8 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call, call_function, construct, create_array_from_list, get_object_method,
-                try_get_object_method,
+                call, call_function, construct, create_array_from_list,
+                create_property_key_list_from_array_like, get_object_method, try_get_object_method,
             },
             testing_and_comparison::{is_constructor, is_extensible, same_value},
             type_conversion::to_boolean,
@@ -20,8 +23,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            Function, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            scope_property_keys, unbind_property_keys, Function, InternalMethods, InternalSlots,
+            IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -109,31 +113,31 @@ impl<'a> From<Proxy<'a>> for Object<'a> {
 impl<'a> InternalSlots<'a> for Proxy<'a> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        todo!()
+        unreachable!()
     }
 
     fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
-        todo!()
+        unreachable!()
     }
 
     fn create_backing_object(self, _agent: &mut Agent) -> OrdinaryObject<'static> {
-        todo!()
+        unreachable!()
     }
 
     fn internal_extensible(self, _agent: &Agent) -> bool {
-        todo!();
+        unreachable!();
     }
 
     fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
-        todo!();
+        unreachable!();
     }
 
     fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
-        todo!();
+        unreachable!();
     }
 
     fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
-        todo!();
+        unreachable!();
     }
 }
 
@@ -1281,10 +1285,185 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
 
     fn internal_own_property_keys<'gc>(
         self,
-        _agent: &mut Agent,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Vec<PropertyKey<'gc>>> {
-        todo!();
+        // 1. Perform ? ValidateNonRevokedProxy(O).
+        // 2. Let target be O.[[ProxyTarget]].
+        // 3. Let handler be O.[[ProxyHandler]].
+        // 4. Assert: handler is an Object.
+        let NonRevokedProxy {
+            mut target,
+            mut handler,
+        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        // 5. Let trap be ? GetMethod(handler, "ownKeys").
+        let mut scoped_target = None;
+        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+            agent,
+            handler,
+            BUILTIN_STRING_MEMORY.ownKeys.into(),
+            gc.nogc(),
+        ) {
+            trap?
+        } else {
+            scoped_target = Some(target.scope(agent, gc.nogc()));
+            let scoped_handler = handler.scope(agent, gc.nogc());
+            let trap = get_object_method(
+                agent,
+                handler.unbind(),
+                BUILTIN_STRING_MEMORY.ownKeys.into(),
+                gc.reborrow(),
+            )?
+            .map(Function::unbind);
+            let gc = gc.nogc();
+            let trap = trap.map(|f| f.bind(gc));
+            handler = scoped_handler.get(agent).bind(gc);
+            target = scoped_target.as_ref().unwrap().get(agent).bind(gc);
+            trap
+        };
+        // 6. If trap is undefined, then
+        let Some(trap) = trap else {
+            // a. Return ? target.[[OwnPropertyKeys]]().
+            return target.unbind().internal_own_property_keys(agent, gc);
+        };
+        let scoped_target = scoped_target.unwrap_or_else(|| target.scope(agent, gc.nogc()));
+        // 7. Let trapResultArray be ? Call(trap, handler, « target »).
+        let trap_result_array = call_function(
+            agent,
+            trap.unbind(),
+            handler.unbind().into_value(),
+            Some(ArgumentsList(&[target.unbind().into_value()])),
+            gc.reborrow(),
+        )?;
+        // 8. Let trapResult be ? CreateListFromArrayLike(trapResultArray, property-key).
+        let trap_result = create_property_key_list_from_array_like(
+            agent,
+            trap_result_array.unbind(),
+            gc.reborrow(),
+        )?;
+        // 9. If trapResult contains any duplicate entries, throw a TypeError exception.
+        let mut unique_trap_results = Vec::with_capacity(trap_result.len());
+        for value in trap_result.iter() {
+            let p = value.get(agent).bind(gc.nogc());
+            if unique_trap_results.contains(&p) {
+                return Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "proxy [[OwnPropertyKeys]] can't report property '{}' more than once",
+                        p.as_display(agent),
+                    ),
+                    gc.nogc(),
+                ));
+            }
+            unique_trap_results.push(p);
+        }
+        // 10. Let extensibleTarget be ? IsExtensible(target).
+        let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
+        // 11. Let targetKeys be ? target.[[OwnPropertyKeys]]().
+        let target_keys = scoped_target
+            .get(agent)
+            .internal_own_property_keys(agent, gc.reborrow())?;
+        let target_keys = scope_property_keys(agent, unbind_property_keys(target_keys), gc.nogc());
+        // 13. Assert: targetKeys contains no duplicate entries.
+        let mut unique_target_keys = Vec::with_capacity(target_keys.len());
+        for value in target_keys.iter() {
+            let p = value.get(agent).bind(gc.nogc());
+            assert!(!unique_target_keys.contains(&p));
+            unique_target_keys.push(p);
+        }
+        // 14. Let targetConfigurableKeys be a new empty List.
+        let mut target_configurable_keys = Vec::new();
+        // 15. Let targetNonconfigurableKeys be a new empty List.
+        let mut target_nonconfigurable_keys = Vec::new();
+        // 16. For each element key of targetKeys, do
+        for key in target_keys {
+            // a. Let desc be ? target.[[GetOwnProperty]](key).
+            let desc = scoped_target.get(agent).internal_get_own_property(
+                agent,
+                key.get(agent),
+                gc.reborrow(),
+            )?;
+            //  b. If desc is not undefined and desc.[[Configurable]] is false, then
+            if desc.map_or(false, |d| d.configurable == Some(false)) {
+                // i. Append key to targetNonconfigurableKeys.
+                target_nonconfigurable_keys.push(key);
+            } else {
+                // c. Else,
+                // i. Append key to targetConfigurableKeys.
+                target_configurable_keys.push(key);
+            }
+        }
+        let gc = gc.into_nogc();
+        let trap_result = trap_result
+            .into_iter()
+            .map(|p| p.get(agent).bind(gc))
+            .collect::<Vec<PropertyKey>>();
+        // 17. If extensibleTarget is true and targetNonconfigurableKeys is empty, then
+        if extensible_target && target_nonconfigurable_keys.is_empty() {
+            // a. Return trapResult.
+            return Ok(trap_result);
+        }
+        let target_configurable_keys = target_configurable_keys
+            .into_iter()
+            .map(|p| p.get(agent).bind(gc));
+        let target_nonconfigurable_keys = target_nonconfigurable_keys
+            .into_iter()
+            .map(|p| p.get(agent).bind(gc));
+        // 18. Let uncheckedResultKeys be a List whose elements are the elements of trapResult.
+        let mut unchecked_result_keys = VecDeque::from(trap_result.clone());
+        // 19. For each element key of targetNonconfigurableKeys, do
+        for key in target_nonconfigurable_keys {
+            // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
+            if !unchecked_result_keys.contains(&key) {
+                return Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    format!(
+                        "proxy can't skip a non-configurable property '{}'",
+                        key.as_display(agent)
+                    ),
+                    gc,
+                ));
+            }
+            if let Some(pos) = unchecked_result_keys
+                .iter()
+                .position(|unchecked_key| *unchecked_key == key)
+            {
+                // b. Remove the key from uncheckedResultKeys
+                unchecked_result_keys.remove(pos);
+            }
+        }
+        // 20. If extensibleTarget is true, return trapResult.
+        if extensible_target {
+            return Ok(trap_result);
+        };
+        // 21. For each element key of targetConfigurableKeys, do
+        for key in target_configurable_keys {
+            // a. If uncheckedResultKeys does not contain key, throw a TypeError exception.
+            if !unchecked_result_keys.contains(&key) {
+                return Err(agent.throw_exception(
+                    ExceptionType::TypeError,
+                    format!("proxy can't report an existing own property '{}' as non-existent on a non-extensible object", key.as_display(agent)),
+                    gc,
+                ));
+            }
+            if let Some(pos) = unchecked_result_keys
+                .iter()
+                .position(|unchecked_key| *unchecked_key == key)
+            {
+                // b. Remove the key from uncheckedResultKeys
+                unchecked_result_keys.remove(pos);
+            }
+        }
+        // 22. If uncheckedResultKeys is not empty, throw a TypeError exception.
+        if !unchecked_result_keys.is_empty() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "trap returned extra keys but proxy target is non-extensible",
+                gc,
+            ));
+        }
+        // 23. Return trapResult.
+        Ok(trap_result)
     }
 
     /// ### [10.5.12 [[Call]] ( thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-proxy-object-internal-methods-and-internal-slots-call-thisargument-argumentslist)

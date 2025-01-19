@@ -9,7 +9,9 @@ use ahash::AHashSet;
 use super::{
     operations_on_iterator_objects::{get_iterator, if_abrupt_close_iterator, iterator_close},
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
-    type_conversion::{to_length, to_object, to_property_key, try_to_length},
+    type_conversion::{
+        to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
+    },
 };
 use crate::{
     ecmascript::types::{bind_property_keys, scope_property_keys, unbind_property_keys},
@@ -1086,6 +1088,67 @@ pub(crate) fn create_list_from_array_like(
             gc.into_nogc(),
         )),
     }
+}
+
+/// ### [7.3.19 CreateListFromArrayLike ( obj [ , elementTypes ] )](https://tc39.es/ecma262/#sec-createlistfromarraylike)
+///
+/// The abstract operation CreateListFromArrayLike takes argument obj (an ECMAScript language value)
+/// and optional argument elementTypes (a List of names of ECMAScript Language Types) and returns
+/// either a normal completion containing a List of ECMAScript language values or a throw
+/// completion. It is used to create a List value whose elements are provided by the indexed
+/// properties of obj. elementTypes contains the names of ECMAScript Language Types that are allowed
+/// for element values of the List that is created.
+pub(crate) fn create_property_key_list_from_array_like<'a>(
+    agent: &mut Agent,
+    obj: Value,
+    mut gc: GcScope<'_, 'a>,
+) -> JsResult<Vec<Scoped<'a, PropertyKey<'static>>>> {
+    // 1. If validElementTypes is not present, set validElementTypes to all.
+    // 2. If obj is not an Object, throw a TypeError exception.
+    let Ok(object) = Object::try_from(obj) else {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Not an object",
+            gc.nogc(),
+        ));
+    };
+    let object = object.bind(gc.nogc());
+    let scoped_object = object.scope(agent, gc.nogc());
+    // 3. Let len be ? LengthOfArrayLike(obj).
+    let len = length_of_array_like(agent, object.unbind(), gc.reborrow())?;
+    let len = usize::try_from(len).unwrap();
+    // 4. Let list be a new empty List.
+    let mut list = Vec::with_capacity(len);
+    // 5. Let index be 0.
+    let mut index = 0;
+    // 6. Repeat, while index < len,
+    while index < len {
+        let next = get(
+            agent,
+            scoped_object.get(agent).unbind(),
+            PropertyKey::Integer(SmallInteger::try_from(index as u64).unwrap()).unbind(),
+            gc.reborrow(),
+        )?;
+        match next {
+            Value::String(_) | Value::SmallString(_) => {
+                let string_value = String::try_from(next).unwrap();
+                let scoped_property_key =
+                    unwrap_try(to_property_key_simple(agent, string_value, gc.nogc()))
+                        .scope(agent, gc.nogc());
+                list.push(scoped_property_key);
+            }
+            Value::Symbol(sym) => list.push(PropertyKey::Symbol(sym).scope(agent, gc.nogc())),
+            _ => {
+                return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "proxy [[OwnPropertyKeys]] must return an array with only string and symbol elements",
+                gc.nogc(),
+            ));
+            }
+        }
+        index += 1;
+    }
+    Ok(list)
 }
 
 /// Abstract operation Call specialized for a Function.

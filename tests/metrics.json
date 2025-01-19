@@ -1,9 +1,9 @@
 {
   "results": {
-    "crash": 14346,
-    "fail": 7213,
-    "pass": 23683,
-    "skip": 46,
+    "crash": 14224,
+    "fail": 7339,
+    "pass": 23680,
+    "skip": 45,
     "timeout": 3,
     "unresolved": 0
   },
