@@ -259,6 +259,154 @@ impl Builtin for StringPrototypeIterator {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::iterator);
 }
 
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeSubstr;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeSubstr {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.substr;
+    const LENGTH: u8 = 2;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::substr);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeAnchor;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeAnchor {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.anchor;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::anchor);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeBig;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeBig {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.big;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::big);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeBlink;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeBlink {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.blink;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::blink);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeBold;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeBold {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.bold;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::bold);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeFixed;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeFixed {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fixed;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::fixed);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeFontcolor;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeFontcolor {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fontcolor;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::fontcolor);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeFontsize;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeFontsize {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fontsize;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::fontsize);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeItalics;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeItalics {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.italics;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::italics);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeLink;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeLink {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.link;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::link);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeSmall;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeSmall {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.small;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::small);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeStrike;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeStrike {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.strike;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::strike);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeSub;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeSub {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sub;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::sub);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeSup;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeSup {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sup;
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::sup);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeTrimLeft;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeTrimLeft {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trimStart;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.trimLeft.to_property_key());
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_start);
+}
+
+#[cfg(feature = "annex-b-string")]
+struct StringPrototypeTrimRight;
+#[cfg(feature = "annex-b-string")]
+impl Builtin for StringPrototypeTrimRight {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trimEnd;
+    const KEY: Option<PropertyKey<'static>> =
+        Some(BUILTIN_STRING_MEMORY.trimRight.to_property_key());
+    const LENGTH: u8 = 0;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_end);
+}
+
 impl StringPrototype {
     fn at(
         agent: &mut Agent,
@@ -1787,6 +1935,225 @@ impl StringPrototype {
         todo!()
     }
 
+    /// ### [B.2.2.1 String.prototype.substr ( start, length )](https://tc39.es/ecma262/#sec-string.prototype.substr)
+    ///
+    /// This method returns a substring of the result of converting the this
+    /// value to a String, starting from index start and running for length
+    /// code units (or through the end of the String if length is undefined).
+    /// If start is negative, it is treated as sourceLength + start where
+    /// sourceLength is the length of the String. The result is a String value,
+    /// not a String object.
+    #[cfg(feature = "annex-b-string")]
+    fn substr(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        mut gc: GcScope,
+    ) -> JsResult<Value> {
+        let start = args.get(0).bind(gc.nogc());
+        let length = args.get(1).bind(gc.nogc());
+
+        let s = if let Ok(s) = String::try_from(this_value) {
+            s.bind(gc.nogc())
+        } else {
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            // 2. Let S be ? ToString(O).
+            to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc())
+        };
+        let scoped_s = s.scope(agent, gc.nogc());
+
+        // 3. Let size be the length of S.
+        let size = s.utf16_len(agent) as i64;
+
+        // 4. Let intStart be ? ToIntegerOrInfinity(start).
+        let int_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
+
+        // 5. If intStart = -∞, set intStart to 0.
+        let int_start = if int_start.is_neg_infinity() {
+            0
+        } else if int_start.is_negative() {
+            // 6. Else if intStart < 0, set intStart to max(size + intStart, 0).
+            (int_start.into_i64() + size).max(0)
+        } else {
+            // 7. Else, set intStart to min(intStart, size).
+            int_start.into_i64().min(size)
+        };
+
+        // 8. If length is undefined, let intLength be size; otherwise let intLength be ? ToIntegerOrInfinity(length).
+        let int_length = if length.is_undefined() {
+            size
+        } else {
+            to_integer_or_infinity(agent, length, gc.reborrow())?.into_i64()
+        };
+
+        // 9. Set intLength to the result of clamping intLength between 0 and size.
+        let int_length = int_length.clamp(0, size);
+
+        // 10. Let intEnd be min(intStart + intLength, size).
+        let int_end = (int_start + int_length).min(size);
+
+        // 11. Return the substring of S from intStart to intEnd.
+        let s = scoped_s.get(agent).bind(gc.nogc());
+        let s_str = s.as_str(agent);
+        Ok(String::from_string(
+            agent,
+            s_str[int_start as usize..int_end as usize].to_string(),
+            gc.nogc(),
+        )
+        .into_value())
+    }
+
+    /// ### [B.2.2.2 String.prototype.anchor ( name )](https://tc39.es/ecma262/#sec-string.prototype.anchor)
+    #[cfg(feature = "annex-b-string")]
+    fn anchor(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        let name = args.get(0).bind(gc.nogc());
+
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "a", "name", name).
+        create_html(agent, this_value, "a", Some(("name", name)), gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.3 String.prototype.big ( )](https://tc39.es/ecma262/#sec-string.prototype.big)
+    fn big(agent: &mut Agent, this_value: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "big", "", "").
+        create_html(agent, this_value, "big", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.4 String.prototype.blink ( )](https://tc39.es/ecma262/#sec-string.prototype.blink)
+    fn blink(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "blink", "", "").
+        create_html(agent, this_value, "blink", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.5 String.prototype.bold ( )](https://tc39.es/ecma262/#sec-string.prototype.bold)
+    fn bold(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "b", "", "").
+        create_html(agent, this_value, "b", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.6 String.prototype.fixed ( )](https://tc39.es/ecma262/#sec-string.prototype.fixed)
+    fn fixed(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "tt", "", "").
+        create_html(agent, this_value, "tt", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.7 String.prototype.fontcolor ( colour )](https://tc39.es/ecma262/#sec-string.prototype.fontcolor)
+    fn fontcolor(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        let colour = args.get(0).bind(gc.nogc());
+
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "font", "colour", colour).
+        create_html(agent, this_value, "font", Some(("colour", colour)), gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.8 String.prototype.fontsize ( size )](https://tc39.es/ecma262/#sec-string.prototype.fontsize)
+    fn fontsize(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        let size = args.get(0).bind(gc.nogc());
+
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "font", "size", size).
+        create_html(agent, this_value, "font", Some(("size", size)), gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.9 String.prototype.italics ( )](https://tc39.es/ecma262/#sec-string.prototype.italics)
+    fn italics(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "tt", "", "").
+        create_html(agent, this_value, "i", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.10 String.prototype.link ( url )](https://tc39.es/ecma262/#sec-string.prototype.link)
+    fn link(
+        agent: &mut Agent,
+        this_value: Value,
+        args: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        let url = args.get(0).bind(gc.nogc());
+
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "a", "href", url).
+        create_html(agent, this_value, "a", Some(("href", url)), gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.11 String.prototype.small ( )](https://tc39.es/ecma262/#sec-string.prototype.small)
+    fn small(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "small", "", "").
+        create_html(agent, this_value, "small", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.12 String.prototype.strike ( )](https://tc39.es/ecma262/#sec-string.prototype.strike)
+    fn strike(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "strike", "", "").
+        create_html(agent, this_value, "strike", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.13 String.prototype.sub ( )](https://tc39.es/ecma262/#sec-string.prototype.sub)
+    fn sub(agent: &mut Agent, this_value: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "sub", "", "").
+        create_html(agent, this_value, "sub", None, gc).map(Value::from)
+    }
+
+    /// ### [B.2.2.14 String.prototype.sup ( )](https://tc39.es/ecma262/#sec-string.prototype.sup)
+    fn sup(agent: &mut Agent, this_value: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+        // 1. Let S be the this value.
+        // 2. Return ? CreateHTML(S, "sup", "", "").
+        create_html(agent, this_value, "sup", None, gc).map(Value::from)
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
@@ -1794,8 +2161,12 @@ impl StringPrototype {
         let this_base_object = intrinsics.string_prototype_base_object().into();
         let string_constructor = intrinsics.string();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
-            .with_property_capacity(36)
+        let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
+            .with_property_capacity(if cfg!(feature = "annex-b-string") {
+                52
+            } else {
+                36
+            })
             .with_prototype(object_prototype)
             .with_builtin_function_property::<StringPrototypeGetAt>()
             .with_builtin_function_property::<StringPrototypeCharAt>()
@@ -1832,8 +2203,28 @@ impl StringPrototype {
             .with_builtin_intrinsic_function_property::<StringPrototypeTrimEnd>()
             .with_builtin_intrinsic_function_property::<StringPrototypeTrimStart>()
             .with_builtin_function_property::<StringPrototypeValueOf>()
-            .with_builtin_function_property::<StringPrototypeIterator>()
-            .build();
+            .with_builtin_function_property::<StringPrototypeIterator>();
+
+        #[cfg(feature = "annex-b-string")]
+        let builder = builder
+            .with_builtin_function_property::<StringPrototypeSubstr>()
+            .with_builtin_function_property::<StringPrototypeAnchor>()
+            .with_builtin_function_property::<StringPrototypeBig>()
+            .with_builtin_function_property::<StringPrototypeBlink>()
+            .with_builtin_function_property::<StringPrototypeBold>()
+            .with_builtin_function_property::<StringPrototypeFixed>()
+            .with_builtin_function_property::<StringPrototypeFontcolor>()
+            .with_builtin_function_property::<StringPrototypeFontsize>()
+            .with_builtin_function_property::<StringPrototypeItalics>()
+            .with_builtin_function_property::<StringPrototypeLink>()
+            .with_builtin_function_property::<StringPrototypeSmall>()
+            .with_builtin_function_property::<StringPrototypeStrike>()
+            .with_builtin_function_property::<StringPrototypeSub>()
+            .with_builtin_function_property::<StringPrototypeSup>()
+            .with_builtin_function_property::<StringPrototypeTrimLeft>()
+            .with_builtin_function_property::<StringPrototypeTrimRight>();
+
+        builder.build();
 
         let slot = agent
             .heap
@@ -2025,6 +2416,69 @@ fn this_string_value<'gc>(
                 gc,
             ))
         }
+    }
+}
+
+/// ### [B.2.2.2.1 CreateHTML ( string, tag, attribute, value )](https://tc39.es/ecma262/#sec-createhtml)
+///
+/// The abstract operation CreateHTML takes arguments string (an ECMAScript
+/// language value), tag (a String), attribute (a String), and value (an
+/// ECMAScript language value) and returns either a normal completion
+/// containing a String or a throw completion.
+#[cfg(feature = "annex-b-string")]
+fn create_html<'gc>(
+    agent: &mut Agent,
+    string: Value,
+    tag: &str,
+    attribute_and_value: Option<(&str, Value)>,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<String<'gc>> {
+    // 1. Let str be ? RequireObjectCoercible(string).
+    let str = require_object_coercible(agent, string, gc.nogc())?;
+
+    // 2. Let S be ? ToString(str)
+    let s = to_string(agent, str, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
+    let scoped_s = s.scope(agent, gc.nogc());
+
+    // 3. Let p1 be the string-concatenation of "<" and tag.
+    // 4. If attribute is not the empty String, then
+    // c. Set p1 to the string-concatenation of:
+    // - p1
+    // - the code unit 0x0020 (SPACE)
+    // - attribute
+    // - the code unit 0x003D (EQUALS SIGN)
+    // - the code unit 0x0022 (QUOTATION MARK)
+    // - escapedV
+    // - the code unit 0x0022 (QUOTATION MARK)
+    // 5. Let p2 be the string-concatenation of p1 and ">".
+    // 6. Let p3 be the string-concatenation of p2 and S.
+    // 7. Let p4 be the string-concatenation of p3, "</", tag, and ">".
+    // 8. Return p4.
+    if let Some((attribute, value)) = attribute_and_value {
+        // a. Let V be ? ToString(value).
+        let v = to_string(agent, value, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        // b. Let escapedV be the String value that is the same as V except that each occurrence of the code unit 0x0022 (QUOTATION MARK) in V has been replaced with the six code unit sequence "&quot;".
+        let escaped_v = v.as_str(agent).replace('"', "&quot;");
+
+        let s = scoped_s.get(agent).bind(gc.nogc());
+        let s_str = s.as_str(agent);
+        Ok(String::from_string(
+            agent,
+            format!("<{tag} {attribute}=\"{escaped_v}\">{s_str}</{tag}>"),
+            gc.into_nogc(),
+        ))
+    } else {
+        let s = scoped_s.get(agent).bind(gc.nogc());
+        let s_str = s.as_str(agent);
+        Ok(String::from_string(
+            agent,
+            format!("<{tag}>{s_str}</{tag}>"),
+            gc.into_nogc(),
+        ))
     }
 }
 
