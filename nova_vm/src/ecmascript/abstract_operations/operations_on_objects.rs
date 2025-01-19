@@ -1101,8 +1101,8 @@ pub(crate) fn create_list_from_array_like(
 pub(crate) fn create_property_key_list_from_array_like<'a>(
     agent: &mut Agent,
     obj: Value,
-    mut gc: GcScope,
-) -> JsResult<Vec<PropertyKey<'a>>> {
+    mut gc: GcScope<'_, 'a>,
+) -> JsResult<Vec<Scoped<'a, PropertyKey<'static>>>> {
     // 1. If validElementTypes is not present, set validElementTypes to all.
     // 2. If obj is not an Object, throw a TypeError exception.
     let Ok(object) = Object::try_from(obj) else {
@@ -1112,8 +1112,10 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
             gc.nogc(),
         ));
     };
+    let object = object.bind(gc.nogc());
+    let scoped_object = object.scope(agent, gc.nogc());
     // 3. Let len be ? LengthOfArrayLike(obj).
-    let len = length_of_array_like(agent, object, gc.reborrow())?;
+    let len = length_of_array_like(agent, object.unbind(), gc.reborrow())?;
     let len = usize::try_from(len).unwrap();
     // 4. Let list be a new empty List.
     let mut list = Vec::with_capacity(len);
@@ -1123,7 +1125,7 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
     while index < len {
         let next = get(
             agent,
-            object.unbind(),
+            scoped_object.get(agent).unbind(),
             PropertyKey::Integer(SmallInteger::try_from(index as u64).unwrap()).unbind(),
             gc.reborrow(),
         )?;
@@ -1133,9 +1135,9 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
                 let scoped_property_key =
                     unwrap_try(to_property_key_simple(agent, string_value, gc.nogc()))
                         .scope(agent, gc.nogc());
-                list.push(scoped_property_key.get(agent));
+                list.push(scoped_property_key);
             }
-            Value::Symbol(sym) => list.push(PropertyKey::Symbol(sym)),
+            Value::Symbol(sym) => list.push(PropertyKey::Symbol(sym).scope(agent, gc.nogc())),
             _ => {
                 return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
