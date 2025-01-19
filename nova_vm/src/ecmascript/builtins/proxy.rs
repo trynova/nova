@@ -113,31 +113,31 @@ impl<'a> From<Proxy<'a>> for Object<'a> {
 impl<'a> InternalSlots<'a> for Proxy<'a> {
     #[inline(always)]
     fn get_backing_object(self, _agent: &Agent) -> Option<OrdinaryObject<'static>> {
-        todo!()
+        unreachable!()
     }
 
     fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
-        todo!()
+        unreachable!()
     }
 
     fn create_backing_object(self, _agent: &mut Agent) -> OrdinaryObject<'static> {
-        todo!()
+        unreachable!()
     }
 
     fn internal_extensible(self, _agent: &Agent) -> bool {
-        todo!();
+        unreachable!();
     }
 
     fn internal_set_extensible(self, _agent: &mut Agent, _value: bool) {
-        todo!();
+        unreachable!();
     }
 
     fn internal_prototype(self, _agent: &Agent) -> Option<Object<'static>> {
-        todo!();
+        unreachable!();
     }
 
     fn internal_set_prototype(self, _agent: &mut Agent, _prototype: Option<Object>) {
-        todo!();
+        unreachable!();
     }
 }
 
