@@ -1357,7 +1357,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 10. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
         // 11. Let targetKeys be ? target.[[OwnPropertyKeys]]().
-        let keys = target.internal_own_property_keys(agent, gc.reborrow())?;
+        let keys = scoped_target
+            .get(agent)
+            .internal_own_property_keys(agent, gc.reborrow())?;
         let target_keys = scope_property_keys(agent, unbind_property_keys(keys), gc.nogc());
         // 13. Assert: targetKeys contains no duplicate entries.
         let mut seen = HashSet::new();
@@ -1373,7 +1375,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             // a. Let desc be ? target.[[GetOwnProperty]](key).
             let desc = {
                 let next_key = key.get(agent);
-                target.internal_get_own_property(agent, next_key, gc.reborrow())?
+                scoped_target.get(agent).internal_get_own_property(
+                    agent,
+                    next_key,
+                    gc.reborrow(),
+                )?
             };
             //  b. If desc is not undefined and desc.[[Configurable]] is false, then
             if desc.map_or(false, |d| d.configurable == Some(false)) {
