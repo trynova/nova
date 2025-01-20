@@ -47,6 +47,12 @@
     "language/identifiers/start-unicode-8.0.0-escaped.js",
     "language/identifiers/start-unicode-8.0.0.js",
     "language/identifiers/start-unicode-9.0.0-escaped.js",
-    "language/identifiers/start-unicode-9.0.0.js"
+    "language/identifiers/start-unicode-9.0.0.js",
+    "staging/sm/Proxy/ownkeys-linear.js",
+    "staging/sm/class/compPropNames.js",
+    "staging/sm/regress/regress-610026.js",
+    "staging/sm/Array/sort_small.js",
+    "staging/sm/String/normalize-generateddata-input.js",
+    "staging/sm/JSON/parse-reviver-array-delete.js"
   ]
 }
