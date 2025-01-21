@@ -53,6 +53,8 @@
     "staging/sm/regress/regress-610026.js",
     "staging/sm/Array/sort_small.js",
     "staging/sm/String/normalize-generateddata-input.js",
-    "staging/sm/JSON/parse-reviver-array-delete.js"
+    "staging/sm/JSON/parse-reviver-array-delete.js",
+    "staging/sm/Array/length-truncate-nonconfigurable-sparse.js",
+    "staging/sm/Array/length-truncate-with-indexed.js"
   ]
 }
