@@ -175,12 +175,39 @@ impl StringConstructor {
         code_points: ArgumentsList,
         mut gc: GcScope,
     ) -> JsResult<Value> {
-        // 1. Let result be the empty String.
-        let mut result = std::string::String::new();
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
             return Ok(String::EMPTY_STRING.into_value());
         }
+        // fast path: only a single valid code unit
+        if code_points.len() == 1 {
+            // a. Let nextCP be ? ToNumber(next).
+            let next_cp = to_number(agent, code_points[0].into_value(), gc.reborrow())?.unbind();
+            // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
+            if !is_integral_number(agent, next_cp, gc.reborrow()) {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{:?} is not a valid code point", next_cp.to_real(agent)),
+                    gc.nogc(),
+                ));
+            }
+            // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+            let next_cp = to_uint32(agent, next_cp.into_value(), gc.reborrow())?;
+            if next_cp > 0x10FFFF {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{:?} is not a valid code point", next_cp),
+                    gc.nogc(),
+                ));
+            }
+            // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+            if let Some(cu) = char::from_u32(next_cp as u32) {
+                // 4. Return result.
+                return Ok(SmallString::from(cu).into());
+            }
+        };
+        // 1. Let result be the empty String.
+        let mut result = std::string::String::new();
         // 2. For each element next of codePoints, do
         for next in code_points.iter() {
             // a. Let nextCP be ? ToNumber(next).
