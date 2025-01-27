@@ -1073,15 +1073,17 @@ impl TypedArrayPrototype {
         let o = TypedArray::try_from(o).unwrap();
         // 3. Let len be TypedArrayLength(taRecord).
         let len = match o {
-            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc())
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
             }
-            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
-            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
-            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int32Array(_) | TypedArray::Uint32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
             TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
             TypedArray::BigUint64Array(_) => {
                 typed_array_length::<u64>(agent, &ta_record, gc.nogc())
