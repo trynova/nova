@@ -3,6 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::RealmIdentifier;
+#[cfg(feature = "set")]
+use crate::ecmascript::builtins::keyed_collections::set_objects::{
+    set_constructor::SetConstructor,
+    set_iterator_objects::set_iterator_prototype::SetIteratorPrototype,
+    set_prototype::SetPrototype,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::keyed_collections::{
     weak_map_objects::{
@@ -85,17 +91,10 @@ use crate::{
                 array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
                 array_prototype::ArrayPrototype,
             },
-            keyed_collections::{
-                map_objects::{
-                    map_constructor::MapConstructor,
-                    map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
-                    map_prototype::MapPrototype,
-                },
-                set_objects::{
-                    set_constructor::SetConstructor,
-                    set_iterator_objects::set_iterator_prototype::SetIteratorPrototype,
-                    set_prototype::SetPrototype,
-                },
+            keyed_collections::map_objects::{
+                map_constructor::MapConstructor,
+                map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
+                map_prototype::MapPrototype,
             },
             managing_memory::finalization_registry_objects::{
                 finalization_registry_constructor::FinalizationRegistryConstructor,
@@ -206,7 +205,9 @@ pub enum ProtoIntrinsics {
     ReferenceError,
     #[cfg(feature = "regexp")]
     RegExp,
+    #[cfg(feature = "set")]
     Set,
+    #[cfg(feature = "set")]
     SetIterator,
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer,
@@ -312,8 +313,11 @@ impl Intrinsics {
         MapPrototype::create_intrinsic(agent, realm);
         MapConstructor::create_intrinsic(agent, realm);
         MapIteratorPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "set")]
         SetPrototype::create_intrinsic(agent, realm);
+        #[cfg(feature = "set")]
         SetConstructor::create_intrinsic(agent, realm);
+        #[cfg(feature = "set")]
         SetIteratorPrototype::create_intrinsic(agent, realm);
         #[cfg(feature = "weak-refs")]
         WeakMapPrototype::create_intrinsic(agent, realm);
@@ -419,7 +423,9 @@ impl Intrinsics {
             ProtoIntrinsics::Promise => self.promise_prototype().into(),
             #[cfg(feature = "regexp")]
             ProtoIntrinsics::RegExp => self.reg_exp_prototype().into(),
+            #[cfg(feature = "set")]
             ProtoIntrinsics::Set => self.set_prototype().into(),
+            #[cfg(feature = "set")]
             ProtoIntrinsics::SetIterator => self.set_iterator_prototype().into(),
             #[cfg(feature = "shared-array-buffer")]
             ProtoIntrinsics::SharedArrayBuffer => self.shared_array_buffer_prototype().into(),

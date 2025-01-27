@@ -2271,12 +2271,10 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::FinalizationRegistry(_) |
         Value::Map(_) |
         Value::Promise(_) |
-        Value::Set(_) |
         Value::AsyncFromSyncIterator |
         Value::AsyncIterator |
         Value::Iterator |
         Value::ArrayIterator(_) |
-        Value::SetIterator(_) |
         Value::MapIterator(_) |
         Value::Generator(_) |
         Value::Module(_) |
@@ -2287,6 +2285,9 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::WeakMap(_) |
         Value::WeakRef(_) |
         Value::WeakSet(_)  => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "set")]
+        Value::Set(_) |
+        Value::SetIterator(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "shared-array-buffer")]
         Value::SharedArrayBuffer(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "array-buffer")]

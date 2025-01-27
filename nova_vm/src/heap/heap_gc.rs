@@ -25,6 +25,10 @@ use crate::ecmascript::builtins::regexp::RegExp;
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+#[cfg(feature = "set")]
+use crate::ecmascript::builtins::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::{
@@ -43,16 +47,12 @@ use crate::{
             error::Error,
             finalization_registry::FinalizationRegistry,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIterator,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{
@@ -180,7 +180,9 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
             #[cfg(feature = "regexp")]
             regexps,
             scripts,
+            #[cfg(feature = "set")]
             sets,
+            #[cfg(feature = "set")]
             set_iterators,
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
@@ -692,33 +694,37 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 }
             });
         }
-        let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
-        set_marks.sort();
-        set_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.sets.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+        #[cfg(feature = "set")]
+        {
+            let mut set_marks: Box<[Set]> = queues.sets.drain(..).collect();
+            set_marks.sort();
+            set_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.sets.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    sets.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                sets.get(index).mark_values(&mut queues);
-            }
-        });
+            });
 
-        let mut set_iterator_marks: Box<[SetIterator]> = queues.set_iterators.drain(..).collect();
-        set_iterator_marks.sort();
-        set_iterator_marks.iter().for_each(|&idx| {
-            let index = idx.get_index();
-            if let Some(marked) = bits.set_iterators.get_mut(index) {
-                if *marked {
-                    // Already marked, ignore
-                    return;
+            let mut set_iterator_marks: Box<[SetIterator]> =
+                queues.set_iterators.drain(..).collect();
+            set_iterator_marks.sort();
+            set_iterator_marks.iter().for_each(|&idx| {
+                let index = idx.get_index();
+                if let Some(marked) = bits.set_iterators.get_mut(index) {
+                    if *marked {
+                        // Already marked, ignore
+                        return;
+                    }
+                    *marked = true;
+                    set_iterators.get(index).mark_values(&mut queues);
                 }
-                *marked = true;
-                set_iterators.get(index).mark_values(&mut queues);
-            }
-        });
+            });
+        }
         #[cfg(feature = "shared-array-buffer")]
         {
             let mut shared_array_buffer_marks: Box<[SharedArrayBuffer]> =
@@ -1062,7 +1068,9 @@ fn sweep(
         #[cfg(feature = "regexp")]
         regexps,
         scripts,
+        #[cfg(feature = "set")]
         sets,
+        #[cfg(feature = "set")]
         set_iterators,
         #[cfg(feature = "shared-array-buffer")]
         shared_array_buffers,
@@ -1421,11 +1429,13 @@ fn sweep(
                 sweep_heap_vector_values(scripts, &compactions, &bits.scripts);
             });
         }
+        #[cfg(feature = "set")]
         if !sets.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(sets, &compactions, &bits.sets);
             });
         }
+        #[cfg(feature = "set")]
         if !set_iterators.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(set_iterators, &compactions, &bits.set_iterators);

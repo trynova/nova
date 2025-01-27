@@ -38,8 +38,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
         FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
         MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
-        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, SET_DISCRIMINANT,
-        SET_ITERATOR_DISCRIMINANT,
+        PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
     },
     Function, IntoValue, Value,
 };
@@ -51,6 +50,13 @@ use crate::ecmascript::builtins::regexp::RegExp;
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
+#[cfg(feature = "set")]
+use crate::ecmascript::{
+    builtins::{
+        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+    },
+    types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
+};
 #[cfg(feature = "array-buffer")]
 use crate::{
     ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
@@ -69,16 +75,12 @@ use crate::{
             error::Error,
             finalization_registry::FinalizationRegistry,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIterator,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            set::Set,
             ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
@@ -136,6 +138,7 @@ pub enum Object<'a> {
     Proxy(Proxy<'a>) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
     RegExp(RegExp<'a>) = REGEXP_DISCRIMINANT,
+    #[cfg(feature = "set")]
     Set(Set<'a>) = SET_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'a>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
@@ -171,6 +174,7 @@ pub enum Object<'a> {
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "set")]
     SetIterator(SetIterator<'a>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'a>) = MAP_ITERATOR_DISCRIMINANT,
     Generator(Generator<'a>) = GENERATOR_DISCRIMINANT,
@@ -213,6 +217,7 @@ impl IntoValue for Object<'_> {
             Object::Proxy(data) => Value::Proxy(data.unbind()),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => Value::RegExp(data.unbind()),
+            #[cfg(feature = "set")]
             Object::Set(data) => Value::Set(data.unbind()),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => Value::SharedArrayBuffer(data.unbind()),
@@ -248,6 +253,7 @@ impl IntoValue for Object<'_> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => Value::SetIterator(data.unbind()),
             Object::MapIterator(data) => Value::MapIterator(data.unbind()),
             Object::Generator(data) => Value::Generator(data.unbind()),
@@ -434,6 +440,7 @@ impl From<Object<'_>> for Value {
             Object::Proxy(data) => Value::Proxy(data.unbind()),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => Value::RegExp(data.unbind()),
+            #[cfg(feature = "set")]
             Object::Set(data) => Value::Set(data.unbind()),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => Value::SharedArrayBuffer(data.unbind()),
@@ -469,6 +476,7 @@ impl From<Object<'_>> for Value {
             Object::AsyncIterator => Value::AsyncIterator,
             Object::Iterator => Value::Iterator,
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => Value::SetIterator(data.unbind()),
             Object::MapIterator(data) => Value::MapIterator(data.unbind()),
             Object::Generator(data) => Value::Generator(data.unbind()),
@@ -520,6 +528,7 @@ impl TryFrom<Value> for Object<'_> {
             Value::Proxy(data) => Ok(Object::Proxy(data)),
             #[cfg(feature = "regexp")]
             Value::RegExp(idx) => Ok(Object::RegExp(idx)),
+            #[cfg(feature = "set")]
             Value::Set(data) => Ok(Object::Set(data)),
             #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => Ok(Object::SharedArrayBuffer(data)),
@@ -555,6 +564,7 @@ impl TryFrom<Value> for Object<'_> {
             Value::AsyncIterator => Ok(Object::AsyncIterator),
             Value::Iterator => Ok(Object::Iterator),
             Value::ArrayIterator(data) => Ok(Object::ArrayIterator(data)),
+            #[cfg(feature = "set")]
             Value::SetIterator(data) => Ok(Object::SetIterator(data)),
             Value::MapIterator(data) => Ok(Object::MapIterator(data)),
             Value::Generator(data) => Ok(Object::Generator(data)),
@@ -631,6 +641,7 @@ impl Hash for Object<'_> {
             Object::Proxy(data) => data.get_index().hash(state),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.get_index().hash(state),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.get_index().hash(state),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.get_index().hash(state),
@@ -666,6 +677,7 @@ impl Hash for Object<'_> {
             Object::AsyncIterator => {}
             Object::Iterator => {}
             Object::ArrayIterator(data) => data.get_index().hash(state),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.get_index().hash(state),
             Object::MapIterator(data) => data.get_index().hash(state),
             Object::Generator(data) => data.get_index().hash(state),
@@ -715,6 +727,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_extensible(agent),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_extensible(agent),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_extensible(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_extensible(agent),
@@ -756,6 +769,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_extensible(agent),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_extensible(agent),
             Object::MapIterator(data) => data.internal_extensible(agent),
             Object::Generator(data) => data.internal_extensible(agent),
@@ -793,6 +807,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_set_extensible(agent, value),
@@ -850,6 +865,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_extensible(agent, value),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_extensible(agent, value),
             Object::MapIterator(data) => data.internal_set_extensible(agent, value),
             Object::Generator(data) => data.internal_set_extensible(agent, value),
@@ -885,6 +901,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_prototype(agent),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_prototype(agent),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_prototype(agent),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_prototype(agent),
@@ -926,6 +943,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prototype(agent),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_prototype(agent),
             Object::MapIterator(data) => data.internal_prototype(agent),
             Object::Generator(data) => data.internal_prototype(agent),
@@ -965,6 +983,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_set_prototype(agent, prototype),
@@ -1022,6 +1041,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype(agent, prototype),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::MapIterator(data) => data.internal_set_prototype(agent, prototype),
             Object::Generator(data) => data.internal_set_prototype(agent, prototype),
@@ -1063,6 +1083,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_get_prototype_of(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_get_prototype_of(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_get_prototype_of(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_get_prototype_of(agent, gc),
@@ -1118,6 +1139,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_prototype_of(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::MapIterator(data) => data.try_get_prototype_of(agent, gc),
             Object::Generator(data) => data.try_get_prototype_of(agent, gc),
@@ -1159,6 +1181,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_get_prototype_of(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_get_prototype_of(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_get_prototype_of(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_get_prototype_of(agent, gc),
@@ -1216,6 +1239,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_prototype_of(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::MapIterator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Generator(data) => data.internal_get_prototype_of(agent, gc),
@@ -1260,6 +1284,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_set_prototype_of(agent, prototype, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_set_prototype_of(agent, prototype, gc),
@@ -1317,6 +1342,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::MapIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Generator(data) => data.try_set_prototype_of(agent, prototype, gc),
@@ -1365,6 +1391,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set_prototype_of(agent, prototype, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_set_prototype_of(agent, prototype, gc),
@@ -1422,6 +1449,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::MapIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Generator(data) => data.internal_set_prototype_of(agent, prototype, gc),
@@ -1457,6 +1485,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_is_extensible(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_is_extensible(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_is_extensible(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_is_extensible(agent, gc),
@@ -1502,6 +1531,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_is_extensible(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_is_extensible(agent, gc),
             Object::MapIterator(data) => data.try_is_extensible(agent, gc),
             Object::Generator(data) => data.try_is_extensible(agent, gc),
@@ -1537,6 +1567,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_is_extensible(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_is_extensible(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_is_extensible(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_is_extensible(agent, gc),
@@ -1594,6 +1625,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_is_extensible(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_is_extensible(agent, gc),
             Object::MapIterator(data) => data.internal_is_extensible(agent, gc),
             Object::Generator(data) => data.internal_is_extensible(agent, gc),
@@ -1629,6 +1661,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_prevent_extensions(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_prevent_extensions(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_prevent_extensions(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_prevent_extensions(agent, gc),
@@ -1686,6 +1719,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_prevent_extensions(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::MapIterator(data) => data.try_prevent_extensions(agent, gc),
             Object::Generator(data) => data.try_prevent_extensions(agent, gc),
@@ -1723,6 +1757,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_prevent_extensions(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_prevent_extensions(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_prevent_extensions(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_prevent_extensions(agent, gc),
@@ -1780,6 +1815,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prevent_extensions(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::MapIterator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Generator(data) => data.internal_prevent_extensions(agent, gc),
@@ -1826,6 +1862,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_get_own_property(agent, property_key, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_get_own_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_get_own_property(agent, property_key, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_get_own_property(agent, property_key, gc),
@@ -1883,6 +1920,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_own_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::MapIterator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Generator(data) => data.try_get_own_property(agent, property_key, gc),
@@ -1935,6 +1973,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_get_own_property(agent, property_key, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_get_own_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_get_own_property(agent, property_key, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => {
@@ -1993,6 +2032,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_own_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Generator(data) => data.internal_get_own_property(agent, property_key, gc),
@@ -2070,6 +2110,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::RegExp(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
+            #[cfg(feature = "set")]
             Object::Set(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -2164,6 +2205,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ArrayIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -2251,6 +2293,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::RegExp(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
+            #[cfg(feature = "set")]
             Object::Set(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -2325,6 +2368,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ArrayIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
             }
@@ -2379,6 +2423,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_has_property(agent, property_key, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_has_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_has_property(agent, property_key, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_has_property(agent, property_key, gc),
@@ -2436,6 +2481,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_has_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_has_property(agent, property_key, gc),
             Object::MapIterator(data) => data.try_has_property(agent, property_key, gc),
             Object::Generator(data) => data.try_has_property(agent, property_key, gc),
@@ -2482,6 +2528,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_has_property(agent, property_key, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_has_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_has_property(agent, property_key, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_has_property(agent, property_key, gc),
@@ -2539,6 +2586,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_has_property(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_has_property(agent, property_key, gc),
             Object::Generator(data) => data.internal_has_property(agent, property_key, gc),
@@ -2584,6 +2632,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_get(agent, property_key, receiver, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_get(agent, property_key, receiver, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_get(agent, property_key, receiver, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_get(agent, property_key, receiver, gc),
@@ -2641,6 +2690,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get(agent, property_key, receiver, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::MapIterator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Generator(data) => data.try_get(agent, property_key, receiver, gc),
@@ -2690,6 +2740,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_get(agent, property_key, receiver, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_get(agent, property_key, receiver, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_get(agent, property_key, receiver, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -2747,6 +2798,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get(agent, property_key, receiver, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::MapIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Generator(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -2797,6 +2849,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_set(agent, property_key, value, receiver, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_set(agent, property_key, value, receiver, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_set(agent, property_key, value, receiver, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => {
@@ -2860,6 +2913,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::MapIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Generator(data) => data.try_set(agent, property_key, value, receiver, gc),
@@ -2918,6 +2972,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_set(agent, property_key, value, receiver, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_set(agent, property_key, value, receiver, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_set(agent, property_key, value, receiver, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => {
@@ -2999,6 +3054,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::ArrayIterator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
             }
@@ -3047,6 +3103,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_delete(agent, property_key, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_delete(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_delete(agent, property_key, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_delete(agent, property_key, gc),
@@ -3104,6 +3161,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_delete(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_delete(agent, property_key, gc),
             Object::MapIterator(data) => data.try_delete(agent, property_key, gc),
             Object::Generator(data) => data.try_delete(agent, property_key, gc),
@@ -3148,6 +3206,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_delete(agent, property_key, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_delete(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_delete(agent, property_key, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_delete(agent, property_key, gc),
@@ -3205,6 +3264,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_delete(agent, property_key, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::MapIterator(data) => data.internal_delete(agent, property_key, gc),
             Object::Generator(data) => data.internal_delete(agent, property_key, gc),
@@ -3244,6 +3304,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.try_own_property_keys(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.try_own_property_keys(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.try_own_property_keys(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.try_own_property_keys(agent, gc),
@@ -3299,6 +3360,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_own_property_keys(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.try_own_property_keys(agent, gc),
             Object::MapIterator(data) => data.try_own_property_keys(agent, gc),
             Object::Generator(data) => data.try_own_property_keys(agent, gc),
@@ -3340,6 +3402,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Proxy(data) => data.internal_own_property_keys(agent, gc),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.internal_own_property_keys(agent, gc),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.internal_own_property_keys(agent, gc),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.internal_own_property_keys(agent, gc),
@@ -3397,6 +3460,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_own_property_keys(agent, gc),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::MapIterator(data) => data.internal_own_property_keys(agent, gc),
             Object::Generator(data) => data.internal_own_property_keys(agent, gc),
@@ -3477,6 +3541,7 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::Proxy(data) => data.mark_values(queues),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.mark_values(queues),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.mark_values(queues),
@@ -3512,6 +3577,7 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.mark_values(queues),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.mark_values(queues),
             Object::MapIterator(data) => data.mark_values(queues),
             Object::Generator(data) => data.mark_values(queues),
@@ -3547,6 +3613,7 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::Proxy(data) => data.sweep_values(compactions),
             #[cfg(feature = "regexp")]
             Object::RegExp(data) => data.sweep_values(compactions),
+            #[cfg(feature = "set")]
             Object::Set(data) => data.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
             Object::SharedArrayBuffer(data) => data.sweep_values(compactions),
@@ -3582,6 +3649,7 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::AsyncIterator => todo!(),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.sweep_values(compactions),
+            #[cfg(feature = "set")]
             Object::SetIterator(data) => data.sweep_values(compactions),
             Object::MapIterator(data) => data.sweep_values(compactions),
             Object::Generator(data) => data.sweep_values(compactions),
@@ -3671,6 +3739,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::Proxy(proxy) => Ok(Self::Proxy(proxy)),
             #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => Ok(Self::RegExp(reg_exp)),
+            #[cfg(feature = "set")]
             HeapRootData::Set(set) => Ok(Self::Set(set)),
             #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
@@ -3708,6 +3777,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::AsyncIterator => Ok(Self::AsyncIterator),
             HeapRootData::Iterator => Ok(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
+            #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => Ok(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Ok(Self::MapIterator(map_iterator)),
             HeapRootData::Generator(generator) => Ok(Self::Generator(generator)),

@@ -35,6 +35,13 @@ use crate::ecmascript::types::{
 use crate::ecmascript::types::{
     WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::{
+    builtins::{
+        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+    },
+    types::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT},
+};
 #[cfg(feature = "array-buffer")]
 use crate::heap::indexes::TypedArrayIndex;
 use crate::{
@@ -46,10 +53,7 @@ use crate::{
             finalization_registry::FinalizationRegistry,
             generator_objects::Generator,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIterator,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
@@ -59,7 +63,6 @@ use crate::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
@@ -74,8 +77,8 @@ use crate::{
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
             MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT,
-            OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, SET_DISCRIMINANT,
-            SET_ITERATOR_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
+            OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, STRING_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT,
         },
     },
     heap::HeapMarkAndSweep,
@@ -90,6 +93,10 @@ mod private {
     use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
     #[cfg(feature = "array-buffer")]
     use crate::ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer};
+    #[cfg(feature = "set")]
+    use crate::ecmascript::builtins::{
+        keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+    };
     #[cfg(feature = "weak-refs")]
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::ecmascript::{
@@ -100,10 +107,7 @@ mod private {
             finalization_registry::FinalizationRegistry,
             generator_objects::Generator,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIterator,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
@@ -113,7 +117,6 @@ mod private {
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
@@ -158,7 +161,9 @@ mod private {
     impl RootableSealed for Proxy<'_> {}
     #[cfg(feature = "regexp")]
     impl RootableSealed for RegExp<'_> {}
+    #[cfg(feature = "set")]
     impl RootableSealed for Set<'_> {}
+    #[cfg(feature = "set")]
     impl RootableSealed for SetIterator<'_> {}
     #[cfg(feature = "shared-array-buffer")]
     impl RootableSealed for SharedArrayBuffer<'_> {}
@@ -275,6 +280,7 @@ pub enum HeapRootData {
     Proxy(Proxy<'static>) = PROXY_DISCRIMINANT,
     #[cfg(feature = "regexp")]
     RegExp(RegExp<'static>) = REGEXP_DISCRIMINANT,
+    #[cfg(feature = "set")]
     Set(Set<'static>) = SET_DISCRIMINANT,
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'static>) = SHARED_ARRAY_BUFFER_DISCRIMINANT,
@@ -310,6 +316,7 @@ pub enum HeapRootData {
     AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'static>) = ARRAY_ITERATOR_DISCRIMINANT,
+    #[cfg(feature = "set")]
     SetIterator(SetIterator<'static>) = SET_ITERATOR_DISCRIMINANT,
     MapIterator(MapIterator<'static>) = MAP_ITERATOR_DISCRIMINANT,
     Generator(Generator<'static>) = GENERATOR_DISCRIMINANT,
@@ -358,6 +365,7 @@ impl From<Object<'static>> for HeapRootData {
             Object::Promise(promise) => Self::Promise(promise),
             Object::Proxy(proxy) => Self::Proxy(proxy),
             Object::RegExp(reg_exp) => Self::RegExp(reg_exp),
+            #[cfg(feature = "set")]
             Object::Set(set) => Self::Set(set),
             Object::SharedArrayBuffer(shared_array_buffer) => {
                 Self::SharedArrayBuffer(shared_array_buffer)
@@ -380,6 +388,7 @@ impl From<Object<'static>> for HeapRootData {
             Object::AsyncIterator => Self::AsyncIterator,
             Object::Iterator => Self::Iterator,
             Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
+            #[cfg(feature = "set")]
             Object::SetIterator(set_iterator) => Self::SetIterator(set_iterator),
             Object::MapIterator(map_iterator) => Self::MapIterator(map_iterator),
             Object::Generator(generator) => Self::Generator(generator),
@@ -466,6 +475,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Proxy(proxy) => proxy.mark_values(queues),
             #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => reg_exp.mark_values(queues),
+            #[cfg(feature = "set")]
             HeapRootData::Set(set) => set.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
@@ -503,6 +513,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::AsyncIterator => todo!(),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
+            #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.mark_values(queues),
             HeapRootData::MapIterator(map_iterator) => map_iterator.mark_values(queues),
             HeapRootData::Generator(generator) => generator.mark_values(queues),
@@ -555,6 +566,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Proxy(proxy) => proxy.sweep_values(compactions),
             #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => reg_exp.sweep_values(compactions),
+            #[cfg(feature = "set")]
             HeapRootData::Set(set) => set.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
@@ -592,6 +604,7 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::AsyncIterator => todo!(),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
+            #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => set_iterator.sweep_values(compactions),
             HeapRootData::MapIterator(map_iterator) => map_iterator.sweep_values(compactions),
             HeapRootData::Generator(generator) => generator.sweep_values(compactions),

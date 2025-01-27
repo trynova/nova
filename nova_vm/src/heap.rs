@@ -40,6 +40,11 @@ use crate::ecmascript::builtins::{
     typed_array::{data::TypedArrayHeapData, TypedArray},
     ArrayBufferHeapData,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::builtins::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+    set::data::SetHeapData,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
@@ -61,16 +66,12 @@ use crate::{
             error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-                set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-            },
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData,
             module::data::ModuleHeapData,
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
-            set::data::SetHeapData,
             ArrayBuffer, ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
@@ -138,7 +139,9 @@ pub struct Heap {
     pub realms: Vec<Option<Realm>>,
     #[cfg(feature = "regexp")]
     pub regexps: Vec<Option<RegExpHeapData>>,
+    #[cfg(feature = "set")]
     pub sets: Vec<Option<SetHeapData>>,
+    #[cfg(feature = "set")]
     pub set_iterators: Vec<Option<SetIteratorHeapData>>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<Option<SharedArrayBufferHeapData>>,
@@ -250,7 +253,9 @@ impl Heap {
             #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(1024),
             scripts: Vec::with_capacity(1),
+            #[cfg(feature = "set")]
             sets: Vec::with_capacity(128),
+            #[cfg(feature = "set")]
             set_iterators: Vec::with_capacity(128),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),

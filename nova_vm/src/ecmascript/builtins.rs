@@ -39,6 +39,7 @@ pub(crate) mod proxy;
 pub(crate) mod reflection;
 #[cfg(feature = "regexp")]
 pub(crate) mod regexp;
+#[cfg(feature = "set")]
 pub(crate) mod set;
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) mod shared_array_buffer;
