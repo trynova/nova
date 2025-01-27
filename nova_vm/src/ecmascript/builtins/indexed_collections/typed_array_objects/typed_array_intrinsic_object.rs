@@ -5,7 +5,7 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, get},
+            operations_on_objects::{call_function, try_get},
             testing_and_comparison::{is_array, is_callable},
             type_conversion::{to_boolean, to_string, try_to_string},
         },
@@ -1107,7 +1107,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = get(agent, o, pk, gc.reborrow())?;
+            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
