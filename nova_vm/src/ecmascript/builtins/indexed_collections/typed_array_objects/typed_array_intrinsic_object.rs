@@ -1081,15 +1081,16 @@ impl TypedArrayPrototype {
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
                 typed_array_length::<u16>(agent, &ta_record, gc.nogc())
             }
-            TypedArray::Int32Array(_) | TypedArray::Uint32Array(_) => {
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
                 typed_array_length::<u32>(agent, &ta_record, gc.nogc())
             }
-            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
-            TypedArray::BigUint64Array(_) => {
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
                 typed_array_length::<u64>(agent, &ta_record, gc.nogc())
             }
-            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
-            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
         let Some(callback) = is_callable(callback, gc.nogc()) else {
