@@ -1064,8 +1064,8 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope,
     ) -> JsResult<Value> {
-        let callback = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let callback = arguments.get(0).bind(gc.nogc());
+        let this_arg = arguments.get(1).bind(gc.nogc());
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
@@ -1126,7 +1126,7 @@ impl TypedArrayPrototype {
                 gc.nogc(),
             ));
         };
-        let callback = callback.bind(gc.nogc()).scope(agent, gc.nogc());
+        let callback = callback.scope(agent, gc.nogc());
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
