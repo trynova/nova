@@ -15,6 +15,10 @@ use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
+#[cfg(feature = "set")]
+use crate::ecmascript::builtins::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "array-buffer")]
@@ -38,16 +42,12 @@ use crate::{
             error::Error,
             finalization_registry::FinalizationRegistry,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIterator,
-                set_objects::set_iterator_objects::set_iterator::SetIterator,
-            },
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            set::Set,
             Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
@@ -168,6 +168,7 @@ pub enum Value {
     Proxy(Proxy<'static>),
     #[cfg(feature = "regexp")]
     RegExp(RegExp<'static>),
+    #[cfg(feature = "set")]
     Set(Set<'static>),
     #[cfg(feature = "shared-array-buffer")]
     SharedArrayBuffer(SharedArrayBuffer<'static>),
@@ -208,6 +209,7 @@ pub enum Value {
     AsyncIterator,
     Iterator,
     ArrayIterator(ArrayIterator<'static>),
+    #[cfg(feature = "set")]
     SetIterator(SetIterator<'static>),
     MapIterator(MapIterator<'static>),
     Generator(Generator<'static>),
@@ -293,6 +295,7 @@ pub(crate) const FINALIZATION_REGISTRY_DISCRIMINANT: u8 =
 pub(crate) const MAP_DISCRIMINANT: u8 = value_discriminant(Value::Map(Map::_def()));
 pub(crate) const PROMISE_DISCRIMINANT: u8 = value_discriminant(Value::Promise(Promise::_def()));
 pub(crate) const PROXY_DISCRIMINANT: u8 = value_discriminant(Value::Proxy(Proxy::_def()));
+#[cfg(feature = "set")]
 pub(crate) const SET_DISCRIMINANT: u8 = value_discriminant(Value::Set(Set::_def()));
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) const SHARED_ARRAY_BUFFER_DISCRIMINANT: u8 =
@@ -342,6 +345,7 @@ pub(crate) const ASYNC_ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Asy
 pub(crate) const ITERATOR_DISCRIMINANT: u8 = value_discriminant(Value::Iterator);
 pub(crate) const ARRAY_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::ArrayIterator(ArrayIterator::_def()));
+#[cfg(feature = "set")]
 pub(crate) const SET_ITERATOR_DISCRIMINANT: u8 =
     value_discriminant(Value::SetIterator(SetIterator::_def()));
 pub(crate) const MAP_ITERATOR_DISCRIMINANT: u8 =
@@ -734,6 +738,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "set")]
             Value::Set(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -820,6 +825,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "set")]
             Value::SetIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -955,6 +961,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "set")]
             Value::Set(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1041,6 +1048,7 @@ impl Value {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
             }
+            #[cfg(feature = "set")]
             Value::SetIterator(data) => {
                 discriminant.hash(hasher);
                 data.get_index().hash(hasher);
@@ -1208,6 +1216,7 @@ impl Rootable for Value {
             Self::Proxy(proxy) => Err(HeapRootData::Proxy(proxy)),
             #[cfg(feature = "regexp")]
             Self::RegExp(reg_exp) => Err(HeapRootData::RegExp(reg_exp)),
+            #[cfg(feature = "set")]
             Self::Set(set) => Err(HeapRootData::Set(set)),
             #[cfg(feature = "shared-array-buffer")]
             Self::SharedArrayBuffer(shared_array_buffer) => {
@@ -1245,6 +1254,7 @@ impl Rootable for Value {
             Self::AsyncIterator => Err(HeapRootData::AsyncIterator),
             Self::Iterator => Err(HeapRootData::Iterator),
             Self::ArrayIterator(array_iterator) => Err(HeapRootData::ArrayIterator(array_iterator)),
+            #[cfg(feature = "set")]
             Self::SetIterator(set_iterator) => Err(HeapRootData::SetIterator(set_iterator)),
             Self::MapIterator(map_iterator) => Err(HeapRootData::MapIterator(map_iterator)),
             Self::Generator(generator) => Err(HeapRootData::Generator(generator)),
@@ -1322,6 +1332,7 @@ impl Rootable for Value {
             HeapRootData::Proxy(proxy) => Some(Self::Proxy(proxy)),
             #[cfg(feature = "regexp")]
             HeapRootData::RegExp(reg_exp) => Some(Self::RegExp(reg_exp)),
+            #[cfg(feature = "set")]
             HeapRootData::Set(set) => Some(Self::Set(set)),
             #[cfg(feature = "shared-array-buffer")]
             HeapRootData::SharedArrayBuffer(shared_array_buffer) => {
@@ -1363,6 +1374,7 @@ impl Rootable for Value {
             HeapRootData::ArrayIterator(array_iterator) => {
                 Some(Self::ArrayIterator(array_iterator))
             }
+            #[cfg(feature = "set")]
             HeapRootData::SetIterator(set_iterator) => Some(Self::SetIterator(set_iterator)),
             HeapRootData::MapIterator(map_iterator) => Some(Self::MapIterator(map_iterator)),
             HeapRootData::Generator(generator) => Some(Self::Generator(generator)),
@@ -1426,6 +1438,7 @@ impl HeapMarkAndSweep for Value {
             Value::Map(data) => data.mark_values(queues),
             Value::Proxy(data) => data.mark_values(queues),
             Value::Promise(data) => data.mark_values(queues),
+            #[cfg(feature = "set")]
             Value::Set(data) => data.mark_values(queues),
             #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => data.mark_values(queues),
@@ -1466,6 +1479,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.mark_values(queues),
+            #[cfg(feature = "set")]
             Value::SetIterator(data) => data.mark_values(queues),
             Value::MapIterator(data) => data.mark_values(queues),
             Value::Generator(data) => data.mark_values(queues),
@@ -1509,6 +1523,7 @@ impl HeapMarkAndSweep for Value {
             Value::Map(data) => data.sweep_values(compactions),
             Value::Proxy(data) => data.sweep_values(compactions),
             Value::Promise(data) => data.sweep_values(compactions),
+            #[cfg(feature = "set")]
             Value::Set(data) => data.sweep_values(compactions),
             #[cfg(feature = "shared-array-buffer")]
             Value::SharedArrayBuffer(data) => data.sweep_values(compactions),
@@ -1549,6 +1564,7 @@ impl HeapMarkAndSweep for Value {
             Value::AsyncIterator => todo!(),
             Value::Iterator => todo!(),
             Value::ArrayIterator(data) => data.sweep_values(compactions),
+            #[cfg(feature = "set")]
             Value::SetIterator(data) => data.sweep_values(compactions),
             Value::MapIterator(data) => data.sweep_values(compactions),
             Value::Generator(data) => data.sweep_values(compactions),

@@ -833,17 +833,19 @@ pub(crate) fn set_default_global_bindings<'a>(
         }
 
         // 19.3.27 Set ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Set);
-        let value = agent.get_realm(realm_id).intrinsics().set();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global, name, desc, gc.reborrow())?;
-
+        #[cfg(feature = "set")]
+        {
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Set);
+            let value = agent.get_realm(realm_id).intrinsics().set();
+            let desc = PropertyDescriptor {
+                value: Some(value.into_value()),
+                writable: Some(true),
+                enumerable: Some(false),
+                configurable: Some(true),
+                ..Default::default()
+            };
+            define_property_or_throw(agent, global, name, desc, gc.reborrow())?;
+        }
         // 19.3.28 SharedArrayBuffer ( . . . )
         #[cfg(feature = "shared-array-buffer")]
         {

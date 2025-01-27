@@ -12,6 +12,11 @@ use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHea
 use crate::ecmascript::builtins::{
     data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
 };
+#[cfg(feature = "set")]
+use crate::ecmascript::builtins::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+    set::data::SetHeapData,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{
     weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
@@ -21,20 +26,12 @@ use crate::{
     ecmascript::{
         builtins::{
             control_abstraction_objects::generator_objects::GeneratorHeapData,
-            embedder_object::data::EmbedderObjectHeapData,
-            error::ErrorHeapData,
+            embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-            keyed_collections::{
-                map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-                set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-            },
-            map::data::MapHeapData,
-            primitive_objects::PrimitiveObjectHeapData,
-            promise::data::PromiseHeapData,
-            proxy::data::ProxyHeapData,
-            set::data::SetHeapData,
-            ArrayHeapData,
+            keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+            map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
+            promise::data::PromiseHeapData, proxy::data::ProxyHeapData, ArrayHeapData,
         },
         types::{
             BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
@@ -213,7 +210,9 @@ pub type PromiseIndex<'a> = BaseIndex<'a, PromiseHeapData>;
 pub type ProxyIndex<'a> = BaseIndex<'a, ProxyHeapData>;
 #[cfg(feature = "regexp")]
 pub type RegExpIndex<'a> = BaseIndex<'a, RegExpHeapData>;
+#[cfg(feature = "set")]
 pub type SetIndex<'a> = BaseIndex<'a, SetHeapData>;
+#[cfg(feature = "set")]
 pub type SetIteratorIndex<'a> = BaseIndex<'a, SetIteratorHeapData>;
 #[cfg(feature = "shared-array-buffer")]
 pub type SharedArrayBufferIndex<'a> = BaseIndex<'a, SharedArrayBufferHeapData>;

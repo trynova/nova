@@ -40,7 +40,8 @@ default = [
     "shared-array-buffer",
     "weak-refs",
     "atomics",
-    "regexp"
+    "regexp",
+    "set"
 ]
 array-buffer = []
 atomics = ["array-buffer", "shared-array-buffer"]
@@ -51,6 +52,7 @@ math = []
 regexp = []
 shared-array-buffer = []
 weak-refs = []
+set = []
 typescript = []
 
 [build-dependencies]

@@ -38,24 +38,21 @@ use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::data::SharedArrayBufferHeapData;
 use super::{
-    control_abstraction_objects::generator_objects::GeneratorHeapData,
-    error::ErrorHeapData,
+    control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
-    keyed_collections::{
-        map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
-        set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
-    },
-    map::data::MapHeapData,
-    module::Module,
-    primitive_objects::PrimitiveObjectHeapData,
-    promise::data::PromiseHeapData,
-    set::data::SetHeapData,
-    ArrayHeapData,
+    keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+    map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectHeapData,
+    promise::data::PromiseHeapData, ArrayHeapData,
 };
 #[cfg(feature = "array-buffer")]
 use super::{
     data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
+#[cfg(feature = "set")]
+use super::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+    set::data::SetHeapData,
 };
 #[cfg(feature = "weak-refs")]
 use super::{
@@ -1274,7 +1271,9 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
         ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
         #[cfg(feature = "regexp")]
         ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
+        #[cfg(feature = "set")]
         ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
+        #[cfg(feature = "set")]
         ProtoIntrinsics::SetIterator => agent
             .heap
             .create(SetIteratorHeapData::default())
@@ -1440,7 +1439,9 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
             #[cfg(feature = "regexp")]
             ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
+            #[cfg(feature = "set")]
             ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
+            #[cfg(feature = "set")]
             ProtoIntrinsics::SetIterator => None,
             #[cfg(feature = "shared-array-buffer")]
             ProtoIntrinsics::SharedArrayBuffer => {
