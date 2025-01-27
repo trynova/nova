@@ -5,8 +5,9 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            testing_and_comparison::is_array,
-            type_conversion::{to_string, try_to_string},
+            operations_on_objects::{call_function, try_get},
+            testing_and_comparison::{is_array, is_callable},
+            type_conversion::{to_boolean, to_string, try_to_string},
         },
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
@@ -21,9 +22,9 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor,
         },
-        execution::{Agent, JsResult, RealmIdentifier},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{
-            IntoObject, IntoValue, Object, PropertyKey, String, U8Clamped, Value,
+            IntoObject, IntoValue, Number, Object, PropertyKey, String, U8Clamped, Value,
             BUILTIN_STRING_MEMORY,
         },
     },
@@ -32,6 +33,7 @@ use crate::{
         unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
+    SmallInteger,
 };
 
 use super::abstract_operations::is_typed_array_out_of_bounds;
@@ -1055,13 +1057,80 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.28 get %TypedArray%.prototype.some](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.some)
     fn some(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let callback = arguments.get(0).bind(gc.nogc());
+        let this_arg = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let o = TypedArray::try_from(o).unwrap();
+        // 3. Let len be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        };
+        // 4. If IsCallable(callback) is false, throw a TypeError exception.
+        let Some(callback) = is_callable(callback, gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc.nogc(),
+            ));
+        };
+        let callback = callback.scope(agent, gc.nogc());
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Repeat, while k < len,
+        while k < len {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::from(SmallInteger::from(k as u32));
+            // b. Let kValue be ! Get(O, Pk).
+            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
+            // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
+            let call = call_function(
+                agent,
+                callback.get(agent),
+                this_arg,
+                Some(ArgumentsList(&[
+                    k_value,
+                    Number::try_from(k).unwrap().into_value(),
+                    o.into_value(),
+                ])),
+                gc.reborrow(),
+            )?;
+            let test_result = to_boolean(agent, call);
+            // d. If testResult is true, return true.
+            if test_result {
+                return Ok(true.into());
+            }
+            // e. Set k to k + 1.
+            k += 1;
+        }
+        // 7. Return false.
+        Ok(false.into())
     }
 
     fn sort(
