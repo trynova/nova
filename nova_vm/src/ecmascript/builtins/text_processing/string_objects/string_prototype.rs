@@ -385,28 +385,6 @@ impl Builtin for StringPrototypeSup {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::sup);
 }
 
-#[cfg(feature = "annex-b-string")]
-struct StringPrototypeTrimLeft;
-#[cfg(feature = "annex-b-string")]
-impl Builtin for StringPrototypeTrimLeft {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trimStart;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(BUILTIN_STRING_MEMORY.trimLeft.to_property_key());
-    const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_start);
-}
-
-#[cfg(feature = "annex-b-string")]
-struct StringPrototypeTrimRight;
-#[cfg(feature = "annex-b-string")]
-impl Builtin for StringPrototypeTrimRight {
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.trimEnd;
-    const KEY: Option<PropertyKey<'static>> =
-        Some(BUILTIN_STRING_MEMORY.trimRight.to_property_key());
-    const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::trim_end);
-}
-
 impl StringPrototype {
     fn at(
         agent: &mut Agent,
@@ -2160,6 +2138,8 @@ impl StringPrototype {
         let this = intrinsics.string_prototype();
         let this_base_object = intrinsics.string_prototype_base_object().into();
         let string_constructor = intrinsics.string();
+        let prototype_trim_start = intrinsics.string_prototype_trim_start();
+        let prototype_trim_end = intrinsics.string_prototype_trim_end();
 
         let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this_base_object)
             .with_property_capacity(if cfg!(feature = "annex-b-string") {
@@ -2221,8 +2201,18 @@ impl StringPrototype {
             .with_builtin_function_property::<StringPrototypeStrike>()
             .with_builtin_function_property::<StringPrototypeSub>()
             .with_builtin_function_property::<StringPrototypeSup>()
-            .with_builtin_function_property::<StringPrototypeTrimLeft>()
-            .with_builtin_function_property::<StringPrototypeTrimRight>();
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.trimLeft.to_property_key())
+                    .with_value(prototype_trim_start.into_value())
+                    .build()
+            })
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.trimRight.to_property_key())
+                    .with_value(prototype_trim_end.into_value())
+                    .build()
+            });
 
         builder.build();
 
