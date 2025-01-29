@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod map_objects;
+#[cfg(feature = "set")]
 pub(crate) mod set_objects;
 #[cfg(feature = "weak-refs")]
 pub(crate) mod weak_map_objects;

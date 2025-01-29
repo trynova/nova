@@ -20,6 +20,10 @@ use crate::ecmascript::builtins::regexp::RegExp;
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+#[cfg(feature = "set")]
+use crate::ecmascript::builtins::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
+};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::ecmascript::{
@@ -37,16 +41,12 @@ use crate::ecmascript::{
         error::Error,
         finalization_registry::FinalizationRegistry,
         indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIterator,
-        keyed_collections::{
-            map_objects::map_iterator_objects::map_iterator::MapIterator,
-            set_objects::set_iterator_objects::set_iterator::SetIterator,
-        },
+        keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
         map::Map,
         module::Module,
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
-        set::Set,
         Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
@@ -109,7 +109,9 @@ pub struct HeapBits {
     #[cfg(feature = "regexp")]
     pub regexps: Box<[bool]>,
     pub scripts: Box<[bool]>,
+    #[cfg(feature = "set")]
     pub sets: Box<[bool]>,
+    #[cfg(feature = "set")]
     pub set_iterators: Box<[bool]>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Box<[bool]>,
@@ -173,7 +175,9 @@ pub(crate) struct WorkQueues {
     #[cfg(feature = "regexp")]
     pub regexps: Vec<RegExp<'static>>,
     pub scripts: Vec<ScriptIdentifier>,
+    #[cfg(feature = "set")]
     pub sets: Vec<Set<'static>>,
+    #[cfg(feature = "set")]
     pub set_iterators: Vec<SetIterator<'static>>,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: Vec<SharedArrayBuffer<'static>>,
@@ -237,7 +241,9 @@ impl HeapBits {
         #[cfg(feature = "regexp")]
         let regexps = vec![false; heap.regexps.len()];
         let scripts = vec![false; heap.scripts.len()];
+        #[cfg(feature = "set")]
         let sets = vec![false; heap.sets.len()];
+        #[cfg(feature = "set")]
         let set_iterators = vec![false; heap.set_iterators.len()];
         #[cfg(feature = "shared-array-buffer")]
         let shared_array_buffers = vec![false; heap.shared_array_buffers.len()];
@@ -298,7 +304,9 @@ impl HeapBits {
             #[cfg(feature = "regexp")]
             regexps: regexps.into_boxed_slice(),
             scripts: scripts.into_boxed_slice(),
+            #[cfg(feature = "set")]
             sets: sets.into_boxed_slice(),
+            #[cfg(feature = "set")]
             set_iterators: set_iterators.into_boxed_slice(),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: shared_array_buffers.into_boxed_slice(),
@@ -367,7 +375,9 @@ impl WorkQueues {
             #[cfg(feature = "regexp")]
             regexps: Vec::with_capacity(heap.regexps.len() / 4),
             scripts: Vec::with_capacity(heap.scripts.len() / 4),
+            #[cfg(feature = "set")]
             sets: Vec::with_capacity(heap.sets.len() / 4),
+            #[cfg(feature = "set")]
             set_iterators: Vec::with_capacity(heap.set_iterators.len() / 4),
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(heap.shared_array_buffers.len() / 4),
@@ -455,7 +465,9 @@ impl WorkQueues {
             #[cfg(feature = "regexp")]
             regexps,
             scripts,
+            #[cfg(feature = "set")]
             sets,
+            #[cfg(feature = "set")]
             set_iterators,
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
@@ -489,7 +501,10 @@ impl WorkQueues {
         let weak_sets: &[bool; 0] = &[];
         #[cfg(not(feature = "regexp"))]
         let regexps: &[bool; 0] = &[];
-
+        #[cfg(not(feature = "set"))]
+        let sets: &[bool; 0] = &[];
+        #[cfg(not(feature = "set"))]
+        let set_iterators: &[bool; 0] = &[];
         array_buffers.is_empty()
             && arrays.is_empty()
             && array_iterators.is_empty()
@@ -743,7 +758,9 @@ pub(crate) struct CompactionLists {
     #[cfg(feature = "regexp")]
     pub regexps: CompactionList,
     pub scripts: CompactionList,
+    #[cfg(feature = "set")]
     pub sets: CompactionList,
+    #[cfg(feature = "set")]
     pub set_iterators: CompactionList,
     #[cfg(feature = "shared-array-buffer")]
     pub shared_array_buffers: CompactionList,
@@ -819,7 +836,9 @@ impl CompactionLists {
             primitive_objects: CompactionList::from_mark_bits(&bits.primitive_objects),
             #[cfg(feature = "regexp")]
             regexps: CompactionList::from_mark_bits(&bits.regexps),
+            #[cfg(feature = "set")]
             sets: CompactionList::from_mark_bits(&bits.sets),
+            #[cfg(feature = "set")]
             set_iterators: CompactionList::from_mark_bits(&bits.set_iterators),
             strings: CompactionList::from_mark_bits(&bits.strings),
             #[cfg(feature = "shared-array-buffer")]
