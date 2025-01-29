@@ -31,6 +31,7 @@ AggregateError
 all
 allSettled
 and
+anchor
 anonymous
 any
 apply
@@ -52,11 +53,14 @@ atan
 atan2
 atanh
 Atomics
+big
 bigint
 BigInt
 BigInt64Array
 BigUint64Array
 bind
+blink
+bold
 boolean
 Boolean
 bound
@@ -125,12 +129,15 @@ find
 findIndex
 findLast
 findLastIndex
+fixed
 flags
 flat
 flatMap
 Float32Array
 Float64Array
 floor
+fontcolor
+fontsize
 for
 forEach
 freeze
@@ -232,11 +239,13 @@ isSafeInteger
 isSealed
 isView
 isWellFormed
+italics
 iterator
 join
 JSON
 keyFor
 keys
+link
 lastIndex
 lastIndexOf
 length
@@ -356,6 +365,7 @@ sin
 sinh
 size
 slice
+small
 some
 sort
 source
@@ -368,13 +378,16 @@ SQRT2
 startsWith
 sticky
 store
+strike
 string
 String
-stringify
 String Iterator
+stringify
 sub
 subarray
+substr
 substring
+sup
 symbol
 Symbol
 Symbol.asyncIterator
@@ -423,6 +436,8 @@ transfer
 transferToFixedLength
 trim
 trimEnd
+trimLeft
+trimRight
 trimStart
 true
 trunc

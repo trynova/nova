@@ -41,6 +41,7 @@ default = [
     "weak-refs",
     "atomics",
     "regexp",
+    "annex-b",
     "set"
 ]
 array-buffer = []
@@ -54,6 +55,18 @@ shared-array-buffer = []
 weak-refs = []
 set = []
 typescript = []
+# Enables features defined by [Annex B](https://tc39.es/ecma262/#sec-additional-ecmascript-features-for-web-browsers)
+annex-b = ["annex-b-string", "annex-b-global", "annex-b-date", "annex-b-regexp"]
+# Adds the additional properties to the global object as defined by Annex B section [B.2.1](https://tc39.es/ecma262/#sec-additional-properties-of-the-global-object)
+annex-b-global = []
+# Adds the additional properties to the string prototype as defined by Annex B section [B.2.2](https://tc39.es/ecma262/#sec-additional-properties-of-the-string.prototype-object)
+annex-b-string = []
+# Adds the additional properties to the date prototype as defined by Annex B section [B.2.3](https://tc39.es/ecma262/#sec-additional-properties-of-the-date.prototype-object)
+annex-b-date = ["date"]
+# Adds the additional properties and syntax to regular expressions as defined by Annex B section:
+# - [B.1.2](https://tc39.es/ecma262/#sec-regular-expressions-patterns)
+# - [B.2.4](https://tc39.es/ecma262/#sec-additional-properties-of-the-regexp.prototype-object)
+annex-b-regexp = ["regexp"]
 
 [build-dependencies]
 small_string = { path = "../small_string" }
