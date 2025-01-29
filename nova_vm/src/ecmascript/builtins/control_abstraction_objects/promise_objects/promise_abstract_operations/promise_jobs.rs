@@ -155,28 +155,6 @@ impl PromiseReactionJob {
                 // 5. f. Return undefined.
                 Ok(Value::Undefined)
             }
-            PromiseReactionHandler::AsyncGenerator(async_generator) => {
-                async_generator_start_result(agent, async_generator, Ok(argument), gc.reborrow());
-                Ok(Value::Undefined)
-            }
-            PromiseReactionHandler::AsyncGeneratorFulfill(async_generator) => {
-                async_generator_await_return_on_fulfilled(
-                    agent,
-                    async_generator,
-                    argument,
-                    gc.reborrow(),
-                );
-                Ok(Value::Undefined)
-            }
-            PromiseReactionHandler::AsyncGeneratorReject(async_generator) => {
-                async_generator_await_return_on_rejected(
-                    agent,
-                    async_generator,
-                    argument,
-                    gc.reborrow(),
-                );
-                Ok(Value::Undefined)
-            }
         };
 
         // f. If promiseCapability is undefined, then
@@ -231,10 +209,7 @@ pub(crate) fn new_promise_reaction_job(
                 .realm,
         ),
         // 2. Let handlerRealm be null.
-        PromiseReactionHandler::AsyncGenerator(_)
-        | PromiseReactionHandler::AsyncGeneratorFulfill(_)
-        | PromiseReactionHandler::AsyncGeneratorReject(_)
-        | PromiseReactionHandler::Empty => None,
+        PromiseReactionHandler::Empty => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

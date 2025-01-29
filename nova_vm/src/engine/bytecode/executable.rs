@@ -134,13 +134,19 @@ impl Executable {
         data: CompileFunctionBodyData<'_>,
         gc: NoGcScope,
     ) -> Self {
-        let mut ctx = CompileContext::new(agent, gc);
+        let is_async_generator = data.is_async && data.is_generator;
+        let mut ctx = if data.is_generator {
+            CompileContext::new_generator(agent, data.is_async, gc)
+        } else {
+            CompileContext::new(agent, gc)
+        };
 
         let is_concise = data.is_concise_body;
 
         ctx.compile_function_body(data);
 
-        if is_concise {
+        if is_concise || is_async_generator {
+            // Async generators need an implied Return at the end to enable.
             ctx.do_implicit_return();
         }
 
