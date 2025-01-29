@@ -5,7 +5,7 @@
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
-use crate::ecmascript::abstract_operations::type_conversion::to_uint32;
+use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
 use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
@@ -180,19 +180,12 @@ impl StringConstructor {
             return Ok(String::EMPTY_STRING.into_value());
         }
         // fast path: only a single valid code unit
-        if code_points.len() == 1 {
+        if code_points.len() == 1 && code_points.first().unwrap().is_integer() {
             // a. Let nextCP be ? ToNumber(next).
             let next_cp = to_number(agent, code_points[0].into_value(), gc.reborrow())?.unbind();
             // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
-            if !is_integral_number(agent, next_cp, gc.reborrow()) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    format!("{:?} is not a valid code point", next_cp.to_real(agent)),
-                    gc.nogc(),
-                ));
-            }
             // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-            let next_cp = to_uint32(agent, next_cp.into_value(), gc.reborrow())?;
+            let next_cp = next_cp.into_i64(agent);
             if next_cp > 0x10FFFF {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
@@ -221,7 +214,7 @@ impl StringConstructor {
                 ));
             }
             // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-            let next_cp = to_uint32(agent, next_cp.into_value(), gc.reborrow())?;
+            let next_cp = to_uint32_number(agent, next_cp);
             if next_cp > 0x10FFFF {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
