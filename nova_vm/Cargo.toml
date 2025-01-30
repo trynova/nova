@@ -41,8 +41,9 @@ default = [
     "weak-refs",
     "atomics",
     "regexp",
+    "set",
     "annex-b",
-    "set"
+    "proposals"
 ]
 array-buffer = []
 atomics = ["array-buffer", "shared-array-buffer"]
@@ -55,6 +56,7 @@ shared-array-buffer = []
 weak-refs = []
 set = []
 typescript = []
+
 # Enables features defined by [Annex B](https://tc39.es/ecma262/#sec-additional-ecmascript-features-for-web-browsers)
 annex-b = ["annex-b-string", "annex-b-global", "annex-b-date", "annex-b-regexp"]
 # Adds the additional properties to the global object as defined by Annex B section [B.2.1](https://tc39.es/ecma262/#sec-additional-properties-of-the-global-object)
@@ -67,6 +69,11 @@ annex-b-date = ["date"]
 # - [B.1.2](https://tc39.es/ecma262/#sec-regular-expressions-patterns)
 # - [B.2.4](https://tc39.es/ecma262/#sec-additional-properties-of-the-regexp.prototype-object)
 annex-b-regexp = ["regexp"]
+
+# Enables all currently supported proposals
+proposals = ["proposal-float16array"]
+# Enables the [Float16Array proposal](https://tc39.es/proposal-float16array/)
+proposal-float16array = []
 
 [build-dependencies]
 small_string = { path = "../small_string" }

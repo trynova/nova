@@ -475,6 +475,15 @@ impl<'a> Number<'a> {
         }
     }
 
+    #[cfg(feature = "proposal-float16array")]
+    pub fn into_f16(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f16 {
+        match self {
+            Number::Number(n) => agent[n.unbind()] as f16,
+            Number::Integer(n) => Into::<i64>::into(n) as f16,
+            Number::SmallF64(n) => n.into_f64() as f16,
+        }
+    }
+
     /// Returns the number cast to an [`i64`].
     ///
     /// If the number isn't representable as an i64:
