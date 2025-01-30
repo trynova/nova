@@ -1641,43 +1641,107 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope,
     ) -> JsResult<Value> {
+        use crate::ecmascript::{
+            abstract_operations::{
+                operations_on_iterator_objects::{
+                    get_iterator, iterator_close, iterator_step_value,
+                },
+                testing_and_comparison::require_object_coercible,
+            },
+            execution::agent::ExceptionType,
+        };
+
+        let items = arguments.get(0);
+
         // 1. Perform ? RequireObjectCoercible(items).
+        require_object_coercible(agent, items, gc.nogc())?;
+
         // 2. Let iteratorRecord be ? GetIterator(items, sync).
+        let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;
+
         // 3. Let state be minus-zero.
+        let mut state = -0.0f64;
         // 4. Let sum be 0.
+        let mut sum = 0.0f64;
         // 5. Let count be 0.
+        let mut count = 0;
+
         // 6. Let next be not-started.
         // 7. Repeat, while next is not done,
-        //
         // a. Set next to ? IteratorStepValue(iteratorRecord).
         // b. If next is not done, then
-        // i. Set count to count + 1.
-        // ii. If count ≥ 2**53, then
-        // 1. Let error be ThrowCompletion(a newly created RangeError object).
-        // 2. Return ? IteratorClose(iteratorRecord, error).
-        // iii. NOTE: The above case is not expected to be reached in practice and is included only so that implementations may rely on inputs being "reasonably sized" without violating this specification.
-        // iv. If next is not a Number, then
-        // 1. Let error be ThrowCompletion(a newly created TypeError object).
-        // 2. Return ? IteratorClose(iteratorRecord, error).
-        // v. Let n be next.
-        // vi. If state is not not-a-number, then
-        // 1. If n is NaN, then
-        // a. Set state to not-a-number.
-        // 2. Else if n is +∞𝔽, then
-        // a. If state is minus-infinity, set state to not-a-number.
-        // b. Else, set state to plus-infinity.
-        // 3. Else if n is -∞𝔽, then
-        // a. If state is plus-infinity, set state to not-a-number.
-        // b. Else, set state to minus-infinity.
-        // 4. Else if n is not -0𝔽 and state is either minus-zero or finite, then
-        // a. Set state to finite.
-        // b. Set sum to sum + ℝ(n).
+        while let Some(next) = iterator_step_value(agent, &mut iterator_record, gc.reborrow())? {
+            // i. Set count to count + 1.
+            count += 1;
+            // ii. If count ≥ 2**53, then
+            // iii. NOTE: The above case is not expected to be reached in practice and is included only so that implementations may rely on inputs being "reasonably sized" without violating this specification.
+            if count >= 2i64.pow(53) {
+                // 1. Let error be ThrowCompletion(a newly created RangeError object).
+                let error = agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Iterator cannot exceed 5**53 items",
+                    gc.nogc(),
+                );
+                // 2. Return ? IteratorClose(iteratorRecord, error).
+                return iterator_close(agent, &iterator_record, Err(error), gc);
+            }
+
+            // v. Let n be next.
+            if let Ok(n) = Number::try_from(next) {
+                // vi. If state is not not-a-number, then
+                if !state.is_nan() {
+                    if n.is_nan(agent) {
+                        // 1. If n is NaN, then
+                        // a. Set state to not-a-number.
+                        state = f64::NAN;
+                    } else if n.is_pos_infinity(agent) {
+                        // 2. Else if n is +∞𝔽, then
+                        // a. If state is minus-infinity, set state to not-a-number.
+                        // b. Else, set state to plus-infinity.
+                        state = if state == f64::NEG_INFINITY {
+                            f64::NAN
+                        } else {
+                            f64::INFINITY
+                        };
+                    } else if n.is_neg_infinity(agent) {
+                        // 3. Else if n is -∞𝔽, then
+                        // a. If state is plus-infinity, set state to not-a-number.
+                        // b. Else, set state to minus-infinity.
+                        state = if state == f64::INFINITY {
+                            f64::NAN
+                        } else {
+                            f64::NEG_INFINITY
+                        };
+                    } else if !n.is_neg_zero(agent) && (state == -0.0 || state.is_finite()) {
+                        // 4. Else if n is not -0𝔽 and state is either minus-zero or finite, then
+                        // a. Set state to finite.
+                        state = 0.0;
+                        // b. Set sum to sum + ℝ(n).
+                        sum += n.into_f64(agent);
+                    }
+                }
+            } else {
+                // iv. If next is not a Number, then
+                // 1. Let error be ThrowCompletion(a newly created TypeError object).
+                let error = agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Iterator may only contain numbers",
+                    gc.nogc(),
+                );
+                // 2. Return ? IteratorClose(iteratorRecord, error).
+                return iterator_close(agent, &iterator_record, Err(error), gc);
+            }
+        }
+
         // 8. If state is not-a-number, return NaN.
         // 9. If state is plus-infinity, return +∞𝔽.
         // 10. If state is minus-infinity, return -∞𝔽.
         // 11. If state is minus-zero, return -0𝔽.
+        if state.is_nan() || state.is_infinite() || state == -0.0 {
+            return Ok(Value::from_f64(agent, state, gc.into_nogc()));
+        }
         // 12. Return 𝔽(sum).
-        todo!()
+        Ok(Value::from_f64(agent, sum, gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
