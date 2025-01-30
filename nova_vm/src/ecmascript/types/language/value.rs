@@ -198,6 +198,8 @@ pub enum Value {
     BigInt64Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex<'static>),
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex<'static>),
     #[cfg(feature = "array-buffer")]
@@ -333,6 +335,9 @@ pub(crate) const BIGINT_64_ARRAY_DISCRIMINANT: u8 =
 #[cfg(feature = "array-buffer")]
 pub(crate) const BIGUINT_64_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::BigUint64Array(TypedArrayIndex::from_u32_index(0)));
+#[cfg(feature = "proposal-float16array")]
+pub(crate) const FLOAT_16_ARRAY_DISCRIMINANT: u8 =
+    value_discriminant(Value::Float16Array(TypedArrayIndex::from_u32_index(0)));
 #[cfg(feature = "array-buffer")]
 pub(crate) const FLOAT_32_ARRAY_DISCRIMINANT: u8 =
     value_discriminant(Value::Float32Array(TypedArrayIndex::from_u32_index(0)));
@@ -808,6 +813,11 @@ impl Value {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(data) => {
+                discriminant.hash(hasher);
+                data.into_index().hash(hasher);
+            }
             #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => {
                 discriminant.hash(hasher);
@@ -1031,6 +1041,11 @@ impl Value {
                 discriminant.hash(hasher);
                 data.into_index().hash(hasher);
             }
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(data) => {
+                discriminant.hash(hasher);
+                data.into_index().hash(hasher);
+            }
             #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => {
                 discriminant.hash(hasher);
@@ -1246,6 +1261,8 @@ impl Rootable for Value {
             Self::BigInt64Array(base_index) => Err(HeapRootData::BigInt64Array(base_index)),
             #[cfg(feature = "array-buffer")]
             Self::BigUint64Array(base_index) => Err(HeapRootData::BigUint64Array(base_index)),
+            #[cfg(feature = "proposal-float16array")]
+            Self::Float16Array(base_index) => Err(HeapRootData::Float16Array(base_index)),
             #[cfg(feature = "array-buffer")]
             Self::Float32Array(base_index) => Err(HeapRootData::Float32Array(base_index)),
             #[cfg(feature = "array-buffer")]
@@ -1364,6 +1381,8 @@ impl Rootable for Value {
             HeapRootData::BigInt64Array(base_index) => Some(Self::BigInt64Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => Some(Self::BigUint64Array(base_index)),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => Some(Self::Float16Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => Some(Self::Float32Array(base_index)),
             #[cfg(feature = "array-buffer")]
@@ -1466,6 +1485,8 @@ impl HeapMarkAndSweep for Value {
             Value::BigInt64Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
@@ -1551,6 +1572,8 @@ impl HeapMarkAndSweep for Value {
             Value::BigInt64Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]

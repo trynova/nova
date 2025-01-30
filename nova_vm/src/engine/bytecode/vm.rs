@@ -2304,6 +2304,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Float32Array(_) |
         Value::Float64Array(_) |
         Value::DataView(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "proposal-float16array")]
+        Value::Float16Array(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".

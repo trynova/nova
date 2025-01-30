@@ -66,6 +66,14 @@ impl Builtin for DataViewPrototypeGetBigUint64 {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_big_uint64);
 }
+#[cfg(feature = "proposal-float16array")]
+struct DataViewPrototypeGetFloat16;
+#[cfg(feature = "proposal-float16array")]
+impl Builtin for DataViewPrototypeGetFloat16 {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.getFloat16;
+    const LENGTH: u8 = 1;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::get_float16);
+}
 struct DataViewPrototypeGetFloat32;
 impl Builtin for DataViewPrototypeGetFloat32 {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getFloat32;
@@ -125,6 +133,14 @@ impl Builtin for DataViewPrototypeSetBigUint64 {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setBigUint64;
     const LENGTH: u8 = 2;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::set_big_uint64);
+}
+#[cfg(feature = "proposal-float16array")]
+struct DataViewPrototypeSetFloat16;
+#[cfg(feature = "proposal-float16array")]
+impl Builtin for DataViewPrototypeSetFloat16 {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.setFloat16;
+    const LENGTH: u8 = 2;
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::set_float16);
 }
 struct DataViewPrototypeSetFloat32;
 impl Builtin for DataViewPrototypeSetFloat32 {
@@ -287,6 +303,23 @@ impl DataViewPrototype {
             .map(IntoValue::into_value)
     }
 
+    /// ### [7.1 DataView.prototype.getFloat16 ( byteOffset [ , littleEndian ] )](https://tc39.es/proposal-float16array/#sec-dataview.prototype.getfloat16)
+    #[cfg(feature = "proposal-float16array")]
+    fn get_float16(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(1));
+        // 1. Let v be the this value.
+        // 3. Return ? GetViewValue(v, byteOffset, littleEndian, float16).
+        get_view_value::<f16>(agent, this_value, byte_offset, little_endian, gc)
+            .map(IntoValue::into_value)
+    }
+
     /// ### [25.3.4.7 DataView.prototype.getFloat32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat32)
     fn get_float32(
         agent: &mut Agent,
@@ -439,6 +472,23 @@ impl DataViewPrototype {
         set_view_value::<u64>(agent, this_value, byte_offset, little_endian, value, gc)
     }
 
+    /// ### [7.2 DataView.prototype.setFloat16 ( byteOffset, value [ , littleEndian ] )](https://tc39.es/proposal-float16array/#sec-dataview.prototype.setfloat16)
+    #[cfg(feature = "proposal-float16array")]
+    fn set_float16(
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        let byte_offset = arguments.get(0);
+        let value = arguments.get(1);
+        // 2. If littleEndian is not present, set littleEndian to false.
+        let little_endian = to_boolean(agent, arguments.get(2));
+        // 1. Let v be the this value.
+        // 2. Return ? SetViewValue(v, byteOffset, littleEndian, float16, value).
+        set_view_value::<f16>(agent, this_value, byte_offset, little_endian, value, gc)
+    }
+
     /// ### [25.3.4.17 DataView.prototype.setFloat32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setfloat32)
     fn set_float32(
         agent: &mut Agent,
@@ -569,8 +619,13 @@ impl DataViewPrototype {
         let this = intrinsics.data_view_prototype();
         let data_view_constructor = intrinsics.data_view();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(25)
+        let mut property_capacity = 25;
+        if cfg!(feature = "proposal-float16array") {
+            property_capacity += 2;
+        }
+
+        let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+            .with_property_capacity(property_capacity)
             .with_prototype(object_prototype)
             .with_builtin_function_getter_property::<DataViewPrototypeGetBuffer>()
             .with_builtin_function_getter_property::<DataViewPrototypeGetByteLength>()
@@ -603,8 +658,14 @@ impl DataViewPrototype {
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
-            })
-            .build();
+            });
+
+        #[cfg(feature = "proposal-float16array")]
+        let builder = builder
+            .with_builtin_function_property::<DataViewPrototypeGetFloat16>()
+            .with_builtin_function_property::<DataViewPrototypeSetFloat16>();
+
+        builder.build();
     }
 }
 

@@ -41,6 +41,8 @@ pub use symbol::{Symbol, SymbolHeapData};
 pub use value::Value;
 #[cfg(feature = "date")]
 pub(crate) use value::DATE_DISCRIMINANT;
+#[cfg(feature = "proposal-float16array")]
+pub(crate) use value::FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "regexp")]
 pub(crate) use value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]

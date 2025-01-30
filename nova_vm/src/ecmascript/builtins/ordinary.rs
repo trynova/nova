@@ -1233,6 +1233,11 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(FinalizationRegistryHeapData::default())
             .into_object(),
+        #[cfg(feature = "proposal-float16array")]
+        ProtoIntrinsics::Float16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::Float32Array => agent
             .heap
@@ -1415,6 +1420,8 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             ProtoIntrinsics::FinalizationRegistry => {
                 Some(intrinsics.finalization_registry().into_function())
             }
+            #[cfg(feature = "proposal-float16array")]
+            ProtoIntrinsics::Float16Array => Some(intrinsics.float16_array().into_function()),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into_function()),
             #[cfg(feature = "array-buffer")]

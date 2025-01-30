@@ -87,6 +87,14 @@ impl TryFrom<f64> for SmallF64 {
     }
 }
 
+#[cfg(feature = "proposal-float16array")]
+impl From<f16> for SmallF64 {
+    fn from(value: f16) -> Self {
+        // SAFETY: All floats have 8 trailing zeros when converted to double.
+        unsafe { Self::from_f64_unchecked(value as f64) }
+    }
+}
+
 impl From<f32> for SmallF64 {
     fn from(value: f32) -> Self {
         // SAFETY: All floats have 8 trailing zeros when converted to double.
@@ -122,8 +130,8 @@ impl From<SmallF64> for f64 {
 
 #[test]
 fn valid_small_integers() {
-    assert_eq!(1.0 / 2.0, SmallF64::from(1.0 / 2.0).into_f64());
-    assert_eq!(1.0 / 4.0, SmallF64::from(1.0 / 4.0).into_f64());
+    assert_eq!(1.0 / 2.0, SmallF64::from(1.0f32 / 2.0).into_f64());
+    assert_eq!(1.0 / 4.0, SmallF64::from(1.0f32 / 4.0).into_f64());
     assert!(SmallF64::try_from(f64::NAN).unwrap().into_f64().is_nan());
     assert!(
         SmallF64::try_from(f64::INFINITY)

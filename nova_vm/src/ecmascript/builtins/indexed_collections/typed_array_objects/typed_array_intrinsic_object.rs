@@ -430,6 +430,8 @@ impl TypedArrayPrototype {
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
                 typed_array_byte_length::<u16>(agent, &ta_record, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_byte_length::<f16>(agent, &ta_record, gc),
             TypedArray::Float32Array(_)
             | TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_) => typed_array_byte_length::<u32>(agent, &ta_record, gc),
@@ -483,6 +485,10 @@ impl TypedArrayPrototype {
             }
             TypedArray::BigUint64Array(_) => {
                 is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
             }
             TypedArray::Float32Array(_) => {
                 is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
@@ -674,6 +680,11 @@ impl TypedArrayPrototype {
                 typed_array_length::<u64>(agent, &ta_record, gc.nogc()),
                 std::mem::size_of::<u64>(),
             ),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => (
+                typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+                std::mem::size_of::<f16>(),
+            ),
             TypedArray::Float32Array(_) => (
                 typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
                 std::mem::size_of::<f32>(),
@@ -771,6 +782,12 @@ impl TypedArrayPrototype {
                     is_detached
                         || is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc()),
                     typed_array_length::<u64>(agent, &ta_record, gc.nogc()),
+                ),
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => (
+                    is_detached
+                        || is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
                 ),
                 TypedArray::Float32Array(_) => (
                     is_detached
@@ -884,6 +901,16 @@ impl TypedArrayPrototype {
                     None,
                     gc.nogc(),
                 ),
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => get_value_from_buffer::<f16>(
+                    agent,
+                    viewed_array_buffer,
+                    byte_index_in_buffer,
+                    true,
+                    Ordering::Unordered,
+                    None,
+                    gc.nogc(),
+                ),
                 TypedArray::Float32Array(_) => get_value_from_buffer::<f32>(
                     agent,
                     viewed_array_buffer,
@@ -974,6 +1001,10 @@ impl TypedArrayPrototype {
             TypedArray::BigUint64Array(_) => {
                 is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
+            }
             TypedArray::Float32Array(_) => {
                 is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
             }
@@ -996,6 +1027,8 @@ impl TypedArrayPrototype {
             TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
             TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc),
             TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
             TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc),
             TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc),
         } as i64;
@@ -1081,6 +1114,8 @@ impl TypedArrayPrototype {
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
                 typed_array_length::<u16>(agent, &ta_record, gc.nogc())
             }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
             TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_)
             | TypedArray::Float32Array(_) => {
@@ -1241,6 +1276,8 @@ impl TypedArrayPrototype {
                 TypedArray::Uint32Array(_) => Ok(BUILTIN_STRING_MEMORY.Uint32Array.into()),
                 TypedArray::BigInt64Array(_) => Ok(BUILTIN_STRING_MEMORY.BigInt64Array.into()),
                 TypedArray::BigUint64Array(_) => Ok(BUILTIN_STRING_MEMORY.BigUint64Array.into()),
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => Ok(BUILTIN_STRING_MEMORY.Float16Array.into()),
                 TypedArray::Float32Array(_) => Ok(BUILTIN_STRING_MEMORY.Float32Array.into()),
                 TypedArray::Float64Array(_) => Ok(BUILTIN_STRING_MEMORY.Float64Array.into()),
             }

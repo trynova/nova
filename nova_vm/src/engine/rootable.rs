@@ -19,6 +19,8 @@ use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "date")]
 use crate::ecmascript::types::DATE_DISCRIMINANT;
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "regexp")]
 use crate::ecmascript::types::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
@@ -308,6 +310,8 @@ pub enum HeapRootData {
     BigInt64Array(TypedArrayIndex<'static>) = BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex<'static>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array(TypedArrayIndex<'static>) = FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex<'static>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
@@ -382,6 +386,8 @@ impl From<Object<'static>> for HeapRootData {
             Object::Uint32Array(base_index) => Self::Uint32Array(base_index),
             Object::BigInt64Array(base_index) => Self::BigInt64Array(base_index),
             Object::BigUint64Array(base_index) => Self::BigUint64Array(base_index),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(base_index) => Self::Float16Array(base_index),
             Object::Float32Array(base_index) => Self::Float32Array(base_index),
             Object::Float64Array(base_index) => Self::Float64Array(base_index),
             Object::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
@@ -505,6 +511,8 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::BigInt64Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
@@ -596,6 +604,8 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::BigInt64Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => base_index.sweep_values(compactions),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]

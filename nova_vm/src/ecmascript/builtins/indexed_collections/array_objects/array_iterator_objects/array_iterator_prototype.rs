@@ -71,21 +71,10 @@ impl ArrayIteratorPrototype {
             );
         };
 
-        let len: i64 = match array {
-            // i. If array has a [[TypedArrayName]] internal slot, then
-            #[cfg(feature = "array-buffer")]
-            Object::Int8Array(array)
-            | Object::Uint8Array(array)
-            | Object::Uint8ClampedArray(array)
-            | Object::Int16Array(array)
-            | Object::Uint16Array(array)
-            | Object::Int32Array(array)
-            | Object::Uint32Array(array)
-            | Object::BigInt64Array(array)
-            | Object::BigUint64Array(array)
-            | Object::Float32Array(array)
-            | Object::Float64Array(array) => {
-                let array = array.into();
+        #[cfg(feature = "array-buffer")]
+        macro_rules! handle_typed_array {
+            ($array:expr) => {{
+                let array = $array;
                 // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(array, seq-cst).
                 let ta_record = make_typed_array_with_buffer_witness_record(
                     agent,
@@ -121,6 +110,10 @@ impl ArrayIteratorPrototype {
                     }
                     TypedArray::BigUint64Array(_) => {
                         is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc())
+                    }
+                    #[cfg(feature = "proposal-float16array")]
+                    TypedArray::Float16Array(_) => {
+                        is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc.nogc())
                     }
                     TypedArray::Float32Array(_) => {
                         is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc.nogc())
@@ -165,6 +158,10 @@ impl ArrayIteratorPrototype {
                     TypedArray::BigUint64Array(_) => {
                         typed_array_length::<u64>(agent, &ta_record, gc.nogc())
                     }
+                    #[cfg(feature = "proposal-float16array")]
+                    TypedArray::Float16Array(_) => {
+                        typed_array_length::<f16>(agent, &ta_record, gc.nogc())
+                    }
                     TypedArray::Float32Array(_) => {
                         typed_array_length::<f32>(agent, &ta_record, gc.nogc())
                     }
@@ -172,7 +169,25 @@ impl ArrayIteratorPrototype {
                         typed_array_length::<f64>(agent, &ta_record, gc.nogc())
                     }
                 }) as i64
-            }
+            }};
+        }
+
+        let len: i64 = match array {
+            // i. If array has a [[TypedArrayName]] internal slot, then
+            #[cfg(feature = "array-buffer")]
+            Object::Int8Array(array)
+            | Object::Uint8Array(array)
+            | Object::Uint8ClampedArray(array)
+            | Object::Int16Array(array)
+            | Object::Uint16Array(array)
+            | Object::Int32Array(array)
+            | Object::Uint32Array(array)
+            | Object::BigInt64Array(array)
+            | Object::BigUint64Array(array)
+            | Object::Float32Array(array)
+            | Object::Float64Array(array) => handle_typed_array!(array.into()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(array) => handle_typed_array!(array.into()),
             // ii. Else,
             //     1. Let len be ? LengthOfArrayLike(array).
             Object::Array(array) => array.len(agent).into(),

@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 #![allow(dead_code)]
-
 #![cfg_attr(feature = "annex-b-string", feature(f16))]
 
 pub mod ecmascript;
