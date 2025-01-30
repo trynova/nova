@@ -410,15 +410,14 @@ impl TypedArrayPrototype {
         } as i64;
         // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
         let relative_index = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
-        let k;
         // 5. If relativeIndex ≥ 0, then
-        if relative_index >= 0 {
+        let k = if relative_index >= 0 {
             // a. Let k be relativeIndex.
-            k = relative_index
+            relative_index
         } else {
             // 6. Else,
             // a. Let k be len + relativeIndex.
-            k = len + relative_index;
+            len + relative_index
         };
         // 7. If k < 0 or k ≥ len, return undefined.
         if k < 0 || k >= len {
