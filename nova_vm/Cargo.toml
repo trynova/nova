@@ -71,9 +71,11 @@ annex-b-date = ["date"]
 annex-b-regexp = ["regexp"]
 
 # Enables all currently supported proposals
-proposals = ["proposal-float16array"]
+proposals = ["proposal-float16array", "proposal-math-sum"]
 # Enables the [Float16Array proposal](https://tc39.es/proposal-float16array/)
 proposal-float16array = []
+# Enables the [Math.sumPrecise proposal](https://tc39.es/proposal-math-sum/)
+proposal-math-sum = []
 
 [build-dependencies]
 small_string = { path = "../small_string" }

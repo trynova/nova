@@ -388,6 +388,7 @@ sub
 subarray
 substr
 substring
+sumPrecise
 sup
 symbol
 Symbol

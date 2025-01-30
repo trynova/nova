@@ -347,6 +347,18 @@ impl Builtin for MathObjectF16round {
         crate::ecmascript::builtins::Behaviour::Regular(MathObject::f16round);
 }
 
+#[cfg(feature = "proposal-math-sum")]
+struct MathObjectSumPrecise;
+#[cfg(feature = "proposal-math-sum")]
+impl Builtin for MathObjectSumPrecise {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sumPrecise;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
+        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sum_precise);
+}
+
 impl MathObject {
     fn abs(
         agent: &mut Agent,
@@ -1608,17 +1620,81 @@ impl MathObject {
         Ok(Value::from_f64(agent, n64, gc.into_nogc()))
     }
 
+    /// ### [2 Math.sumPrecise ( items )](https://tc39.es/proposal-math-sum/#sec-math.sumprecise)
+    ///
+    /// Given an iterable of Numbers, this function sums each value in the
+    /// iterable and returns their sum. If any value is not a Number it throws
+    /// a TypeError exception.
+    ///
+    /// > #### Note 1
+    /// >
+    /// > The value of sum can be computed without arbitrary-precision
+    /// > arithmetic by a variety of algorithms. One such is the "Grow-Expansion"
+    /// > algorithm given in Adaptive Precision Floating-Point Arithmetic and
+    /// > Fast Robust Geometric Predicates by Jonathan Richard Shewchuk. A more
+    /// > recent algorithm is given in "Fast exact summation using small and large superaccumulators",
+    /// > code for which is available at https://gitlab.com/radfordneal/xsum.
+    #[cfg(feature = "proposal-math-sum")]
+    fn sum_precise(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Perform ? RequireObjectCoercible(items).
+        // 2. Let iteratorRecord be ? GetIterator(items, sync).
+        // 3. Let state be minus-zero.
+        // 4. Let sum be 0.
+        // 5. Let count be 0.
+        // 6. Let next be not-started.
+        // 7. Repeat, while next is not done,
+        //
+        // a. Set next to ? IteratorStepValue(iteratorRecord).
+        // b. If next is not done, then
+        // i. Set count to count + 1.
+        // ii. If count ≥ 2**53, then
+        // 1. Let error be ThrowCompletion(a newly created RangeError object).
+        // 2. Return ? IteratorClose(iteratorRecord, error).
+        // iii. NOTE: The above case is not expected to be reached in practice and is included only so that implementations may rely on inputs being "reasonably sized" without violating this specification.
+        // iv. If next is not a Number, then
+        // 1. Let error be ThrowCompletion(a newly created TypeError object).
+        // 2. Return ? IteratorClose(iteratorRecord, error).
+        // v. Let n be next.
+        // vi. If state is not not-a-number, then
+        // 1. If n is NaN, then
+        // a. Set state to not-a-number.
+        // 2. Else if n is +∞𝔽, then
+        // a. If state is minus-infinity, set state to not-a-number.
+        // b. Else, set state to plus-infinity.
+        // 3. Else if n is -∞𝔽, then
+        // a. If state is plus-infinity, set state to not-a-number.
+        // b. Else, set state to minus-infinity.
+        // 4. Else if n is not -0𝔽 and state is either minus-zero or finite, then
+        // a. Set state to finite.
+        // b. Set sum to sum + ℝ(n).
+        // 8. If state is not-a-number, return NaN.
+        // 9. If state is plus-infinity, return +∞𝔽.
+        // 10. If state is minus-infinity, return -∞𝔽.
+        // 11. If state is minus-zero, return -0𝔽.
+        // 12. Return 𝔽(sum).
+        todo!()
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
 
+        let mut property_capacity = 44;
+        if cfg!(feature = "proposal-float16array") {
+            property_capacity += 1;
+        }
+        if cfg!(feature = "proposal-math-sum") {
+            property_capacity += 1;
+        }
+
         let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(if cfg!(feature = "proposal-float16array") {
-                45
-            } else {
-                44
-            })
+            .with_property_capacity(property_capacity)
             .with_prototype(object_prototype)
             .with_property(|builder| {
                 builder
@@ -1746,6 +1822,9 @@ impl MathObject {
 
         #[cfg(feature = "proposal-float16array")]
         let builder = builder.with_builtin_function_property::<MathObjectF16round>();
+
+        #[cfg(feature = "proposal-math-sum")]
+        let builder = builder.with_builtin_function_property::<MathObjectSumPrecise>();
 
         builder.build();
     }
