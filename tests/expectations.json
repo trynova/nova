@@ -22826,7 +22826,6 @@
   "staging/sm/statements/for-in-with-gc-and-unvisited-deletion.js": "FAIL",
   "staging/sm/statements/for-inof-finally.js": "CRASH",
   "staging/sm/statements/for-inof-loop-const-declaration.js": "CRASH",
-  "staging/sm/statements/for-inof-name-iteration-expression-contains-index-string.js": "CRASH",
   "staging/sm/statements/for-loop-declaration-contains-computed-name.js": "CRASH",
   "staging/sm/statements/for-loop-declaration-contains-initializer.js": "CRASH",
   "staging/sm/statements/for-of-iterator-close-throw.js": "CRASH",

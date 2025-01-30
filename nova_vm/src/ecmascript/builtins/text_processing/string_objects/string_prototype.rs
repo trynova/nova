@@ -2205,12 +2205,16 @@ impl StringPrototype {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.trimLeft.to_property_key())
                     .with_value(prototype_trim_start.into_value())
+                    .with_enumerable(false)
+                    .with_configurable(true)
                     .build()
             })
             .with_property(|builder| {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.trimRight.to_property_key())
                     .with_value(prototype_trim_end.into_value())
+                    .with_enumerable(false)
+                    .with_configurable(true)
                     .build()
             });
 
