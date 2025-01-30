@@ -186,7 +186,7 @@ impl StringConstructor {
                 unreachable!();
             };
             let next_cp = next_cp.into_i64();
-            if next_cp < 0 || next_cp > 0x10FFFF {
+            if !(0..=0x10FFFF).contains(&next_cp) {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
                     format!("{:?} is not a valid code point", next_cp),
@@ -210,7 +210,7 @@ impl StringConstructor {
                 unreachable!();
             };
             let next_cp = next_cp.into_i64();
-            if next_cp < 0 || next_cp > 0x10FFFF {
+            if !(0..=0x10FFFF).contains(&next_cp) {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
                     format!("{:?} is not a valid code point", next_cp),
