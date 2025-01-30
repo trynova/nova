@@ -2,10 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
-use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
-use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
 use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
@@ -173,8 +170,9 @@ impl StringConstructor {
         agent: &mut Agent,
         _this_value: Value,
         code_points: ArgumentsList,
-        mut gc: GcScope,
+        gc: GcScope,
     ) -> JsResult<Value> {
+        let gc = gc.nogc();
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
             return Ok(String::EMPTY_STRING.into_value());
@@ -182,15 +180,17 @@ impl StringConstructor {
         // fast path: only a single valid code unit
         if code_points.len() == 1 && code_points.first().unwrap().is_integer() {
             // a. Let nextCP be ? ToNumber(next).
-            let next_cp = to_number(agent, code_points[0].into_value(), gc.reborrow())?.unbind();
             // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
             // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-            let next_cp = next_cp.into_i64(agent);
-            if next_cp > 0x10FFFF {
+            let Value::Integer(next_cp) = code_points.first().unwrap() else {
+                unreachable!();
+            };
+            let next_cp = next_cp.into_i64();
+            if next_cp < 0 || next_cp > 0x10FFFF {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
                     format!("{:?} is not a valid code point", next_cp),
-                    gc.nogc(),
+                    gc,
                 ));
             }
             // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
@@ -204,29 +204,24 @@ impl StringConstructor {
         // 2. For each element next of codePoints, do
         for next in code_points.iter() {
             // a. Let nextCP be ? ToNumber(next).
-            let next_cp = to_number(agent, next.into_value(), gc.reborrow())?.unbind();
             // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
-            if !is_integral_number(agent, next_cp, gc.reborrow()) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    format!("{:?} is not a valid code point", next_cp.to_real(agent)),
-                    gc.nogc(),
-                ));
-            }
             // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-            let next_cp = to_uint32_number(agent, next_cp);
-            if next_cp > 0x10FFFF {
+            let Value::Integer(next_cp) = next else {
+                unreachable!();
+            };
+            let next_cp = next_cp.into_i64();
+            if next_cp < 0 || next_cp > 0x10FFFF {
                 return Err(agent.throw_exception(
                     ExceptionType::RangeError,
                     format!("{:?} is not a valid code point", next_cp),
-                    gc.nogc(),
+                    gc,
                 ));
             }
             // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
-            result.push(char::from_u32(next_cp).unwrap());
+            result.push(char::from_u32(next_cp as u32).unwrap());
         }
         // 4. Return result.
-        Ok(String::from_string(agent, result, gc.nogc()).into())
+        Ok(String::from_string(agent, result, gc).into())
     }
 
     fn raw(
