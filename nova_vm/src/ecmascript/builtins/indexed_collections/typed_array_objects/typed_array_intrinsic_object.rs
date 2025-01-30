@@ -541,8 +541,11 @@ impl TypedArrayPrototype {
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = TypedArray::try_from(o).unwrap();
-        let len = match o {
+        let o = TypedArray::try_from(o)
+            .unwrap()
+            .bind(gc.nogc())
+            .scope(agent, gc.nogc());
+        let len = match o.get(agent) {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -578,7 +581,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
+            let k_value = unwrap_try(try_get(agent, o.get(agent), pk, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
@@ -587,7 +590,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList(&[
                     k_value,
                     Number::try_from(k).unwrap().into_value(),
-                    o.into_value(),
+                    o.get(agent).into_value(),
                 ])),
                 gc.reborrow(),
             )?;
@@ -1137,9 +1140,12 @@ impl TypedArrayPrototype {
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
-        let o = TypedArray::try_from(o).unwrap();
+        let o = TypedArray::try_from(o)
+            .unwrap()
+            .bind(gc.nogc())
+            .scope(agent, gc.nogc());
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o {
+        let len = match o.get(agent) {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -1175,7 +1181,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
+            let k_value = unwrap_try(try_get(agent, o.get(agent), pk, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
@@ -1184,7 +1190,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList(&[
                     k_value,
                     Number::try_from(k).unwrap().into_value(),
-                    o.into_value(),
+                    o.get(agent).into_value(),
                 ])),
                 gc.reborrow(),
             )?;
