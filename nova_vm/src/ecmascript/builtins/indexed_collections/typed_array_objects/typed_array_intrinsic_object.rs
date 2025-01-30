@@ -7,7 +7,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{call_function, try_get},
             testing_and_comparison::{is_array, is_callable},
-            type_conversion::{to_boolean, to_string, try_to_string},
+            type_conversion::{to_boolean, to_integer_or_infinity, to_string, try_to_string},
         },
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
@@ -371,13 +371,66 @@ impl Builtin for TypedArrayPrototypeGetToStringTag {
 impl BuiltinGetter for TypedArrayPrototypeGetToStringTag {}
 
 impl TypedArrayPrototype {
+    /// ### [23.2.3.1 %TypedArray%.prototype.at ( index )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-array.prototype.at)
     fn at(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let index = arguments.get(0);
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let o = TypedArray::try_from(o)
+            .unwrap()
+            .bind(gc.nogc())
+            .scope(agent, gc.nogc());
+        let len = match o.get(agent) {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
+        let relative_index = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
+        let k;
+        // 5. If relativeIndex ≥ 0, then
+        if relative_index >= 0 {
+            // a. Let k be relativeIndex.
+            k = relative_index
+        } else {
+            // 6. Else,
+            // a. Let k be len + relativeIndex.
+            k = len + relative_index;
+        };
+        // 7. If k < 0 or k ≥ len, return undefined.
+        if k < 0 || k >= len {
+            return Ok(Value::Undefined);
+        };
+        // 8. Return ! Get(O, ! ToString(𝔽(k))).
+        Ok(unwrap_try(try_get(
+            agent,
+            o.get(agent),
+            PropertyKey::Integer(k.try_into().unwrap()),
+            gc.nogc(),
+        )))
     }
 
     /// ### [23.2.3.2 get %TypedArray%.prototype.buffer](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.buffer)
