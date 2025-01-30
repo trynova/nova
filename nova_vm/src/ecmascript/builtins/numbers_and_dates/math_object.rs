@@ -335,6 +335,18 @@ impl Builtin for MathObjectTrunc {
         crate::ecmascript::builtins::Behaviour::Regular(MathObject::trunc);
 }
 
+#[cfg(feature = "proposal-float16array")]
+struct MathObjectF16round;
+#[cfg(feature = "proposal-float16array")]
+impl Builtin for MathObjectF16round {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.f16round;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
+        crate::ecmascript::builtins::Behaviour::Regular(MathObject::f16round);
+}
+
 impl MathObject {
     fn abs(
         agent: &mut Agent,
@@ -1542,13 +1554,71 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.trunc(), gc.into_nogc()))
     }
 
+    /// ### [3.1 Math.f16round ( x )](https://tc39.es/proposal-float16array/#sec-math.f16round)
+    ///
+    /// > #### Note 1
+    /// >
+    /// > This operation is not the same as casting to binary32 and then to
+    /// > binary16 because of the possibility of double-rounding: consider the
+    /// > number k = 1.00048828125000022204𝔽, for example, for which which
+    /// > Math.f16round(k) is 1.0009765625𝔽, but Math.f16round(Math.fround(k))
+    /// > is 1𝔽.
+    /// >
+    /// > Not all platforms provide native support for casting from binary64 to
+    /// > binary16. There are various libraries which can provide this,
+    /// > including the MIT-licensed half library. Alternatively, it is possible
+    /// > to first cast from binary64 to binary32 under roundTiesToEven and then
+    /// > check whether the result could lead to incorrect double-rounding. The
+    /// > cases which could can be handled explicitly by adjusting the mantissa
+    /// > of the binary32 value so that it is the value which would be produced
+    /// > by performing the initial cast under roundTiesToOdd. Casting the
+    /// > adjusted value to binary16 under roundTiesToEven then produces the
+    /// > correct value.
+    #[cfg(feature = "proposal-float16array")]
+    fn f16round(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. Let n be ? ToNumber(x).
+        let n = to_number(agent, arguments.get(0), gc.reborrow())?;
+
+        // 2. If n is NaN, return NaN.
+        if n.is_nan(agent) {
+            return Ok(Value::nan());
+        }
+
+        // 3. If n is one of +0𝔽, -0𝔽, +∞𝔽, or -∞𝔽, return n.
+        if n.is_pos_zero(agent)
+            || n.is_neg_zero(agent)
+            || n.is_pos_infinity(agent)
+            || n.is_neg_infinity(agent)
+        {
+            return Ok(n.into_value());
+        }
+
+        // 4. Let n16 be the result of converting n to IEEE 754-2019 binary16 format using roundTiesToEven mode.
+        let n16 = n.into_f16(agent);
+
+        // 5. Let n64 be the result of converting n16 to IEEE 754-2019 binary64 format.
+        let n64 = n16 as f64;
+
+        // 6. Return the ECMAScript Number value corresponding to n64.
+        Ok(Value::from_f64(agent, n64, gc.into_nogc()))
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
 
-        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(44)
+        let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
+            .with_property_capacity(if cfg!(feature = "proposal-float16array") {
+                45
+            } else {
+                44
+            })
             .with_prototype(object_prototype)
             .with_property(|builder| {
                 builder
@@ -1672,8 +1742,12 @@ impl MathObject {
                     .with_enumerable(false)
                     .with_configurable(true)
                     .build()
-            })
-            .build();
+            });
+
+        #[cfg(feature = "proposal-float16array")]
+        let builder = builder.with_builtin_function_property::<MathObjectF16round>();
+
+        builder.build();
     }
 }
 

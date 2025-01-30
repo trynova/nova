@@ -120,6 +120,7 @@ exchange
 exec
 exp
 expm1
+f16round
 false
 fill
 filter

@@ -4,6 +4,8 @@
 
 #![allow(dead_code)]
 
+#![cfg_attr(feature = "annex-b-string", feature(f16))]
+
 pub mod ecmascript;
 pub mod engine;
 pub mod heap;
