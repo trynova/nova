@@ -273,7 +273,7 @@ struct StringPrototypeAnchor;
 #[cfg(feature = "annex-b-string")]
 impl Builtin for StringPrototypeAnchor {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.anchor;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::anchor);
 }
 
