@@ -205,7 +205,7 @@ impl StringConstructor {
         // 2. For each element next of codePoints, do
         for next in code_points.iter() {
             // a. Let nextCP be ? ToNumber(next).
-            let next_cp = to_number(agent, next.into_value(), gc.reborrow())?.unbind();
+            let next_cp = to_number(agent, *next, gc.reborrow())?.unbind();
             // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
             if !is_integral_number(agent, next_cp, gc.reborrow()) {
                 return Err(agent.throw_exception(
