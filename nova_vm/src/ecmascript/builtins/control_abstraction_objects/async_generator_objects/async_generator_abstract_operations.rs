@@ -454,7 +454,11 @@ pub(super) fn async_generator_yield(
 ///
 /// The abstract operation AsyncGeneratorAwaitReturn takes argument generator
 /// (an AsyncGenerator) and returns unused.
-fn async_generator_await_return(agent: &mut Agent, generator: AsyncGenerator, mut gc: GcScope) {
+pub(super) fn async_generator_await_return(
+    agent: &mut Agent,
+    generator: AsyncGenerator,
+    mut gc: GcScope,
+) {
     let generator = generator.bind(gc.nogc());
     // 1. Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     assert!(generator.is_draining_queue(agent));
@@ -470,20 +474,21 @@ fn async_generator_await_return(agent: &mut Agent, generator: AsyncGenerator, mu
         unreachable!()
     };
     // 7. Let promiseCompletion be Completion(PromiseResolve(%Promise%, completion.[[Value]])).
+    let generator = generator.scope(agent, gc.nogc());
     // 8. If promiseCompletion is an abrupt completion, then
     //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
     //         b. Perform AsyncGeneratorDrainQueue(generator).
     //         c. Return unused.
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let generator = generator.scope(agent, gc.nogc());
     let promise = Promise::resolve(agent, value, gc.reborrow());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
     // 14. Let onRejected be CreateBuiltinFunction(rejectedClosure, 1, "", « »).
     // 15. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-    // inner_promise_then(agent, promise, on_fulfilled, on_rejected, None);
+    let handler = PromiseReactionHandler::AsyncGenerator(generator.get(agent));
+    inner_promise_then(agent, promise, handler, handler, None);
     // 16. Return unused.
 }
 

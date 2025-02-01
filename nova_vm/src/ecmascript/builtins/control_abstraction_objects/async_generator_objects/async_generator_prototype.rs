@@ -3,7 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, PromiseCapability};
+use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
+use crate::ecmascript::builtins::generator_objects::VmOrArguments;
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{self, if_abrupt_reject_promise, PromiseCapability};
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -16,7 +18,8 @@ use crate::{
 };
 
 use super::async_generator_abstract_operations::{
-    async_generator_enqueue, async_generator_resume, async_generator_validate,
+    async_generator_await_return, async_generator_enqueue, async_generator_resume,
+    async_generator_validate,
 };
 use super::AsyncGeneratorRequestCompletion;
 
@@ -95,13 +98,51 @@ impl AsyncGeneratorPrototype {
         Ok(promise_capability.promise().into_value())
     }
 
+    /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
     fn r#return(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let value = arguments.get(0);
+        // 1. Let generator be the this value.
+        let generator = this_value;
+        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+        let promise_capability = PromiseCapability::new(agent);
+        let promise = promise_capability.promise().bind(gc.nogc());
+        // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
+        let result = async_generator_validate(agent, generator, (), gc.nogc());
+        // 4. IfAbruptRejectPromise(result, promiseCapability).
+        let generator = if_abrupt_reject_promise(agent, result, promise_capability)?;
+        // 5. Let completion be ReturnCompletion(value).
+        let completion = AsyncGeneratorRequestCompletion::Return(value);
+        // 6. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
+        async_generator_enqueue(agent, generator, completion, promise_capability);
+        // 7. Let state be generator.[[AsyncGeneratorState]].
+        if generator.is_suspended_start(agent) || generator.is_completed(agent) {
+            // 8. If state is either suspended-start or completed, then
+            let promise = promise.scope(agent, gc.nogc());
+            // a. Set generator.[[AsyncGeneratorState]] to draining-queue.
+            generator.transition_to_draining_queue(agent);
+            // b. Perform AsyncGeneratorAwaitReturn(generator).
+            async_generator_await_return(agent, generator.unbind(), gc.reborrow());
+            // 11. Return promiseCapability.[[Promise]].
+            Ok(promise.get(agent).into_value())
+        } else if generator.is_suspended_yield(agent) {
+            // 9. Else if state is suspended-yield, then
+            let promise = promise.scope(agent, gc.nogc());
+            // a. Perform AsyncGeneratorResume(generator, completion).
+            async_generator_resume(agent, generator.unbind(), completion, gc.reborrow());
+            // 11. Return promiseCapability.[[Promise]].
+            Ok(promise.get(agent).into_value())
+        } else {
+            // 10. Else,
+            // a. Assert: state is either executing or draining-queue.
+            assert!(generator.is_draining_queue(agent) || generator.is_executing(agent));
+            // 11. Return promiseCapability.[[Promise]].
+            Ok(promise.into_value())
+        }
     }
 
     fn throw(

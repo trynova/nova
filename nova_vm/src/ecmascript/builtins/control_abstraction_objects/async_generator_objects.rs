@@ -10,7 +10,10 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use async_generator_abstract_operations::{async_generator_yield, resume_handle_result};
+use async_generator_abstract_operations::{
+    async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
+    async_generator_yield, resume_handle_result,
+};
 pub(crate) use async_generator_prototype::AsyncGeneratorPrototype;
 
 use crate::{
@@ -92,6 +95,46 @@ impl AsyncGenerator<'_> {
         )
     }
 
+    pub(crate) fn is_executing(self, agent: &Agent) -> bool {
+        matches!(
+            agent[self].async_generator_state.as_ref().unwrap(),
+            AsyncGeneratorState::Executing(_)
+        )
+    }
+
+    pub(crate) fn is_suspended_start(self, agent: &Agent) -> bool {
+        matches!(
+            &agent[self].async_generator_state,
+            Some(AsyncGeneratorState::Suspended {
+                state: SuspendedGeneratorState {
+                    vm_or_args: VmOrArguments::Arguments(_),
+                    ..
+                },
+                ..
+            })
+        )
+    }
+
+    pub(crate) fn is_suspended_yield(self, agent: &Agent) -> bool {
+        matches!(
+            &agent[self].async_generator_state,
+            Some(AsyncGeneratorState::Suspended {
+                state: SuspendedGeneratorState {
+                    vm_or_args: VmOrArguments::Vm(_),
+                    ..
+                },
+                ..
+            })
+        )
+    }
+
+    pub(crate) fn is_completed(self, agent: &Agent) -> bool {
+        matches!(
+            &agent[self].async_generator_state,
+            Some(AsyncGeneratorState::Completed)
+        )
+    }
+
     pub(crate) fn queue_is_empty(self, agent: &Agent) -> bool {
         match agent[self].async_generator_state.as_ref().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
@@ -134,8 +177,11 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn transition_to_draining_queue(self, agent: &mut Agent) {
         let async_generator_state = &mut agent[self].async_generator_state;
-        let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
-            unreachable!()
+        let state = async_generator_state.take().unwrap();
+        let queue = match state {
+            AsyncGeneratorState::Suspended { queue, .. }
+            | AsyncGeneratorState::Executing(queue) => queue,
+            _ => unreachable!(),
         };
         async_generator_state.replace(AsyncGeneratorState::DrainingQueue(queue));
     }
@@ -191,8 +237,19 @@ impl AsyncGenerator<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
-        // TODO: Generator state should know if we're awaiting or yielding;
-        // await will just continue work, yield will resolve an? entry from the queue.
+        if self.is_draining_queue(agent) {
+            // We're coming here because return was called.
+            match reaction_type {
+                PromiseReactionType::Fulfill => {
+                    // AsyncGeneratorAwaitReturn onFulfilled
+                    async_generator_await_return_on_fulfilled(agent, self, value, gc);
+                }
+                PromiseReactionType::Reject => {
+                    async_generator_await_return_on_rejected(agent, self, value, gc);
+                }
+            }
+            return;
+        }
         let AsyncGeneratorState::Awaiting {
             state,
             queue,
