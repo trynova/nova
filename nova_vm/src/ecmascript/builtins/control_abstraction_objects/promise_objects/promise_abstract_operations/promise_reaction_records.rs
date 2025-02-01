@@ -25,7 +25,7 @@ use super::promise_capability_records::PromiseCapability;
 ///
 /// The \[\[Type\]\] is used when \[\[Handler\]\] is empty to allow for
 /// behaviour specific to the settlement type.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PromiseReactionType {
     Fulfill,
     Reject,

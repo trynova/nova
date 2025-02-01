@@ -4,10 +4,6 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::ecmascript::builtins::async_generator_objects::{
-    async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
-    async_generator_start_result,
-};
 use crate::engine::context::GcScope;
 use crate::engine::Global;
 use crate::{
