@@ -383,12 +383,9 @@ impl TypedArrayPrototype {
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = TypedArray::try_from(o)
-            .unwrap()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
-        let len = match o.get(agent) {
+        let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -409,7 +406,14 @@ impl TypedArrayPrototype {
             }
         } as i64;
         // 4. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
+        let relative_index = if let Value::Integer(index) = index {
+            index.into_i64()
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let result = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
+            o = scoped_o.get(agent).bind(gc.nogc());
+            result
+        };
         // 5. If relativeIndex ≥ 0, then
         let k = if relative_index >= 0 {
             // a. Let k be relativeIndex.
@@ -426,7 +430,7 @@ impl TypedArrayPrototype {
         // 8. Return ! Get(O, ! ToString(𝔽(k))).
         Ok(unwrap_try(try_get(
             agent,
-            o.get(agent),
+            o,
             PropertyKey::Integer(k.try_into().unwrap()),
             gc.nogc(),
         )))
@@ -569,14 +573,12 @@ impl TypedArrayPrototype {
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?.object;
         // 3. Return CreateArrayIterator(O, key+value).
-        Ok(ArrayIterator::from_object(
-            agent,
-            o.object.into_object(),
-            CollectionIteratorKind::KeyAndValue,
+        Ok(
+            ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::KeyAndValue)
+                .into_value(),
         )
-        .into_value())
     }
 
     // ### [23.2.3.8 %%TypedArray%.prototype.every ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.every)
@@ -592,12 +594,9 @@ impl TypedArrayPrototype {
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = TypedArray::try_from(o)
-            .unwrap()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
-        let len = match o.get(agent) {
+        let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -626,6 +625,7 @@ impl TypedArrayPrototype {
             ));
         };
         let callback = callback.scope(agent, gc.nogc());
+        let scoped_o = o.scope(agent, gc.nogc());
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -633,7 +633,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try(try_get(agent, o.get(agent), pk, gc.nogc()));
+            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
@@ -642,7 +642,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList(&[
                     k_value,
                     Number::try_from(k).unwrap().into_value(),
-                    o.get(agent).into_value(),
+                    o.into_value(),
                 ])),
                 gc.reborrow(),
             )?;
@@ -652,6 +652,7 @@ impl TypedArrayPrototype {
                 return Ok(false.into());
             }
             // e. Set k to k + 1.
+            o = scoped_o.get(agent).bind(gc.nogc());
             k += 1;
         }
         // 7. Return true.
@@ -757,7 +758,7 @@ impl TypedArrayPrototype {
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
-        let o = TypedArray::try_from(o).unwrap();
+        let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let (len, element_size) = match o {
             TypedArray::Int8Array(_) => (
@@ -812,12 +813,12 @@ impl TypedArrayPrototype {
             (sep, false)
         } else {
             // 5. Else, let sep be ? ToString(separator).
-            (
-                to_string(agent, separator, gc.reborrow())?
-                    .unbind()
-                    .bind(gc.nogc()),
-                true,
-            )
+            let scoped_o = o.scope(agent, gc.nogc());
+            let result = to_string(agent, separator, gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            (result, true)
         };
         if len == 0 {
             return Ok(String::EMPTY_STRING.into_value());
@@ -1044,10 +1045,10 @@ impl TypedArrayPrototype {
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?.object;
         // 3. Return CreateArrayIterator(O, key).
         Ok(
-            ArrayIterator::from_object(agent, o.object.into_object(), CollectionIteratorKind::Key)
+            ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::Key)
                 .into_value(),
         )
     }
@@ -1192,12 +1193,9 @@ impl TypedArrayPrototype {
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
-        let o = TypedArray::try_from(o)
-            .unwrap()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
+        let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
-        let len = match o.get(agent) {
+        let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -1226,6 +1224,7 @@ impl TypedArrayPrototype {
             ));
         };
         let callback = callback.scope(agent, gc.nogc());
+        let scoped_o = o.scope(agent, gc.nogc());
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -1233,7 +1232,7 @@ impl TypedArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::from(SmallInteger::from(k as u32));
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try(try_get(agent, o.get(agent), pk, gc.nogc()));
+            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
             // c. Let testResult be ToBoolean(? Call(callback, thisArg, « kValue, 𝔽(k), O »)).
             let call = call_function(
                 agent,
@@ -1242,7 +1241,7 @@ impl TypedArrayPrototype {
                 Some(ArgumentsList(&[
                     k_value,
                     Number::try_from(k).unwrap().into_value(),
-                    o.get(agent).into_value(),
+                    o.into_value(),
                 ])),
                 gc.reborrow(),
             )?;
@@ -1252,6 +1251,7 @@ impl TypedArrayPrototype {
                 return Ok(true.into());
             }
             // e. Set k to k + 1.
+            o = scoped_o.get(agent).bind(gc.nogc());
             k += 1;
         }
         // 7. Return false.
@@ -1321,15 +1321,11 @@ impl TypedArrayPrototype {
     ) -> JsResult<Value> {
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?.object;
         // 3. Return CreateArrayIterator(O, value).
         Ok(
-            ArrayIterator::from_object(
-                agent,
-                o.object.into_object(),
-                CollectionIteratorKind::Value,
-            )
-            .into_value(),
+            ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::Value)
+                .into_value(),
         )
     }
 
