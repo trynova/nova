@@ -25,7 +25,7 @@ use crate::{
     },
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try, ExecutionResult, Scoped, SuspendedVm, Vm,
+        unwrap_try, Executable, ExecutionResult, Scoped, SuspendedVm, Vm,
     },
     heap::CreateHeapData,
 };
@@ -231,6 +231,17 @@ pub(super) fn async_generator_resume(
     // 9. Assert: When we return here, genContext has already been removed from
     //    the execution context stack and callerContext is the currently
     //    running execution context.
+    resume_handle_result(agent, execution_result, executable, scoped_generator, gc);
+    // 10. Return unused.
+}
+
+pub(super) fn resume_handle_result(
+    agent: &mut Agent,
+    execution_result: ExecutionResult,
+    executable: Executable,
+    scoped_generator: Scoped<'_, AsyncGenerator>,
+    mut gc: GcScope,
+) {
     match execution_result {
         ExecutionResult::Return(result) => {
             // Function is done.
@@ -282,39 +293,20 @@ pub(super) fn async_generator_resume(
         }
         ExecutionResult::Await { vm, awaited_value } => {
             // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
+            let execution_context = agent.execution_context_stack.pop().unwrap();
+            let generator = scoped_generator.get(agent).bind(gc.nogc());
+            generator.transition_to_awaiting(agent, vm, executable, execution_context);
             // 8. Remove asyncContext from the execution context stack and
             //    restore the execution context that is at the top of the
             //    execution context stack as the running execution context.
-            let generator = scoped_generator.get(agent).bind(gc.nogc());
-            let async_context = agent.execution_context_stack.pop().unwrap();
-            let promise_capability = PromiseCapability::new(agent);
-            let on_fulfill = PromiseReactionHandler::AsyncGenerator(generator.unbind());
-            let on_reject = PromiseReactionHandler::AsyncGenerator(generator.unbind());
-            // `handler` corresponds to the `fulfilledClosure` and `rejectedClosure` functions,
-            // which resume execution of the function.
-            let handler = PromiseReactionHandler::Await(agent.heap.create(AwaitReaction {
-                vm: Some(vm),
-                async_function: Some(
-                    ECMAScriptFunction::try_from(async_context.function.unwrap()).unwrap(),
-                ),
-                execution_context: Some(async_context),
-                return_promise_capability: promise_capability,
-            }));
+            let handler = PromiseReactionHandler::AsyncGenerator(generator.unbind());
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
             let promise = Promise::resolve(agent, awaited_value, gc);
 
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
             inner_promise_then(agent, promise, handler, handler, None);
-            inner_promise_then(
-                agent,
-                promise_capability.promise(),
-                on_fulfill,
-                on_reject,
-                Some(promise_capability),
-            );
         }
     }
-    // 10. Return unused.
 }
 
 /// ### [27.6.3.7 AsyncGeneratorUnwrapYieldResumption ( resumptionValue )](https://tc39.es/ecma262/#sec-asyncgeneratorunwrapyieldresumption)
@@ -434,12 +426,10 @@ fn async_generator_await_return(agent: &mut Agent, generator: AsyncGenerator, mu
     let promise = Promise::resolve(agent, value, gc.reborrow());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
-    let on_fulfilled = PromiseReactionHandler::AsyncGenerator(generator.get(agent).unbind());
     // 13. ... onRejected ...
     // 14. Let onRejected be CreateBuiltinFunction(rejectedClosure, 1, "", « »).
-    let on_rejected = PromiseReactionHandler::AsyncGeneratorReject(generator.get(agent).unbind());
     // 15. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-    inner_promise_then(agent, promise, on_fulfilled, on_rejected, None);
+    // inner_promise_then(agent, promise, on_fulfilled, on_rejected, None);
     // 16. Return unused.
 }
 

@@ -10,6 +10,7 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use async_generator_abstract_operations::resume_handle_result;
 pub(crate) use async_generator_abstract_operations::{
     async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
     async_generator_start_result,
@@ -22,15 +23,17 @@ use crate::{
             generator_objects::VmOrArguments,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{agent::JsError, Agent, ProtoIntrinsics, RealmIdentifier},
+        execution::{
+            self, agent::JsError, Agent, ExecutionContext, ProtoIntrinsics, RealmIdentifier,
+        },
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
+        Executable, Scoped, SuspendedVm,
     },
     heap::{
         indexes::{AsyncGeneratorIndex, BaseIndex},
@@ -38,7 +41,10 @@ use crate::{
     },
 };
 
-use super::generator_objects::SuspendedGeneratorState;
+use super::{
+    generator_objects::SuspendedGeneratorState,
+    promise_objects::promise_abstract_operations::promise_reaction_records::PromiseReactionType,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AsyncGenerator<'a>(pub(crate) AsyncGeneratorIndex<'a>);
@@ -94,7 +100,8 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn queue_is_empty(self, agent: &Agent) -> bool {
         match agent[self].async_generator_state.as_ref().unwrap() {
-            AsyncGeneratorState::Suspended { queue, .. }
+            AsyncGeneratorState::Awaiting { queue, .. }
+            | AsyncGeneratorState::Suspended { queue, .. }
             | AsyncGeneratorState::Executing(queue)
             | AsyncGeneratorState::DrainingQueue(queue) => queue.is_empty(),
             AsyncGeneratorState::Completed => unreachable!(),
@@ -103,7 +110,8 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn peek_first(self, agent: &mut Agent) -> &AsyncGeneratorRequest {
         match agent[self].async_generator_state.as_mut().unwrap() {
-            AsyncGeneratorState::Suspended { queue, .. }
+            AsyncGeneratorState::Awaiting { queue, .. }
+            | AsyncGeneratorState::Suspended { queue, .. }
             | AsyncGeneratorState::Executing(queue)
             | AsyncGeneratorState::DrainingQueue(queue) => queue.front().unwrap(),
             AsyncGeneratorState::Completed => unreachable!(),
@@ -112,7 +120,8 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn pop_first(self, agent: &mut Agent) -> AsyncGeneratorRequest {
         match agent[self].async_generator_state.as_mut().unwrap() {
-            AsyncGeneratorState::Suspended { queue, .. }
+            AsyncGeneratorState::Awaiting { queue, .. }
+            | AsyncGeneratorState::Suspended { queue, .. }
             | AsyncGeneratorState::Executing(queue)
             | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap(),
             AsyncGeneratorState::Completed => unreachable!(),
@@ -121,7 +130,8 @@ impl AsyncGenerator<'_> {
 
     pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest) {
         match agent[self].async_generator_state.as_mut().unwrap() {
-            AsyncGeneratorState::Suspended { queue, .. }
+            AsyncGeneratorState::Awaiting { queue, .. }
+            | AsyncGeneratorState::Suspended { queue, .. }
             | AsyncGeneratorState::Executing(queue)
             | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request),
             AsyncGeneratorState::Completed => unreachable!(),
@@ -134,6 +144,60 @@ impl AsyncGenerator<'_> {
             unreachable!()
         };
         async_generator_state.replace(AsyncGeneratorState::DrainingQueue(queue));
+    }
+
+    pub(crate) fn transition_to_awaiting(
+        self,
+        agent: &mut Agent,
+        vm: SuspendedVm,
+        executable: Executable,
+        execution_context: ExecutionContext,
+    ) {
+        let async_generator_state = &mut agent[self].async_generator_state;
+        let AsyncGeneratorState::Executing(queue) = async_generator_state.take().unwrap() else {
+            unreachable!()
+        };
+        async_generator_state.replace(AsyncGeneratorState::Awaiting {
+            queue,
+            state: SuspendedGeneratorState {
+                vm_or_args: VmOrArguments::Vm(vm),
+                executable,
+                execution_context,
+            },
+        });
+    }
+
+    pub(crate) fn resume_await(
+        self,
+        agent: &mut Agent,
+        reaction_type: PromiseReactionType,
+        value: Value,
+        mut gc: GcScope,
+    ) {
+        // TODO: Generator state should know if we're awaiting or yielding;
+        // await will just continue work, yield will resolve an? entry from the queue.
+        let AsyncGeneratorState::Awaiting { state, queue } =
+            agent[self].async_generator_state.take().unwrap()
+        else {
+            unreachable!()
+        };
+        let SuspendedGeneratorState {
+            vm_or_args,
+            executable,
+            execution_context,
+        } = state;
+        agent.execution_context_stack.push(execution_context);
+        let VmOrArguments::Vm(vm) = vm_or_args else {
+            unreachable!()
+        };
+        agent[self].async_generator_state = Some(AsyncGeneratorState::Executing(queue));
+        let scoped_generator = self.scope(agent, gc.nogc());
+        let execution_result = match reaction_type {
+            PromiseReactionType::Fulfill => vm.resume(agent, executable, value, gc.reborrow()),
+            PromiseReactionType::Reject => vm.resume_throw(agent, executable, value, gc.reborrow()),
+        };
+
+        resume_handle_result(agent, execution_result, executable, scoped_generator, gc);
     }
 }
 
@@ -257,6 +321,12 @@ pub(crate) enum AsyncGeneratorState {
         queue: VecDeque<AsyncGeneratorRequest>,
     },
     Executing(VecDeque<AsyncGeneratorRequest>),
+    Awaiting {
+        // TODO: Can never contain Arguments to the VmOrArgs is useless.
+        // Just put the SuspendedVm in there.
+        state: SuspendedGeneratorState,
+        queue: VecDeque<AsyncGeneratorRequest>,
+    },
     DrainingQueue(VecDeque<AsyncGeneratorRequest>),
     Completed,
 }
@@ -271,7 +341,10 @@ impl AsyncGeneratorState {
     }
 
     pub(crate) fn is_active(&self) -> bool {
-        matches!(self, Self::Executing { .. } | Self::DrainingQueue(_))
+        matches!(
+            self,
+            Self::Awaiting { .. } | Self::Executing { .. } | Self::DrainingQueue(_)
+        )
     }
 
     pub(crate) fn is_draining(&self) -> bool {
@@ -371,7 +444,8 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData {
             return;
         };
         match generator_state {
-            AsyncGeneratorState::Suspended { state, queue } => {
+            AsyncGeneratorState::Awaiting { state, queue }
+            | AsyncGeneratorState::Suspended { state, queue } => {
                 state.mark_values(queues);
                 for req in queue {
                     req.mark_values(queues);
@@ -396,7 +470,8 @@ impl HeapMarkAndSweep for AsyncGeneratorHeapData {
             return;
         };
         match generator_state {
-            AsyncGeneratorState::Suspended { state, queue } => {
+            AsyncGeneratorState::Awaiting { state, queue }
+            | AsyncGeneratorState::Suspended { state, queue } => {
                 state.sweep_values(compactions);
                 for req in queue {
                     req.sweep_values(compactions);
