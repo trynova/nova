@@ -2,6 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
+use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
@@ -12,6 +14,7 @@ use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
+use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
@@ -161,26 +164,70 @@ impl StringConstructor {
         Ok(String::from_string(agent, result, gc.nogc()).into())
     }
 
-    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` ) ](https://262.ecma-international.org/15.0/index.html#sec-string.fromcodepoint)
+    /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.fromcodepoint)
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codePoints`.
     fn from_code_point(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope,
+        code_points: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        // 1. Let result be the empty String.
-        // 2. For each element next of codePoints, do
-        //     a. Let nextCP be ? ToNumber(next).
-        //     b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
-        //     c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-        //     d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
         // 3. Assert: If codePoints is empty, then result is the empty String.
+        if code_points.is_empty() {
+            return Ok(String::EMPTY_STRING.into_value());
+        }
+        // fast path: only a single valid code unit
+        if code_points.len() == 1 && code_points.first().unwrap().is_integer() {
+            // a. Let nextCP be ? ToNumber(next).
+            // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
+            // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+            let Value::Integer(next_cp) = code_points.first().unwrap() else {
+                unreachable!();
+            };
+            let next_cp = next_cp.into_i64();
+            if !(0..=0x10FFFF).contains(&next_cp) {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{:?} is not a valid code point", next_cp),
+                    gc.nogc(),
+                ));
+            }
+            // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+            if let Some(cu) = char::from_u32(next_cp as u32) {
+                // 4. Return result.
+                return Ok(SmallString::from(cu).into());
+            }
+        };
+        // 1. Let result be the empty String.
+        let mut result = std::string::String::new();
+        // 2. For each element next of codePoints, do
+        for next in code_points.iter() {
+            // a. Let nextCP be ? ToNumber(next).
+            let next_cp = to_number(agent, *next, gc.reborrow())?.unbind();
+            // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
+            if !is_integral_number(agent, next_cp, gc.reborrow()) {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{:?} is not a valid code point", next_cp.to_real(agent)),
+                    gc.nogc(),
+                ));
+            }
+            // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+            let next_cp = next_cp.into_i64(agent);
+            if !(0..=0x10FFFF).contains(&next_cp) {
+                return Err(agent.throw_exception(
+                    ExceptionType::RangeError,
+                    format!("{:?} is not a valid code point", next_cp),
+                    gc.nogc(),
+                ));
+            }
+            // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+            result.push(char::from_u32(next_cp as u32).unwrap());
+        }
         // 4. Return result.
-
-        todo!()
+        Ok(String::from_string(agent, result, gc.nogc()).into())
     }
 
     fn raw(
