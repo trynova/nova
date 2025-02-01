@@ -47,13 +47,6 @@ pub(crate) enum NamedEvaluationParameter {
     ReferenceStack,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GeneratorKind {
-    NonGenerator,
-    Async,
-    Sync,
-}
-
 pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     pub(crate) agent: &'agent mut Agent,
     pub(crate) gc: NoGcScope<'gc, 'scope>,
@@ -83,7 +76,6 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     /// In a `(a?.b)?.()` chain the evaluation of `(a?.b)` must be considered a
     /// reference.
     is_call_optional_chain_this: bool,
-    generator_kind: GeneratorKind,
 }
 
 impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
@@ -106,35 +98,6 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
             current_break: None,
             optional_chains: None,
             is_call_optional_chain_this: false,
-            generator_kind: GeneratorKind::NonGenerator,
-        }
-    }
-
-    pub(super) fn new_generator(
-        agent: &'a mut Agent,
-        is_async: bool,
-        gc: NoGcScope<'gc, 'scope>,
-    ) -> CompileContext<'a, 'gc, 'scope> {
-        CompileContext {
-            agent,
-            gc,
-            instructions: Vec::new(),
-            constants: Vec::new(),
-            function_expressions: Vec::new(),
-            arrow_function_expressions: Vec::new(),
-            class_initializer_bytecodes: Vec::new(),
-            name_identifier: None,
-            lexical_binding_state: false,
-            current_depth_of_loop_scope: None,
-            current_continue: None,
-            current_break: None,
-            optional_chains: None,
-            is_call_optional_chain_this: false,
-            generator_kind: if is_async {
-                GeneratorKind::Async
-            } else {
-                GeneratorKind::Sync
-            },
         }
     }
 
@@ -1716,11 +1679,6 @@ impl CompileEvaluation for ast::YieldExpression<'_> {
             // YieldExpression : yield
             // 1. Return ? Yield(undefined).
             ctx.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
-        }
-        if ctx.generator_kind == GeneratorKind::Async {
-            // 27.5.3.7 Yield ( value )
-            // 2. If generatorKind is async, return ? AsyncGeneratorYield(? Await(value)).
-            ctx.add_instruction(Instruction::Await);
         }
         // 3. Return ? Yield(value).
         ctx.add_instruction(Instruction::Yield);

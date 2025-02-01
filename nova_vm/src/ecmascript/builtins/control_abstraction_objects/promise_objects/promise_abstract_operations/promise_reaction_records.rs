@@ -43,6 +43,9 @@ pub(crate) enum PromiseReactionType {
 pub(crate) enum PromiseReactionHandler {
     JobCallback(Function<'static>),
     Await(AwaitReactionIdentifier),
+    AsyncGenerator(AsyncGenerator<'static>),
+    AsyncGeneratorFulfill(AsyncGenerator<'static>),
+    AsyncGeneratorReject(AsyncGenerator<'static>),
     Empty,
 }
 

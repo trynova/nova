@@ -5,7 +5,6 @@
 use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::{
     ecmascript::{
-        builtins::generator_objects::Generator,
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         types::*,
     },
