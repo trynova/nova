@@ -21812,7 +21812,6 @@
   "staging/sm/Array/unscopables.js": "CRASH",
   "staging/sm/Array/values.js": "FAIL",
   "staging/sm/ArrayBuffer/slice-species.js": "CRASH",
-  "staging/sm/AsyncGenerators/async-generator-declaration-in-modules.js": "CRASH",
   "staging/sm/Atomics/cross-compartment.js": "FAIL",
   "staging/sm/Atomics/detached-buffers.js": "CRASH",
   "staging/sm/BigInt/Number-conversion-rounding.js": "CRASH",
