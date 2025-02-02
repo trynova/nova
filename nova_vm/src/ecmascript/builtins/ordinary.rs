@@ -38,6 +38,7 @@ use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::data::SharedArrayBufferHeapData;
 use super::{
+    async_generator_objects::AsyncGeneratorHeapData,
     control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
@@ -1216,6 +1217,10 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             ))
             .into_object(),
         ProtoIntrinsics::AsyncFunction => todo!(),
+        ProtoIntrinsics::AsyncGenerator => agent
+            .heap
+            .create(AsyncGeneratorHeapData::default())
+            .into_object(),
         ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
         #[cfg(feature = "array-buffer")]
         ProtoIntrinsics::BigInt64Array => agent
@@ -1402,6 +1407,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
             ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
+            ProtoIntrinsics::AsyncGenerator => None,
             ProtoIntrinsics::AsyncGeneratorFunction => {
                 Some(intrinsics.async_generator_function().into_function())
             }

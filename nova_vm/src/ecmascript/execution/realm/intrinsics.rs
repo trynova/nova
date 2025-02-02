@@ -169,6 +169,7 @@ pub enum ProtoIntrinsics {
     ArrayBuffer,
     ArrayIterator,
     AsyncFunction,
+    AsyncGenerator,
     AsyncGeneratorFunction,
     BigInt,
     #[cfg(feature = "array-buffer")]
@@ -398,6 +399,7 @@ impl Intrinsics {
             ProtoIntrinsics::UriError => self.uri_error_prototype().into(),
             ProtoIntrinsics::AggregateError => self.aggregate_error_prototype().into(),
             ProtoIntrinsics::AsyncFunction => self.async_function_prototype().into(),
+            ProtoIntrinsics::AsyncGenerator => self.async_generator_prototype().into(),
             ProtoIntrinsics::AsyncGeneratorFunction => {
                 self.async_generator_function_prototype().into()
             }

@@ -25,6 +25,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::generator_objects::GeneratorHeapData,
             embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -187,6 +188,7 @@ impl<'a, T> Default for BaseIndex<'a, T> {
 pub type ArrayBufferIndex<'a> = BaseIndex<'a, ArrayBufferHeapData>;
 pub type ArrayIndex<'a> = BaseIndex<'a, ArrayHeapData>;
 pub type ArrayIteratorIndex<'a> = BaseIndex<'a, ArrayIteratorHeapData>;
+pub type AsyncGeneratorIndex<'a> = BaseIndex<'a, AsyncGeneratorHeapData>;
 pub type BigIntIndex<'a> = BaseIndex<'a, BigIntHeapData>;
 pub type BoundFunctionIndex<'a> = BaseIndex<'a, BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex<'a> = BaseIndex<'a, BuiltinFunctionHeapData>;
