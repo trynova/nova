@@ -34,13 +34,13 @@ impl Builtin for WeakSetPrototypeHas {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakSetPrototype::has);
 }
 
-impl WeakSetPrototype {
+impl<'gc> WeakSetPrototype {
     fn add(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -48,8 +48,8 @@ impl WeakSetPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -57,8 +57,8 @@ impl WeakSetPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

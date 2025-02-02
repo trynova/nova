@@ -24,13 +24,13 @@ impl Builtin for AsyncIteratorPrototypeIterator {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
 }
 
-impl AsyncIteratorPrototype {
+impl<'gc> AsyncIteratorPrototype {
     fn iterator(
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

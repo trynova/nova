@@ -33,7 +33,7 @@ pub struct CreatorProperties(
     Vec<(
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     )>,
 );
 

@@ -67,15 +67,15 @@ impl<'a> Error<'a> {
     }
 }
 
-impl IntoValue for Error<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Error<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
-impl From<Error<'_>> for Value {
-    fn from(value: Error) -> Self {
-        Value::Error(value.unbind())
+impl<'a> From<Error<'a>> for Value<'a> {
+    fn from(value: Error<'a>) -> Self {
+        Value::Error(value)
     }
 }
 
@@ -91,10 +91,10 @@ impl<'a> From<Error<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for Error<'_> {
+impl<'a> TryFrom<Value<'a>> for Error<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Error(idx) => Ok(idx),
             _ => Err(()),
@@ -268,13 +268,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get(agent, property_key, receiver, gc),
             None => {
@@ -298,13 +298,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
             Some(backing_object) => {

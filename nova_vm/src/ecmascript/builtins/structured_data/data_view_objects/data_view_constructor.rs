@@ -41,15 +41,15 @@ impl BuiltinIntrinsicConstructor for DataViewConstructor {
 }
 
 /// ### [25.3.2 The DataView Constructor](https://tc39.es/ecma262/#sec-dataview-constructor)
-impl DataViewConstructor {
+impl<'gc> DataViewConstructor {
     /// ### [25.3.2.1 DataView ( buffer \[ , byteOffset \[ , byteLength \] \] )](https://tc39.es/ecma262/#sec-dataview-buffer-byteoffset-bytelength)
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(

@@ -165,13 +165,13 @@ pub(crate) fn function_internal_has_property<'a>(
     }
 }
 
-pub(crate) fn function_try_get<'a>(
+pub(crate) fn function_try_get<'gc, 'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
     receiver: Value,
-    gc: NoGcScope,
-) -> TryResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<Value<'gc>> {
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.try_get(agent, property_key, receiver, gc)
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -186,13 +186,13 @@ pub(crate) fn function_try_get<'a>(
     }
 }
 
-pub(crate) fn function_internal_get<'a>(
+pub(crate) fn function_internal_get<'gc, 'a>(
     func: impl FunctionInternalProperties<'a>,
     agent: &mut Agent,
     property_key: PropertyKey,
     receiver: Value,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let property_key = property_key.bind(gc.nogc());
     if let Some(backing_object) = func.get_backing_object(agent) {
         backing_object.internal_get(agent, property_key.unbind(), receiver, gc)

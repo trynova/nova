@@ -101,14 +101,14 @@ impl Builtin for PromiseGetSpecies {
 }
 impl BuiltinGetter for PromiseGetSpecies {}
 
-impl PromiseConstructor {
+impl<'gc> PromiseConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let executor = args.get(0);
 
         // 1. If NewTarget is undefined, throw a TypeError exception.
@@ -195,8 +195,8 @@ impl PromiseConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -204,24 +204,24 @@ impl PromiseConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn any(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn race(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -230,7 +230,7 @@ impl PromiseConstructor {
         this_value: Value,
         arguments: ArgumentsList,
         _: GcScope,
-    ) -> JsResult<Value> {
+    ) -> JsResult<Value<'gc>> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -257,8 +257,8 @@ impl PromiseConstructor {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -274,8 +274,8 @@ impl PromiseConstructor {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
@@ -327,8 +327,8 @@ impl PromiseConstructor {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
             return Err(agent.throw_exception_with_static_message(
@@ -398,7 +398,7 @@ impl PromiseConstructor {
         this_value: Value,
         _: ArgumentsList,
         _: GcScope,
-    ) -> JsResult<Value> {
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

@@ -343,7 +343,7 @@ pub(crate) fn set_default_global_bindings<'a>(
             value: Some(
                 global_env
                     .unwrap()
-                    .get_this_binding(agent, gc.nogc())
+                    .get_this_binding(agent, gc.into_nogc())
                     .into_value(),
             ),
             ..Default::default()

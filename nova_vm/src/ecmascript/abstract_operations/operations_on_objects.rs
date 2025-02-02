@@ -78,12 +78,12 @@ pub(crate) fn make_basic_object(_agent: &mut Agent, _internal_slots_list: ()) ->
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
 #[inline]
-pub(crate) fn get<'a>(
+pub(crate) fn get<'a, 'b>(
     agent: &mut Agent,
-    o: impl IntoObject<'a>,
+    o: impl IntoObject<'b>,
     p: PropertyKey,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<Value<'a>> {
     let p = p.bind(gc.nogc());
     // 1. Return ? O.[[Get]](P, O).
     o.into_object()
@@ -97,12 +97,12 @@ pub(crate) fn get<'a>(
 /// language value or a throw completion. It is used to retrieve the value of a
 /// specific property of an object.
 #[inline]
-pub(crate) fn try_get<'a>(
+pub(crate) fn try_get<'a, 'gc>(
     agent: &mut Agent,
     o: impl IntoObject<'a>,
     p: PropertyKey,
-    gc: NoGcScope,
-) -> TryResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<Value<'gc>> {
     // 1. Return ? O.[[Get]](P, O).
     o.into_object().try_get(agent, p, o.into_value(), gc)
 }
@@ -115,19 +115,19 @@ pub(crate) fn try_get<'a>(
 /// to retrieve the value of a specific property of an ECMAScript language
 /// value. If the value is not an object, the property lookup is performed
 /// using a wrapper object appropriate for the type of the value.
-pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey, gc: GcScope) -> JsResult<Value> {
-    let mut p = p.bind(gc.nogc());
+pub(crate) fn get_v<'gc>(
+    agent: &mut Agent,
+    v: Value,
+    p: PropertyKey,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
+    let v = v.bind(gc.nogc());
+    let p = p.bind(gc.nogc());
     // 1. Let O be ? ToObject(V).
-    let o = if let Ok(o) = Object::try_from(v) {
-        o.bind(gc.nogc())
-    } else {
-        let scoped_p = p.scope(agent, gc.nogc());
-        let o = to_object(agent, v, gc.nogc())?;
-        p = scoped_p.get(agent).bind(gc.nogc());
-        o
-    };
+    let o = to_object(agent, v, gc.nogc())?;
     // 2. Return ? O.[[Get]](P, V).
-    o.unbind().internal_get(agent, p.unbind(), o.into(), gc)
+    o.unbind()
+        .internal_get(agent, p.unbind(), o.unbind().into(), gc)
 }
 
 /// ### Try [7.3.3 GetV ( V, P )](https://tc39.es/ecma262/#sec-getv)
@@ -138,12 +138,12 @@ pub(crate) fn get_v(agent: &mut Agent, v: Value, p: PropertyKey, gc: GcScope) ->
 /// to retrieve the value of a specific property of an ECMAScript language
 /// value. If the value is not an object, the property lookup is performed
 /// using a wrapper object appropriate for the type of the value.
-pub(crate) fn try_get_v(
+pub(crate) fn try_get_v<'gc>(
     agent: &mut Agent,
     v: Value,
     p: PropertyKey,
-    gc: NoGcScope,
-) -> TryResult<JsResult<Value>> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<JsResult<Value<'gc>>> {
     // 1. Let O be ? ToObject(V).
     let o = match to_object(agent, v, gc) {
         Ok(o) => o,
@@ -239,7 +239,7 @@ pub(crate) fn try_create_data_property<'a>(
 ) -> TryResult<bool> {
     // 1. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true }.
     let new_desc = PropertyDescriptor {
-        value: Some(value),
+        value: Some(value.unbind()),
         writable: Some(true),
         get: None,
         set: None,
@@ -272,7 +272,7 @@ pub(crate) fn create_data_property<'a>(
     let property_key = property_key.bind(gc.nogc());
     // 1. Let newDesc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true }.
     let new_desc = PropertyDescriptor {
-        value: Some(value),
+        value: Some(value.unbind()),
         writable: Some(true),
         get: None,
         set: None,
@@ -520,7 +520,7 @@ pub(crate) fn get_method<'a>(
     let p = p.bind(gc.nogc());
     // 1. Let func be ? GetV(V, P).
     let func = get_v(agent, v, p.unbind(), gc.reborrow())?;
-    get_method_internal(agent, func, gc.into_nogc())
+    get_method_internal(agent, func.unbind(), gc.into_nogc())
 }
 
 /// ### [7.3.11 GetMethod ( V, P )](https://tc39.es/ecma262/#sec-getmethod)
@@ -538,8 +538,12 @@ pub(crate) fn get_object_method<'a>(
 ) -> JsResult<Option<Function<'a>>> {
     let p = p.bind(gc.nogc());
     // 1. Let func be ? GetV(V, P).
-    let func = o.internal_get(agent, p.unbind(), o.into_value(), gc.reborrow())?;
-    get_method_internal(agent, func, gc.into_nogc())
+    let func = o
+        .internal_get(agent, p.unbind(), o.into_value(), gc.reborrow())?
+        .unbind();
+    let gc = gc.into_nogc();
+    let func = func.bind(gc);
+    get_method_internal(agent, func, gc)
 }
 
 fn get_method_internal<'a>(
@@ -651,13 +655,13 @@ pub(crate) fn has_own_property(
 /// the this value of the [[Call]], and argumentsList is the value passed to
 /// the corresponding argument of the internal method. If argumentsList is not
 /// present, a new empty List is used as its value.
-pub(crate) fn call(
+pub(crate) fn call<'gc>(
     agent: &mut Agent,
     f: Value,
     v: Value,
     arguments_list: Option<ArgumentsList>,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
@@ -1005,7 +1009,7 @@ pub(crate) fn length_of_array_like(
         PropertyKey::from(BUILTIN_STRING_MEMORY.length),
         gc.reborrow(),
     )?;
-    to_length(agent, property, gc)
+    to_length(agent, property.unbind(), gc)
 }
 
 /// ### [7.3.18 LengthOfArrayLike ( obj )](https://tc39.es/ecma262/#sec-lengthofarraylike)
@@ -1044,17 +1048,20 @@ pub(crate) fn try_length_of_array_like(
 /// for element values of the List that is created.
 ///
 /// NOTE: This implementation doesn't yet support `elementTypes`.
-pub(crate) fn create_list_from_array_like(
+pub(crate) fn create_list_from_array_like<'gc>(
     agent: &mut Agent,
     obj: Value,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     match obj {
-        Value::Array(array) => Ok(array
-            .as_slice(agent)
-            .iter()
-            .map(|el| el.unwrap_or(Value::Undefined))
-            .collect()),
+        Value::Array(array) => {
+            let gc = gc.into_nogc();
+            Ok(array
+                .as_slice(agent)
+                .iter()
+                .map(|el| el.unwrap_or(Value::Undefined).bind(gc))
+                .collect())
+        }
         // TODO: TypedArrays
         _ if obj.is_object() => {
             let object = Object::try_from(obj).unwrap();
@@ -1075,11 +1082,12 @@ pub(crate) fn create_list_from_array_like(
                     gc.reborrow(),
                 )?;
                 // d. Append next to list.
-                list.push(next);
+                list.push(next.unbind().bind(gc.nogc()).scope(agent, gc.nogc()));
                 // e. Set index to index + 1.
             }
             // 7. Return list.
-            Ok(list)
+            let gc = gc.into_nogc();
+            Ok(list.into_iter().map(|v| v.get(agent).bind(gc)).collect())
         }
         // 2. If obj is not an Object, throw a TypeError exception.
         _ => Err(agent.throw_exception_with_static_message(
@@ -1152,13 +1160,13 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
 }
 
 /// Abstract operation Call specialized for a Function.
-pub(crate) fn call_function(
+pub(crate) fn call_function<'gc>(
     agent: &mut Agent,
     f: Function,
     v: Value,
     arguments_list: Option<ArgumentsList>,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let f = f.bind(gc.nogc());
     let arguments_list = arguments_list.unwrap_or_default();
     let current_stack_size = agent.stack_refs.borrow().len();
@@ -1193,19 +1201,19 @@ pub(crate) fn construct<'a>(
 /// the lookup point for the property and the this value of the call.
 /// argumentsList is the list of arguments values passed to the method. If
 /// argumentsList is not present, a new empty List is used as its value.
-pub(crate) fn invoke(
+pub(crate) fn invoke<'gc>(
     agent: &mut Agent,
     v: Value,
     p: PropertyKey,
     arguments_list: Option<ArgumentsList>,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. Let func be ? GetV(V, P).
     let func = get_v(agent, v, p, gc.reborrow())?;
     // 3. Return ? Call(func, V, argumentsList).
-    call(agent, func, v, Some(arguments_list), gc)
+    call(agent, func.unbind(), v, Some(arguments_list), gc)
 }
 
 /// ### [7.3.21 OrdinaryHasInstance ( C, O )](https://tc39.es/ecma262/#sec-ordinaryhasinstance)
@@ -1218,7 +1226,7 @@ pub(crate) fn invoke(
 pub(crate) fn ordinary_has_instance<'a, 'b>(
     agent: &mut Agent,
     c: impl TryInto<Function<'b>>,
-    o: impl IntoValue,
+    o: impl IntoValue<'b>,
     mut gc: GcScope,
 ) -> JsResult<bool> {
     // 1. If IsCallable(C) is false, return false.
@@ -1253,7 +1261,7 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
         ));
     };
     // 6. Repeat,
-    is_prototype_of_loop(agent, p, o, gc)
+    is_prototype_of_loop(agent, p.unbind(), o.unbind(), gc)
 }
 
 pub(crate) fn is_prototype_of_loop(
@@ -1422,11 +1430,11 @@ pub(crate) fn scoped_enumerable_own_keys<'a>(
 /// Object) and kind (KEY, VALUE, or KEY+VALUE) and returns either a normal
 /// completion containing a List of ECMAScript language values or a throw
 /// completion.
-pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
+pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
     agent: &mut Agent,
     o: Object,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     // 1. Let ownKeys be ? O.[[OwnPropertyKeys]]().
     let mut own_keys = bind_property_keys(
         unbind_property_keys(o.internal_own_property_keys(agent, gc.reborrow())?),
@@ -1517,21 +1525,26 @@ pub(crate) fn enumerable_own_properties<Kind: EnumerablePropertiesKind>(
     if broke {
         // drop the keys we already got.
         let _ = own_keys.drain(..i);
-        let own_keys = unbind_property_keys(own_keys);
-        enumerable_own_properties_slow::<Kind>(agent, o, own_keys, results, gc)
+        enumerable_own_properties_slow::<Kind>(
+            agent,
+            o.unbind(),
+            unbind_property_keys(own_keys),
+            results,
+            gc,
+        )
     } else {
         // 4. Return results.
         Ok(results)
     }
 }
 
-fn enumerable_own_properties_slow<Kind: EnumerablePropertiesKind>(
+fn enumerable_own_properties_slow<'gc, Kind: EnumerablePropertiesKind>(
     agent: &mut Agent,
     o: Object,
     own_keys: Vec<PropertyKey>,
     results: Vec<Value>,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
     let mut results = results
         .into_iter()
@@ -2028,12 +2041,16 @@ pub(crate) fn initialize_instance_elements(
 /// The abstract operation AddValueToKeyedGroup takes arguments groups (a List of Records with fields
 /// [[Key]] (an ECMAScript language value) and [[Elements]] (a List of ECMAScript language values)),
 /// key (an ECMAScript language value), and value (an ECMAScript language value) and returns UNUSED.
-pub(crate) fn add_value_to_keyed_group<'a, K: 'static + Rootable + Copy + Into<Value>>(
+pub(crate) fn add_value_to_keyed_group<
+    'gc,
+    'scope,
+    K: 'static + Rootable + Copy + for<'a> Into<Value<'a>>,
+>(
     agent: &mut Agent,
-    groups: &mut Vec<GroupByRecord<'a, K>>,
+    groups: &mut Vec<GroupByRecord<'scope, K>>,
     key: K,
     value: Value,
-    gc: NoGcScope<'_, 'a>,
+    gc: NoGcScope<'_, 'gc>,
 ) -> JsResult<()> {
     // 1. For each Record { [[Key]], [[Elements]] } g of groups, do
     for g in groups.iter_mut() {
@@ -2063,9 +2080,9 @@ pub(crate) fn add_value_to_keyed_group<'a, K: 'static + Rootable + Copy + Into<V
 }
 
 #[derive(Debug)]
-pub(crate) struct GroupByRecord<'a, K: 'static + Rootable + Copy + Into<Value>> {
-    pub(crate) key: Scoped<'a, K>,
-    pub(crate) elements: Vec<Scoped<'a, Value>>,
+pub(crate) struct GroupByRecord<'scope, K: 'static + Rootable + Copy + Into<Value<'static>>> {
+    pub(crate) key: Scoped<'scope, K>,
+    pub(crate) elements: Vec<Scoped<'scope, Value<'static>>>,
 }
 
 /// ### [7.3.35 GroupBy ( items, callback, keyCoercion )](https://tc39.es/ecma262/#sec-groupby)
@@ -2076,12 +2093,12 @@ pub(crate) struct GroupByRecord<'a, K: 'static + Rootable + Copy + Into<Value>> 
 /// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 ///
 /// Note: This version is for "property" keyCoercion.
-pub(crate) fn group_by_property<'a, 'b>(
+pub(crate) fn group_by_property<'gc, 'scope>(
     agent: &mut Agent,
     items: Value,
     callback_fn: Value,
-    mut gc: GcScope<'a, 'b>,
-) -> JsResult<Vec<GroupByRecord<'b, PropertyKey<'static>>>> {
+    mut gc: GcScope<'gc, 'scope>,
+) -> JsResult<Vec<GroupByRecord<'scope, PropertyKey<'static>>>> {
     // 1. Perform ? RequireObjectCoercible(iterable).
     require_object_coercible(agent, items, gc.nogc())?;
 
@@ -2096,7 +2113,7 @@ pub(crate) fn group_by_property<'a, 'b>(
     let callback_fn = callback_fn.bind(gc.nogc()).scope(agent, gc.nogc());
 
     // 3. Let groups be a new empty List.
-    let mut groups: Vec<GroupByRecord<'b, PropertyKey<'static>>> = vec![];
+    let mut groups: Vec<GroupByRecord<'scope, PropertyKey<'static>>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
     let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;
@@ -2170,12 +2187,12 @@ pub(crate) fn group_by_property<'a, 'b>(
 /// value) and [[Elements]] (a List of ECMAScript language values), or a throw completion.
 ///
 /// Note: This version is for "collection" keyCoercion.
-pub(crate) fn group_by_collection<'a>(
+pub(crate) fn group_by_collection<'gc, 'scope>(
     agent: &mut Agent,
     items: Value,
     callback_fn: Value,
-    mut gc: GcScope<'_, 'a>,
-) -> JsResult<Vec<GroupByRecord<'a, Value>>> {
+    mut gc: GcScope<'gc, 'scope>,
+) -> JsResult<Vec<GroupByRecord<'scope, Value<'static>>>> {
     // 1. Perform ? RequireObjectCoercible(iterable).
     require_object_coercible(agent, items, gc.nogc())?;
 
@@ -2190,7 +2207,7 @@ pub(crate) fn group_by_collection<'a>(
     let callback_fn = callback_fn.bind(gc.nogc()).scope(agent, gc.nogc());
 
     // 3. Let groups be a new empty List.
-    let mut groups: Vec<GroupByRecord<'a, Value>> = vec![];
+    let mut groups: Vec<GroupByRecord<'scope, Value<'static>>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
     let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;

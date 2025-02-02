@@ -25,13 +25,13 @@ impl Builtin for RegExpStringIteratorPrototypeNext {
         crate::ecmascript::builtins::Behaviour::Regular(RegExpStringIteratorPrototype::next);
 }
 
-impl RegExpStringIteratorPrototype {
+impl<'gc> RegExpStringIteratorPrototype {
     fn next(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 

@@ -74,9 +74,9 @@ impl RegExp<'_> {
     }
 }
 
-impl From<RegExp<'_>> for Value {
-    fn from(value: RegExp) -> Self {
-        Self::RegExp(value.unbind())
+impl<'a> From<RegExp<'a>> for Value<'a> {
+    fn from(value: RegExp<'a>) -> Self {
+        Self::RegExp(value)
     }
 }
 
@@ -97,10 +97,10 @@ impl<'a> TryFrom<Object<'a>> for RegExp<'a> {
     }
 }
 
-impl TryFrom<Value> for RegExp<'_> {
+impl<'a> TryFrom<Value<'a>> for RegExp<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::RegExp(regexp) => Ok(regexp),
             _ => Err(()),
@@ -108,8 +108,8 @@ impl TryFrom<Value> for RegExp<'_> {
     }
 }
 
-impl IntoValue for RegExp<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for RegExp<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -228,13 +228,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value
             // for lastIndex.
@@ -257,13 +257,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value

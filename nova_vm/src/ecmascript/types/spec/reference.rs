@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
@@ -30,7 +31,7 @@ pub struct Reference<'a> {
     ///
     /// The value or Environment Record which holds the binding. A \[\[Base]]
     /// of UNRESOLVABLE indicates that the binding could not be resolved.
-    pub(crate) base: Base,
+    pub(crate) base: Base<'a>,
 
     /// ### \[\[ReferencedName]]
     ///
@@ -51,7 +52,7 @@ pub struct Reference<'a> {
     /// Record and its \[\[Base]] value will never be an Environment Record. In
     /// that case, the \[\[ThisValue]] field holds the this value at the time
     /// the Reference Record was created.
-    pub(crate) this_value: Option<Value>,
+    pub(crate) this_value: Option<Value<'a>>,
 }
 
 impl<'a> Reference<'a> {
@@ -123,11 +124,11 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn get_value(
+pub(crate) fn get_value<'gc>(
     agent: &mut Agent,
     reference: &Reference,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let referenced_name = reference.referenced_name.bind(gc.nogc());
     match reference.base {
         Base::Value(value) => {
@@ -146,7 +147,7 @@ pub(crate) fn get_value(
                     agent,
                     referenced_name.unbind(),
                     get_this_value(reference),
-                    gc.reborrow(),
+                    gc,
                 )?)
             } else {
                 // Primitive value. annoying stuff.
@@ -177,7 +178,7 @@ pub(crate) fn get_value(
                         .current_realm()
                         .intrinsics()
                         .boolean_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::String(_) | Value::SmallString(_) => {
                         let string = String::try_from(value).unwrap();
                         if let Some(prop_desc) =
@@ -189,24 +190,24 @@ pub(crate) fn get_value(
                                 .current_realm()
                                 .intrinsics()
                                 .string_prototype()
-                                .internal_get(agent, referenced_name.unbind(), value, gc.reborrow())
+                                .internal_get(agent, referenced_name.unbind(), value, gc)
                         }
                     }
                     Value::Symbol(_) => agent
                         .current_realm()
                         .intrinsics()
                         .symbol_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
                         .current_realm()
                         .intrinsics()
                         .number_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::BigInt(_) | Value::SmallBigInt(_) => agent
                         .current_realm()
                         .intrinsics()
                         .big_int_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     _ => unreachable!(),
                 }
             }
@@ -221,7 +222,7 @@ pub(crate) fn get_value(
                 PropertyKey::SmallString(data) => String::SmallString(*data),
                 _ => unreachable!(),
             };
-            Ok(env.get_binding_value(agent, referenced_name, reference.strict, gc.reborrow())?)
+            Ok(env.get_binding_value(agent, referenced_name, reference.strict, gc)?)
         }
         Base::Unresolvable => {
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
@@ -471,7 +472,7 @@ pub(crate) fn try_initialize_referenced_binding<'a>(
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
 /// The abstract operation GetThisValue takes argument V (a Reference Record)
 /// and returns an ECMAScript language value.
-pub(crate) fn get_this_value(reference: &Reference) -> Value {
+pub(crate) fn get_this_value<'a>(reference: &Reference<'a>) -> Value<'a> {
     // 1. Assert: IsPropertyReference(V) is true.
     debug_assert!(is_property_reference(reference));
     // 2. If IsSuperReference(V) is true, return V.[[ThisValue]]; otherwise return V.[[Base]].
@@ -484,8 +485,8 @@ pub(crate) fn get_this_value(reference: &Reference) -> Value {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Base {
-    Value(Value),
+pub(crate) enum Base<'a> {
+    Value(Value<'a>),
     Environment(EnvironmentIndex),
     Unresolvable,
 }
@@ -516,7 +517,7 @@ impl HeapMarkAndSweep for Reference<'static> {
     }
 }
 
-impl HeapMarkAndSweep for Base {
+impl HeapMarkAndSweep for Base<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             Base::Value(value) => value.mark_values(queues),

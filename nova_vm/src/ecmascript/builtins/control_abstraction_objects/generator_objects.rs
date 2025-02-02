@@ -306,8 +306,8 @@ impl Generator<'_> {
     }
 }
 
-impl IntoValue for Generator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Generator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -318,9 +318,9 @@ impl<'a> IntoObject<'a> for Generator<'a> {
     }
 }
 
-impl From<Generator<'_>> for Value {
-    fn from(val: Generator) -> Self {
-        Value::Generator(val.unbind())
+impl<'a> From<Generator<'a>> for Value<'a> {
+    fn from(value: Generator<'a>) -> Self {
+        Value::Generator(value)
     }
 }
 
@@ -330,10 +330,10 @@ impl<'a> From<Generator<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for Generator<'_> {
+impl<'a> TryFrom<Value<'a>> for Generator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::Generator(value) = value {
             Ok(value)
         } else {
@@ -432,7 +432,7 @@ pub struct GeneratorHeapData {
 #[derive(Debug)]
 pub(crate) enum VmOrArguments {
     Vm(SuspendedVm),
-    Arguments(Box<[Value]>),
+    Arguments(Box<[Value<'static>]>),
 }
 
 #[derive(Debug)]

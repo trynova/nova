@@ -487,13 +487,13 @@ impl EnvironmentIndex {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn try_get_binding_value(
+    pub(crate) fn try_get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<Value>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<JsResult<Value<'gc>>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
@@ -515,13 +515,13 @@ impl EnvironmentIndex {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 idx.get_binding_value(agent, name, is_strict, gc.nogc())

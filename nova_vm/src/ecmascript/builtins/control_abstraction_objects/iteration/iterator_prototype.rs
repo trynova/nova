@@ -24,13 +24,13 @@ impl Builtin for IteratorPrototypeIterator {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
 }
 
-impl IteratorPrototype {
+impl<'gc> IteratorPrototype {
     fn iterator(
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

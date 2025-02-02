@@ -64,14 +64,14 @@ impl Builtin for MapGetSpecies {
 }
 impl BuiltinGetter for MapGetSpecies {}
 
-impl MapConstructor {
+impl<'gc> MapConstructor {
     fn constructor(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -148,8 +148,8 @@ impl MapConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -157,8 +157,8 @@ impl MapConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

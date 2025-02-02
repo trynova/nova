@@ -56,14 +56,14 @@ impl Builtin for DateUTC {
     const LENGTH: u8 = 7;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
-impl DateConstructor {
+impl<'gc> DateConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
             // a. Let now be the time value (UTC) identifying the current time.
@@ -129,8 +129,8 @@ impl DateConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let time_value = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -148,8 +148,8 @@ impl DateConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
@@ -158,8 +158,8 @@ impl DateConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).
         let _y = to_number(agent, arguments.get(0), gc.reborrow())?;

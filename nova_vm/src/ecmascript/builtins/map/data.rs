@@ -30,8 +30,8 @@ pub struct MapHeapData {
 pub(crate) struct MapData {
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
     // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    pub(crate) keys: Vec<Option<Value>>,
-    pub(crate) values: Vec<Option<Value>>,
+    pub(crate) keys: Vec<Option<Value<'static>>>,
+    pub(crate) values: Vec<Option<Value<'static>>>,
     /// Low-level hash table pointing to keys-values indexes.
     pub(crate) map_data: RefCell<HashTable<u32>>,
     /// Flag that lets the Map know if it needs to rehash its primitive keys.

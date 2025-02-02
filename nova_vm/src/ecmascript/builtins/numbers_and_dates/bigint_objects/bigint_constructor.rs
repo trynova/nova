@@ -59,14 +59,14 @@ impl Builtin for BigIntAsUintN {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.asUintN;
 }
 
-impl BigIntConstructor {
+impl<'gc> BigIntConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -95,8 +95,8 @@ impl BigIntConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
@@ -173,8 +173,8 @@ impl BigIntConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(

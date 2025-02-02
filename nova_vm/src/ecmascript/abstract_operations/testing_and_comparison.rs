@@ -34,11 +34,11 @@ use super::type_conversion::{
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(
+pub(crate) fn require_object_coercible<'gc>(
     agent: &mut Agent,
     argument: Value,
-    gc: NoGcScope,
-) -> JsResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     if argument.is_undefined() || argument.is_null() {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -187,7 +187,10 @@ pub(crate) fn is_extensible(agent: &mut Agent, o: Object, gc: GcScope) -> JsResu
     o.internal_is_extensible(agent, gc)
 }
 
-pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {
+pub(crate) fn is_same_type<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'a>>>(
+    x: V1,
+    y: V2,
+) -> bool {
     (x.into().is_undefined() && y.into().is_undefined())
         || (x.into().is_null() && y.into().is_null())
         || (x.into().is_boolean() && y.into().is_boolean())
@@ -199,9 +202,9 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
 }
 
 /// ### [7.2.6 IsIntegralNumber ( argument )](https://tc39.es/ecma262/#sec-isintegralnumber)
-pub(crate) fn is_integral_number(
+pub(crate) fn is_integral_number<'a>(
     agent: &mut Agent,
-    argument: impl Copy + Into<Value>,
+    argument: impl Copy + Into<Value<'a>>,
     gc: GcScope,
 ) -> bool {
     let argument = argument.into();
@@ -230,7 +233,7 @@ pub(crate) fn is_integral_number(
 }
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
-pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
+pub(crate) fn same_value<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value<'a>>>(
     agent: &impl PrimitiveHeapIndexable,
     x: V1,
     y: V2,
@@ -259,10 +262,10 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
 /// It determines whether or not the two arguments are the same value (ignoring
 /// the difference between +0𝔽 and -0𝔽). It performs the following steps when
 /// called:
-pub(crate) fn same_value_zero(
+pub(crate) fn same_value_zero<'a>(
     agent: &impl PrimitiveHeapIndexable,
-    x: impl Copy + Into<Value>,
-    y: impl Copy + Into<Value>,
+    x: impl Copy + Into<Value<'a>>,
+    y: impl Copy + Into<Value<'a>>,
 ) -> bool {
     let (x, y) = (Into::<Value>::into(x), Into::<Value>::into(y));
 
@@ -284,7 +287,7 @@ pub(crate) fn same_value_zero(
 }
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
-pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(
+pub(crate) fn same_value_non_number<'a, T: Copy + Into<Value<'a>>>(
     agent: &impl PrimitiveHeapIndexable,
     x: T,
     y: T,
@@ -337,10 +340,10 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(
 /// corresponds to an expression that occurs to the left of the y parameter's
 /// corresponding expression. If LeftFirst is false, the reverse is the case
 /// and operations must be performed upon y before x.
-pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
+pub(crate) fn is_less_than<'a, const LEFT_FIRST: bool>(
     agent: &mut Agent,
-    x: impl Into<Value> + Copy,
-    y: impl Into<Value> + Copy,
+    x: impl Into<Value<'a>> + Copy,
+    y: impl Into<Value<'a>> + Copy,
     mut gc: GcScope,
 ) -> JsResult<Option<bool>> {
     let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
@@ -541,10 +544,10 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
 /// language value) and y (an ECMAScript language value) and returns either a
 /// normal completion containing a Boolean or a throw completion. It provides
 /// the semantics for the == operator.
-pub(crate) fn is_loosely_equal(
+pub(crate) fn is_loosely_equal<'a>(
     agent: &mut Agent,
-    x: impl Into<Value> + Copy,
-    y: impl Into<Value> + Copy,
+    x: impl Into<Value<'a>> + Copy,
+    y: impl Into<Value<'a>> + Copy,
     mut gc: GcScope,
 ) -> JsResult<bool> {
     let x: Value = x.into();
@@ -675,10 +678,10 @@ pub(crate) fn is_loosely_equal(
 /// The abstract operation IsStrictlyEqual takes arguments x (an ECMAScript
 /// language value) and y (an ECMAScript language value) and returns a Boolean.
 /// It provides the semantics for the === operator.
-pub(crate) fn is_strictly_equal(
+pub(crate) fn is_strictly_equal<'a>(
     agent: &Agent,
-    x: impl Into<Value> + Copy,
-    y: impl Into<Value> + Copy,
+    x: impl Into<Value<'a>> + Copy,
+    y: impl Into<Value<'a>> + Copy,
 ) -> bool {
     let (x, y) = (x.into(), y.into());
 

@@ -87,7 +87,7 @@ impl Builtin for ArrayBufferPrototypeTransferToFixedLength {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::transfer_to_fixed_length);
 }
 
-impl ArrayBufferPrototype {
+impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.1 get ArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.bytelength)
     ///
     /// ArrayBuffer.prototype.byteLength is an accessor property whose set
@@ -96,8 +96,8 @@ impl ArrayBufferPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -118,8 +118,8 @@ impl ArrayBufferPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -135,8 +135,8 @@ impl ArrayBufferPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -157,8 +157,8 @@ impl ArrayBufferPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
@@ -174,8 +174,8 @@ impl ArrayBufferPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let new_length = arguments.get(0);
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
@@ -240,8 +240,8 @@ impl ArrayBufferPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let start = arguments.get(0);
         let end = arguments.get(1);
         // 1. Let O be the this value.
@@ -366,8 +366,8 @@ impl ArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, preserve-resizability).
         todo!()
@@ -380,8 +380,8 @@ impl ArrayBufferPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, fixed-length).
         todo!()

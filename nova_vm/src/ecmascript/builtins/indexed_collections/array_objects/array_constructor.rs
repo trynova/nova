@@ -91,15 +91,15 @@ impl Builtin for ArrayGetSpecies {
 impl BuiltinGetter for ArrayGetSpecies {}
 
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
-impl ArrayConstructor {
+impl<'gc> ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
             || agent.running_execution_context().function.unwrap(),
@@ -226,8 +226,8 @@ impl ArrayConstructor {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let items = arguments.get(0);
         let mapfn = arguments.get(1);
         let this_arg = arguments.get(2);
@@ -464,8 +464,8 @@ impl ArrayConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         is_array(agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
     }
 
@@ -474,8 +474,8 @@ impl ArrayConstructor {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let len be the number of elements in items.
         let len = arguments.len();
 
@@ -540,8 +540,8 @@ impl ArrayConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

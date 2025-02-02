@@ -59,14 +59,14 @@ impl Builtin for StringRaw {
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
-impl StringConstructor {
+impl<'gc> StringConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If value is not present, then
         let s = if arguments.is_empty() {
             // a. Let s be the empty String.
@@ -133,8 +133,8 @@ impl StringConstructor {
         agent: &mut Agent,
         _this_value: Value,
         code_units: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let result be the empty String.
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
@@ -172,8 +172,8 @@ impl StringConstructor {
         agent: &mut Agent,
         _this_value: Value,
         code_points: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
             return Ok(String::EMPTY_STRING.into_value());
@@ -234,8 +234,8 @@ impl StringConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 

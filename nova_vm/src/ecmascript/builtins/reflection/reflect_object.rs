@@ -149,14 +149,14 @@ impl Builtin for ReflectObjectSetPrototypeOf {
         crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::set_prototype_of);
 }
 
-impl ReflectObject {
+impl<'gc> ReflectObject {
     /// [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
     fn apply(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let this_argument = arguments.get(1);
         let arguments_list = arguments.get(2);
@@ -188,8 +188,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let arguments_list = arguments.get(1);
 
@@ -236,8 +236,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut attributes = arguments.get(2);
@@ -302,8 +302,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
@@ -340,8 +340,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut receiver = if arguments.len() > 2 {
@@ -389,8 +389,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
@@ -433,8 +433,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -458,8 +458,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
@@ -498,8 +498,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -521,8 +521,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -553,8 +553,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -576,8 +576,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut v = arguments.get(2);
@@ -628,8 +628,8 @@ impl ReflectObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let proto = arguments.get(1);
 

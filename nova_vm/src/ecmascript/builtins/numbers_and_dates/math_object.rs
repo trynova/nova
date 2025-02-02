@@ -368,13 +368,13 @@ impl Builtin for MathObjectSumPrecise {
         crate::ecmascript::builtins::Behaviour::Regular(MathObject::sum_precise);
 }
 
-impl MathObject {
+impl<'gc> MathObject {
     fn abs(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
         Ok(n.abs(agent).into_value())
     }
@@ -383,8 +383,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
@@ -397,8 +397,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -423,8 +423,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -448,8 +448,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -467,8 +467,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -496,8 +496,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -531,8 +531,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let ny be ? ToNumber(y).
         let ny = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
         // 2. Let nx be ? ToNumber(x).
@@ -674,8 +674,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.unbind();
         let gc = gc.into_nogc();
@@ -694,8 +694,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = arguments.get(0);
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
@@ -730,8 +730,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToUint32(x).
         let n = to_uint32(agent, arguments.get(0), gc.reborrow())?;
 
@@ -746,8 +746,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
 
@@ -769,8 +769,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
 
@@ -797,8 +797,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         //1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -827,8 +827,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -856,8 +856,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = arguments.get(0);
 
         // 4. If n is an integral Number, return n.
@@ -893,8 +893,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -926,8 +926,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let coerced be a new empty List.
 
         // 2. For each element arg of args, do
@@ -984,8 +984,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let a be ℝ(? ToUint32(x)).
         let a = to_uint32(agent, arguments.get(0), gc.reborrow())?;
 
@@ -1003,8 +1003,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1037,8 +1037,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1062,8 +1062,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1092,8 +1092,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1121,8 +1121,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if arguments.is_empty() {
             return Ok(Value::neg_inf());
         }
@@ -1220,8 +1220,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if arguments.is_empty() {
             return Ok(Value::pos_inf());
         }
@@ -1321,8 +1321,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let base = arguments.get(0);
         let exponent = arguments.get(1);
         let (base, exponent) = if let (Ok(base), Ok(exponent)) =
@@ -1378,8 +1378,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(Value::from_f64(
             agent,
             rand::random::<f64>(),
@@ -1391,8 +1391,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = arguments.get(0);
         if n.is_integer() {
             return Ok(n);
@@ -1425,8 +1425,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
@@ -1445,8 +1445,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1466,8 +1466,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1483,8 +1483,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1504,8 +1504,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1525,8 +1525,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
@@ -1550,8 +1550,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);

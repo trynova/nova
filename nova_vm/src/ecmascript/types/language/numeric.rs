@@ -110,8 +110,8 @@ impl<'a> Numeric<'a> {
     }
 }
 
-impl IntoValue for Numeric<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Numeric<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Numeric::Number(data) => Value::Number(data.unbind()),
             Numeric::Integer(data) => Value::Integer(data),
@@ -134,8 +134,8 @@ impl<'a> IntoPrimitive<'a> for Numeric<'a> {
     }
 }
 
-impl From<Numeric<'_>> for Value {
-    fn from(value: Numeric<'_>) -> Self {
+impl<'a> From<Numeric<'a>> for Value<'a> {
+    fn from(value: Numeric<'a>) -> Self {
         value.into_value()
     }
 }
@@ -146,10 +146,10 @@ impl<'a> From<Numeric<'a>> for Primitive<'a> {
     }
 }
 
-impl TryFrom<Value> for Numeric<'_> {
+impl<'a> TryFrom<Value<'a>> for Numeric<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
             Value::Integer(data) => Ok(Numeric::Integer(data)),

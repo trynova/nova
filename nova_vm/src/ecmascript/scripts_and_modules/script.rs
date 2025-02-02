@@ -248,7 +248,11 @@ pub fn parse_script(
 /// The abstract operation ScriptEvaluation takes argument scriptRecord (a
 /// Script Record) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub fn script_evaluation(agent: &mut Agent, script: Script, mut gc: GcScope) -> JsResult<Value> {
+pub fn script_evaluation<'gc>(
+    agent: &mut Agent,
+    script: Script,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let realm_id = script.realm;
     let is_strict_mode = script.ecmascript_code.source_type.is_strict();
     let source_code = script.source_code;

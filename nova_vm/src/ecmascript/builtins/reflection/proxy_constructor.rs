@@ -37,15 +37,15 @@ impl Builtin for ProxyRevocable {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ProxyConstructor::revocable);
 }
 
-impl ProxyConstructor {
+impl<'gc> ProxyConstructor {
     /// ### [28.2.1.1 Proxy ( target, handler )](https://tc39.es/ecma262/#sec-proxy-target-handler)
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         let target = arguments.get(0);
         let handler = arguments.get(1);
@@ -65,8 +65,8 @@ impl ProxyConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

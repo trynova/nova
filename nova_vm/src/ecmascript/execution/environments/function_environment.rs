@@ -40,7 +40,7 @@ pub(crate) struct FunctionEnvironment {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
-    pub(crate) this_value: Option<Value>,
+    pub(crate) this_value: Option<Value<'static>>,
 
     /// ### \[\[ThisBindingStatus\]\]
     ///
@@ -220,7 +220,11 @@ impl FunctionEnvironmentIndex {
     /// The GetThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing an ECMAScript language value or a throw completion.
-    pub(crate) fn get_this_binding(self, agent: &mut Agent, gc: NoGcScope) -> JsResult<Value> {
+    pub(crate) fn get_this_binding<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
         // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
         // 3. Return envRec.[[ThisValue]].
@@ -342,13 +346,13 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         agent[self]
             .declarative_environment
             .get_binding_value(agent, name, is_strict, gc)
@@ -373,12 +377,12 @@ impl FunctionEnvironmentIndex {
     /// envRec takes argument V (an ECMAScript language value) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    pub(crate) fn bind_this_value(
+    pub(crate) fn bind_this_value<'gc>(
         self,
         agent: &mut Agent,
         value: Value,
-        gc: NoGcScope,
-    ) -> JsResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let env_rec = &mut agent[self];
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);

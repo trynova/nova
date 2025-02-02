@@ -40,14 +40,14 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Function;
 }
 
-impl FunctionConstructor {
+impl<'gc> FunctionConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into_value())

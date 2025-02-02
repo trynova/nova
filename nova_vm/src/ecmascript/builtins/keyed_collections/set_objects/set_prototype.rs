@@ -86,14 +86,14 @@ impl BuiltinIntrinsic for SetPrototypeValues {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::SetPrototypeValues;
 }
 
-impl SetPrototype {
+impl<'gc> SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
     fn add(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -154,8 +154,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -179,8 +179,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -230,8 +230,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, KEY+VALUE).
 
@@ -279,8 +279,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
@@ -336,8 +336,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -384,8 +384,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -400,8 +400,8 @@ impl SetPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, VALUE).
 

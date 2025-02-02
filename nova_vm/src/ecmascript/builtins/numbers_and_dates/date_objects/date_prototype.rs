@@ -297,13 +297,13 @@ impl Builtin for DatePrototypeToPrimitive {
 
 const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
 
-impl DatePrototype {
+impl<'gc> DatePrototype {
     fn get_date(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -312,8 +312,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -322,8 +322,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -332,8 +332,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -342,8 +342,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -352,8 +352,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -362,8 +362,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -372,8 +372,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -382,8 +382,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -392,8 +392,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -402,8 +402,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -412,8 +412,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -422,8 +422,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -432,8 +432,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -442,8 +442,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -452,8 +452,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -462,8 +462,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -472,8 +472,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -482,8 +482,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -492,8 +492,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -502,8 +502,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -512,8 +512,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -522,8 +522,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -532,8 +532,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -542,8 +542,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -552,8 +552,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -562,8 +562,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -572,8 +572,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -582,8 +582,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -592,8 +592,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -602,8 +602,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -612,8 +612,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -622,8 +622,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -632,8 +632,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -642,8 +642,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -652,8 +652,8 @@ impl DatePrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -661,8 +661,8 @@ impl DatePrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -670,8 +670,8 @@ impl DatePrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -679,8 +679,8 @@ impl DatePrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -688,8 +688,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -698,8 +698,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -708,8 +708,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _date_object = check_date_object(agent, this_value, gc.nogc())?;
         todo!()
     }
@@ -718,8 +718,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let date_object = check_date_object(agent, this_value, gc.nogc())?;
         let data = &agent[date_object].date;
         match data {
@@ -773,8 +773,8 @@ impl DatePrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let hint = arguments.get(0);
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.

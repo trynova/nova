@@ -54,15 +54,15 @@ impl Builtin for ArrayBufferGetSpecies {
 }
 impl BuiltinGetter for ArrayBufferGetSpecies {}
 
-impl ArrayBufferConstructor {
+impl<'gc> ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -95,8 +95,8 @@ impl ArrayBufferConstructor {
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If arg is not an Object, return false.
         // 2. If arg has a [[ViewedArrayBuffer]] internal slot, return true.
         // 3. Return false.
@@ -133,8 +133,8 @@ impl ArrayBufferConstructor {
         _agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Return the this value.
         // The value of the "name" property of this function is "get [Symbol.species]".
         Ok(this_value)

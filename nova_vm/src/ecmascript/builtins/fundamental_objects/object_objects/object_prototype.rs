@@ -80,13 +80,13 @@ impl Builtin for ObjectPrototypeValueOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ObjectPrototype::value_of);
 }
 
-impl ObjectPrototype {
+impl<'gc> ObjectPrototype {
     fn has_own_property(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let p = to_property_key(agent, arguments.get(0), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
@@ -98,8 +98,8 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let v = arguments.get(0);
         let Ok(v) = Object::try_from(v) else {
             return Ok(false.into());
@@ -113,8 +113,8 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let p = to_property_key(agent, arguments.get(0), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
@@ -133,8 +133,8 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
         invoke(agent, o, p, None, gc.reborrow())
@@ -144,8 +144,8 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match this_value {
             // 1. If the this value is undefined, return "[object Undefined]".
             Value::Undefined => Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
@@ -245,8 +245,8 @@ impl ObjectPrototype {
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         to_object(agent, this_value, gc.nogc()).map(|result| result.into_value())
     }
 

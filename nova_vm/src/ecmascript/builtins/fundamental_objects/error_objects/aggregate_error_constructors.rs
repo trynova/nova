@@ -38,14 +38,14 @@ impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AggregateError;
 }
 
-impl AggregateErrorConstructor {
+impl<'gc> AggregateErrorConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let errors = arguments.get(0);
         let message = arguments.get(1);
         let options = arguments.get(2);

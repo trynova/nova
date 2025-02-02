@@ -321,8 +321,8 @@ impl AsyncGenerator<'_> {
     }
 }
 
-impl IntoValue for AsyncGenerator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for AsyncGenerator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -333,9 +333,9 @@ impl<'a> IntoObject<'a> for AsyncGenerator<'a> {
     }
 }
 
-impl From<AsyncGenerator<'_>> for Value {
-    fn from(val: AsyncGenerator) -> Self {
-        Value::AsyncGenerator(val.unbind())
+impl<'a> From<AsyncGenerator<'a>> for Value<'a> {
+    fn from(value: AsyncGenerator<'a>) -> Self {
+        Value::AsyncGenerator(value)
     }
 }
 
@@ -345,10 +345,10 @@ impl<'a> From<AsyncGenerator<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for AsyncGenerator<'_> {
+impl<'a> TryFrom<Value<'a>> for AsyncGenerator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::AsyncGenerator(value) = value {
             Ok(value)
         } else {
@@ -447,7 +447,7 @@ pub(crate) enum AsyncGeneratorAwaitKind {
 #[derive(Debug)]
 pub(crate) enum AsyncGeneratorState {
     SuspendedStart {
-        arguments: Box<[Value]>,
+        arguments: Box<[Value<'static>]>,
         execution_context: ExecutionContext,
         queue: VecDeque<AsyncGeneratorRequest>,
     },
@@ -511,16 +511,16 @@ impl AsyncGeneratorState {
 #[derive(Debug)]
 pub(crate) struct AsyncGeneratorRequest {
     /// \[\[Completion]]
-    pub(crate) completion: AsyncGeneratorRequestCompletion,
+    pub(crate) completion: AsyncGeneratorRequestCompletion<'static>,
     /// \[\[Capability]]
     pub(crate) capability: PromiseCapability,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum AsyncGeneratorRequestCompletion {
-    Ok(Value),
+pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
+    Ok(Value<'a>),
     Err(JsError),
-    Return(Value),
+    Return(Value<'a>),
 }
 
 impl Rootable for AsyncGenerator<'_> {

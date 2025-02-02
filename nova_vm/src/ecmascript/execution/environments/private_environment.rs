@@ -13,7 +13,7 @@ use super::PrivateEnvironmentIndex;
 
 #[derive(Debug)]
 pub enum PrivateName {
-    Field(Option<Value>),
+    Field(Option<Value<'static>>),
     Method(Option<Function<'static>>),
     /// Accessor(get, set)
     Accessor(Option<Function<'static>>, Option<Function<'static>>),

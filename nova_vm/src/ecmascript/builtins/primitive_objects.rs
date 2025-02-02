@@ -52,9 +52,9 @@ impl<'a> From<PrimitiveObject<'a>> for Object<'a> {
     }
 }
 
-impl From<PrimitiveObject<'_>> for Value {
-    fn from(value: PrimitiveObject) -> Self {
-        Self::PrimitiveObject(value.unbind())
+impl<'a> From<PrimitiveObject<'a>> for Value<'a> {
+    fn from(value: PrimitiveObject<'a>) -> Self {
+        Self::PrimitiveObject(value)
     }
 }
 
@@ -64,8 +64,8 @@ impl<'a> IntoObject<'a> for PrimitiveObject<'a> {
     }
 }
 
-impl IntoValue for PrimitiveObject<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for PrimitiveObject<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -81,10 +81,10 @@ impl<'a> TryFrom<Object<'a>> for PrimitiveObject<'a> {
     }
 }
 
-impl TryFrom<Value> for PrimitiveObject<'_> {
+impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::PrimitiveObject(obj) => Ok(obj),
             _ => Err(()),
@@ -358,13 +358,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
                 return TryResult::Continue(string_desc.value.unwrap());
@@ -389,13 +389,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {

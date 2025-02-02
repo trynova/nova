@@ -45,13 +45,13 @@ impl Builtin for BigIntPrototypeValueOf {
         crate::ecmascript::builtins::Behaviour::Regular(BigIntPrototype::value_of);
 }
 
-impl BigIntPrototype {
+impl<'gc> BigIntPrototype {
     fn to_locale_string(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
@@ -59,8 +59,8 @@ impl BigIntPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _x = this_big_int_value(agent, this_value, gc.nogc())?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
@@ -75,8 +75,8 @@ impl BigIntPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value())
     }
 

@@ -75,8 +75,8 @@ impl<'a> From<ECMAScriptFunctionIndex<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl IntoValue for ECMAScriptFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for ECMAScriptFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -93,10 +93,10 @@ impl<'a> IntoFunction<'a> for ECMAScriptFunction<'a> {
     }
 }
 
-impl TryFrom<Value> for ECMAScriptFunction<'_> {
+impl<'a> TryFrom<Value<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -129,15 +129,15 @@ impl<'a> TryFrom<Function<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl From<ECMAScriptFunction<'_>> for Value {
-    fn from(val: ECMAScriptFunction) -> Self {
-        Value::ECMAScriptFunction(val.unbind())
+impl<'a> From<ECMAScriptFunction<'a>> for Value<'a> {
+    fn from(value: ECMAScriptFunction<'a>) -> Self {
+        Value::ECMAScriptFunction(value)
     }
 }
 
 impl<'a> From<ECMAScriptFunction<'a>> for Object<'a> {
-    fn from(val: ECMAScriptFunction) -> Self {
-        Object::ECMAScriptFunction(val.unbind())
+    fn from(value: ECMAScriptFunction<'a>) -> Self {
+        Object::ECMAScriptFunction(value)
     }
 }
 
@@ -434,23 +434,23 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -500,13 +500,13 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     /// `argumentsList` (a List of ECMAScript language values) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
@@ -776,12 +776,12 @@ pub(crate) fn ordinary_call_bind_this(
 /// (an ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn evaluate_body(
+pub(crate) fn evaluate_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
@@ -847,12 +847,12 @@ pub(crate) fn evaluate_body(
 /// ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn ordinary_call_evaluate_body(
+pub(crate) fn ordinary_call_evaluate_body<'gc>(
     agent: &mut Agent,
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
     evaluate_body(agent, f, arguments_list, gc)
 }

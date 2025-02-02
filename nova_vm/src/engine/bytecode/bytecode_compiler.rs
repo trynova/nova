@@ -53,7 +53,7 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
-    constants: Vec<Value>,
+    constants: Vec<Value<'gc>>,
     /// Function expressions being built
     function_expressions: Vec<FunctionExpression>,
     /// Arrow function expressions being built
@@ -231,7 +231,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     pub(super) fn finish(self) -> Executable {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
-            constants: self.constants.into_boxed_slice(),
+            constants: self.constants.iter().map(|v| v.unbind()).collect(),
             function_expressions: self.function_expressions.into_boxed_slice(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
             class_initializer_bytecodes: self.class_initializer_bytecodes.into_boxed_slice(),
@@ -303,7 +303,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         }
     }
 
-    fn add_constant(&mut self, constant: Value) -> usize {
+    fn add_constant(&mut self, constant: Value<'gc>) -> usize {
         let duplicate = self
             .constants
             .iter()
@@ -318,7 +318,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         })
     }
 
-    fn add_identifier(&mut self, identifier: String) -> usize {
+    fn add_identifier(&mut self, identifier: String<'gc>) -> usize {
         let duplicate = self
             .constants
             .iter()
@@ -342,7 +342,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     fn add_instruction_with_constant(
         &mut self,
         instruction: Instruction,
-        constant: impl Into<Value>,
+        constant: impl Into<Value<'gc>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_constant_index());
@@ -367,7 +367,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         &mut self,
         instruction: Instruction,
         identifier: String<'gc>,
-        constant: impl Into<Value>,
+        constant: impl Into<Value<'gc>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
