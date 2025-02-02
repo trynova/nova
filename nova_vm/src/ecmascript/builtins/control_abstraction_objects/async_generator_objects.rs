@@ -85,38 +85,43 @@ impl AsyncGenerator<'_> {
     }
 
     pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
-        matches!(
-            agent[self].async_generator_state.as_ref().unwrap(),
-            AsyncGeneratorState::DrainingQueue(_)
-        )
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_draining_queue()
     }
 
     pub(crate) fn is_executing(self, agent: &Agent) -> bool {
-        matches!(
-            agent[self].async_generator_state.as_ref().unwrap(),
-            AsyncGeneratorState::Executing(_)
-        )
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_executing()
     }
 
     pub(crate) fn is_suspended_start(self, agent: &Agent) -> bool {
-        matches!(
-            &agent[self].async_generator_state,
-            Some(AsyncGeneratorState::SuspendedStart { .. })
-        )
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_suspended_start()
     }
 
     pub(crate) fn is_suspended_yield(self, agent: &Agent) -> bool {
-        matches!(
-            &agent[self].async_generator_state,
-            Some(AsyncGeneratorState::SuspendedYield { .. })
-        )
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_suspended_yield()
     }
 
     pub(crate) fn is_completed(self, agent: &Agent) -> bool {
-        matches!(
-            &agent[self].async_generator_state,
-            Some(AsyncGeneratorState::Completed)
-        )
+        agent[self]
+            .async_generator_state
+            .as_ref()
+            .unwrap()
+            .is_completed()
     }
 
     pub(crate) fn queue_is_empty(self, agent: &Agent) -> bool {
@@ -469,6 +474,14 @@ impl AsyncGeneratorState {
         matches!(self, Self::Completed)
     }
 
+    pub(crate) fn is_draining_queue(&self) -> bool {
+        matches!(self, AsyncGeneratorState::DrainingQueue(_))
+    }
+
+    pub(crate) fn is_executing(&self) -> bool {
+        matches!(self, AsyncGeneratorState::Executing(_))
+    }
+
     pub(crate) fn is_suspended(&self) -> bool {
         matches!(
             self,
@@ -476,15 +489,19 @@ impl AsyncGeneratorState {
         )
     }
 
+    pub(crate) fn is_suspended_start(&self) -> bool {
+        matches!(self, AsyncGeneratorState::SuspendedStart { .. })
+    }
+
+    pub(crate) fn is_suspended_yield(&self) -> bool {
+        matches!(self, AsyncGeneratorState::SuspendedYield { .. })
+    }
+
     pub(crate) fn is_active(&self) -> bool {
         matches!(
             self,
             Self::Awaiting { .. } | Self::Executing { .. } | Self::DrainingQueue(_)
         )
-    }
-
-    pub(crate) fn is_draining(&self) -> bool {
-        matches!(self, Self::DrainingQueue(_))
     }
 }
 
