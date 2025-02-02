@@ -15,7 +15,7 @@ use crate::{
             Promise,
         },
         execution::{
-            agent::{ExceptionType, JsError, PromiseRejectionTrackerOperation},
+            agent::{ExceptionType, PromiseRejectionTrackerOperation},
             Agent, JsResult,
         },
         types::{Function, IntoValue, Object, Value, BUILTIN_STRING_MEMORY},
@@ -341,12 +341,12 @@ pub(crate) fn if_abrupt_reject_promise<T>(
     agent: &mut Agent,
     value: JsResult<T>,
     capability: PromiseCapability,
-) -> JsResult<T> {
+) -> Result<T, Promise> {
     value.map_err(|err| {
         capability.reject(agent, err.value());
 
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator
-        JsError::new(capability.promise().into_value())
+        capability.promise()
     })
 }

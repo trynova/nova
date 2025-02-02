@@ -66,7 +66,12 @@ impl AsyncGeneratorPrototype {
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = if_abrupt_reject_promise(agent, result, promise_capability)?;
+        let generator = match if_abrupt_reject_promise(agent, result, promise_capability) {
+            Ok(g) => g,
+            Err(p) => {
+                return Ok(p.into_value());
+            }
+        };
         // 5. Let state be generator.[[AsyncGeneratorState]].
         let state = agent[generator].async_generator_state.as_ref().unwrap();
         // 6. If state is completed, then
@@ -114,7 +119,12 @@ impl AsyncGeneratorPrototype {
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = if_abrupt_reject_promise(agent, result, promise_capability)?;
+        let generator = match if_abrupt_reject_promise(agent, result, promise_capability) {
+            Ok(g) => g,
+            Err(p) => {
+                return Ok(p.into_value());
+            }
+        };
         // 5. Let completion be ReturnCompletion(value).
         let completion = AsyncGeneratorRequestCompletion::Return(value);
         // 6. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
@@ -161,7 +171,12 @@ impl AsyncGeneratorPrototype {
         // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
         let result = async_generator_validate(agent, generator, (), gc.nogc());
         // 4. IfAbruptRejectPromise(result, promiseCapability).
-        let generator = if_abrupt_reject_promise(agent, result, promise_capability)?;
+        let generator = match if_abrupt_reject_promise(agent, result, promise_capability) {
+            Ok(g) => g,
+            Err(p) => {
+                return Ok(p.into_value());
+            }
+        };
         // 5. Let state be generator.[[AsyncGeneratorState]].
         // 6. If state is suspended-start, then
         let mut completed = false;
