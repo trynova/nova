@@ -22,7 +22,7 @@ use crate::{
             generator_objects::VmOrArguments,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics, RealmIdentifier},
+        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
