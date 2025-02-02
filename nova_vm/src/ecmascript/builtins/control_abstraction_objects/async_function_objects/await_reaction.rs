@@ -70,10 +70,19 @@ impl AwaitReactionIdentifier {
         // 5. d. Resume the suspended evaluation of asyncContext using ThrowCompletion(reason) as the result of the operation that suspended it.
         let vm = agent[self].vm.take().unwrap();
         let async_function = agent[self].async_function.unwrap();
-        let executable = agent[async_function].compiled_bytecode.unwrap();
         let execution_result = match reaction_type {
-            PromiseReactionType::Fulfill => vm.resume(agent, executable, value, gc.reborrow()),
-            PromiseReactionType::Reject => vm.resume_throw(agent, executable, value, gc.reborrow()),
+            PromiseReactionType::Fulfill => vm.resume(
+                agent,
+                async_function.get_executable(agent),
+                value,
+                gc.reborrow(),
+            ),
+            PromiseReactionType::Reject => vm.resume_throw(
+                agent,
+                async_function.get_executable(agent),
+                value,
+                gc.reborrow(),
+            ),
         };
 
         match execution_result {

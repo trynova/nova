@@ -28,6 +28,7 @@ use crate::ecmascript::builtins::{
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::ecmascript::{
     builtins::{
+        async_generator_objects::AsyncGenerator,
         bound_function::BoundFunction,
         control_abstraction_objects::{
             async_function_objects::await_reaction::AwaitReactionIdentifier,
@@ -67,6 +68,7 @@ pub struct HeapBits {
     pub array_buffers: Box<[bool]>,
     pub arrays: Box<[bool]>,
     pub array_iterators: Box<[bool]>,
+    pub async_generators: Box<[bool]>,
     pub await_reactions: Box<[bool]>,
     pub bigints: Box<[bool]>,
     pub bound_functions: Box<[bool]>,
@@ -133,6 +135,7 @@ pub(crate) struct WorkQueues {
     pub array_buffers: Vec<ArrayBuffer<'static>>,
     pub arrays: Vec<Array<'static>>,
     pub array_iterators: Vec<ArrayIterator<'static>>,
+    pub async_generators: Vec<AsyncGenerator<'static>>,
     pub await_reactions: Vec<AwaitReactionIdentifier>,
     pub bigints: Vec<HeapBigInt<'static>>,
     pub bound_functions: Vec<BoundFunction<'static>>,
@@ -199,6 +202,7 @@ impl HeapBits {
         let array_buffers = vec![false; heap.array_buffers.len()];
         let arrays = vec![false; heap.arrays.len()];
         let array_iterators = vec![false; heap.array_iterators.len()];
+        let async_generators = vec![false; heap.async_generators.len()];
         let await_reactions = vec![false; heap.await_reactions.len()];
         let bigints = vec![false; heap.bigints.len()];
         let bound_functions = vec![false; heap.bound_functions.len()];
@@ -262,6 +266,7 @@ impl HeapBits {
             array_buffers: array_buffers.into_boxed_slice(),
             arrays: arrays.into_boxed_slice(),
             array_iterators: array_iterators.into_boxed_slice(),
+            async_generators: async_generators.into_boxed_slice(),
             await_reactions: await_reactions.into_boxed_slice(),
             bigints: bigints.into_boxed_slice(),
             bound_functions: bound_functions.into_boxed_slice(),
@@ -331,6 +336,7 @@ impl WorkQueues {
             array_buffers: Vec::with_capacity(heap.array_buffers.len() / 4),
             arrays: Vec::with_capacity(heap.arrays.len() / 4),
             array_iterators: Vec::with_capacity(heap.array_iterators.len() / 4),
+            async_generators: Vec::with_capacity(heap.async_generators.len() / 4),
             await_reactions: Vec::with_capacity(heap.await_reactions.len() / 4),
             bigints: Vec::with_capacity(heap.bigints.len() / 4),
             bound_functions: Vec::with_capacity(heap.bound_functions.len() / 4),
@@ -423,6 +429,7 @@ impl WorkQueues {
             array_buffers,
             arrays,
             array_iterators,
+            async_generators,
             await_reactions,
             bigints,
             bound_functions,
@@ -508,6 +515,7 @@ impl WorkQueues {
         array_buffers.is_empty()
             && arrays.is_empty()
             && array_iterators.is_empty()
+            && async_generators.is_empty()
             && await_reactions.is_empty()
             && bigints.is_empty()
             && bound_functions.is_empty()
@@ -716,6 +724,7 @@ pub(crate) struct CompactionLists {
     pub array_buffers: CompactionList,
     pub arrays: CompactionList,
     pub array_iterators: CompactionList,
+    pub async_generators: CompactionList,
     pub await_reactions: CompactionList,
     pub bigints: CompactionList,
     pub bound_functions: CompactionList,
@@ -809,6 +818,7 @@ impl CompactionLists {
             #[cfg(feature = "array-buffer")]
             array_buffers: CompactionList::from_mark_bits(&bits.array_buffers),
             array_iterators: CompactionList::from_mark_bits(&bits.array_iterators),
+            async_generators: CompactionList::from_mark_bits(&bits.async_generators),
             await_reactions: CompactionList::from_mark_bits(&bits.await_reactions),
             bigints: CompactionList::from_mark_bits(&bits.bigints),
             bound_functions: CompactionList::from_mark_bits(&bits.bound_functions),
