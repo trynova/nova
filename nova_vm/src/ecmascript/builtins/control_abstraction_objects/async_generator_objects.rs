@@ -83,11 +83,6 @@ impl AsyncGenerator<'_> {
         self.0.into_index()
     }
 
-    pub(crate) fn get_realm(self, agent: &Agent) -> Option<RealmIdentifier> {
-        println!("{:#?}", agent[self].async_generator_state);
-        None
-    }
-
     pub(crate) fn is_draining_queue(self, agent: &Agent) -> bool {
         matches!(
             agent[self].async_generator_state.as_ref().unwrap(),
