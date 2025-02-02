@@ -4,8 +4,8 @@
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::create_iter_result_object;
 use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
-use crate::ecmascript::builtins::generator_objects::VmOrArguments;
-use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{self, if_abrupt_reject_promise, PromiseCapability};
+use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, PromiseCapability};
+use crate::ecmascript::execution::agent::JsError;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -105,9 +105,9 @@ impl AsyncGeneratorPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope,
     ) -> JsResult<Value> {
-        let value = arguments.get(0);
+        let value = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
-        let generator = this_value;
+        let generator = this_value.bind(gc.nogc());
         // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
         let promise_capability = PromiseCapability::new(agent);
         let promise = promise_capability.promise().bind(gc.nogc());
@@ -145,13 +145,56 @@ impl AsyncGeneratorPrototype {
         }
     }
 
+    /// ### [27.6.1.4 %AsyncGeneratorPrototype%.throw ( exception )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-throw)
     fn throw(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let exception = arguments.get(0).bind(gc.nogc());
+        // 1. Let generator be the this value.
+        let generator = this_value.bind(gc.nogc());
+        // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+        let promise_capability = PromiseCapability::new(agent);
+        let mut promise = promise_capability.promise().bind(gc.nogc());
+        // 3. Let result be Completion(AsyncGeneratorValidate(generator, empty)).
+        let result = async_generator_validate(agent, generator, (), gc.nogc());
+        // 4. IfAbruptRejectPromise(result, promiseCapability).
+        let generator = if_abrupt_reject_promise(agent, result, promise_capability)?;
+        // 5. Let state be generator.[[AsyncGeneratorState]].
+        // 6. If state is suspended-start, then
+        let mut completed = false;
+        if generator.is_suspended_start(agent) {
+            // a. Set generator.[[AsyncGeneratorState]] to completed.
+            agent[generator].async_generator_state = Some(AsyncGeneratorState::Completed);
+            // b. Set state to completed.
+            completed = true;
+        }
+        // 7. If state is completed, then
+        if completed || generator.is_completed(agent) {
+            // a. Perform ! Call(promiseCapability.[[Reject]], undefined, « exception »).
+            promise_capability.reject(agent, exception);
+            // b. Return promiseCapability.[[Promise]].
+            return Ok(promise.into_value());
+        }
+        // 8. Let completion be ThrowCompletion(exception).
+        let completion = AsyncGeneratorRequestCompletion::Err(JsError::new(exception));
+        // 9. Perform AsyncGeneratorEnqueue(generator, completion, promiseCapability).
+        async_generator_enqueue(agent, generator, completion, promise_capability);
+        // 10. If state is suspended-yield, then
+        if generator.is_suspended_yield(agent) {
+            // a. Perform AsyncGeneratorResume(generator, completion).
+            let scoped_promise = promise.scope(agent, gc.nogc());
+            async_generator_resume(agent, generator.unbind(), completion, gc.reborrow());
+            promise = scoped_promise.get(agent).bind(gc.nogc());
+        } else {
+            // 11. Else,
+            // a. Assert: state is either executing or draining-queue.
+            assert!(generator.is_executing(agent) || generator.is_draining_queue(agent));
+        }
+        // 12. Return promiseCapability.[[Promise]].
+        Ok(promise.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

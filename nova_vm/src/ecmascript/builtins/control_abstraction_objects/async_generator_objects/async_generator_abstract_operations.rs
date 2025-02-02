@@ -18,7 +18,7 @@ use crate::{
         },
         execution::{
             agent::{ExceptionType, JsError},
-            Agent, ExecutionContext, JsResult, RealmIdentifier,
+            Agent, JsResult, RealmIdentifier,
         },
         types::Value,
     },
@@ -26,12 +26,11 @@ use crate::{
         context::{GcScope, NoGcScope},
         unwrap_try, Executable, ExecutionResult, Scoped, SuspendedVm, Vm,
     },
-    heap::CreateHeapData,
 };
 
 use super::{
-    AsyncGenerator, AsyncGeneratorRequest, AsyncGeneratorRequestCompletion, AsyncGeneratorState,
-    SuspendedGeneratorState, VmOrArguments,
+    AsyncGenerator, AsyncGeneratorAwaitKind, AsyncGeneratorRequest,
+    AsyncGeneratorRequestCompletion, AsyncGeneratorState, SuspendedGeneratorState, VmOrArguments,
 };
 
 /// ### [27.6.3.2 AsyncGeneratorStart ( generator, generatorBody )](https://tc39.es/ecma262/#sec-asyncgeneratorstart)
@@ -286,53 +285,45 @@ pub(super) fn resume_handle_result(
             // l. Return undefined.
         }
         ExecutionResult::Yield { vm, yielded_value } => {
-            inner_await_or_yield(
+            // 27.5.3.7 Yield ( value )
+            // If generatorKind is async, return ? AsyncGeneratorYield(? Await(value)).
+            async_generator_perform_await(
                 agent,
                 scoped_generator,
                 vm,
                 executable,
                 yielded_value,
-                true,
+                AsyncGeneratorAwaitKind::Yield,
                 gc,
             );
-            // 27.5.3.7 Yield ( value )
-            // If generatorKind is async, return ? AsyncGeneratorYield(? Await(value)).
-            // async_generator_yield(
-            //     agent,
-            //     yielded_value,
-            //     scoped_generator,
-            //     executable,
-            //     vm,
-            //     gc.reborrow(),
-            // )
         }
         ExecutionResult::Await { vm, awaited_value } => {
-            inner_await_or_yield(
+            async_generator_perform_await(
                 agent,
                 scoped_generator,
                 vm,
                 executable,
                 awaited_value,
-                false,
+                AsyncGeneratorAwaitKind::Await,
                 gc,
             );
         }
     }
 }
 
-fn inner_await_or_yield(
+fn async_generator_perform_await(
     agent: &mut Agent,
     scoped_generator: Scoped<'_, AsyncGenerator>,
     vm: SuspendedVm,
     executable: Executable,
     awaited_value: Value,
-    is_yield: bool,
+    kind: AsyncGeneratorAwaitKind,
     gc: GcScope,
 ) {
     // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
     let execution_context = agent.execution_context_stack.pop().unwrap();
     let generator = scoped_generator.get(agent).bind(gc.nogc());
-    generator.transition_to_awaiting(agent, vm, executable, is_yield, execution_context);
+    generator.transition_to_awaiting(agent, vm, executable, kind, execution_context);
     // 8. Remove asyncContext from the execution context stack and
     //    restore the execution context that is at the top of the
     //    execution context stack as the running execution context.
@@ -351,20 +342,33 @@ fn inner_await_or_yield(
 /// completion containing an ECMAScript language value or an abrupt completion.
 fn async_generator_unwrap_yield_resumption(
     agent: &mut Agent,
+    vm: SuspendedVm,
+    generator: Scoped<AsyncGenerator>,
+    executable: Executable,
     resumption_value: AsyncGeneratorRequestCompletion,
-    gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope,
+) {
     // 1. If resumptionValue is not a return completion, return ? resumptionValue.
-    let resumption_value = match resumption_value {
-        AsyncGeneratorRequestCompletion::Ok(v) => return Ok(v),
-        AsyncGeneratorRequestCompletion::Err(e) => return Err(e),
-        AsyncGeneratorRequestCompletion::Return(value) => value,
+    let execution_result = match resumption_value {
+        AsyncGeneratorRequestCompletion::Ok(v) => vm.resume(agent, executable, v, gc.reborrow()),
+        AsyncGeneratorRequestCompletion::Err(e) => {
+            vm.resume_throw(agent, executable, e.value(), gc.reborrow())
+        }
+        AsyncGeneratorRequestCompletion::Return(value) => {
+            // 2. Let awaited be Completion(Await(resumptionValue.[[Value]])).
+            async_generator_perform_await(
+                agent,
+                generator,
+                vm,
+                executable,
+                value,
+                AsyncGeneratorAwaitKind::Return,
+                gc.reborrow(),
+            );
+            return;
+        }
     };
-    todo!();
-    // 2. Let awaited be Completion(Await(resumptionValue.[[Value]])).
-    // 3. If awaited is a throw completion, return ? awaited.
-    // 4. Assert: awaited is a normal completion.
-    // 5. Return ReturnCompletion(awaited.[[Value]]).
+    resume_handle_result(agent, execution_result, executable, generator, gc);
 }
 
 /// ### [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield)
@@ -378,7 +382,7 @@ pub(super) fn async_generator_yield(
     generator: Scoped<'_, AsyncGenerator>,
     executable: Executable,
     vm: SuspendedVm,
-    mut gc: GcScope,
+    gc: GcScope,
 ) {
     // 1. Let genContext be the running execution context.
     let gen_context = agent.running_execution_context();
@@ -412,14 +416,16 @@ pub(super) fn async_generator_yield(
         // b. Let toYield be the first element of queue.
         let to_yield = generator.get(agent).peek_first(agent);
         // c. Let resumptionValue be Completion(toYield.[[Completion]]).
-        let AsyncGeneratorRequestCompletion::Ok(resumption_value) = to_yield.completion else {
-            unreachable!()
-        };
+        let resumption_value = to_yield.completion;
         // d. Return ? AsyncGeneratorUnwrapYieldResumption(resumptionValue).
-        // async_generator_unwrap_yield_resumption(agent, resumption_value, gc);
-        let execution_result = vm.resume(agent, executable, resumption_value, gc.reborrow());
-
-        resume_handle_result(agent, execution_result, executable, generator, gc);
+        async_generator_unwrap_yield_resumption(
+            agent,
+            vm,
+            generator,
+            executable,
+            resumption_value,
+            gc,
+        );
     } else {
         // 12. Else,
         // a. Set generator.[[AsyncGeneratorState]] to suspended-yield.
@@ -591,9 +597,12 @@ fn async_generator_drain_queue(agent: &mut Agent, generator: AsyncGenerator, mut
         } else {
             // d. Else,
             // i. If completion is a normal completion, then
-            if let AsyncGeneratorRequestCompletion::Ok(_) = completion {
+            let completion = if let AsyncGeneratorRequestCompletion::Ok(_) = completion {
                 // 1. Set completion to NormalCompletion(undefined).
-            }
+                AsyncGeneratorRequestCompletion::Ok(Value::Undefined)
+            } else {
+                completion
+            };
             // ii. Perform AsyncGeneratorCompleteStep(generator, completion, true).
             async_generator_complete_step(agent, generator, completion, true, None, gc.nogc());
             // iii. If queue is empty, then
