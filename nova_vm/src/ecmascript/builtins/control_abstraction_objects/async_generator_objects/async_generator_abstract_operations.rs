@@ -24,13 +24,13 @@ use crate::{
     },
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try, Executable, ExecutionResult, Scoped, SuspendedVm, Vm,
+        unwrap_try, ExecutionResult, Scoped, SuspendedVm, Vm,
     },
 };
 
 use super::{
     AsyncGenerator, AsyncGeneratorAwaitKind, AsyncGeneratorRequest,
-    AsyncGeneratorRequestCompletion, AsyncGeneratorState, SuspendedGeneratorState, VmOrArguments,
+    AsyncGeneratorRequestCompletion, AsyncGeneratorState, VmOrArguments,
 };
 
 /// ### [27.6.3.2 AsyncGeneratorStart ( generator, generatorBody )](https://tc39.es/ecma262/#sec-asyncgeneratorstart)
@@ -186,22 +186,10 @@ pub(super) fn async_generator_resume(
 ) {
     let generator = generator.bind(gc.nogc());
     // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
-    let async_generator_state = &mut agent[generator].async_generator_state;
-    let AsyncGeneratorState::Suspended {
-        state:
-            SuspendedGeneratorState {
-                vm_or_args,
-                executable,
-                // 2. Let genContext be generator.[[AsyncGeneratorContext]].
-                execution_context: gen_context,
-            },
-        queue,
-    } = async_generator_state.take().unwrap()
-    else {
-        unreachable!()
-    };
+    // 2. Let genContext be generator.[[AsyncGeneratorContext]].
     // 5. Set generator.[[AsyncGeneratorState]] to executing.
-    async_generator_state.replace(AsyncGeneratorState::Executing(queue));
+    assert!(generator.is_suspended_start(agent) || generator.is_suspended_yield(agent));
+    let (vm_or_args, gen_context, executable) = generator.transition_to_execution(agent);
 
     // 3. Let callerContext be the running execution context.
     // 4. Suspend callerContext.
@@ -229,14 +217,13 @@ pub(super) fn async_generator_resume(
     // 9. Assert: When we return here, genContext has already been removed from
     //    the execution context stack and callerContext is the currently
     //    running execution context.
-    resume_handle_result(agent, execution_result, executable, scoped_generator, gc);
+    resume_handle_result(agent, execution_result, scoped_generator, gc);
     // 10. Return unused.
 }
 
 pub(super) fn resume_handle_result(
     agent: &mut Agent,
     execution_result: ExecutionResult,
-    executable: Executable,
     scoped_generator: Scoped<'_, AsyncGenerator>,
     mut gc: GcScope,
 ) {
@@ -291,7 +278,6 @@ pub(super) fn resume_handle_result(
                 agent,
                 scoped_generator,
                 vm,
-                executable,
                 yielded_value,
                 AsyncGeneratorAwaitKind::Yield,
                 gc,
@@ -302,7 +288,6 @@ pub(super) fn resume_handle_result(
                 agent,
                 scoped_generator,
                 vm,
-                executable,
                 awaited_value,
                 AsyncGeneratorAwaitKind::Await,
                 gc,
@@ -315,7 +300,6 @@ fn async_generator_perform_await(
     agent: &mut Agent,
     scoped_generator: Scoped<'_, AsyncGenerator>,
     vm: SuspendedVm,
-    executable: Executable,
     awaited_value: Value,
     kind: AsyncGeneratorAwaitKind,
     gc: GcScope,
@@ -323,7 +307,7 @@ fn async_generator_perform_await(
     // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
     let execution_context = agent.execution_context_stack.pop().unwrap();
     let generator = scoped_generator.get(agent).bind(gc.nogc());
-    generator.transition_to_awaiting(agent, vm, executable, kind, execution_context);
+    generator.transition_to_awaiting(agent, vm, kind, execution_context);
     // 8. Remove asyncContext from the execution context stack and
     //    restore the execution context that is at the top of the
     //    execution context stack as the running execution context.
@@ -344,23 +328,29 @@ fn async_generator_unwrap_yield_resumption(
     agent: &mut Agent,
     vm: SuspendedVm,
     generator: Scoped<AsyncGenerator>,
-    executable: Executable,
     resumption_value: AsyncGeneratorRequestCompletion,
     mut gc: GcScope,
 ) {
     // 1. If resumptionValue is not a return completion, return ? resumptionValue.
     let execution_result = match resumption_value {
-        AsyncGeneratorRequestCompletion::Ok(v) => vm.resume(agent, executable, v, gc.reborrow()),
-        AsyncGeneratorRequestCompletion::Err(e) => {
-            vm.resume_throw(agent, executable, e.value(), gc.reborrow())
-        }
+        AsyncGeneratorRequestCompletion::Ok(v) => vm.resume(
+            agent,
+            generator.get(agent).get_executable(agent),
+            v,
+            gc.reborrow(),
+        ),
+        AsyncGeneratorRequestCompletion::Err(e) => vm.resume_throw(
+            agent,
+            generator.get(agent).get_executable(agent),
+            e.value(),
+            gc.reborrow(),
+        ),
         AsyncGeneratorRequestCompletion::Return(value) => {
             // 2. Let awaited be Completion(Await(resumptionValue.[[Value]])).
             async_generator_perform_await(
                 agent,
                 generator,
                 vm,
-                executable,
                 value,
                 AsyncGeneratorAwaitKind::Return,
                 gc.reborrow(),
@@ -368,7 +358,7 @@ fn async_generator_unwrap_yield_resumption(
             return;
         }
     };
-    resume_handle_result(agent, execution_result, executable, generator, gc);
+    resume_handle_result(agent, execution_result, generator, gc);
 }
 
 /// ### [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield)
@@ -380,7 +370,6 @@ pub(super) fn async_generator_yield(
     agent: &mut Agent,
     value: Value,
     generator: Scoped<'_, AsyncGenerator>,
-    executable: Executable,
     vm: SuspendedVm,
     gc: GcScope,
 ) {
@@ -418,14 +407,7 @@ pub(super) fn async_generator_yield(
         // c. Let resumptionValue be Completion(toYield.[[Completion]]).
         let resumption_value = to_yield.completion;
         // d. Return ? AsyncGeneratorUnwrapYieldResumption(resumptionValue).
-        async_generator_unwrap_yield_resumption(
-            agent,
-            vm,
-            generator,
-            executable,
-            resumption_value,
-            gc,
-        );
+        async_generator_unwrap_yield_resumption(agent, vm, generator, resumption_value, gc);
     } else {
         // 12. Else,
         // a. Set generator.[[AsyncGeneratorState]] to suspended-yield.
@@ -434,7 +416,7 @@ pub(super) fn async_generator_yield(
         // b. Remove genContext from the execution context stack and restore
         //    the execution context that is at the top of the execution context
         //    stack as the running execution context.
-        generator.transition_to_suspended(agent, vm, executable, gen_context);
+        generator.transition_to_suspended(agent, vm, gen_context);
         // c. Let callerContext be the running execution context.
         // d. Resume callerContext passing undefined. If genContext is ever
         //    resumed again, let resumptionValue be the Completion Record with

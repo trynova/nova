@@ -37,6 +37,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
+    engine::Executable,
     heap::{
         indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -321,6 +322,10 @@ impl<'a> ECMAScriptFunction<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub(crate) fn get_executable(self, agent: &Agent) -> Executable {
+        agent[self].compiled_bytecode.unwrap()
     }
 
     pub fn is_constructor(self, agent: &Agent) -> bool {

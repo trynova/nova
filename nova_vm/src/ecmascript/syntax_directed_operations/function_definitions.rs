@@ -470,12 +470,10 @@ pub(crate) fn evaluate_async_generator_body(
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
-    agent[generator].async_generator_state = Some(AsyncGeneratorState::Suspended {
-        state: SuspendedGeneratorState {
-            vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
-            executable,
-            execution_context: agent.running_execution_context().clone(),
-        },
+    agent[generator].executable = Some(executable);
+    agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
+        arguments: arguments_list.0.into(),
+        execution_context: agent.running_execution_context().clone(),
         queue: VecDeque::new(),
     });
     // 6. Return ReturnCompletion(generator).
