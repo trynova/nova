@@ -6,8 +6,8 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, try_get},
-            testing_and_comparison::{is_array, is_callable, same_value_zero},
+            operations_on_objects::{call_function, has_property, try_get},
+            testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
                 try_to_string,
@@ -904,13 +904,111 @@ impl TypedArrayPrototype {
         Ok(false.into())
     }
 
+    /// ### [23.2.3.17 %TypedArray%.prototype.indexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.indexof)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for Array.prototype.indexOf as defined in 23.1.3.17.
     fn index_of<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let search_element = arguments.get(0).bind(gc.nogc());
+        let from_index = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let o = TypedArray::try_from(o)
+            .unwrap()
+            .bind(gc.nogc())
+            .scope(agent, gc.nogc());
+        let len = match o.get(agent) {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        // 4. If len = 0, return -1𝔽.
+        if len == 0 {
+            return Ok((-1).into());
+        };
+        // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
+        let n = if let TryResult::Continue(n) =
+            try_to_integer_or_infinity(agent, from_index, gc.nogc())
+        {
+            n?
+        } else {
+            to_integer_or_infinity(agent, from_index, gc.reborrow())?
+        };
+        // 6. Assert: If fromIndex is undefined, then n is 0.
+        if from_index.is_undefined() {
+            assert_eq!(n.into_i64(), 0);
+        };
+        // 7. If n = +∞, return false.
+        let n = if n.is_pos_infinity() {
+            return Ok(false.into());
+        } else if n.is_neg_infinity() {
+            // 8. Else if n = -∞, set n to 0.
+            0
+        } else {
+            n.into_i64()
+        };
+        // 9. If n ≥ 0, then
+        let mut k = if n >= 0 {
+            // a. Let k be n.
+            n
+        } else {
+            // 10. Else,
+            // a. Let k be len + n.
+            let k = len + n;
+            // b. If k < 0, set k to 0.
+            if k < 0 { 0 } else { k }
+        };
+        // 11. Repeat, while k < len,
+        while k < len {
+            // a. Let kPresent be ! HasProperty(O, ! ToString(𝔽(k))).
+            let k_present = has_property(
+                agent,
+                o.get(agent).into_object(),
+                PropertyKey::from(SmallInteger::from(k as u32)),
+                gc.reborrow(),
+            )?;
+            // b. If kPresent is true, then
+            if k_present {
+                //  i. Let elementK be ! Get(O, ! ToString(𝔽(k))).
+                let element_k = unwrap_try(try_get(
+                    agent,
+                    o.get(agent),
+                    PropertyKey::from(SmallInteger::from(k as u32)),
+                    gc.nogc(),
+                ));
+                //  ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
+                if is_strictly_equal(agent, search_element, element_k) {
+                    return Ok(k.try_into().unwrap());
+                }
+            }
+            // c. Set k to k + 1.
+            k += 1
+        }
+        // 12. Return -1𝔽.
+        Ok((-1).into())
     }
 
     /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
