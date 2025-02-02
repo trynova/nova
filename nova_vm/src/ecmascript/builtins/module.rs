@@ -45,8 +45,8 @@ impl<'a> From<ModuleIdentifier<'a>> for Module<'a> {
     }
 }
 
-impl IntoValue for Module<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Module<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -57,15 +57,15 @@ impl<'a> IntoObject<'a> for Module<'a> {
     }
 }
 
-impl From<Module<'_>> for Value {
-    fn from(val: Module) -> Self {
-        Value::Module(val.unbind())
+impl<'a> From<Module<'a>> for Value<'a> {
+    fn from(value: Module<'a>) -> Self {
+        Value::Module(value)
     }
 }
 
 impl<'a> From<Module<'a>> for Object<'a> {
-    fn from(val: Module) -> Self {
-        Object::Module(val.unbind())
+    fn from(value: Module<'a>) -> Self {
+        Object::Module(value)
     }
 }
 
@@ -436,13 +436,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
         // it must return the same result. An implementation might choose to
@@ -510,13 +510,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
 
         // NOTE: ResolveExport is side-effect free. Each time this operation

@@ -1,5 +1,5 @@
 use nova_vm::ecmascript::{
-    builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
+    builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs, RegularFn},
     execution::{agent::ExceptionType, Agent, JsResult},
     types::{
         InternalMethods, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
@@ -12,7 +12,12 @@ use oxc_diagnostics::OxcDiagnostic;
 /// Initialize the global object with the built-in functions.
 pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcScope) {
     // `print` function
-    fn print(agent: &mut Agent, _this: Value, args: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+    fn print<'gc>(
+        agent: &mut Agent,
+        _this: Value,
+        args: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if args.len() == 0 {
             println!();
         } else {
@@ -22,12 +27,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
     }
 
     // 'readTextFile' function
-    fn read_text_file(
+    fn read_text_file<'gc>(
         agent: &mut Agent,
         _: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if args.len() != 1 {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
@@ -95,12 +100,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
 
 pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object, mut gc: GcScope) {
     // `detachArrayBuffer` function
-    fn detach_array_buffer(
+    fn detach_array_buffer<'gc>(
         agent: &mut Agent,
         _this: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let Value::ArrayBuffer(array_buffer) = args.get(0) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,

@@ -9,7 +9,7 @@ use crate::ecmascript::{
 };
 
 pub(crate) struct AggregateErrorPrototype;
-impl AggregateErrorPrototype {
+impl<'gc> AggregateErrorPrototype {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let aggregate_constructor = intrinsics.aggregate_error();

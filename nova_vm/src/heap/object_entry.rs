@@ -7,11 +7,11 @@ use crate::ecmascript::types::{Function, PropertyDescriptor, PropertyKey, Value}
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ObjectEntry<'a> {
     pub key: PropertyKey<'a>,
-    pub value: ObjectEntryPropertyDescriptor,
+    pub value: ObjectEntryPropertyDescriptor<'a>,
 }
 
 impl<'a> ObjectEntry<'a> {
-    pub(crate) fn new_data_entry(key: PropertyKey<'a>, value: Value) -> Self {
+    pub(crate) fn new_data_entry(key: PropertyKey<'a>, value: Value<'a>) -> Self {
         Self {
             key,
             value: ObjectEntryPropertyDescriptor::Data {
@@ -24,7 +24,7 @@ impl<'a> ObjectEntry<'a> {
     }
 }
 
-impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
+impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor<'static> {
     fn from(value: PropertyDescriptor) -> Self {
         let configurable = value.configurable.unwrap_or(true);
         let enumerable = value.enumerable.unwrap_or(true);
@@ -66,9 +66,9 @@ impl From<PropertyDescriptor> for ObjectEntryPropertyDescriptor {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ObjectEntryPropertyDescriptor {
+pub(crate) enum ObjectEntryPropertyDescriptor<'a> {
     Data {
-        value: Value,
+        value: Value<'a>,
         writable: bool,
         enumerable: bool,
         configurable: bool,
@@ -78,18 +78,18 @@ pub(crate) enum ObjectEntryPropertyDescriptor {
         configurable: bool,
     },
     ReadOnly {
-        get: Function<'static>,
+        get: Function<'a>,
         enumerable: bool,
         configurable: bool,
     },
     WriteOnly {
-        set: Function<'static>,
+        set: Function<'a>,
         enumerable: bool,
         configurable: bool,
     },
     ReadWrite {
-        get: Function<'static>,
-        set: Function<'static>,
+        get: Function<'a>,
+        set: Function<'a>,
         enumerable: bool,
         configurable: bool,
     },

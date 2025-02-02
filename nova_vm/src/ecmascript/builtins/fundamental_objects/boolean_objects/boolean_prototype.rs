@@ -37,13 +37,13 @@ impl Builtin for BooleanPrototypeValueOf {
         crate::ecmascript::builtins::Behaviour::Regular(BooleanPrototype::value_of);
 }
 
-impl BooleanPrototype {
+impl<'gc> BooleanPrototype {
     fn to_string(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let b = this_boolean_value(agent, this_value, gc.nogc())?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
@@ -56,8 +56,8 @@ impl BooleanPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         this_boolean_value(agent, this_value, gc.nogc()).map(|result| result.into())
     }
 

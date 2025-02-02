@@ -285,12 +285,12 @@ impl CompileFunctionBodyData<'static> {
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn evaluate_function_body(
+pub(crate) fn evaluate_function_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -382,12 +382,12 @@ pub(crate) fn evaluate_async_function_body<'a>(
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns a throw completion or a return
 /// completion.
-pub(crate) fn evaluate_generator_body(
+pub(crate) fn evaluate_generator_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -434,12 +434,12 @@ pub(crate) fn evaluate_generator_body(
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns a throw completion or a return
 /// completion.
-pub(crate) fn evaluate_async_generator_body(
+pub(crate) fn evaluate_async_generator_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
 

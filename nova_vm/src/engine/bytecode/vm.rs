@@ -76,20 +76,20 @@ unsafe impl Send for EmptyParametersList {}
 unsafe impl Sync for EmptyParametersList {}
 
 #[derive(Debug)]
-pub(crate) enum ExecutionResult {
-    Return(Value),
+pub(crate) enum ExecutionResult<'a> {
+    Return(Value<'a>),
     Throw(JsError),
     Await {
         vm: SuspendedVm,
-        awaited_value: Value,
+        awaited_value: Value<'a>,
     },
     Yield {
         vm: SuspendedVm,
-        yielded_value: Value,
+        yielded_value: Value<'a>,
     },
 }
-impl ExecutionResult {
-    pub(crate) fn into_js_result(self) -> JsResult<Value> {
+impl<'a> ExecutionResult<'a> {
+    pub(crate) fn into_js_result(self) -> JsResult<Value<'a>> {
         match self {
             ExecutionResult::Return(value) => Ok(value),
             ExecutionResult::Throw(err) => Err(err),
@@ -125,11 +125,11 @@ struct ExceptionJumpTarget {
 pub(crate) struct Vm {
     /// Instruction pointer.
     ip: usize,
-    stack: Vec<Value>,
+    stack: Vec<Value<'static>>,
     reference_stack: Vec<Reference<'static>>,
     iterator_stack: Vec<VmIterator>,
     exception_jump_target_stack: Vec<ExceptionJumpTarget>,
-    result: Option<Value>,
+    result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
 }
 
@@ -140,7 +140,7 @@ pub(crate) struct SuspendedVm {
     /// expression. This is reasonably rare that we can expect the stack to
     /// usually be empty. In this case this Box is an empty dangling pointer
     /// and no heap data clone is required.
-    stack: Box<[Value]>,
+    stack: Box<[Value<'static>]>,
     /// Note: Reference stack is non-empty only if the code awaits inside a
     /// call expression. This means that usually no heap data clone is
     /// required.
@@ -155,28 +155,28 @@ pub(crate) struct SuspendedVm {
 }
 
 impl SuspendedVm {
-    pub(crate) fn resume(
+    pub(crate) fn resume<'gc>(
         self,
         agent: &mut Agent,
         executable: Executable,
         value: Value,
-        gc: GcScope,
-    ) -> ExecutionResult {
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
         let vm = Vm::from_suspended(self);
         vm.resume(agent, executable, value, gc)
     }
 
-    pub(crate) fn resume_throw(
+    pub(crate) fn resume_throw<'gc>(
         self,
         agent: &mut Agent,
         executable: Executable,
         err: Value,
-        gc: GcScope,
-    ) -> ExecutionResult {
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
         // Optimisation: Avoid unsuspending the Vm if we're just going to throw
         // out of it immediately.
         if self.exception_jump_target_stack.is_empty() {
-            let err = JsError::new(err);
+            let err = JsError::new(err.unbind());
             return ExecutionResult::Throw(err);
         }
         let vm = Vm::from_suspended(self);
@@ -224,12 +224,12 @@ impl<'a> Vm {
     }
 
     /// Executes an executable using the virtual machine.
-    pub(crate) fn execute(
+    pub(crate) fn execute<'gc>(
         agent: &mut Agent,
         executable: Executable,
-        arguments: Option<&[Value]>,
-        gc: GcScope,
-    ) -> ExecutionResult {
+        arguments: Option<&[Value<'static>]>,
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
         let mut vm = Vm::new();
 
         if let Some(arguments) = arguments {
@@ -243,7 +243,10 @@ impl<'a> Vm {
         if agent.options.print_internals {
             eprintln!();
             eprintln!("=== Executing Executable ===");
-            eprintln!("Constants: {:?}", executable.get_constants(agent));
+            eprintln!(
+                "Constants: {:?}",
+                executable.get_constants(agent, gc.nogc())
+            );
             eprintln!();
 
             eprintln!("Instructions:");
@@ -257,37 +260,38 @@ impl<'a> Vm {
         vm.inner_execute(agent, executable, gc)
     }
 
-    pub fn resume(
+    pub fn resume<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Executable,
         value: Value,
-        gc: GcScope,
-    ) -> ExecutionResult {
-        self.result = Some(value);
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        self.result = Some(value.unbind());
         self.inner_execute(agent, executable, gc)
     }
 
-    pub fn resume_throw(
+    pub fn resume_throw<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Executable,
         err: Value,
-        gc: GcScope,
-    ) -> ExecutionResult {
-        let err = JsError::new(err);
+        gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
+        let err = err.bind(gc.nogc());
+        let err = JsError::new(err.unbind());
         if !self.handle_error(agent, err) {
             return ExecutionResult::Throw(err);
         }
         self.inner_execute(agent, executable, gc)
     }
 
-    fn inner_execute(
+    fn inner_execute<'gc>(
         mut self,
         agent: &mut Agent,
         executable: Executable,
-        mut gc: GcScope<'a, '_>,
-    ) -> ExecutionResult {
+        mut gc: GcScope<'gc, '_>,
+    ) -> ExecutionResult<'gc> {
         #[cfg(feature = "interleaved-gc")]
         let do_gc = !agent.options.disable_gc;
         #[cfg(feature = "interleaved-gc")]
@@ -454,7 +458,8 @@ impl<'a> Vm {
                 });
             }
             Instruction::LoadConstant => {
-                let constant = executable.fetch_constant(agent, instr.args[0].unwrap() as usize);
+                let constant =
+                    executable.fetch_constant(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 vm.stack.push(constant);
             }
             Instruction::Load => {
@@ -481,7 +486,8 @@ impl<'a> Vm {
                 vm.result = Some(*vm.stack.last().expect("Trying to get from empty stack"));
             }
             Instruction::StoreConstant => {
-                let constant = executable.fetch_constant(agent, instr.args[0].unwrap() as usize);
+                let constant =
+                    executable.fetch_constant(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 vm.result = Some(constant);
             }
             Instruction::UnaryMinus => {
@@ -2071,13 +2077,13 @@ impl<'a> Vm {
 /// returns either a normal completion containing either a String, a BigInt,
 /// or a Number, or a throw completion.
 #[inline]
-fn apply_string_or_numeric_binary_operator(
+fn apply_string_or_numeric_binary_operator<'gc>(
     agent: &mut Agent,
     lval: Value,
     op_text: BinaryOperator,
     rval: Value,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let mut lnum: Numeric;
     let rnum: Numeric;
     // 1. If opText is +, then
@@ -2245,7 +2251,7 @@ fn apply_string_or_numeric_binary_operator(
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
 #[inline]
-fn typeof_operator(_: &mut Agent, val: Value) -> String {
+fn typeof_operator(_: &mut Agent, val: Value) -> String<'static> {
     match val {
         // 4. If val is undefined, return "undefined".
         Value::Undefined => BUILTIN_STRING_MEMORY.undefined,
@@ -2340,10 +2346,10 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
 /// > that did not use a @@hasInstance method to define the instanceof operator
 /// > semantics. If an object does not define or inherit @@hasInstance it uses
 /// > the default instanceof semantics.
-pub(crate) fn instanceof_operator(
+pub(crate) fn instanceof_operator<'a>(
     agent: &mut Agent,
-    value: impl IntoValue,
-    target: impl IntoValue,
+    value: impl IntoValue<'a>,
+    target: impl IntoValue<'a>,
     mut gc: GcScope,
 ) -> JsResult<bool> {
     // 1. If target is not an Object, throw a TypeError exception.
@@ -2371,7 +2377,7 @@ pub(crate) fn instanceof_operator(
             agent,
             inst_of_handler.unbind(),
             target.into_value(),
-            Some(ArgumentsList(&[value.into_value()])),
+            Some(ArgumentsList(&[value.into_value().unbind()])),
             gc.reborrow(),
         )?;
         Ok(to_boolean(agent, result))

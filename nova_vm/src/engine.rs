@@ -4,7 +4,6 @@
 
 mod bytecode;
 pub mod context;
-pub mod register_value;
 pub mod rootable;
 pub mod small_f64;
 pub mod small_integer;

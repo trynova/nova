@@ -68,8 +68,8 @@ impl Map<'_> {
     }
 }
 
-impl IntoValue for Map<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Map<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -80,15 +80,15 @@ impl<'a> IntoObject<'a> for Map<'a> {
     }
 }
 
-impl From<Map<'_>> for Value {
-    fn from(val: Map) -> Self {
-        Value::Map(val.unbind())
+impl<'a> From<Map<'a>> for Value<'a> {
+    fn from(value: Map<'a>) -> Self {
+        Value::Map(value)
     }
 }
 
 impl<'a> From<Map<'a>> for Object<'a> {
-    fn from(val: Map) -> Self {
-        Object::Map(val.unbind())
+    fn from(value: Map<'a>) -> Self {
+        Object::Map(value)
     }
 }
 

@@ -25,14 +25,14 @@ impl BuiltinIntrinsicConstructor for WeakRefConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakRef;
 }
 
-impl WeakRefConstructor {
+impl<'gc> WeakRefConstructor {
     fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

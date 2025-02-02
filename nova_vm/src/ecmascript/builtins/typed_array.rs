@@ -207,8 +207,8 @@ impl<'a> From<TypedArray<'a>> for TypedArrayIndex<'a> {
     }
 }
 
-impl IntoValue for TypedArray<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for TypedArray<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -219,9 +219,9 @@ impl<'a> IntoObject<'a> for TypedArray<'a> {
     }
 }
 
-impl From<TypedArray<'_>> for Value {
-    fn from(val: TypedArray) -> Self {
-        match val.unbind() {
+impl<'a> From<TypedArray<'a>> for Value<'a> {
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
             TypedArray::Int8Array(idx) => Value::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Value::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Value::Uint8ClampedArray(idx),
@@ -240,8 +240,8 @@ impl From<TypedArray<'_>> for Value {
 }
 
 impl<'a> From<TypedArray<'a>> for Object<'a> {
-    fn from(val: TypedArray) -> Self {
-        match val.unbind() {
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
             TypedArray::Int8Array(idx) => Object::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Object::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Object::Uint8ClampedArray(idx),
@@ -259,10 +259,10 @@ impl<'a> From<TypedArray<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for TypedArray<'_> {
+impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Int8Array(base_index) => Ok(TypedArray::Int8Array(base_index)),
             Value::Uint8Array(base_index) => Ok(TypedArray::Uint8Array(base_index)),

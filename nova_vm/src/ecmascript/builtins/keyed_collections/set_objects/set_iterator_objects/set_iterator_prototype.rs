@@ -32,13 +32,13 @@ impl Builtin for SetIteratorPrototypeNext {
         crate::ecmascript::builtins::Behaviour::Regular(SetIteratorPrototype::next);
 }
 
-impl SetIteratorPrototype {
+impl<'gc> SetIteratorPrototype {
     fn next(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.

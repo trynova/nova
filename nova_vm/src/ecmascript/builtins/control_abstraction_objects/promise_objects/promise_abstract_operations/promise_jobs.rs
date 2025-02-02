@@ -112,7 +112,7 @@ pub(crate) fn new_promise_resolve_thenable_job(
 #[derive(Debug)]
 pub(crate) struct PromiseReactionJob {
     reaction: Global<PromiseReaction>,
-    argument: Global<Value>,
+    argument: Global<Value<'static>>,
 }
 impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {

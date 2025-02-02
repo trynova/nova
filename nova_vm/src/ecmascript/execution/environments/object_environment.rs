@@ -431,13 +431,13 @@ impl ObjectEnvironmentIndex {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn try_get_binding_value(
+    pub(crate) fn try_get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<Value>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<JsResult<Value<'gc>>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -474,13 +474,13 @@ impl ObjectEnvironmentIndex {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;

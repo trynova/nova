@@ -64,8 +64,8 @@ impl SharedArrayBuffer<'_> {
     }
 }
 
-impl IntoValue for SharedArrayBuffer<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for SharedArrayBuffer<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -76,15 +76,15 @@ impl<'a> IntoObject<'a> for SharedArrayBuffer<'a> {
     }
 }
 
-impl From<SharedArrayBuffer<'_>> for Value {
-    fn from(val: SharedArrayBuffer) -> Self {
-        Value::SharedArrayBuffer(val.unbind())
+impl<'a> From<SharedArrayBuffer<'a>> for Value<'a> {
+    fn from(value: SharedArrayBuffer<'a>) -> Self {
+        Value::SharedArrayBuffer(value)
     }
 }
 
 impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
-    fn from(val: SharedArrayBuffer) -> Self {
-        Object::SharedArrayBuffer(val.unbind())
+    fn from(value: SharedArrayBuffer<'a>) -> Self {
+        Object::SharedArrayBuffer(value)
     }
 }
 

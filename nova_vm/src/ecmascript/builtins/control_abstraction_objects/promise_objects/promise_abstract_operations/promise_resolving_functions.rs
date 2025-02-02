@@ -118,14 +118,14 @@ impl<'a> IntoObject<'a> for BuiltinPromiseResolvingFunction<'a> {
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction<'_>> for Value {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value.unbind())
+impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Value<'a> {
+    fn from(value: BuiltinPromiseResolvingFunction<'a>) -> Self {
+        Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoValue for BuiltinPromiseResolvingFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BuiltinPromiseResolvingFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -208,23 +208,23 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -267,13 +267,13 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let arg = args.get(0);
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {

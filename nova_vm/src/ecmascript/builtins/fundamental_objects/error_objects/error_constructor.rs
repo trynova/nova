@@ -41,15 +41,15 @@ impl BuiltinIntrinsicConstructor for ErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Error;
 }
 
-impl ErrorConstructor {
+impl<'gc> ErrorConstructor {
     /// ### [20.5.1.1 Error ( message \[ , options \] )](https://tc39.es/ecma262/#sec-error-message)
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let message = arguments.get(0);
         let options = arguments.get(1);
 
@@ -101,11 +101,11 @@ impl ErrorConstructor {
     }
 }
 
-pub(super) fn get_error_cause(
+pub(super) fn get_error_cause<'gc>(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope,
-) -> JsResult<Option<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Option<Value<'gc>>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };

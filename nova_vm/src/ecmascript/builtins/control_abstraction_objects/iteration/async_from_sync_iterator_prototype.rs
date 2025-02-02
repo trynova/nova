@@ -33,13 +33,13 @@ impl Builtin for AsyncFromSyncIteratorPrototypeThrow {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncFromSyncIteratorPrototype::throw);
 }
 
-impl AsyncFromSyncIteratorPrototype {
+impl<'gc> AsyncFromSyncIteratorPrototype {
     fn next(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -47,8 +47,8 @@ impl AsyncFromSyncIteratorPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
@@ -56,8 +56,8 @@ impl AsyncFromSyncIteratorPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

@@ -74,8 +74,8 @@ impl SetIterator<'_> {
     }
 }
 
-impl IntoValue for SetIterator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for SetIterator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -92,16 +92,16 @@ impl<'a> From<SetIterator<'a>> for Object<'a> {
     }
 }
 
-impl From<SetIterator<'_>> for Value {
-    fn from(value: SetIterator) -> Self {
-        Self::SetIterator(value.unbind())
+impl<'a> From<SetIterator<'a>> for Value<'a> {
+    fn from(value: SetIterator<'a>) -> Self {
+        Self::SetIterator(value)
     }
 }
 
-impl TryFrom<Value> for SetIterator<'_> {
+impl<'a> TryFrom<Value<'a>> for SetIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::SetIterator(data) => Ok(data),
             _ => Err(()),

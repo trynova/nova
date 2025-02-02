@@ -145,13 +145,13 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// language value), strictCaller (a Boolean), and direct (a Boolean) and
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion.
-pub fn perform_eval(
+pub fn perform_eval<'gc>(
     agent: &mut Agent,
     x: Value,
     direct: bool,
     strict_caller: bool,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. Assert: If direct is false, then strictCaller is also false.
     assert!(direct || !strict_caller);
 
@@ -705,7 +705,7 @@ pub fn eval_declaration_instantiation(
     Ok(())
 }
 
-impl GlobalObject {
+impl<'gc> GlobalObject {
     /// ### [19.2.1 eval ( x )](https://tc39.es/ecma262/#sec-eval-x)
     ///
     /// This function is the %eval% intrinsic object.
@@ -713,8 +713,8 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let x = arguments.get(0);
 
         // 1. Return ? PerformEval(x, false, false).
@@ -728,8 +728,8 @@ impl GlobalObject {
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number, gc.reborrow())?;
@@ -749,8 +749,8 @@ impl GlobalObject {
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number, gc.reborrow())?;
@@ -767,8 +767,8 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if arguments.len() == 0 {
             return Ok(Value::nan());
         }
@@ -836,8 +836,8 @@ impl GlobalObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let string = arguments.get(0);
         let radix = arguments.get(1);
 
@@ -1013,48 +1013,48 @@ impl GlobalObject {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn decode_uri_component(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn encode_uri(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn encode_uri_component(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn escape(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
     fn unescape(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

@@ -80,8 +80,8 @@ impl BoundFunction<'_> {
     }
 }
 
-impl IntoValue for BoundFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BoundFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::BoundFunction(self.unbind())
     }
 }
@@ -239,23 +239,23 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -305,13 +305,13 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
     /// argumentsList (a List of ECMAScript language values) and returns either
     /// a normal completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].

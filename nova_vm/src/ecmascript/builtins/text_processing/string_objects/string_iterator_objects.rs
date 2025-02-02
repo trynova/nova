@@ -25,13 +25,13 @@ impl Builtin for StringIteratorPrototypeNext {
         crate::ecmascript::builtins::Behaviour::Regular(StringIteratorPrototype::next);
 }
 
-impl StringIteratorPrototype {
+impl<'gc> StringIteratorPrototype {
     fn next(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 

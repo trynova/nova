@@ -65,7 +65,7 @@ impl SetHeapData {
 
 #[derive(Debug, Default)]
 pub(crate) struct SetData {
-    pub(crate) values: Vec<Option<Value>>,
+    pub(crate) values: Vec<Option<Value<'static>>>,
     /// Low-level hash table pointing to value indexes.
     pub(crate) set_data: RefCell<HashTable<u32>>,
     /// Flag that lets the Set know if it needs to rehash its primitive keys.

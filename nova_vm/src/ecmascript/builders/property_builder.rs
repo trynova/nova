@@ -38,10 +38,10 @@ pub struct CreatorGetSetAccessor {
 }
 
 #[derive(Clone, Copy)]
-pub struct CreatorValue(Value);
+pub struct CreatorValue(Value<'static>);
 
 #[derive(Clone, Copy)]
-pub struct CreatorReadOnlyValue(Value);
+pub struct CreatorReadOnlyValue(Value<'static>);
 
 pub struct PropertyBuilder<'agent, K: 'static, D> {
     pub(crate) agent: &'agent mut Agent,
@@ -248,7 +248,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorValue> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -264,7 +264,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorReadOnlyValue> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -280,7 +280,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetAccessor> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -300,7 +300,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorSetAccess> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -320,7 +320,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetSetAccessor> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,

@@ -25,14 +25,14 @@ impl BuiltinIntrinsicConstructor for WeakSetConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakSet;
 }
 
-impl WeakSetConstructor {
+impl<'gc> WeakSetConstructor {
     fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

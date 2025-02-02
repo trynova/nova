@@ -93,15 +93,15 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 }
 
 pub(crate) struct NativeErrorConstructors;
-impl NativeErrorConstructors {
+impl<'gc> NativeErrorConstructors {
     #[inline(always)]
     fn constructor(
         agent: &mut Agent,
         error_kind: ExceptionType,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let message = arguments.get(0);
         let options = arguments.get(1);
 
@@ -158,8 +158,8 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
 
@@ -168,8 +168,8 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
 
@@ -178,8 +178,8 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(
             agent,
             ExceptionType::ReferenceError,
@@ -194,8 +194,8 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
 
@@ -204,8 +204,8 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
 
@@ -214,8 +214,8 @@ impl NativeErrorConstructors {
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 

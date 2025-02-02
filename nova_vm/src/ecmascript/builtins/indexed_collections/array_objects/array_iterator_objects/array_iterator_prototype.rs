@@ -45,13 +45,13 @@ impl Builtin for ArrayIteratorPrototypeNext {
         crate::ecmascript::builtins::Behaviour::Regular(ArrayIteratorPrototype::next);
 }
 
-impl ArrayIteratorPrototype {
+impl<'gc> ArrayIteratorPrototype {
     fn next(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {

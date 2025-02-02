@@ -94,7 +94,7 @@ impl Builtin for MapPrototypeValues {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::values);
 }
 
-impl MapPrototype {
+impl<'gc> MapPrototype {
     /// ### [24.1.3.1 Map.prototype.clear ( )](https://tc39.es/ecma262/#sec-map.prototype.clear)
     ///
     /// > #### Note
@@ -105,8 +105,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -129,8 +129,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -185,8 +185,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY+VALUE).
 
@@ -226,8 +226,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
@@ -286,8 +286,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -337,8 +337,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -380,8 +380,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY).
 
@@ -397,8 +397,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -466,8 +466,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         let count = agent[m].size();
@@ -478,8 +478,8 @@ impl MapPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, VALUE).
 
@@ -551,10 +551,10 @@ fn require_map_data_internal_slot<'a>(
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-pub(crate) fn canonicalize_keyed_collection_key(
-    agent: &impl Index<HeapNumber<'static>, Output = f64>,
-    key: Value,
-) -> Value {
+pub(crate) fn canonicalize_keyed_collection_key<'gc>(
+    agent: &impl Index<HeapNumber<'gc>, Output = f64>,
+    key: Value<'gc>,
+) -> Value<'static> {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.

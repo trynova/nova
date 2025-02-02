@@ -43,14 +43,14 @@ impl Builtin for RegExpGetSpecies {
 }
 impl BuiltinGetter for RegExpGetSpecies {}
 
-impl RegExpConstructor {
+impl<'gc> RegExpConstructor {
     fn constructor(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
@@ -58,8 +58,8 @@ impl RegExpConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

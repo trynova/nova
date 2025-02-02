@@ -29,10 +29,10 @@ pub(crate) enum PromiseState {
         is_resolved: bool,
     },
     Fulfilled {
-        promise_result: Value,
+        promise_result: Value<'static>,
     },
     Rejected {
-        promise_result: Value,
+        promise_result: Value<'static>,
         is_handled: bool,
     },
 }

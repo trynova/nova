@@ -27,10 +27,6 @@ impl<'a> PropertyStorage<'a> {
         self.0
     }
 
-    fn into_value(self) -> Value {
-        self.into_object().into_value()
-    }
-
     pub fn has(self, agent: &Agent, key: PropertyKey) -> bool {
         let object = self.into_value();
 

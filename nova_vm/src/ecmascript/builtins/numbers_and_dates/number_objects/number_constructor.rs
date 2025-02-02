@@ -69,14 +69,14 @@ impl Builtin for NumberIsSafeInteger {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSafeInteger;
 }
 
-impl NumberConstructor {
+impl<'gc> NumberConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
 
         // 1. If value is present, then
@@ -144,8 +144,8 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -163,8 +163,8 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
@@ -176,8 +176,8 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -195,8 +195,8 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. If IsIntegralNumber(number) is true, then

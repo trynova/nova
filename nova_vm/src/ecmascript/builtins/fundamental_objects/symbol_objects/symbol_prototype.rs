@@ -66,7 +66,7 @@ impl Builtin for SymbolPrototypeToPrimitive {
     const WRITABLE: bool = false;
 }
 
-impl SymbolPrototype {
+impl<'gc> SymbolPrototype {
     /// ### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-symbol.prototype.description)
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
@@ -75,8 +75,8 @@ impl SymbolPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
         let sym = this_symbol_value(agent, this_value, gc.nogc())?;
@@ -90,8 +90,8 @@ impl SymbolPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let symb = this_symbol_value(agent, this_value, gc.nogc())?;
         Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value())
     }
@@ -100,8 +100,8 @@ impl SymbolPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value())
     }
 

@@ -591,7 +591,7 @@ fn debug_print_constant(
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
-    let constant = exe.fetch_constant(agent, index);
+    let constant = exe.fetch_constant(agent, index, gc);
     if let Ok(string_constant) = String::try_from(constant) {
         format!("\"{}\"", string_constant.as_str(agent))
     } else {

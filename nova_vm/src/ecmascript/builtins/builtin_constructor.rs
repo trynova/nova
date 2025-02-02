@@ -98,8 +98,8 @@ impl<'a> From<BuiltinConstructorIndex<'a>> for BuiltinConstructorFunction<'a> {
     }
 }
 
-impl IntoValue for BuiltinConstructorFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BuiltinConstructorFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -116,9 +116,9 @@ impl<'a> IntoFunction<'a> for BuiltinConstructorFunction<'a> {
     }
 }
 
-impl From<BuiltinConstructorFunction<'_>> for Value {
-    fn from(value: BuiltinConstructorFunction) -> Self {
-        Value::BuiltinConstructorFunction(value.unbind())
+impl<'a> From<BuiltinConstructorFunction<'a>> for Value<'a> {
+    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
+        Value::BuiltinConstructorFunction(value)
     }
 }
 
@@ -134,10 +134,10 @@ impl<'a> From<BuiltinConstructorFunction<'a>> for Function<'a> {
     }
 }
 
-impl TryFrom<Value> for BuiltinConstructorFunction<'_> {
+impl<'a> TryFrom<Value<'a>> for BuiltinConstructorFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::BuiltinConstructorFunction(data) => Ok(data),
             _ => Err(()),
@@ -279,23 +279,23 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -345,13 +345,13 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(

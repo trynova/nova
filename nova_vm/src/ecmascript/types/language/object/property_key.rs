@@ -100,7 +100,7 @@ impl<'a> PropertyKey<'a> {
     ///
     /// This converts any integer keys into strings. This matches what the
     /// ECMAScript specification expects.
-    pub fn convert_to_value(self, agent: &mut Agent, gc: NoGcScope) -> Value {
+    pub fn convert_to_value<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
                 Value::from_string(agent, format!("{}", small_integer.into_i64()), gc)
@@ -122,12 +122,12 @@ impl<'a> PropertyKey<'a> {
     /// If the resulting PropertyKey is mixed with normal JavaScript values or
     /// passed to user code, the resulting JavaScript will not necessarily
     /// correctly match the ECMAScript specification or user's expectations.
-    pub(crate) unsafe fn into_value_unchecked(self) -> Value {
+    pub(crate) unsafe fn into_value_unchecked(self) -> Value<'a> {
         match self {
             PropertyKey::Integer(small_integer) => Value::Integer(small_integer),
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
-            PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
-            PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
+            PropertyKey::String(heap_string) => Value::String(heap_string),
+            PropertyKey::Symbol(symbol) => Value::Symbol(symbol),
         }
     }
 
@@ -147,12 +147,12 @@ impl<'a> PropertyKey<'a> {
     ///
     /// If the passed-in Value is not a string, integer, or symbol, the method
     /// will panic.
-    pub(crate) unsafe fn from_value_unchecked(value: Value) -> Self {
+    pub(crate) unsafe fn from_value_unchecked(value: Value<'a>) -> Self {
         match value {
             Value::Integer(small_integer) => PropertyKey::Integer(small_integer),
             Value::SmallString(small_string) => PropertyKey::SmallString(small_string),
-            Value::String(heap_string) => PropertyKey::String(heap_string.unbind()),
-            Value::Symbol(symbol) => PropertyKey::Symbol(symbol.unbind()),
+            Value::String(heap_string) => PropertyKey::String(heap_string),
+            Value::Symbol(symbol) => PropertyKey::Symbol(symbol),
             _ => unreachable!(),
         }
     }
@@ -314,7 +314,7 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
     }
 }
 
-impl From<PropertyKey<'_>> for Value {
+impl<'a> From<PropertyKey<'a>> for Value<'a> {
     /// Note: You should not be using this conversion without thinking. Integer
     /// keys don't actually become proper strings here, so converting a
     /// PropertyKey into a Value using this and then comparing that with an

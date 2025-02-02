@@ -26,14 +26,14 @@ impl Builtin for ErrorPrototypeToString {
         crate::ecmascript::builtins::Behaviour::Regular(ErrorPrototype::to_string);
 }
 
-impl ErrorPrototype {
+impl<'gc> ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
     fn to_string(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {

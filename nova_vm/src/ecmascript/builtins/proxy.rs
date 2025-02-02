@@ -84,8 +84,8 @@ impl Proxy<'_> {
     }
 }
 
-impl IntoValue for Proxy<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Proxy<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -96,15 +96,15 @@ impl<'a> IntoObject<'a> for Proxy<'a> {
     }
 }
 
-impl From<Proxy<'_>> for Value {
-    fn from(val: Proxy) -> Self {
-        Value::Proxy(val.unbind())
+impl<'a> From<Proxy<'a>> for Value<'a> {
+    fn from(value: Proxy<'a>) -> Self {
+        Value::Proxy(value)
     }
 }
 
 impl<'a> From<Proxy<'a>> for Object<'a> {
-    fn from(val: Proxy) -> Self {
-        Object::Proxy(val.unbind())
+    fn from(value: Proxy<'a>) -> Self {
+        Object::Proxy(value)
     }
 }
 
@@ -932,7 +932,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         Ok(boolean_trap_result)
     }
 
-    fn try_get(self, _: &mut Agent, _: PropertyKey, _: Value, _: NoGcScope) -> TryResult<Value> {
+    fn try_get<'gc>(
+        self,
+        _: &mut Agent,
+        _: PropertyKey,
+        _: Value,
+        _: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         TryResult::Break(())
     }
 
@@ -952,13 +958,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     /// > The value reported for a property must be undefined if the
     /// > corresponding target object property is a non-configurable own
     /// > accessor property that has undefined as its \[\[Get]] attribute.
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         mut receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let mut property_key = property_key.bind(gc.nogc());
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -1471,13 +1477,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     /// and argumentsList (a List of ECMAScript language values)
     /// and returns either a normal completion containing an ECMAScript
     /// language value or a throw completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let this_argument = arguments.get(1);
         let arguments_list = arguments.get(2);
         // 1. Perform ? ValidateNonRevokedProxy(O).

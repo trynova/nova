@@ -32,14 +32,14 @@ pub type JsResult<T> = core::result::Result<T, JsError>;
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct JsError(Value);
+pub struct JsError(Value<'static>);
 
 impl JsError {
-    pub(crate) fn new(value: Value) -> Self {
+    pub(crate) fn new(value: Value<'static>) -> Self {
         Self(value)
     }
 
-    pub fn value(self) -> Value {
+    pub fn value(self) -> Value<'static> {
         self.0
     }
 

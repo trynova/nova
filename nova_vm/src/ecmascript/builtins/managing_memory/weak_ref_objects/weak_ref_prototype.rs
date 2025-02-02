@@ -22,13 +22,13 @@ impl Builtin for WeakRefPrototypeDeref {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakRefPrototype::deref);
 }
 
-impl WeakRefPrototype {
+impl<'gc> WeakRefPrototype {
     fn deref(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

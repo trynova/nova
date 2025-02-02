@@ -286,14 +286,14 @@ impl Builtin for ArrayPrototypeWith {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::with);
 }
 
-impl ArrayPrototype {
+impl<'gc> ArrayPrototype {
     /// ### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
     fn at(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let index = arguments.get(0);
 
         // 1. Let O be ? ToObject(this value).
@@ -358,8 +358,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         items: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?;
         let scoped_o = o.scope(agent, gc.nogc());
@@ -491,8 +491,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let start = arguments.get(1);
         let end = if arguments.len() >= 3 {
@@ -645,8 +645,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
@@ -699,8 +699,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let O be ? ToObject(this value).
@@ -774,8 +774,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
         let start = arguments.get(1);
         let end = arguments.get(2);
@@ -905,8 +905,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -996,8 +996,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1032,8 +1032,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1052,8 +1052,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1073,8 +1073,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let predicate = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1094,8 +1094,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let depth = arguments.get(0);
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
@@ -1137,8 +1137,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let mapper_function = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1213,8 +1213,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -1298,8 +1298,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let search_element = arguments.get(0);
         let from_index = arguments.get(1);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
@@ -1423,8 +1423,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let search_element = arguments.get(0);
         let from_index = arguments.get(1);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
@@ -1538,8 +1538,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let separator = arguments.get(0);
 
         // 1. Let O be ? ToObject(this value).
@@ -1603,8 +1603,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
@@ -1642,8 +1642,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let search_element = arguments.get(0);
         let from_index = if arguments.len() > 1 {
             Some(arguments.get(1))
@@ -1782,8 +1782,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -1859,8 +1859,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if let Value::Array(array) = this_value {
             // Fast path: Trivial (no descriptors) array means mutating
             // elements is direct.
@@ -1957,8 +1957,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         items: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -2051,8 +2051,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
@@ -2201,8 +2201,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let initial_value = if arguments.len() >= 2 {
             Some(arguments.get(1))
@@ -2315,8 +2315,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if let Value::Array(array) = this_value {
             // Fast path: Array is dense and contains no descriptors. No JS
             // functions can thus be called by shift.
@@ -2430,8 +2430,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if let Value::Array(array) = this_value {
             if array.is_empty(agent) {
                 if agent[array].elements.len_writable {
@@ -2560,8 +2560,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let start = arguments.get(0);
         let end = arguments.get(1);
         if let (
@@ -2796,8 +2796,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
 
@@ -2878,8 +2878,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let comparator = args.get(0);
         // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
         let comparator = if comparator.is_undefined() {
@@ -2948,8 +2948,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let start = arguments.get(0);
         let delete_count = arguments.get(1);
         let items = if arguments.len() > 2 {
@@ -3135,8 +3135,8 @@ impl ArrayPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
@@ -3144,8 +3144,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if let Value::Array(array) = this_value {
             let array = array.bind(gc.nogc());
             // Fast path: Array is dense and contains no descriptors. No JS
@@ -3196,8 +3196,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let comparator = args.get(0);
         // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
         let comparator = if comparator.is_undefined() {
@@ -3251,8 +3251,8 @@ impl ArrayPrototype {
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
@@ -3261,8 +3261,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let array be ? ToObject(this value).
         let array = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let func be ? Get(array, "join").
@@ -3305,8 +3305,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         items: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by unshift.
         if let Value::Array(array) = this_value {
@@ -3410,8 +3410,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? ToObject(this value).
         let Ok(o) = Object::try_from(this_value) else {
             return Err(agent.throw_exception_with_static_message(
@@ -3429,8 +3429,8 @@ impl ArrayPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let index = arguments.get(0);
         let value = arguments.get(1);
         // Fast path: Array is dense and contains no descriptors. No JS
@@ -3690,15 +3690,15 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
 /// the time that this operation visits them. Elements that are deleted after
 /// traversal begins and before being visited are still visited and are either
 /// looked up from the prototype or are undefined.
-fn find_via_predicate(
+fn find_via_predicate<'gc>(
     agent: &mut Agent,
     o: Scoped<'_, Object<'static>>,
     len: i64,
     ascending: bool,
     predicate: Value,
     this_arg: Value,
-    mut gc: GcScope,
-) -> JsResult<(i64, Value)> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<(i64, Value<'gc>)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(predicate) = is_callable(predicate, gc.nogc()) else {
         return Err(agent.throw_exception_with_static_message(
@@ -3943,13 +3943,13 @@ fn flatten_into_array(
 /// > The above conditions are necessary and sufficient to ensure that
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
-fn sort_indexed_properties<const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
+fn sort_indexed_properties<'gc, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
     agent: &mut Agent,
     obj: Object,
     len: usize,
     comparator: Option<Scoped<'_, Function<'static>>>,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     // 1. Let items be a new empty List.
     let mut items = Vec::with_capacity(len);
     // 2. Let k be 0.

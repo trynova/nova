@@ -65,8 +65,8 @@ impl WeakSet<'_> {
     }
 }
 
-impl IntoValue for WeakSet<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for WeakSet<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -77,15 +77,15 @@ impl<'a> IntoObject<'a> for WeakSet<'a> {
     }
 }
 
-impl From<WeakSet<'_>> for Value {
-    fn from(val: WeakSet) -> Self {
-        Value::WeakSet(val.unbind())
+impl<'a> From<WeakSet<'a>> for Value<'a> {
+    fn from(value: WeakSet<'a>) -> Self {
+        Value::WeakSet(value)
     }
 }
 
 impl<'a> From<WeakSet<'a>> for Object<'a> {
-    fn from(val: WeakSet) -> Self {
-        Object::WeakSet(val.unbind())
+    fn from(value: WeakSet<'a>) -> Self {
+        Object::WeakSet(value)
     }
 }
 
