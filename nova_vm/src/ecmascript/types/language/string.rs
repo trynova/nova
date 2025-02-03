@@ -5,7 +5,10 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use std::{borrow::Cow, hash::Hash, ops::{Index, IndexMut}};
+use std::{
+    hash::Hash,
+    ops::{Index, IndexMut},
+};
 
 use super::{
     IntoPrimitive, IntoValue, Primitive, PropertyKey, Value, SMALL_STRING_DISCRIMINANT,

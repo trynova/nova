@@ -56,7 +56,8 @@ use crate::ecmascript::{
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, StringHeapData, Symbol, Value, BUILTIN_STRINGS_LIST
+        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, StringHeapData, Symbol, Value,
+        BUILTIN_STRINGS_LIST,
     },
 };
 use crate::engine::Executable;
@@ -1032,10 +1033,9 @@ pub(crate) fn sweep_heap_strings_and_lookup_table(
             let hash = lookup_table.hasher().hash_one(string.as_str());
 
             if do_retain {
-                lookup_table.entry(hash)
-                    .and_modify(|index| {
-                        compactions.strings.shift_index(index);
-                    });
+                lookup_table.entry(hash).and_modify(|index| {
+                    compactions.strings.shift_index(index);
+                });
             } else {
                 lookup_table.remove(&hash);
             }

@@ -9,7 +9,7 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
-use std::{borrow::Cow, cell::RefCell, ops::Index};
+use std::{cell::RefCell, ops::Index};
 
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
@@ -283,7 +283,7 @@ impl Heap {
         };
 
         for builtin_string in BUILTIN_STRINGS_LIST {
-            unsafe { heap.alloc_static_str(&builtin_string) };
+            unsafe { heap.alloc_static_str(builtin_string) };
         }
 
         heap
