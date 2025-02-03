@@ -9,7 +9,7 @@ use ahash::AHashMap;
 use super::indexes::TypedArrayIndex;
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
-    indexes::{BaseIndex, ElementIndex, IntoBaseIndex},
+    indexes::{BaseIndex, ElementIndex, IntoBaseIndex, StringIndex},
     Heap,
 };
 #[cfg(feature = "date")]
@@ -56,8 +56,7 @@ use crate::ecmascript::{
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-        BUILTIN_STRINGS_LIST,
+        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, StringHeapData, Symbol, Value, BUILTIN_STRINGS_LIST
     },
 };
 use crate::engine::Executable;
@@ -1010,6 +1009,39 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
         } else {
             false
         }
+    });
+}
+
+pub(crate) fn sweep_heap_strings_and_lookup_table(
+    vec: &mut Vec<Option<StringHeapData>>,
+    lookup_table: &mut AHashMap<u64, StringIndex<'static>>,
+    compactions: &CompactionLists,
+    bits: &[bool],
+) {
+    assert_eq!(vec.len(), bits.len());
+    let mut iter = bits.iter();
+    vec.retain_mut(|item| {
+        let do_retain = if *iter.next().unwrap() {
+            item.sweep_values(compactions);
+            true
+        } else {
+            false
+        };
+
+        if let Some(string) = item {
+            let hash = lookup_table.hasher().hash_one(string.as_str());
+
+            if do_retain {
+                lookup_table.entry(hash)
+                    .and_modify(|index| {
+                        compactions.strings.shift_index(index);
+                    });
+            } else {
+                lookup_table.remove(&hash);
+            }
+        }
+
+        do_retain
     });
 }
 

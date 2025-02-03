@@ -9,7 +9,7 @@ pub(crate) mod heap_gc;
 pub mod indexes;
 mod object_entry;
 
-use std::{cell::RefCell, ops::Index};
+use std::{borrow::Cow, cell::RefCell, ops::Index};
 
 pub(crate) use self::heap_constants::{
     intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
@@ -170,6 +170,7 @@ pub struct Heap {
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,
+    pub string_lookup_table: AHashMap<u64, StringIndex<'static>>,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -263,6 +264,7 @@ impl Heap {
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
+            string_lookup_table: AHashMap::with_capacity(1024),
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
@@ -280,10 +282,9 @@ impl Heap {
             weak_sets: Vec::with_capacity(0),
         };
 
-        heap.strings.extend_from_slice(
-            &BUILTIN_STRINGS_LIST
-                .map(|builtin_string| Some(StringHeapData::from_static_str(builtin_string))),
-        );
+        for builtin_string in BUILTIN_STRINGS_LIST {
+            unsafe { heap.alloc_static_str(&builtin_string) };
+        }
 
         heap
     }
@@ -368,10 +369,10 @@ impl Heap {
 
     fn find_equal_string(&self, message: &str) -> Option<String<'static>> {
         debug_assert!(message.len() > 7);
-        self.strings
-            .iter()
-            .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
-            .map(|found_index| HeapString(StringIndex::from_index(found_index)).into())
+        let hash = self.string_lookup_table.hasher().hash_one(message);
+        self.string_lookup_table
+            .get(&hash)
+            .map(|found_index| HeapString(*found_index).into())
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap

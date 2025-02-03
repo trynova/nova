@@ -5,7 +5,7 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use std::ops::{Index, IndexMut};
+use std::{borrow::Cow, hash::Hash, ops::{Index, IndexMut}};
 
 use super::{
     IntoPrimitive, IntoValue, Primitive, PropertyKey, Value, SMALL_STRING_DISCRIMINANT,
@@ -546,8 +546,11 @@ impl Scoped<'_, String<'static>> {
 
 impl CreateHeapData<StringHeapData, String<'static>> for Heap {
     fn create(&mut self, data: StringHeapData) -> String<'static> {
+        let hash = self.string_lookup_table.hasher().hash_one(data.as_str());
         self.strings.push(Some(data));
-        String::String(HeapString(StringIndex::last(&self.strings)))
+        let index = StringIndex::last(&self.strings);
+        self.string_lookup_table.insert(hash, index);
+        String::String(HeapString(index))
     }
 }
 
