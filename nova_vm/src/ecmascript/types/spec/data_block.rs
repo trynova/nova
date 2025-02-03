@@ -337,7 +337,7 @@ impl Viewable for i64 {
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
-    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
 
     fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
         Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
