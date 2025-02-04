@@ -1,6 +1,7 @@
 use std::{hash::Hash, num::NonZeroU32};
 
 use ahash::AHashMap;
+use hashbrown::HashTable;
 
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,7 +10,7 @@ use ahash::AHashMap;
 use super::indexes::TypedArrayIndex;
 use super::{
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
-    indexes::{BaseIndex, ElementIndex, IntoBaseIndex},
+    indexes::{BaseIndex, ElementIndex, GetBaseIndexMut, IntoBaseIndex},
     Heap,
 };
 #[cfg(feature = "date")]
@@ -1139,4 +1140,24 @@ pub(crate) fn sweep_side_table_values<'a, T, K, V>(
         let value = unsafe { side_table.remove(&old_key).unwrap_unchecked() };
         side_table.insert(new_key, value);
     }
+}
+
+pub(crate) fn sweep_lookup_table<'a, T, U>(
+    lookup_table: &mut HashTable<T>,
+    compactions: &CompactionLists,
+    bits: &[bool],
+) where
+    T: GetBaseIndexMut<'a, U>,
+{
+    assert_eq!(lookup_table.len(), bits.len());
+    lookup_table.retain(|entry| {
+        let base_index = entry.get_base_index_mut();
+        let do_retain = bits[base_index.into_index()];
+        if do_retain {
+            compactions.strings.shift_index(base_index);
+            true
+        } else {
+            false
+        }
+    });
 }

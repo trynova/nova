@@ -5,7 +5,10 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use std::ops::{Index, IndexMut};
+use std::{
+    hash::Hash,
+    ops::{Index, IndexMut},
+};
 
 use super::{
     IntoPrimitive, IntoValue, Primitive, PropertyKey, Value, SMALL_STRING_DISCRIMINANT,
@@ -19,8 +22,8 @@ use crate::{
         Scoped,
     },
     heap::{
-        indexes::StringIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeap, WorkQueues,
+        indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
     },
     SmallInteger, SmallString,
 };
@@ -108,6 +111,18 @@ impl IndexMut<HeapString<'_>> for Vec<Option<StringHeapData>> {
             .expect("HeapString out of bounds")
             .as_mut()
             .expect("HeapString slot empty")
+    }
+}
+
+impl<'a> IntoBaseIndex<'a, StringHeapData> for HeapString<'a> {
+    fn into_base_index(self) -> StringIndex<'a> {
+        self.0
+    }
+}
+
+impl<'a> GetBaseIndexMut<'a, StringHeapData> for HeapString<'a> {
+    fn get_base_index_mut(&mut self) -> &mut StringIndex<'a> {
+        &mut self.0
     }
 }
 
@@ -546,8 +561,13 @@ impl Scoped<'_, String<'static>> {
 
 impl CreateHeapData<StringHeapData, String<'static>> for Heap {
     fn create(&mut self, data: StringHeapData) -> String<'static> {
+        let hash = self.string_hasher.hash_one(data.as_str());
         self.strings.push(Some(data));
-        String::String(HeapString(StringIndex::last(&self.strings)))
+        let index = StringIndex::last(&self.strings);
+        let heap_string = HeapString(index);
+        self.string_lookup_table
+            .insert_unique(hash, heap_string, |_| hash);
+        String::String(heap_string)
     }
 }
 
