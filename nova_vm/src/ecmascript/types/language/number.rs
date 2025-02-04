@@ -173,6 +173,13 @@ impl From<SmallF64> for Number<'static> {
     }
 }
 
+#[cfg(feature = "proposal-float16array")]
+impl From<f16> for Number<'_> {
+    fn from(value: f16) -> Self {
+        Number::SmallF64(SmallF64::from(value))
+    }
+}
+
 impl From<f32> for Number<'_> {
     fn from(value: f32) -> Self {
         Number::SmallF64(SmallF64::from(value))
@@ -321,7 +328,7 @@ impl<'a> Number<'a> {
     }
 
     pub fn neg_zero() -> Self {
-        Self::from(-0.0)
+        Self::from(-0.0f32)
     }
 
     pub fn pos_zero() -> Self {
@@ -472,6 +479,15 @@ impl<'a> Number<'a> {
             Number::Number(n) => agent[n.unbind()] as f32,
             Number::Integer(n) => Into::<i64>::into(n) as f32,
             Number::SmallF64(n) => n.into_f64() as f32,
+        }
+    }
+
+    #[cfg(feature = "proposal-float16array")]
+    pub fn into_f16(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f16 {
+        match self {
+            Number::Number(n) => agent[n.unbind()] as f16,
+            Number::Integer(n) => Into::<i64>::into(n) as f16,
+            Number::SmallF64(n) => n.into_f64() as f16,
         }
     }
 

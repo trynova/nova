@@ -78,6 +78,8 @@ mod private {
     impl Sealed for i32 {}
     impl Sealed for u64 {}
     impl Sealed for i64 {}
+    #[cfg(feature = "proposal-float16array")]
+    impl Sealed for f16 {}
     impl Sealed for f32 {}
     impl Sealed for f64 {}
 }
@@ -331,6 +333,32 @@ impl Viewable for i64 {
             unreachable!()
         };
         to_big_int64_big_int(agent, value).to_le()
+    }
+}
+#[cfg(feature = "proposal-float16array")]
+impl Viewable for f16 {
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
     }
 }
 impl Viewable for f32 {

@@ -13,6 +13,8 @@ use std::hash::Hash;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
+#[cfg(feature = "proposal-float16array")]
+use super::value::FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "regexp")]
 use super::value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
@@ -163,6 +165,8 @@ pub enum Object<'a> {
     BigInt64Array(TypedArrayIndex<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array(TypedArrayIndex<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
@@ -242,6 +246,8 @@ impl IntoValue for Object<'_> {
             Object::BigInt64Array(data) => Value::BigInt64Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => Value::BigUint64Array(data.unbind()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => Value::Float16Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => Value::Float32Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
@@ -465,6 +471,8 @@ impl From<Object<'_>> for Value {
             Object::BigInt64Array(data) => Value::BigInt64Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => Value::BigUint64Array(data.unbind()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => Value::Float16Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => Value::Float32Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
@@ -553,6 +561,8 @@ impl TryFrom<Value> for Object<'_> {
             Value::BigInt64Array(data) => Ok(Object::BigInt64Array(data)),
             #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => Ok(Object::BigUint64Array(data)),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(data) => Ok(Object::Float16Array(data)),
             #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => Ok(Object::Float32Array(data)),
             #[cfg(feature = "array-buffer")]
@@ -666,6 +676,8 @@ impl Hash for Object<'_> {
             Object::BigInt64Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
@@ -758,6 +770,8 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_extensible(agent)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).internal_extensible(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_extensible(agent),
             #[cfg(feature = "array-buffer")]
@@ -850,6 +864,10 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_set_extensible(agent, value)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_extensible(agent, value)
@@ -932,6 +950,8 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_prototype(agent)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).internal_prototype(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_prototype(agent),
             #[cfg(feature = "array-buffer")]
@@ -1025,6 +1045,10 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_prototype(agent, prototype)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_set_prototype(agent, prototype)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1123,6 +1147,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_get_prototype_of(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_get_prototype_of(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1223,6 +1251,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get_prototype_of(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_get_prototype_of(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1326,6 +1358,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_set_prototype_of(agent, prototype, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_set_prototype_of(agent, prototype, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1434,6 +1470,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_prototype_of(agent, prototype, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_set_prototype_of(agent, prototype, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_prototype_of(agent, prototype, gc)
@@ -1515,6 +1555,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_is_extensible(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_is_extensible(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1610,6 +1654,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_is_extensible(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_is_extensible(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_is_extensible(agent, gc)
@@ -1703,6 +1751,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_prevent_extensions(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_prevent_extensions(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1799,6 +1851,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_prevent_extensions(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_prevent_extensions(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -1904,6 +1960,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_get_own_property(agent, property_key, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_get_own_property(agent, property_key, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -2016,6 +2076,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get_own_property(agent, property_key, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_get_own_property(agent, property_key, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -2182,6 +2246,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
                 .try_define_own_property(agent, property_key, property_descriptor, gc),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).try_define_own_property(
+                agent,
+                property_key,
+                property_descriptor,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).try_define_own_property(
                 agent,
@@ -2355,6 +2426,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor, gc),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
@@ -2470,6 +2544,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_has_property(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_has_property(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_has_property(agent, property_key, gc)
@@ -2575,6 +2653,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_has_property(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_has_property(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_has_property(agent, property_key, gc)
@@ -2678,6 +2760,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_get(agent, property_key, receiver, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_get(agent, property_key, receiver, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -2786,6 +2872,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get(agent, property_key, receiver, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_get(agent, property_key, receiver, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -2901,6 +2991,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_set(agent, property_key, value, receiver, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_set(agent, property_key, value, receiver, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -3033,6 +3127,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 receiver,
                 gc,
             ),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).internal_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_set(
                 agent,
@@ -3152,6 +3254,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_delete(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_delete(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_delete(agent, property_key, gc)
@@ -3255,6 +3361,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_delete(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_delete(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_delete(agent, property_key, gc)
@@ -3350,6 +3460,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_own_property_keys(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_own_property_keys(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -3450,6 +3564,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_own_property_keys(agent, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_own_property_keys(agent, gc)
             }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
@@ -3572,6 +3690,8 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::BigInt64Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
@@ -3644,6 +3764,8 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::BigInt64Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
@@ -3761,6 +3883,8 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::BigInt64Array(base_index) => Ok(Self::BigInt64Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => Ok(Self::BigUint64Array(base_index)),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => Ok(Self::Float16Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => Ok(Self::Float32Array(base_index)),
             #[cfg(feature = "array-buffer")]

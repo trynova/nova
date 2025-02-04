@@ -141,6 +141,21 @@ impl Builtin for BigUint64ArrayConstructor {
 impl BuiltinIntrinsicConstructor for BigUint64ArrayConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::BigUint64Array;
 }
+#[cfg(feature = "proposal-float16array")]
+struct Float16ArrayConstructor;
+#[cfg(feature = "proposal-float16array")]
+impl Builtin for Float16ArrayConstructor {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.Float16Array;
+
+    const LENGTH: u8 = 3;
+
+    const BEHAVIOUR: Behaviour =
+        Behaviour::Constructor(TypedArrayConstructors::float16_array_constructor);
+}
+#[cfg(feature = "proposal-float16array")]
+impl BuiltinIntrinsicConstructor for Float16ArrayConstructor {
+    const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Float16Array;
+}
 struct Float32ArrayConstructor;
 impl Builtin for Float32ArrayConstructor {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.Float32Array;
@@ -257,6 +272,17 @@ impl TypedArrayConstructors {
         typed_array_constructor::<u64>(agent, arguments, new_target, gc)
     }
 
+    #[cfg(feature = "proposal-float16array")]
+    fn float16_array_constructor(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        new_target: Option<Object>,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        typed_array_constructor::<f16>(agent, arguments, new_target, gc)
+    }
+
     fn float32_array_constructor(
         agent: &mut Agent,
         _this_value: Value,
@@ -290,6 +316,8 @@ impl TypedArrayConstructors {
         let uint32_array_prototype = intrinsics.uint32_array_prototype();
         let big_int64_array_prototype = intrinsics.big_int64_array_prototype();
         let big_uint64_array_prototype = intrinsics.big_uint64_array_prototype();
+        #[cfg(feature = "proposal-float16array")]
+        let float16_array_prototype = intrinsics.float16_array_prototype();
         let float32_array_prototype = intrinsics.float32_array_prototype();
         let float64_array_prototype = intrinsics.float64_array_prototype();
 
@@ -423,6 +451,21 @@ impl TypedArrayConstructors {
         .with_prototype_property(big_uint64_array_prototype.into_object())
         .build();
 
+        #[cfg(feature = "proposal-float16array")]
+        BuiltinFunctionBuilder::new_intrinsic_constructor::<Float16ArrayConstructor>(agent, realm)
+            .with_property_capacity(2)
+            .with_prototype(typed_array_constructor)
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.BYTES_PER_ELEMENT.into())
+                    .with_value_readonly(4.into())
+                    .with_enumerable(false)
+                    .with_configurable(false)
+                    .build()
+            })
+            .with_prototype_property(float16_array_prototype.into_object())
+            .build();
+
         BuiltinFunctionBuilder::new_intrinsic_constructor::<Float32ArrayConstructor>(agent, realm)
             .with_property_capacity(2)
             .with_prototype(typed_array_constructor)
@@ -477,6 +520,10 @@ impl TypedArrayPrototypes {
         let big_int64_array_prototype = intrinsics.big_int64_array_prototype();
         let big_uint64_array_constructor = intrinsics.big_uint64_array();
         let big_uint64_array_prototype = intrinsics.big_uint64_array_prototype();
+        #[cfg(feature = "proposal-float16array")]
+        let float16_array_constructor = intrinsics.float16_array();
+        #[cfg(feature = "proposal-float16array")]
+        let float16_array_prototype = intrinsics.float16_array_prototype();
         let float32_array_constructor = intrinsics.float32_array();
         let float32_array_prototype = intrinsics.float32_array_prototype();
         let float64_array_constructor = intrinsics.float64_array();
@@ -608,6 +655,21 @@ impl TypedArrayPrototypes {
             .with_constructor_property(big_uint64_array_constructor)
             .build();
 
+        #[cfg(feature = "proposal-float16array")]
+        OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, float16_array_prototype)
+            .with_property_capacity(2)
+            .with_prototype(typed_array_prototype)
+            .with_property(|builder| {
+                builder
+                    .with_key(BUILTIN_STRING_MEMORY.BYTES_PER_ELEMENT.into())
+                    .with_value_readonly(4.into())
+                    .with_enumerable(false)
+                    .with_configurable(false)
+                    .build()
+            })
+            .with_constructor_property(float16_array_constructor)
+            .build();
+
         OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, float32_array_prototype)
             .with_property_capacity(2)
             .with_prototype(typed_array_prototype)
@@ -734,6 +796,13 @@ fn typed_array_constructor<T: Viewable>(
                     gc.nogc(),
                 )?,
                 TypedArray::BigUint64Array(_) => initialize_typed_array_from_typed_array::<T, u64>(
+                    agent,
+                    o,
+                    first_argument,
+                    gc.nogc(),
+                )?,
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => initialize_typed_array_from_typed_array::<T, f16>(
                     agent,
                     o,
                     first_argument,

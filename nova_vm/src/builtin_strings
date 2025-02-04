@@ -120,6 +120,7 @@ exchange
 exec
 exp
 expm1
+f16round
 false
 fill
 filter
@@ -133,6 +134,7 @@ fixed
 flags
 flat
 flatMap
+Float16Array
 Float32Array
 Float64Array
 floor
@@ -177,6 +179,7 @@ getBigInt64
 getBigUint64
 getDate
 getDay
+getFloat16
 getFloat32
 getFloat64
 getFullYear
@@ -335,6 +338,7 @@ Set Iterator
 setBigInt64
 setBigUint64
 setDate
+setFloat16
 setFloat32
 setFloat64
 setFullYear

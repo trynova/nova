@@ -184,6 +184,8 @@ pub enum ProtoIntrinsics {
     Error,
     EvalError,
     FinalizationRegistry,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array,
     #[cfg(feature = "array-buffer")]
     Float32Array,
     #[cfg(feature = "array-buffer")]
@@ -408,6 +410,8 @@ impl Intrinsics {
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::DataView => self.data_view_prototype().into(),
             ProtoIntrinsics::FinalizationRegistry => self.finalization_registry_prototype().into(),
+            #[cfg(feature = "proposal-float16array")]
+            ProtoIntrinsics::Float16Array => self.float16_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Float32Array => self.float32_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
@@ -861,6 +865,26 @@ impl Intrinsics {
 
     pub(crate) fn finalization_registry_base_object(&self) -> ObjectIndex<'static> {
         IntrinsicConstructorIndexes::FinalizationRegistry.get_object_index(self.object_index_base)
+    }
+
+    /// %Float16Array%
+    #[cfg(feature = "proposal-float16array")]
+    pub(crate) fn float16_array_prototype(&self) -> OrdinaryObject<'static> {
+        IntrinsicObjectIndexes::Float16ArrayPrototype
+            .get_object_index(self.object_index_base)
+            .into()
+    }
+
+    #[cfg(feature = "proposal-float16array")]
+    pub(crate) fn float16_array(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::Float16Array
+            .get_builtin_function_index(self.builtin_function_index_base)
+            .into()
+    }
+
+    #[cfg(feature = "proposal-float16array")]
+    pub(crate) fn float16_array_base_object(&self) -> ObjectIndex<'static> {
+        IntrinsicConstructorIndexes::Float16Array.get_object_index(self.object_index_base)
     }
 
     /// %Float32Array%

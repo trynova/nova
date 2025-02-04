@@ -57,6 +57,8 @@ pub(crate) enum IntrinsicObjectIndexes {
     BigInt64ArrayPrototype,
     #[cfg(feature = "array-buffer")]
     BigUint64ArrayPrototype,
+    #[cfg(feature = "proposal-float16array")]
+    Float16ArrayPrototype,
     #[cfg(feature = "array-buffer")]
     Float32ArrayPrototype,
     #[cfg(feature = "array-buffer")]
@@ -181,6 +183,8 @@ pub(crate) enum IntrinsicConstructorIndexes {
     BigInt64Array,
     #[cfg(feature = "array-buffer")]
     BigUint64Array,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array,
     #[cfg(feature = "array-buffer")]
     Float32Array,
     #[cfg(feature = "array-buffer")]
