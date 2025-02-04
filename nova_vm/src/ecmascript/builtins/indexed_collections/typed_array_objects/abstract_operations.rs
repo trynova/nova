@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{get, length_of_array_like, set, try_set},
-            type_conversion::to_index,
+            type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
             array_buffer::{
@@ -24,13 +24,13 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalSlots, IntoFunction, IntoObject, Object, PropertyKey, U8Clamped,
-            Value, Viewable,
+            BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, Number,
+            Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try,
+        unwrap_try, TryResult,
     },
     heap::indexes::TypedArrayIndex,
     SmallInteger,
@@ -85,7 +85,7 @@ pub(crate) struct TypedArrayWithBufferWitnessRecords<'a> {
 /// obj (a TypedArray) and order (seq-cst or unordered) and returns a TypedArray
 /// With Buffer Witness Record.
 pub(crate) fn make_typed_array_with_buffer_witness_record<'a>(
-    agent: &mut Agent,
+    agent: &Agent,
     obj: TypedArray,
     order: Ordering,
     gc: NoGcScope<'a, '_>,
@@ -283,6 +283,215 @@ pub(crate) fn is_typed_array_out_of_bounds<T: Viewable>(
     // 9. NOTE: 0-length TypedArrays are not considered out-of-bounds.
     // 10. Return false.
     false
+}
+
+/// ### [10.4.5.15 IsTypedArrayFixedLength ( O )](https://tc39.es/ecma262/#sec-istypedarrayfixedlength)
+///
+/// The abstract operation IsTypedArrayFixedLength takes argument O (a
+/// TypedArray) and returns a Boolean.
+pub(crate) fn is_typed_array_fixed_length(agent: &Agent, o: TypedArray, gc: NoGcScope) -> bool {
+    // 1. If O.[[ArrayLength]] is auto, return false.
+    if o.array_length(agent).is_none() {
+        false
+    } else {
+        // 2. Let buffer be O.[[ViewedArrayBuffer]].
+        let buffer = o.get_viewed_array_buffer(agent, gc);
+        // 3. If IsFixedLengthArrayBuffer(buffer) is false and IsSharedArrayBuffer(buffer) is false, return false.
+        if !is_fixed_length_array_buffer(agent, buffer)
+            && false /* is_shared_array_buffer(agent, buffer) */ == false
+        {
+            false
+        } else {
+            // 4. Return true.
+            true
+        }
+    }
+}
+
+/// ### [10.4.5.16 IsValidIntegerIndex ( O, index )](https://tc39.es/ecma262/#sec-isvalidintegerindex)
+///
+/// The abstract operation IsValidIntegerIndex takes arguments O (a TypedArray)
+/// and index (a Number) and returns a Boolean.
+pub(crate) fn is_valid_integer_index<O: Viewable>(
+    agent: &Agent,
+    o: TypedArray,
+    index: i64,
+    gc: NoGcScope,
+) -> Option<usize> {
+    // 1. If IsDetachedBuffer(O.[[ViewedArrayBuffer]]) is true, return false.
+    if is_detached_buffer(agent, o.get_viewed_array_buffer(agent, gc)) {
+        return None;
+    }
+    // 2. If index is not an integral Number, return false.
+    // 3. If index is -0𝔽 or index < -0𝔽, return false.
+    if index < 0 {
+        return None;
+    }
+    let index = index as usize;
+    // 4. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, unordered).
+    let ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered, gc);
+    // 5. NOTE: Bounds checking is not a synchronizing operation when O's
+    //    backing buffer is a growable SharedArrayBuffer.
+    // 6. If IsTypedArrayOutOfBounds(taRecord) is true, return false.
+    if is_typed_array_out_of_bounds::<O>(agent, &ta_record, gc) {
+        return None;
+    }
+    // 7. Let length be TypedArrayLength(taRecord).
+    let length = typed_array_length::<O>(agent, &ta_record, gc);
+    // 8. If ℝ(index) ≥ length, return false.
+    if index >= length {
+        None
+    } else {
+        // 9. Return true.
+        Some(index)
+    }
+}
+
+/// ### [10.4.5.17 TypedArrayGetElement ( O, index )](https://tc39.es/ecma262/#sec-typedarraygetelement)
+///
+/// The abstract operation TypedArrayGetElement takes arguments O (a
+/// TypedArray) and index (a Number) and returns a Number, a BigInt,
+/// or undefined.
+pub(crate) fn typed_array_get_element<'a, O: Viewable>(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    gc: NoGcScope<'a, '_>,
+) -> Option<Numeric<'a>> {
+    // 1. If IsValidIntegerIndex(O, index) is false, return undefined.
+    let Some(index) = is_valid_integer_index::<O>(agent, o, index, gc) else {
+        return None;
+    };
+    // 2. Let offset be O.[[ByteOffset]].
+    let offset = o.byte_offset(agent);
+    // 3. Let elementSize be TypedArrayElementSize(O).
+    let element_size = std::mem::size_of::<O>();
+    // 4. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
+    let byte_index_in_buffer = (index * element_size) + offset;
+    // 5. Let elementType be TypedArrayElementType(O).
+    // 6. Return GetValueFromBuffer(O.[[ViewedArrayBuffer]], byteIndexInBuffer, elementType, true, unordered).
+    Some(get_value_from_buffer::<O>(
+        agent,
+        o.get_viewed_array_buffer(agent, gc),
+        byte_index_in_buffer,
+        true,
+        Ordering::Unordered,
+        None,
+        gc,
+    ))
+}
+
+/// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+///
+/// The abstract operation TypedArraySetElement takes arguments O (a
+/// TypedArray), index (a Number), and value (an ECMAScript language value) and
+/// returns either a normal completion containing unused or a throw completion.
+///
+/// > Note
+/// >
+/// > This operation always appears to succeed, but it has no effect when
+/// > attempting to write past the end of a TypedArray or to a TypedArray which
+/// > is backed by a detached ArrayBuffer.
+pub(crate) fn typed_array_set_element<O: Viewable>(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    value: Value,
+    mut gc: GcScope,
+) -> JsResult<()> {
+    let mut o = o.bind(gc.nogc());
+    let value = value.bind(gc.nogc());
+    // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
+    let num_value = if O::IS_BIGINT {
+        if let Ok(v) = BigInt::try_from(value) {
+            v.into_numeric()
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let v = to_big_int(agent, value, gc.reborrow())?
+                .into_numeric()
+                .unbind()
+                .bind(gc.nogc());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            v
+        }
+    } else {
+        // 2. Otherwise, let numValue be ? ToNumber(value).
+        if let Ok(v) = Number::try_from(value) {
+            v.into_numeric()
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let v = to_number(agent, value, gc.reborrow())?
+                .into_numeric()
+                .unbind()
+                .bind(gc.nogc());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            v
+        }
+    };
+    let o = o.unbind();
+    let num_value = num_value.unbind();
+    let gc = gc.into_nogc();
+    let o = o.bind(gc);
+    let num_value = num_value.bind(gc);
+    typed_array_set_element_internal::<O>(agent, o, index, num_value, gc);
+    // 4. Return unused.
+    Ok(())
+}
+
+pub(crate) fn try_typed_array_set_element<O: Viewable>(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    value: Value,
+    gc: NoGcScope,
+) -> TryResult<()> {
+    // 1. If O.[[ContentType]] is bigint, let numValue be ? ToBigInt(value).
+    let num_value = if O::IS_BIGINT {
+        if let Ok(v) = BigInt::try_from(value) {
+            v.into_numeric()
+        } else {
+            return TryResult::Break(());
+        }
+    } else {
+        // 2. Otherwise, let numValue be ? ToNumber(value).
+        if let Ok(v) = Number::try_from(value) {
+            v.into_numeric()
+        } else {
+            return TryResult::Break(());
+        }
+    };
+    typed_array_set_element_internal::<O>(agent, o, index, num_value, gc);
+    // 4. Return unused.
+    TryResult::Continue(())
+}
+
+fn typed_array_set_element_internal<O: Viewable>(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    num_value: Numeric,
+    gc: NoGcScope,
+) {
+    // 3. If IsValidIntegerIndex(O, index) is true, then
+    if let Some(index) = is_valid_integer_index::<O>(agent, o, index, gc) {
+        // a. Let offset be O.[[ByteOffset]].
+        let offset = o.byte_offset(agent);
+        // b. Let elementSize be TypedArrayElementSize(O).
+        let element_size = std::mem::size_of::<O>();
+        // c. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
+        let byte_index_in_buffer = index * element_size + offset;
+        // d. Let elementType be TypedArrayElementType(O).
+        // e. Perform SetValueInBuffer(O.[[ViewedArrayBuffer]], byteIndexInBuffer, elementType, numValue, true, unordered).
+        set_value_in_buffer::<O>(
+            agent,
+            o.get_viewed_array_buffer(agent, gc),
+            byte_index_in_buffer,
+            num_value,
+            true,
+            Ordering::Unordered,
+            None,
+        );
+    }
 }
 
 /// ### [23.2.4.4 ValidateTypedArray ( O, order )](https://tc39.es/ecma262/#sec-validatetypedarray)

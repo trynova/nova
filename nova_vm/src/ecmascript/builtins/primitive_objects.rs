@@ -33,7 +33,7 @@ use crate::{
 use small_string::SmallString;
 
 use super::ordinary::{
-    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property, ordinary_try_set,
+    ordinary_own_property_keys, ordinary_try_get, ordinary_try_has_property_entry, ordinary_try_set,
 };
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord)]
@@ -315,24 +315,7 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
 
         // 1. Return ? OrdinaryHasProperty(O, P).
-        match self.get_backing_object(agent) {
-            Some(backing_object) => {
-                ordinary_try_has_property(agent, backing_object, property_key, gc)
-            }
-            None => {
-                // 3. Let parent be ? O.[[GetPrototypeOf]]().
-                let parent = unwrap_try(self.try_get_prototype_of(agent, gc));
-
-                // 4. If parent is not null, then
-                if let Some(parent) = parent {
-                    // a. Return ? parent.[[HasProperty]](P).
-                    parent.try_has_property(agent, property_key, gc)
-                } else {
-                    // 5. Return false.
-                    TryResult::Continue(false)
-                }
-            }
-        }
+        ordinary_try_has_property_entry(agent, self, property_key, gc)
     }
 
     fn internal_has_property(

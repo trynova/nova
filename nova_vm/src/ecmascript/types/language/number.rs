@@ -176,13 +176,32 @@ impl From<SmallF64> for Number<'static> {
 #[cfg(feature = "proposal-float16array")]
 impl From<f16> for Number<'_> {
     fn from(value: f16) -> Self {
-        Number::SmallF64(SmallF64::from(value))
+        if value.is_finite()
+            && value.trunc() == value
+            && !(value.is_sign_negative() && value.is_zero())
+        {
+            let int = value as i64;
+            debug_assert!(int as f16 == value);
+            Number::Integer(SmallInteger::try_from(int).unwrap())
+        } else {
+            Number::SmallF64(SmallF64::from(value))
+        }
     }
 }
 
 impl From<f32> for Number<'_> {
     fn from(value: f32) -> Self {
-        Number::SmallF64(SmallF64::from(value))
+        if value.is_finite()
+            && value.trunc() == value
+            && !(value.is_sign_negative() && value.is_zero())
+        {
+            let int = value as i64;
+            println!("Here? {}", value);
+            debug_assert!(int as f32 == value);
+            Number::Integer(SmallInteger::try_from(int).unwrap())
+        } else {
+            Number::SmallF64(SmallF64::from(value))
+        }
     }
 }
 
