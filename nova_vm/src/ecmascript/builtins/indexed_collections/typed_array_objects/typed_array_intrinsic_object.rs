@@ -7,10 +7,7 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{call_function, try_get},
             testing_and_comparison::{is_array, is_callable, same_value_zero},
-            type_conversion::{
-                to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
-                try_to_string,
-            },
+            type_conversion::{to_boolean, to_integer_or_infinity, to_string, try_to_string},
         },
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
@@ -33,7 +30,7 @@ use crate::{
     },
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
@@ -815,10 +812,7 @@ impl TypedArrayPrototype {
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = TypedArray::try_from(o)
-            .unwrap()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
+        let o = ta_record.object.bind(gc.nogc()).scope(agent, gc.nogc());
         let len = match o.get(agent) {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
@@ -844,13 +838,7 @@ impl TypedArrayPrototype {
             return Ok(false.into());
         };
         // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = if let TryResult::Continue(n) =
-            try_to_integer_or_infinity(agent, from_index, gc.nogc())
-        {
-            n?
-        } else {
-            to_integer_or_infinity(agent, from_index, gc.reborrow())?
-        };
+        let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 6. Assert: If fromIndex is undefined, then n is 0.
         if from_index.is_undefined() {
             assert_eq!(n.into_i64(), 0);
