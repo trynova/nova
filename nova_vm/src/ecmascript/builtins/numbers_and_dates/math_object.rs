@@ -16,6 +16,17 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
+#[cfg(feature = "proposal-math-sum")]
+use crate::ecmascript::{
+    abstract_operations::{
+        operations_on_iterator_objects::{
+            get_iterator, iterator_close, iterator_step_value,
+        },
+        testing_and_comparison::require_object_coercible,
+    },
+    execution::agent::ExceptionType,
+};
+
 pub(crate) struct MathObject;
 
 struct MathObjectAbs;
@@ -1641,16 +1652,6 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope,
     ) -> JsResult<Value> {
-        use crate::ecmascript::{
-            abstract_operations::{
-                operations_on_iterator_objects::{
-                    get_iterator, iterator_close, iterator_step_value,
-                },
-                testing_and_comparison::require_object_coercible,
-            },
-            execution::agent::ExceptionType,
-        };
-
         let items = arguments.get(0);
 
         // 1. Perform ? RequireObjectCoercible(items).
