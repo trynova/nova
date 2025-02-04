@@ -94,6 +94,7 @@ use crate::{
 use ahash::AHashMap;
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
+use indexes::IntoBaseIndex;
 
 #[derive(Debug)]
 pub struct Heap {
@@ -374,7 +375,12 @@ impl Heap {
         debug_assert!(message.len() > 7);
         let hash = self.string_hasher.hash_one(message);
         self.string_lookup_table
-            .find(hash, |_| true)
+            .find(hash, |heap_string| {
+                let heap_str = self.strings[heap_string.into_base_index().into_index()]
+                    .as_ref()
+                    .map(|string| string.as_str());
+                heap_str == Some(message)
+            })
             .map(|&heap_string| heap_string.into())
     }
 
