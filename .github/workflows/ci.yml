@@ -26,7 +26,7 @@ jobs:
       - name: Clippy
         run: >
           cargo clippy --all-targets
-          --features math,json,date,array-buffer,shared-array-buffer,weak-refs,atomics,regexp,set,annex-b,interleaved-gc,typescript
+          --features default,annex-b,interleaved-gc,typescript
           -- -D warnings
       - name: Spell check
         uses: crate-ci/typos@master
