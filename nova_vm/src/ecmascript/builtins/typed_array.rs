@@ -11,7 +11,7 @@ use crate::{
         execution::{Agent, JsResult},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, U8Clamped, Value, BIGINT_64_ARRAY_DISCRIMINANT,
+            PropertyDescriptor, PropertyKey, Value, BIGINT_64_ARRAY_DISCRIMINANT,
             BIGUINT_64_ARRAY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
             FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
             INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
@@ -37,9 +37,9 @@ use self::data::TypedArrayHeapData;
 use super::{
     array_buffer::{Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     indexed_collections::typed_array_objects::abstract_operations::{
-        is_typed_array_fixed_length, is_typed_array_out_of_bounds, is_valid_integer_index,
-        make_typed_array_with_buffer_witness_record, try_typed_array_set_element,
-        typed_array_get_element, typed_array_length, typed_array_set_element,
+        is_typed_array_fixed_length, is_typed_array_out_of_bounds, is_valid_integer_index_generic,
+        make_typed_array_with_buffer_witness_record, try_typed_array_set_element_generic,
+        typed_array_get_element_generic, typed_array_length, typed_array_set_element_generic,
     },
     ordinary::{
         ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
@@ -388,41 +388,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         // b. If numericIndex is not undefined, then
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. Let value be TypedArrayGetElement(O, numericIndex).
-            let value = match self {
-                TypedArray::Int8Array(_) => {
-                    typed_array_get_element::<i8>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Uint8Array(_) => {
-                    typed_array_get_element::<u8>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Uint8ClampedArray(_) => {
-                    typed_array_get_element::<U8Clamped>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Int16Array(_) => {
-                    typed_array_get_element::<i16>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Uint16Array(_) => {
-                    typed_array_get_element::<u16>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Int32Array(_) => {
-                    typed_array_get_element::<i32>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Uint32Array(_) => {
-                    typed_array_get_element::<u32>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Float32Array(_) => {
-                    typed_array_get_element::<f32>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::BigInt64Array(_) => {
-                    typed_array_get_element::<i64>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::BigUint64Array(_) => {
-                    typed_array_get_element::<u64>(agent, self, numeric_index.into_i64(), gc)
-                }
-                TypedArray::Float64Array(_) => {
-                    typed_array_get_element::<f64>(agent, self, numeric_index.into_i64(), gc)
-                }
-            };
+            let value = typed_array_get_element_generic(agent, self, numeric_index.into_i64(), gc);
             if let Some(value) = value {
                 // iii. Return the PropertyDescriptor {
                 //          [[Value]]: value,
@@ -462,26 +428,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         // b. If numericIndex is not undefined, return IsValidIntegerIndex(O, numericIndex).
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
-            let result = match self {
-                TypedArray::Int8Array(_)
-                | TypedArray::Uint8Array(_)
-                | TypedArray::Uint8ClampedArray(_) => {
-                    is_valid_integer_index::<u8>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                    is_valid_integer_index::<u16>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int32Array(_)
-                | TypedArray::Uint32Array(_)
-                | TypedArray::Float32Array(_) => {
-                    is_valid_integer_index::<u32>(agent, self, numeric_index, gc)
-                }
-                TypedArray::BigInt64Array(_)
-                | TypedArray::BigUint64Array(_)
-                | TypedArray::Float64Array(_) => {
-                    is_valid_integer_index::<u64>(agent, self, numeric_index, gc)
-                }
-            };
+            let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
             TryResult::Continue(result.is_some())
         } else {
             // 2. Return ? OrdinaryHasProperty(O, P).
@@ -522,26 +469,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
             let numeric_index = numeric_index.into_i64();
-            let numeric_index = match self {
-                TypedArray::Int8Array(_)
-                | TypedArray::Uint8Array(_)
-                | TypedArray::Uint8ClampedArray(_) => {
-                    is_valid_integer_index::<u8>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                    is_valid_integer_index::<u16>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int32Array(_)
-                | TypedArray::Uint32Array(_)
-                | TypedArray::Float32Array(_) => {
-                    is_valid_integer_index::<u32>(agent, self, numeric_index, gc)
-                }
-                TypedArray::BigInt64Array(_)
-                | TypedArray::BigUint64Array(_)
-                | TypedArray::Float64Array(_) => {
-                    is_valid_integer_index::<u64>(agent, self, numeric_index, gc)
-                }
-            };
+            let numeric_index = is_valid_integer_index_generic(agent, self, numeric_index, gc);
             let Some(numeric_index) = numeric_index else {
                 return TryResult::Continue(false);
             };
@@ -567,107 +495,8 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // vi. If Desc has a [[Value]] field, perform ?
             //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
             if let Some(value) = property_descriptor.value {
-                match self {
-                    TypedArray::Int8Array(_) => {
-                        try_typed_array_set_element::<i8>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint8Array(_) => {
-                        try_typed_array_set_element::<u8>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint8ClampedArray(_) => {
-                        try_typed_array_set_element::<U8Clamped>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Int16Array(_) => {
-                        try_typed_array_set_element::<i16>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint16Array(_) => {
-                        try_typed_array_set_element::<u16>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Int32Array(_) => {
-                        try_typed_array_set_element::<i32>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint32Array(_) => {
-                        try_typed_array_set_element::<u32>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::BigInt64Array(_) => {
-                        try_typed_array_set_element::<i64>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::BigUint64Array(_) => {
-                        try_typed_array_set_element::<u64>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Float32Array(_) => {
-                        try_typed_array_set_element::<f32>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Float64Array(_) => {
-                        try_typed_array_set_element::<f64>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                }
+                let numeric_index = numeric_index as i64;
+                try_typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
             }
             // vii. Return true.
             TryResult::Continue(true)
@@ -700,26 +529,8 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
             let numeric_index = numeric_index.into_i64();
-            let numeric_index = match self {
-                TypedArray::Int8Array(_)
-                | TypedArray::Uint8Array(_)
-                | TypedArray::Uint8ClampedArray(_) => {
-                    is_valid_integer_index::<u8>(agent, self, numeric_index, gc.nogc())
-                }
-                TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                    is_valid_integer_index::<u16>(agent, self, numeric_index, gc.nogc())
-                }
-                TypedArray::Int32Array(_)
-                | TypedArray::Uint32Array(_)
-                | TypedArray::Float32Array(_) => {
-                    is_valid_integer_index::<u32>(agent, self, numeric_index, gc.nogc())
-                }
-                TypedArray::BigInt64Array(_)
-                | TypedArray::BigUint64Array(_)
-                | TypedArray::Float64Array(_) => {
-                    is_valid_integer_index::<u64>(agent, self, numeric_index, gc.nogc())
-                }
-            };
+            let numeric_index =
+                is_valid_integer_index_generic(agent, self, numeric_index, gc.nogc());
             let Some(numeric_index) = numeric_index else {
                 return Ok(false);
             };
@@ -745,110 +556,11 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // vi. If Desc has a [[Value]] field, perform ?
             //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
             if let Some(value) = property_descriptor.value {
-                match self {
-                    TypedArray::Int8Array(_) => {
-                        typed_array_set_element::<i8>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint8Array(_) => {
-                        typed_array_set_element::<u8>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint8ClampedArray(_) => {
-                        typed_array_set_element::<U8Clamped>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Int16Array(_) => {
-                        typed_array_set_element::<i16>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint16Array(_) => {
-                        typed_array_set_element::<u16>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Int32Array(_) => {
-                        typed_array_set_element::<i32>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Uint32Array(_) => {
-                        typed_array_set_element::<u32>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::BigInt64Array(_) => {
-                        typed_array_set_element::<i64>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::BigUint64Array(_) => {
-                        typed_array_set_element::<u64>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Float32Array(_) => {
-                        typed_array_set_element::<f32>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                    TypedArray::Float64Array(_) => {
-                        typed_array_set_element::<f64>(
-                            agent,
-                            self,
-                            numeric_index as i64,
-                            value,
-                            gc,
-                        )?;
-                    }
-                }
+                let numeric_index = numeric_index as i64;
+                typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
             }
             // vii. Return true.
-            return Ok(true);
+            Ok(true)
         } else {
             // 2. Return ! OrdinaryDefineOwnProperty(O, P, Desc).
             let backing_object = self
@@ -878,41 +590,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             // i. Return TypedArrayGetElement(O, numericIndex).
             let numeric_index = numeric_index.into_i64();
-            let result = match self {
-                TypedArray::Int8Array(_) => {
-                    typed_array_get_element::<i8>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Uint8Array(_) => {
-                    typed_array_get_element::<u8>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Uint8ClampedArray(_) => {
-                    typed_array_get_element::<U8Clamped>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int16Array(_) => {
-                    typed_array_get_element::<i16>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Uint16Array(_) => {
-                    typed_array_get_element::<u16>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int32Array(_) => {
-                    typed_array_get_element::<i32>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Uint32Array(_) => {
-                    typed_array_get_element::<u32>(agent, self, numeric_index, gc)
-                }
-                TypedArray::BigInt64Array(_) => {
-                    typed_array_get_element::<i64>(agent, self, numeric_index, gc)
-                }
-                TypedArray::BigUint64Array(_) => {
-                    typed_array_get_element::<u64>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Float32Array(_) => {
-                    typed_array_get_element::<f32>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Float64Array(_) => {
-                    typed_array_get_element::<f64>(agent, self, numeric_index, gc)
-                }
-            };
+            let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
             TryResult::Continue(result.map_or(Value::Undefined, |v| v.into_value()))
         } else {
             // 2. Return ? OrdinaryGet(O, P, Receiver).
@@ -992,69 +670,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // i. If SameValue(O, Receiver) is true, then
             if self.into_value() == receiver {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
-                match self {
-                    TypedArray::Int8Array(_) => {
-                        try_typed_array_set_element::<i8>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint8Array(_) => {
-                        try_typed_array_set_element::<u8>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint8ClampedArray(_) => try_typed_array_set_element::<U8Clamped>(
-                        agent,
-                        self,
-                        numeric_index,
-                        value,
-                        gc,
-                    )?,
-                    TypedArray::Int16Array(_) => {
-                        try_typed_array_set_element::<i16>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint16Array(_) => {
-                        try_typed_array_set_element::<u16>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Int32Array(_) => {
-                        try_typed_array_set_element::<i32>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint32Array(_) => {
-                        try_typed_array_set_element::<u32>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::BigInt64Array(_) => {
-                        try_typed_array_set_element::<i64>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::BigUint64Array(_) => {
-                        try_typed_array_set_element::<u64>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Float32Array(_) => {
-                        try_typed_array_set_element::<f32>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Float64Array(_) => {
-                        try_typed_array_set_element::<f64>(agent, self, numeric_index, value, gc)?
-                    }
-                }
+                try_typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
                 // 2. Return true.
                 return TryResult::Continue(true);
             } else {
                 // ii. If IsValidIntegerIndex(O, numericIndex) is false, return true.
-                let result = match self {
-                    TypedArray::Int8Array(_)
-                    | TypedArray::Uint8Array(_)
-                    | TypedArray::Uint8ClampedArray(_) => {
-                        is_valid_integer_index::<u8>(agent, self, numeric_index, gc)
-                    }
-                    TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                        is_valid_integer_index::<u16>(agent, self, numeric_index, gc)
-                    }
-                    TypedArray::Int32Array(_)
-                    | TypedArray::Uint32Array(_)
-                    | TypedArray::Float32Array(_) => {
-                        is_valid_integer_index::<u32>(agent, self, numeric_index, gc)
-                    }
-                    TypedArray::BigInt64Array(_)
-                    | TypedArray::BigUint64Array(_)
-                    | TypedArray::Float64Array(_) => {
-                        is_valid_integer_index::<u64>(agent, self, numeric_index, gc)
-                    }
-                };
+                let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
                 if result.is_none() {
                     return TryResult::Continue(true);
                 }
@@ -1081,65 +702,12 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             // i. If SameValue(O, Receiver) is true, then
             if self.into_value() == receiver {
                 // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
-                match self {
-                    TypedArray::Int8Array(_) => {
-                        typed_array_set_element::<i8>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint8Array(_) => {
-                        typed_array_set_element::<u8>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint8ClampedArray(_) => {
-                        typed_array_set_element::<U8Clamped>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Int16Array(_) => {
-                        typed_array_set_element::<i16>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint16Array(_) => {
-                        typed_array_set_element::<u16>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Int32Array(_) => {
-                        typed_array_set_element::<i32>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Uint32Array(_) => {
-                        typed_array_set_element::<u32>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::BigInt64Array(_) => {
-                        typed_array_set_element::<i64>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::BigUint64Array(_) => {
-                        typed_array_set_element::<u64>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Float32Array(_) => {
-                        typed_array_set_element::<f32>(agent, self, numeric_index, value, gc)?
-                    }
-                    TypedArray::Float64Array(_) => {
-                        typed_array_set_element::<f64>(agent, self, numeric_index, value, gc)?
-                    }
-                }
+                typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
                 // 2. Return true.
                 return Ok(true);
             } else {
                 // ii. If IsValidIntegerIndex(O, numericIndex) is false, return true.
-                let result = match self {
-                    TypedArray::Int8Array(_)
-                    | TypedArray::Uint8Array(_)
-                    | TypedArray::Uint8ClampedArray(_) => {
-                        is_valid_integer_index::<u8>(agent, self, numeric_index, gc.nogc())
-                    }
-                    TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                        is_valid_integer_index::<u16>(agent, self, numeric_index, gc.nogc())
-                    }
-                    TypedArray::Int32Array(_)
-                    | TypedArray::Uint32Array(_)
-                    | TypedArray::Float32Array(_) => {
-                        is_valid_integer_index::<u32>(agent, self, numeric_index, gc.nogc())
-                    }
-                    TypedArray::BigInt64Array(_)
-                    | TypedArray::BigUint64Array(_)
-                    | TypedArray::Float64Array(_) => {
-                        is_valid_integer_index::<u64>(agent, self, numeric_index, gc.nogc())
-                    }
-                };
+                let result = is_valid_integer_index_generic(agent, self, numeric_index, gc.nogc());
                 if result.is_none() {
                     return Ok(true);
                 }
@@ -1162,26 +730,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
         if let PropertyKey::Integer(numeric_index) = property_key {
             let numeric_index = numeric_index.into_i64();
             // i. If IsValidIntegerIndex(O, numericIndex) is false, return true; else return false.
-            let numeric_index = match self {
-                TypedArray::Int8Array(_)
-                | TypedArray::Uint8Array(_)
-                | TypedArray::Uint8ClampedArray(_) => {
-                    is_valid_integer_index::<u8>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                    is_valid_integer_index::<u16>(agent, self, numeric_index, gc)
-                }
-                TypedArray::Int32Array(_)
-                | TypedArray::Uint32Array(_)
-                | TypedArray::Float32Array(_) => {
-                    is_valid_integer_index::<u32>(agent, self, numeric_index, gc)
-                }
-                TypedArray::BigInt64Array(_)
-                | TypedArray::BigUint64Array(_)
-                | TypedArray::Float64Array(_) => {
-                    is_valid_integer_index::<u64>(agent, self, numeric_index, gc)
-                }
-            };
+            let numeric_index = is_valid_integer_index_generic(agent, self, numeric_index, gc);
             TryResult::Continue(numeric_index.is_none())
         } else {
             // 2. Return ! OrdinaryDelete(O, P).
@@ -1215,6 +764,14 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
                 if !is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc) {
                     typed_array_length::<u16>(agent, &ta_record, gc)
+                } else {
+                    0
+                }
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                if !is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc) {
+                    typed_array_length::<f16>(agent, &ta_record, gc)
                 } else {
                     0
                 }

@@ -178,7 +178,7 @@ impl From<f16> for Number<'_> {
     fn from(value: f16) -> Self {
         if value.is_finite()
             && value.trunc() == value
-            && !(value.is_sign_negative() && value.is_zero())
+            && !(value.is_sign_negative() && value == 0.0)
         {
             let int = value as i64;
             debug_assert!(int as f16 == value);
@@ -193,7 +193,7 @@ impl From<f32> for Number<'_> {
     fn from(value: f32) -> Self {
         if value.is_finite()
             && value.trunc() == value
-            && !(value.is_sign_negative() && value.is_zero())
+            && !(value.is_sign_negative() && value == 0.0)
         {
             let int = value as i64;
             println!("Here? {}", value);

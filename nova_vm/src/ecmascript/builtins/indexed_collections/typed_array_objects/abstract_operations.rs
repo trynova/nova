@@ -298,13 +298,41 @@ pub(crate) fn is_typed_array_fixed_length(agent: &Agent, o: TypedArray, gc: NoGc
         let buffer = o.get_viewed_array_buffer(agent, gc);
         // 3. If IsFixedLengthArrayBuffer(buffer) is false and IsSharedArrayBuffer(buffer) is false, return false.
         if !is_fixed_length_array_buffer(agent, buffer)
-            && false /* is_shared_array_buffer(agent, buffer) */ == false
+        // && !is_shared_array_buffer(agent, buffer)
         {
             false
         } else {
             // 4. Return true.
             true
         }
+    }
+}
+
+/// ### [10.4.5.16 Generic IsValidIntegerIndex ( O, index )](https://tc39.es/ecma262/#sec-isvalidintegerindex)
+///
+/// The abstract operation IsValidIntegerIndex takes arguments O (a TypedArray)
+/// and index (a Number) and returns a Boolean.
+pub(crate) fn is_valid_integer_index_generic(
+    agent: &Agent,
+    o: TypedArray,
+    index: i64,
+    gc: NoGcScope,
+) -> Option<usize> {
+    match o {
+        TypedArray::Int8Array(_) | TypedArray::Uint8Array(_) | TypedArray::Uint8ClampedArray(_) => {
+            is_valid_integer_index::<u8>(agent, o, index, gc)
+        }
+        TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+            is_valid_integer_index::<u16>(agent, o, index, gc)
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => is_valid_integer_index::<f16>(agent, o, index, gc),
+        TypedArray::Int32Array(_) | TypedArray::Uint32Array(_) | TypedArray::Float32Array(_) => {
+            is_valid_integer_index::<u32>(agent, o, index, gc)
+        }
+        TypedArray::BigInt64Array(_)
+        | TypedArray::BigUint64Array(_)
+        | TypedArray::Float64Array(_) => is_valid_integer_index::<u64>(agent, o, index, gc),
     }
 }
 
@@ -352,6 +380,36 @@ pub(crate) fn is_valid_integer_index<O: Viewable>(
 /// The abstract operation TypedArrayGetElement takes arguments O (a
 /// TypedArray) and index (a Number) and returns a Number, a BigInt,
 /// or undefined.
+pub(crate) fn typed_array_get_element_generic<'a>(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    gc: NoGcScope<'a, '_>,
+) -> Option<Numeric<'a>> {
+    match o {
+        TypedArray::Int8Array(_) => typed_array_get_element::<i8>(agent, o, index, gc),
+        TypedArray::Uint8Array(_) => typed_array_get_element::<u8>(agent, o, index, gc),
+        TypedArray::Uint8ClampedArray(_) => {
+            typed_array_get_element::<U8Clamped>(agent, o, index, gc)
+        }
+        TypedArray::Int16Array(_) => typed_array_get_element::<i16>(agent, o, index, gc),
+        TypedArray::Uint16Array(_) => typed_array_get_element::<u16>(agent, o, index, gc),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => typed_array_get_element::<f16>(agent, o, index, gc),
+        TypedArray::Int32Array(_) => typed_array_get_element::<i32>(agent, o, index, gc),
+        TypedArray::Uint32Array(_) => typed_array_get_element::<u32>(agent, o, index, gc),
+        TypedArray::BigInt64Array(_) => typed_array_get_element::<i64>(agent, o, index, gc),
+        TypedArray::BigUint64Array(_) => typed_array_get_element::<u64>(agent, o, index, gc),
+        TypedArray::Float32Array(_) => typed_array_get_element::<f32>(agent, o, index, gc),
+        TypedArray::Float64Array(_) => typed_array_get_element::<f64>(agent, o, index, gc),
+    }
+}
+
+/// ### [10.4.5.17 TypedArrayGetElement ( O, index )](https://tc39.es/ecma262/#sec-typedarraygetelement)
+///
+/// The abstract operation TypedArrayGetElement takes arguments O (a
+/// TypedArray) and index (a Number) and returns a Number, a BigInt,
+/// or undefined.
 pub(crate) fn typed_array_get_element<'a, O: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
@@ -359,9 +417,7 @@ pub(crate) fn typed_array_get_element<'a, O: Viewable>(
     gc: NoGcScope<'a, '_>,
 ) -> Option<Numeric<'a>> {
     // 1. If IsValidIntegerIndex(O, index) is false, return undefined.
-    let Some(index) = is_valid_integer_index::<O>(agent, o, index, gc) else {
-        return None;
-    };
+    let index = is_valid_integer_index::<O>(agent, o, index, gc)?;
     // 2. Let offset be O.[[ByteOffset]].
     let offset = o.byte_offset(agent);
     // 3. Let elementSize be TypedArrayElementSize(O).
@@ -379,6 +435,43 @@ pub(crate) fn typed_array_get_element<'a, O: Viewable>(
         None,
         gc,
     ))
+}
+
+/// ### [10.4.5.18 Generic TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+///
+/// The abstract operation TypedArraySetElement takes arguments O (a
+/// TypedArray), index (a Number), and value (an ECMAScript language value) and
+/// returns either a normal completion containing unused or a throw completion.
+///
+/// > Note
+/// >
+/// > This operation always appears to succeed, but it has no effect when
+/// > attempting to write past the end of a TypedArray or to a TypedArray which
+/// > is backed by a detached ArrayBuffer.
+pub(crate) fn typed_array_set_element_generic(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    value: Value,
+    gc: GcScope,
+) -> JsResult<()> {
+    match o {
+        TypedArray::Int8Array(_) => typed_array_set_element::<i8>(agent, o, index, value, gc),
+        TypedArray::Uint8Array(_) => typed_array_set_element::<u8>(agent, o, index, value, gc),
+        TypedArray::Uint8ClampedArray(_) => {
+            typed_array_set_element::<U8Clamped>(agent, o, index, value, gc)
+        }
+        TypedArray::Int16Array(_) => typed_array_set_element::<i16>(agent, o, index, value, gc),
+        TypedArray::Uint16Array(_) => typed_array_set_element::<u16>(agent, o, index, value, gc),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => typed_array_set_element::<f16>(agent, o, index, value, gc),
+        TypedArray::Int32Array(_) => typed_array_set_element::<i32>(agent, o, index, value, gc),
+        TypedArray::Uint32Array(_) => typed_array_set_element::<u32>(agent, o, index, value, gc),
+        TypedArray::BigInt64Array(_) => typed_array_set_element::<i64>(agent, o, index, value, gc),
+        TypedArray::BigUint64Array(_) => typed_array_set_element::<u64>(agent, o, index, value, gc),
+        TypedArray::Float32Array(_) => typed_array_set_element::<f32>(agent, o, index, value, gc),
+        TypedArray::Float64Array(_) => typed_array_set_element::<f64>(agent, o, index, value, gc),
+    }
 }
 
 /// ### [10.4.5.18 TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
@@ -438,6 +531,68 @@ pub(crate) fn typed_array_set_element<O: Viewable>(
     Ok(())
 }
 
+/// ### [10.4.5.18 Infallible generic TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+///
+/// The abstract operation TypedArraySetElement takes arguments O (a
+/// TypedArray), index (a Number), and value (an ECMAScript language value) and
+/// returns either a normal completion containing unused or a throw completion.
+///
+/// > Note
+/// >
+/// > This operation always appears to succeed, but it has no effect when
+/// > attempting to write past the end of a TypedArray or to a TypedArray which
+/// > is backed by a detached ArrayBuffer.
+pub(crate) fn try_typed_array_set_element_generic(
+    agent: &mut Agent,
+    o: TypedArray,
+    index: i64,
+    value: Value,
+    gc: NoGcScope,
+) -> TryResult<()> {
+    match o {
+        TypedArray::Int8Array(_) => try_typed_array_set_element::<i8>(agent, o, index, value, gc),
+        TypedArray::Uint8Array(_) => try_typed_array_set_element::<u8>(agent, o, index, value, gc),
+        TypedArray::Uint8ClampedArray(_) => {
+            try_typed_array_set_element::<U8Clamped>(agent, o, index, value, gc)
+        }
+        TypedArray::Int16Array(_) => try_typed_array_set_element::<i16>(agent, o, index, value, gc),
+        TypedArray::Uint16Array(_) => {
+            try_typed_array_set_element::<u16>(agent, o, index, value, gc)
+        }
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => {
+            try_typed_array_set_element::<f16>(agent, o, index, value, gc)
+        }
+        TypedArray::Int32Array(_) => try_typed_array_set_element::<i32>(agent, o, index, value, gc),
+        TypedArray::Uint32Array(_) => {
+            try_typed_array_set_element::<u32>(agent, o, index, value, gc)
+        }
+        TypedArray::BigInt64Array(_) => {
+            try_typed_array_set_element::<i64>(agent, o, index, value, gc)
+        }
+        TypedArray::BigUint64Array(_) => {
+            try_typed_array_set_element::<u64>(agent, o, index, value, gc)
+        }
+        TypedArray::Float32Array(_) => {
+            try_typed_array_set_element::<f32>(agent, o, index, value, gc)
+        }
+        TypedArray::Float64Array(_) => {
+            try_typed_array_set_element::<f64>(agent, o, index, value, gc)
+        }
+    }
+}
+
+/// ### [10.4.5.18 Infallible TypedArraySetElement ( O, index, value )](https://tc39.es/ecma262/#sec-typedarraysetelement)
+///
+/// The abstract operation TypedArraySetElement takes arguments O (a
+/// TypedArray), index (a Number), and value (an ECMAScript language value) and
+/// returns either a normal completion containing unused or a throw completion.
+///
+/// > Note
+/// >
+/// > This operation always appears to succeed, but it has no effect when
+/// > attempting to write past the end of a TypedArray or to a TypedArray which
+/// > is backed by a detached ArrayBuffer.
 pub(crate) fn try_typed_array_set_element<O: Viewable>(
     agent: &mut Agent,
     o: TypedArray,
