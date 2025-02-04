@@ -953,7 +953,6 @@
   "built-ins/DataView/prototype/getFloat16/return-values.js": "CRASH",
   "built-ins/DataView/prototype/getFloat16/to-boolean-littleendian.js": "FAIL",
   "built-ins/DataView/prototype/getFloat16/toindex-byteoffset.js": "FAIL",
-  "built-ins/DataView/prototype/getFloat32/return-values.js": "CRASH",
   "built-ins/DataView/prototype/getInt32/index-is-out-of-range-sab.js": "CRASH",
   "built-ins/DataView/prototype/getInt32/negative-byteoffset-throws-sab.js": "CRASH",
   "built-ins/DataView/prototype/getInt32/return-abrupt-from-tonumber-byteoffset-sab.js": "CRASH",
