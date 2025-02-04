@@ -882,14 +882,14 @@ impl TypedArrayPrototype {
         // 11. Repeat, while k < len,
         while k < len {
             // a. Let elementK be ! Get(O, ! ToString(𝔽(k))).
-            let elemetnt_k = unwrap_try(try_get(
+            let element_k = unwrap_try(try_get(
                 agent,
                 o,
                 PropertyKey::Integer(k.try_into().unwrap()),
                 gc.nogc(),
             ));
             // b. If SameValueZero(searchElement, elementK) is true, return true.
-            if same_value_zero(agent, search_element, elemetnt_k) {
+            if same_value_zero(agent, search_element, element_k) {
                 return Ok(true.into());
             }
             // c. Set k to k + 1.
