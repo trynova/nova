@@ -181,8 +181,11 @@ impl From<f16> for Number<'_> {
             && !(value.is_sign_negative() && value == 0.0)
         {
             let int = value as i64;
-            debug_assert!(int as f16 == value);
-            Number::Integer(SmallInteger::try_from(int).unwrap())
+            if let Ok(int) = SmallInteger::try_from(int) {
+                Number::Integer(int)
+            } else {
+                Number::SmallF64(value.into())
+            }
         } else {
             Number::SmallF64(SmallF64::from(value))
         }
@@ -196,9 +199,11 @@ impl From<f32> for Number<'_> {
             && !(value.is_sign_negative() && value == 0.0)
         {
             let int = value as i64;
-            println!("Here? {}", value);
-            debug_assert!(int as f32 == value);
-            Number::Integer(SmallInteger::try_from(int).unwrap())
+            if let Ok(int) = SmallInteger::try_from(int) {
+                Number::Integer(int)
+            } else {
+                Number::SmallF64(value.into())
+            }
         } else {
             Number::SmallF64(SmallF64::from(value))
         }
