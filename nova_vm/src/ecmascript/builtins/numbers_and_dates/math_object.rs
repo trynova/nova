@@ -16,6 +16,15 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
+#[cfg(feature = "proposal-math-sum")]
+use crate::ecmascript::{
+    abstract_operations::{
+        operations_on_iterator_objects::{get_iterator, iterator_close, iterator_step_value},
+        testing_and_comparison::require_object_coercible,
+    },
+    execution::agent::ExceptionType,
+};
+
 pub(crate) struct MathObject;
 
 struct MathObjectAbs;
@@ -345,6 +354,18 @@ impl Builtin for MathObjectF16round {
 
     const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
         crate::ecmascript::builtins::Behaviour::Regular(MathObject::f16round);
+}
+
+#[cfg(feature = "proposal-math-sum")]
+struct MathObjectSumPrecise;
+#[cfg(feature = "proposal-math-sum")]
+impl Builtin for MathObjectSumPrecise {
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.sumPrecise;
+
+    const LENGTH: u8 = 1;
+
+    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
+        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sum_precise);
 }
 
 impl MathObject {
@@ -1608,17 +1629,135 @@ impl MathObject {
         Ok(Value::from_f64(agent, n64, gc.into_nogc()))
     }
 
+    /// ### [2 Math.sumPrecise ( items )](https://tc39.es/proposal-math-sum/#sec-math.sumprecise)
+    ///
+    /// Given an iterable of Numbers, this function sums each value in the
+    /// iterable and returns their sum. If any value is not a Number it throws
+    /// a TypeError exception.
+    ///
+    /// > #### Note 1
+    /// >
+    /// > The value of sum can be computed without arbitrary-precision
+    /// > arithmetic by a variety of algorithms. One such is the "Grow-Expansion"
+    /// > algorithm given in Adaptive Precision Floating-Point Arithmetic and
+    /// > Fast Robust Geometric Predicates by Jonathan Richard Shewchuk. A more
+    /// > recent algorithm is given in "Fast exact summation using small and large superaccumulators",
+    /// > code for which is available at https://gitlab.com/radfordneal/xsum.
+    #[cfg(feature = "proposal-math-sum")]
+    fn sum_precise(
+        agent: &mut Agent,
+        _this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
+    ) -> JsResult<Value> {
+        let items = arguments.get(0);
+
+        // 1. Perform ? RequireObjectCoercible(items).
+        require_object_coercible(agent, items, gc.nogc())?;
+
+        // 2. Let iteratorRecord be ? GetIterator(items, sync).
+        let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;
+
+        // 3. Let state be minus-zero.
+        let mut state = -0.0f64;
+        // 4. Let sum be 0.
+        let mut sum = 0.0f64;
+        // 5. Let count be 0.
+        let mut count = 0;
+
+        // 6. Let next be not-started.
+        // 7. Repeat, while next is not done,
+        // a. Set next to ? IteratorStepValue(iteratorRecord).
+        // b. If next is not done, then
+        while let Some(next) = iterator_step_value(agent, &mut iterator_record, gc.reborrow())? {
+            // i. Set count to count + 1.
+            count += 1;
+            // ii. If count ≥ 2**53, then
+            // iii. NOTE: The above case is not expected to be reached in practice and is included only so that implementations may rely on inputs being "reasonably sized" without violating this specification.
+            if count >= 2i64.pow(53) {
+                // 1. Let error be ThrowCompletion(a newly created RangeError object).
+                let error = agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Iterator cannot exceed 5**53 items",
+                    gc.nogc(),
+                );
+                // 2. Return ? IteratorClose(iteratorRecord, error).
+                return iterator_close(agent, &iterator_record, Err(error), gc);
+            }
+
+            // v. Let n be next.
+            if let Ok(n) = Number::try_from(next) {
+                // vi. If state is not not-a-number, then
+                if !state.is_nan() {
+                    if n.is_nan(agent) {
+                        // 1. If n is NaN, then
+                        // a. Set state to not-a-number.
+                        state = f64::NAN;
+                    } else if n.is_pos_infinity(agent) {
+                        // 2. Else if n is +∞𝔽, then
+                        // a. If state is minus-infinity, set state to not-a-number.
+                        // b. Else, set state to plus-infinity.
+                        state = if state == f64::NEG_INFINITY {
+                            f64::NAN
+                        } else {
+                            f64::INFINITY
+                        };
+                    } else if n.is_neg_infinity(agent) {
+                        // 3. Else if n is -∞𝔽, then
+                        // a. If state is plus-infinity, set state to not-a-number.
+                        // b. Else, set state to minus-infinity.
+                        state = if state == f64::INFINITY {
+                            f64::NAN
+                        } else {
+                            f64::NEG_INFINITY
+                        };
+                    } else if !n.is_neg_zero(agent) && (state == -0.0 || state.is_finite()) {
+                        // 4. Else if n is not -0𝔽 and state is either minus-zero or finite, then
+                        // a. Set state to finite.
+                        state = 0.0;
+                        // b. Set sum to sum + ℝ(n).
+                        sum += n.into_f64(agent);
+                    }
+                }
+            } else {
+                // iv. If next is not a Number, then
+                // 1. Let error be ThrowCompletion(a newly created TypeError object).
+                let error = agent.throw_exception_with_static_message(
+                    ExceptionType::RangeError,
+                    "Iterator may only contain numbers",
+                    gc.nogc(),
+                );
+                // 2. Return ? IteratorClose(iteratorRecord, error).
+                return iterator_close(agent, &iterator_record, Err(error), gc);
+            }
+        }
+
+        // 8. If state is not-a-number, return NaN.
+        // 9. If state is plus-infinity, return +∞𝔽.
+        // 10. If state is minus-infinity, return -∞𝔽.
+        // 11. If state is minus-zero, return -0𝔽.
+        if state.is_nan() || state.is_infinite() || state == -0.0 {
+            return Ok(Value::from_f64(agent, state, gc.into_nogc()));
+        }
+        // 12. Return 𝔽(sum).
+        Ok(Value::from_f64(agent, sum, gc.into_nogc()))
+    }
+
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let object_prototype = intrinsics.object_prototype();
         let this = intrinsics.math();
 
+        let mut property_capacity = 44;
+        if cfg!(feature = "proposal-float16array") {
+            property_capacity += 1;
+        }
+        if cfg!(feature = "proposal-math-sum") {
+            property_capacity += 1;
+        }
+
         let builder = OrdinaryObjectBuilder::new_intrinsic_object(agent, realm, this)
-            .with_property_capacity(if cfg!(feature = "proposal-float16array") {
-                45
-            } else {
-                44
-            })
+            .with_property_capacity(property_capacity)
             .with_prototype(object_prototype)
             .with_property(|builder| {
                 builder
@@ -1746,6 +1885,9 @@ impl MathObject {
 
         #[cfg(feature = "proposal-float16array")]
         let builder = builder.with_builtin_function_property::<MathObjectF16round>();
+
+        #[cfg(feature = "proposal-math-sum")]
+        let builder = builder.with_builtin_function_property::<MathObjectSumPrecise>();
 
         builder.build();
     }
