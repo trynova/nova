@@ -7,7 +7,10 @@ use crate::{
         abstract_operations::{
             operations_on_objects::{call_function, try_get},
             testing_and_comparison::{is_array, is_callable, same_value_zero},
-            type_conversion::{to_boolean, to_integer_or_infinity, to_string, try_to_string},
+            type_conversion::{
+                to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
+                try_to_string,
+            },
         },
         builders::{
             builtin_function_builder::BuiltinFunctionBuilder,
@@ -30,7 +33,7 @@ use crate::{
     },
     engine::{
         context::{GcScope, NoGcScope},
-        unwrap_try,
+        unwrap_try, TryResult,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
     SmallInteger,
@@ -812,8 +815,8 @@ impl TypedArrayPrototype {
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = ta_record.object.bind(gc.nogc()).scope(agent, gc.nogc());
-        let len = match o.get(agent) {
+        let mut o = ta_record.object;
+        let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -838,7 +841,16 @@ impl TypedArrayPrototype {
             return Ok(false.into());
         };
         // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
+        let n = if let TryResult::Continue(n) =
+            try_to_integer_or_infinity(agent, from_index, gc.nogc())
+        {
+            n?
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let result = to_integer_or_infinity(agent, from_index, gc.reborrow());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            result?
+        };
         // 6. Assert: If fromIndex is undefined, then n is 0.
         if from_index.is_undefined() {
             assert_eq!(n.into_i64(), 0);
@@ -872,7 +884,7 @@ impl TypedArrayPrototype {
             // a. Let elementK be ! Get(O, ! ToString(𝔽(k))).
             let elemetnt_k = unwrap_try(try_get(
                 agent,
-                o.get(agent),
+                o,
                 PropertyKey::Integer(k.try_into().unwrap()),
                 gc.nogc(),
             ));
