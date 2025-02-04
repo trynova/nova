@@ -26,7 +26,7 @@ use self::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
-    indexes::{NumberIndex, ObjectIndex, StringIndex},
+    indexes::{NumberIndex, ObjectIndex},
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
@@ -92,6 +92,7 @@ use crate::{
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
+use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 
 #[derive(Debug)]
@@ -170,7 +171,8 @@ pub struct Heap {
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,
-    pub string_lookup_table: AHashMap<u64, StringIndex<'static>>,
+    pub string_lookup_table: HashTable<HeapString<'static>>,
+    pub string_hasher: ahash::RandomState,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -264,7 +266,8 @@ impl Heap {
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
-            string_lookup_table: AHashMap::with_capacity(1024),
+            string_lookup_table: HashTable::with_capacity(1024),
+            string_hasher: ahash::RandomState::new(),
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
@@ -369,10 +372,10 @@ impl Heap {
 
     fn find_equal_string(&self, message: &str) -> Option<String<'static>> {
         debug_assert!(message.len() > 7);
-        let hash = self.string_lookup_table.hasher().hash_one(message);
+        let hash = self.string_hasher.hash_one(message);
         self.string_lookup_table
-            .get(&hash)
-            .map(|found_index| HeapString(*found_index).into())
+            .find(hash, |_| true)
+            .map(|&heap_string| heap_string.into())
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap

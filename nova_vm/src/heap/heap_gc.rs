@@ -8,9 +8,9 @@ use super::{
     element_array::ElementArrays,
     heap_bits::{
         mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
-        sweep_heap_strings_and_lookup_table, sweep_heap_u16_elements_vector_values,
-        sweep_heap_u32_elements_vector_values, sweep_heap_u8_elements_vector_values,
-        sweep_heap_vector_values, CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
+        sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
+        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_lookup_table,
+        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
@@ -190,6 +190,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
             shared_array_buffers,
             strings,
             string_lookup_table: _,
+            string_hasher: _,
             symbols,
             #[cfg(feature = "array-buffer")]
             typed_arrays,
@@ -1094,6 +1095,7 @@ fn sweep(
         shared_array_buffers,
         strings,
         string_lookup_table,
+        string_hasher: _,
         symbols,
         #[cfg(feature = "array-buffer")]
         typed_arrays,
@@ -1482,12 +1484,8 @@ fn sweep(
         }
         if !strings.is_empty() {
             s.spawn(|| {
-                sweep_heap_strings_and_lookup_table(
-                    strings,
-                    string_lookup_table,
-                    &compactions,
-                    &bits.strings,
-                );
+                sweep_heap_vector_values(strings, &compactions, &bits.strings);
+                sweep_lookup_table(string_lookup_table, &compactions, &bits.strings);
             });
         }
         if !symbols.is_empty() {

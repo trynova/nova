@@ -64,6 +64,9 @@ const _OPTION_INDEX_SIZE_IS_U32: () =
 pub(crate) trait IntoBaseIndex<'a, T: ?Sized> {
     fn into_base_index(self) -> BaseIndex<'a, T>;
 }
+pub(crate) trait GetBaseIndexMut<'a, T: ?Sized> {
+    fn get_base_index_mut(&mut self) -> &mut BaseIndex<'a, T>;
+}
 
 impl<'a, T: ?Sized> Debug for BaseIndex<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
