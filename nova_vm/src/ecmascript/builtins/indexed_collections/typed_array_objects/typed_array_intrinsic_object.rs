@@ -725,7 +725,6 @@ impl TypedArrayPrototype {
 
     // ### [ 23.2.3.15 %TypedArray%.prototype.forEach ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.foreach)
     // The interpretation and use of the arguments of this method are the same as for Array.prototype.forEach as defined in 23.1.3.15.
-    // This method performs the following steps when called:
     fn for_each(
         agent: &mut Agent,
         this_value: Value,
@@ -739,10 +738,7 @@ impl TypedArrayPrototype {
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = TypedArray::try_from(o)
-            .unwrap()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
+        let o = ta_record.object.bind(gc.nogc()).scope(agent, gc.nogc());
         let len = match o.get(agent) {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
