@@ -12,14 +12,6 @@ use oxc_ecmascript::IsSimpleParameterList;
 use oxc_span::Span;
 
 use crate::{
-    ecmascript::types::{function_try_get, function_try_has_property, function_try_set},
-    engine::{
-        context::{GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped, TryResult,
-    },
-};
-use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
         execution::{
@@ -45,9 +37,21 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
+    engine::Executable,
     heap::{
         indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
+    },
+};
+use crate::{
+    ecmascript::{
+        syntax_directed_operations::function_definitions::evaluate_async_generator_body,
+        types::{function_try_get, function_try_has_property, function_try_set},
+    },
+    engine::{
+        context::{GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped, TryResult,
     },
 };
 
@@ -318,6 +322,10 @@ impl<'a> ECMAScriptFunction<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub(crate) fn get_executable(self, agent: &Agent) -> Executable {
+        agent[self].compiled_bytecode.unwrap()
     }
 
     pub fn is_constructor(self, agent: &Agent) -> bool {
@@ -813,7 +821,7 @@ pub(crate) fn evaluate_body(
         }
         // AsyncGeneratorBody : FunctionBody
         // 1. Return ? EvaluateAsyncGeneratorBody of AsyncGeneratorBody with arguments functionObject and argumentsList.
-        _ => todo!(),
+        _ => evaluate_async_generator_body(agent, function_object.unbind(), arguments_list, gc),
     }
 
     // Initializer :

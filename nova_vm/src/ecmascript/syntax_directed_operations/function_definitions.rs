@@ -2,7 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::collections::VecDeque;
+
 use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
+use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
+use crate::ecmascript::builtins::generator_objects::SuspendedGeneratorState;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
@@ -414,12 +418,64 @@ pub(crate) fn evaluate_generator_body(
     // SAFETY: We're alive so SourceCode must be too.
     let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
     let executable = Executable::compile_function_body(agent, data, gc);
-    agent[generator].generator_state = Some(GeneratorState::Suspended {
+    agent[generator].generator_state = Some(GeneratorState::Suspended(SuspendedGeneratorState {
         vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
         executable,
         execution_context: agent.running_execution_context().clone(),
-    });
+    }));
 
     // 5. Return Completion Record { [[Type]]: return, [[Value]]: G, [[Target]]: empty }.
+    Ok(generator.into_value())
+}
+
+/// ### [15.6.2 Runtime Semantics: EvaluateAsyncGeneratorBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncgeneratorbody)
+///
+/// The syntax-directed operation EvaluateAsyncGeneratorBody takes arguments
+/// functionObject (an ECMAScript function object) and argumentsList (a List of
+/// ECMAScript language values) and returns a throw completion or a return
+/// completion.
+pub(crate) fn evaluate_async_generator_body(
+    agent: &mut Agent,
+    function_object: ECMAScriptFunction,
+    arguments_list: ArgumentsList,
+    mut gc: GcScope<'_, '_>,
+) -> JsResult<Value> {
+    let function_object = function_object.bind(gc.nogc());
+    // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
+
+    let scoped_function_object = function_object.scope(agent, gc.nogc());
+    // 2. Let generator be ? OrdinaryCreateFromConstructor(functionObject,
+    //    "%AsyncGeneratorPrototype%", « [[AsyncGeneratorState]],
+    //    [[AsyncGeneratorContext]], [[AsyncGeneratorQueue]],
+    //    [[GeneratorBrand]] »).
+    let generator = ordinary_create_from_constructor(
+        agent,
+        function_object.into_function().unbind(),
+        ProtoIntrinsics::AsyncGenerator,
+        gc.reborrow(),
+    )?;
+    let Object::AsyncGenerator(generator) = generator else {
+        unreachable!()
+    };
+
+    // 3. Set generator.[[GeneratorBrand]] to empty.
+    // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
+    // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
+    let function_object = scoped_function_object.get(agent).bind(gc.nogc());
+    let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
+        exe
+    } else {
+        let data = CompileFunctionBodyData::new(agent, function_object);
+        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        agent[function_object].compiled_bytecode = Some(exe);
+        exe
+    };
+    agent[generator].executable = Some(executable);
+    agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
+        arguments: arguments_list.0.into(),
+        execution_context: agent.running_execution_context().clone(),
+        queue: VecDeque::new(),
+    });
+    // 6. Return ReturnCompletion(generator).
     Ok(generator.into_value())
 }

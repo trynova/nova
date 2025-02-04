@@ -25,6 +25,9 @@ use crate::{
     },
 };
 
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
+
 use self::data::TypedArrayHeapData;
 
 use super::{
@@ -47,6 +50,8 @@ pub enum TypedArray<'a> {
     Uint32Array(TypedArrayIndex<'a>) = UINT_32_ARRAY_DISCRIMINANT,
     BigInt64Array(TypedArrayIndex<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
     BigUint64Array(TypedArrayIndex<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array(TypedArrayIndex<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
     Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
 }
@@ -93,6 +98,8 @@ impl TypedArray<'_> {
             | TypedArray::BigUint64Array(index)
             | TypedArray::Float32Array(index)
             | TypedArray::Float64Array(index) => index.into_index(),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(index) => index.into_index(),
         }
     }
 
@@ -160,6 +167,8 @@ impl<'a> IntoBaseIndex<'a, TypedArrayHeapData> for TypedArray<'a> {
             | TypedArray::BigUint64Array(i)
             | TypedArray::Float32Array(i)
             | TypedArray::Float64Array(i) => i,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(i) => i,
         }
     }
 }
@@ -178,6 +187,8 @@ impl<'a> From<TypedArray<'a>> for TypedArrayIndex<'a> {
             | TypedArray::BigUint64Array(idx)
             | TypedArray::Float32Array(idx)
             | TypedArray::Float64Array(idx) => idx,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(idx) => idx,
         }
     }
 }
@@ -206,6 +217,8 @@ impl From<TypedArray<'_>> for Value {
             TypedArray::Uint32Array(idx) => Value::Uint32Array(idx),
             TypedArray::BigInt64Array(idx) => Value::BigInt64Array(idx),
             TypedArray::BigUint64Array(idx) => Value::BigUint64Array(idx),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(idx) => Value::Float16Array(idx),
             TypedArray::Float32Array(idx) => Value::Float32Array(idx),
             TypedArray::Float64Array(idx) => Value::Float64Array(idx),
         }
@@ -224,6 +237,8 @@ impl<'a> From<TypedArray<'a>> for Object<'a> {
             TypedArray::Uint32Array(idx) => Object::Uint32Array(idx),
             TypedArray::BigInt64Array(idx) => Object::BigInt64Array(idx),
             TypedArray::BigUint64Array(idx) => Object::BigUint64Array(idx),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(idx) => Object::Float16Array(idx),
             TypedArray::Float32Array(idx) => Object::Float32Array(idx),
             TypedArray::Float64Array(idx) => Object::Float64Array(idx),
         }
@@ -244,6 +259,8 @@ impl TryFrom<Value> for TypedArray<'_> {
             Value::Uint32Array(base_index) => Ok(TypedArray::Uint32Array(base_index)),
             Value::BigInt64Array(base_index) => Ok(TypedArray::BigInt64Array(base_index)),
             Value::BigUint64Array(base_index) => Ok(TypedArray::BigUint64Array(base_index)),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(base_index) => Ok(TypedArray::Float16Array(base_index)),
             Value::Float32Array(base_index) => Ok(TypedArray::Float32Array(base_index)),
             Value::Float64Array(base_index) => Ok(TypedArray::Float64Array(base_index)),
             _ => Err(()),
@@ -313,6 +330,8 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
                 TypedArray::Uint32Array(_) => intrinsics.uint32_array_prototype(),
                 TypedArray::BigInt64Array(_) => intrinsics.big_int64_array_prototype(),
                 TypedArray::BigUint64Array(_) => intrinsics.big_int64_array_prototype(),
+                #[cfg(feature = "proposal-float16array")]
+                TypedArray::Float16Array(_) => intrinsics.float16_array_prototype(),
                 TypedArray::Float32Array(_) => intrinsics.float32_array_prototype(),
                 TypedArray::Float64Array(_) => intrinsics.float64_array_prototype(),
             };
@@ -378,6 +397,8 @@ impl HeapMarkAndSweep for TypedArray<'static> {
             | TypedArray::BigUint64Array(data)
             | TypedArray::Float32Array(data)
             | TypedArray::Float64Array(data) => queues.typed_arrays.push(*data),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(data) => queues.typed_arrays.push(*data),
         }
     }
 
@@ -394,6 +415,8 @@ impl HeapMarkAndSweep for TypedArray<'static> {
             | TypedArray::BigUint64Array(data)
             | TypedArray::Float32Array(data)
             | TypedArray::Float64Array(data) => compactions.typed_arrays.shift_index(data),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(data) => compactions.typed_arrays.shift_index(data),
         }
     }
 }

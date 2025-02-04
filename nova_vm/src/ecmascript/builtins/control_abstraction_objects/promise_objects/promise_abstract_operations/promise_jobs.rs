@@ -147,8 +147,13 @@ impl PromiseReactionJob {
                 let reaction_type = agent[reaction].reaction_type;
                 await_reaction.resume(agent, reaction_type, argument, gc.reborrow());
                 // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
-                // 3. f. Return undefined.
                 // 5. f. Return undefined.
+                Ok(Value::Undefined)
+            }
+            PromiseReactionHandler::AsyncGenerator(async_generator) => {
+                assert!(agent[reaction].capability.is_none());
+                let reaction_type = agent[reaction].reaction_type;
+                async_generator.resume_await(agent, reaction_type, argument, gc.reborrow());
                 Ok(Value::Undefined)
             }
         };
@@ -205,7 +210,7 @@ pub(crate) fn new_promise_reaction_job(
                 .realm,
         ),
         // 2. Let handlerRealm be null.
-        PromiseReactionHandler::Empty => None,
+        PromiseReactionHandler::AsyncGenerator(_) | PromiseReactionHandler::Empty => None,
     };
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.

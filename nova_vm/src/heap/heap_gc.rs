@@ -9,8 +9,8 @@ use super::{
     heap_bits::{
         mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
         sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, CompactionLists, HeapBits,
-        HeapMarkAndSweep, WorkQueues,
+        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_lookup_table,
+        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
     },
     indexes::{ElementIndex, StringIndex},
     Heap, WellKnownSymbolIndexes,
@@ -34,6 +34,7 @@ use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReactionIdentifier,
@@ -143,6 +144,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 array_buffer_detach_keys: _,
             arrays,
             array_iterators,
+            async_generators,
             await_reactions,
             bigints,
             bound_functions,
@@ -187,6 +189,8 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers,
             strings,
+            string_lookup_table: _,
+            string_hasher: _,
             symbols,
             #[cfg(feature = "array-buffer")]
             typed_arrays,
@@ -359,6 +363,20 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 }
                 *marked = true;
                 array_iterators.get(index).mark_values(&mut queues);
+            }
+        });
+        let mut async_generator_marks: Box<[AsyncGenerator]> =
+            queues.async_generators.drain(..).collect();
+        async_generator_marks.sort();
+        async_generator_marks.iter().for_each(|&idx| {
+            let index = idx.get_index();
+            if let Some(marked) = bits.async_generators.get_mut(index) {
+                if *marked {
+                    // Already marked, ignore
+                    return;
+                }
+                *marked = true;
+                async_generators.get(index).mark_values(&mut queues);
             }
         });
         let mut await_reaction_marks: Box<[AwaitReactionIdentifier]> =
@@ -1031,6 +1049,7 @@ fn sweep(
         array_buffer_detach_keys,
         arrays,
         array_iterators,
+        async_generators,
         await_reactions,
         bigints,
         bound_functions,
@@ -1075,6 +1094,8 @@ fn sweep(
         #[cfg(feature = "shared-array-buffer")]
         shared_array_buffers,
         strings,
+        string_lookup_table,
+        string_hasher: _,
         symbols,
         #[cfg(feature = "array-buffer")]
         typed_arrays,
@@ -1244,6 +1265,11 @@ fn sweep(
         if !array_iterators.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(array_iterators, &compactions, &bits.array_iterators);
+            });
+        }
+        if !async_generators.is_empty() {
+            s.spawn(|| {
+                sweep_heap_vector_values(async_generators, &compactions, &bits.async_generators);
             });
         }
         if !await_reactions.is_empty() {
@@ -1459,6 +1485,7 @@ fn sweep(
         if !strings.is_empty() {
             s.spawn(|| {
                 sweep_heap_vector_values(strings, &compactions, &bits.strings);
+                sweep_lookup_table(string_lookup_table, &compactions, &bits.strings);
             });
         }
         if !symbols.is_empty() {

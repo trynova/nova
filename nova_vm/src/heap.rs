@@ -26,7 +26,7 @@ use self::{
         ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
         ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
     },
-    indexes::{NumberIndex, ObjectIndex, StringIndex},
+    indexes::{NumberIndex, ObjectIndex},
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::data::DateHeapData;
@@ -54,6 +54,7 @@ use crate::{
     ecmascript::{
         builtins::{
             array_buffer::DetachKey,
+            async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::GeneratorHeapData,
@@ -91,7 +92,9 @@ use crate::{
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;
+use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
+use indexes::IntoBaseIndex;
 
 #[derive(Debug)]
 pub struct Heap {
@@ -101,6 +104,7 @@ pub struct Heap {
     pub array_buffer_detach_keys: AHashMap<ArrayBuffer<'static>, DetachKey>,
     pub arrays: Vec<Option<ArrayHeapData>>,
     pub array_iterators: Vec<Option<ArrayIteratorHeapData>>,
+    pub async_generators: Vec<Option<AsyncGeneratorHeapData>>,
     pub(crate) await_reactions: Vec<Option<AwaitReaction>>,
     pub bigints: Vec<Option<BigIntHeapData>>,
     pub bound_functions: Vec<Option<BoundFunctionHeapData>>,
@@ -168,6 +172,8 @@ pub struct Heap {
     // But: Source code string data is in the string heap. We need to thus drop
     // the strings only after the source ASTs drop.
     pub strings: Vec<Option<StringHeapData>>,
+    pub string_lookup_table: HashTable<HeapString<'static>>,
+    pub string_hasher: ahash::RandomState,
 }
 
 pub trait CreateHeapData<T, F> {
@@ -207,6 +213,7 @@ impl Heap {
             array_buffer_detach_keys: AHashMap::with_capacity(0),
             arrays: Vec::with_capacity(1024),
             array_iterators: Vec::with_capacity(256),
+            async_generators: Vec::with_capacity(0),
             await_reactions: Vec::with_capacity(1024),
             bigints: Vec::with_capacity(1024),
             bound_functions: Vec::with_capacity(256),
@@ -260,6 +267,8 @@ impl Heap {
             #[cfg(feature = "shared-array-buffer")]
             shared_array_buffers: Vec::with_capacity(0),
             strings: Vec::with_capacity(1024),
+            string_lookup_table: HashTable::with_capacity(1024),
+            string_hasher: ahash::RandomState::new(),
             symbols: Vec::with_capacity(1024),
             #[cfg(feature = "array-buffer")]
             typed_arrays: Vec::with_capacity(0),
@@ -277,10 +286,9 @@ impl Heap {
             weak_sets: Vec::with_capacity(0),
         };
 
-        heap.strings.extend_from_slice(
-            &BUILTIN_STRINGS_LIST
-                .map(|builtin_string| Some(StringHeapData::from_static_str(builtin_string))),
-        );
+        for builtin_string in BUILTIN_STRINGS_LIST {
+            unsafe { heap.alloc_static_str(builtin_string) };
+        }
 
         heap
     }
@@ -365,10 +373,15 @@ impl Heap {
 
     fn find_equal_string(&self, message: &str) -> Option<String<'static>> {
         debug_assert!(message.len() > 7);
-        self.strings
-            .iter()
-            .position(|opt| opt.as_ref().map_or(false, |data| data.as_str() == message))
-            .map(|found_index| HeapString(StringIndex::from_index(found_index)).into())
+        let hash = self.string_hasher.hash_one(message);
+        self.string_lookup_table
+            .find(hash, |heap_string| {
+                let heap_str = self.strings[heap_string.into_base_index().into_index()]
+                    .as_ref()
+                    .map(|string| string.as_str());
+                heap_str == Some(message)
+            })
+            .map(|&heap_string| heap_string.into())
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap

@@ -13,6 +13,8 @@ use std::hash::Hash;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
+#[cfg(feature = "proposal-float16array")]
+use super::value::FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "regexp")]
 use super::value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
@@ -30,7 +32,7 @@ use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRI
 use super::{
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-        ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
+        ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
         BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
         BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
         BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
@@ -66,6 +68,7 @@ use crate::{
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
                 generator_objects::Generator,
@@ -86,11 +89,7 @@ use crate::{
         execution::{Agent, JsResult},
         types::PropertyDescriptor,
     },
-    engine::{
-        context::GcScope,
-        rootable::{HeapRootData, HeapRootRef, Rootable},
-        TryResult,
-    },
+    engine::{context::GcScope, rootable::HeapRootData, TryResult},
     heap::{
         indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -166,12 +165,14 @@ pub enum Object<'a> {
     BigInt64Array(TypedArrayIndex<'a>) = BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex<'a>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array(TypedArrayIndex<'a>) = FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex<'a>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-    AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
+    AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -245,12 +246,14 @@ impl IntoValue for Object<'_> {
             Object::BigInt64Array(data) => Value::BigInt64Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => Value::BigUint64Array(data.unbind()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => Value::Float16Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => Value::Float32Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data.unbind()),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
             #[cfg(feature = "set")]
@@ -468,12 +471,14 @@ impl From<Object<'_>> for Value {
             Object::BigInt64Array(data) => Value::BigInt64Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => Value::BigUint64Array(data.unbind()),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => Value::Float16Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => Value::Float32Array(data.unbind()),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => Value::Float64Array(data.unbind()),
             Object::AsyncFromSyncIterator => Value::AsyncFromSyncIterator,
-            Object::AsyncIterator => Value::AsyncIterator,
+            Object::AsyncGenerator(data) => Value::AsyncGenerator(data),
             Object::Iterator => Value::Iterator,
             Object::ArrayIterator(data) => Value::ArrayIterator(data.unbind()),
             #[cfg(feature = "set")]
@@ -556,12 +561,14 @@ impl TryFrom<Value> for Object<'_> {
             Value::BigInt64Array(data) => Ok(Object::BigInt64Array(data)),
             #[cfg(feature = "array-buffer")]
             Value::BigUint64Array(data) => Ok(Object::BigUint64Array(data)),
+            #[cfg(feature = "proposal-float16array")]
+            Value::Float16Array(data) => Ok(Object::Float16Array(data)),
             #[cfg(feature = "array-buffer")]
             Value::Float32Array(data) => Ok(Object::Float32Array(data)),
             #[cfg(feature = "array-buffer")]
             Value::Float64Array(data) => Ok(Object::Float64Array(data)),
             Value::AsyncFromSyncIterator => Ok(Object::AsyncFromSyncIterator),
-            Value::AsyncIterator => Ok(Object::AsyncIterator),
+            Value::AsyncGenerator(data) => Ok(Object::AsyncGenerator(data)),
             Value::Iterator => Ok(Object::Iterator),
             Value::ArrayIterator(data) => Ok(Object::ArrayIterator(data)),
             #[cfg(feature = "set")]
@@ -669,12 +676,14 @@ impl Hash for Object<'_> {
             Object::BigInt64Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.into_index().hash(state),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.into_index().hash(state),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.into_index().hash(state),
             Object::AsyncFromSyncIterator => {}
-            Object::AsyncIterator => {}
+            Object::AsyncGenerator(data) => data.get_index().hash(state),
             Object::Iterator => {}
             Object::ArrayIterator(data) => data.get_index().hash(state),
             #[cfg(feature = "set")]
@@ -761,12 +770,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_extensible(agent)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).internal_extensible(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_extensible(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_extensible(agent),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_extensible(agent),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_extensible(agent),
             #[cfg(feature = "set")]
@@ -853,6 +864,10 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_extensible(agent, value)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_set_extensible(agent, value)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_extensible(agent, value)
@@ -862,7 +877,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_set_extensible(agent, value)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_set_extensible(agent, value),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_extensible(agent, value),
             #[cfg(feature = "set")]
@@ -935,12 +950,14 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_prototype(agent)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).internal_prototype(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_prototype(agent),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => TypedArray::Float64Array(data).internal_prototype(agent),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_prototype(agent),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prototype(agent),
             #[cfg(feature = "set")]
@@ -1029,6 +1046,10 @@ impl<'a> InternalSlots<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_prototype(agent, prototype)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_set_prototype(agent, prototype)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_prototype(agent, prototype)
@@ -1038,7 +1059,7 @@ impl<'a> InternalSlots<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_set_prototype(agent, prototype)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_set_prototype(agent, prototype),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype(agent, prototype),
             #[cfg(feature = "set")]
@@ -1127,6 +1148,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_get_prototype_of(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_get_prototype_of(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_get_prototype_of(agent, gc)
@@ -1136,7 +1161,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_get_prototype_of(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_get_prototype_of(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_prototype_of(agent, gc),
             #[cfg(feature = "set")]
@@ -1227,6 +1252,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get_prototype_of(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_get_prototype_of(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_get_prototype_of(agent, gc)
@@ -1236,7 +1265,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_get_prototype_of(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_get_prototype_of(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_prototype_of(agent, gc),
             #[cfg(feature = "set")]
@@ -1330,6 +1359,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_set_prototype_of(agent, prototype, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_set_prototype_of(agent, prototype, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_set_prototype_of(agent, prototype, gc)
@@ -1339,7 +1372,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_set_prototype_of(agent, prototype, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_set_prototype_of(agent, prototype, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "set")]
@@ -1437,6 +1470,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_set_prototype_of(agent, prototype, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_set_prototype_of(agent, prototype, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_set_prototype_of(agent, prototype, gc)
@@ -1446,7 +1483,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_set_prototype_of(agent, prototype, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_set_prototype_of(agent, prototype, gc),
             #[cfg(feature = "set")]
@@ -1519,6 +1556,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_is_extensible(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_is_extensible(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_is_extensible(agent, gc)
@@ -1528,7 +1569,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_is_extensible(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_is_extensible(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_is_extensible(agent, gc),
             #[cfg(feature = "set")]
@@ -1613,6 +1654,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_is_extensible(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_is_extensible(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_is_extensible(agent, gc)
@@ -1622,7 +1667,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_is_extensible(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_is_extensible(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_is_extensible(agent, gc),
             #[cfg(feature = "set")]
@@ -1707,6 +1752,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_prevent_extensions(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_prevent_extensions(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_prevent_extensions(agent, gc)
@@ -1716,7 +1765,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_prevent_extensions(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_prevent_extensions(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_prevent_extensions(agent, gc),
             #[cfg(feature = "set")]
@@ -1803,6 +1852,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_prevent_extensions(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_prevent_extensions(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_prevent_extensions(agent, gc)
@@ -1812,7 +1865,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_prevent_extensions(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_prevent_extensions(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_prevent_extensions(agent, gc),
             #[cfg(feature = "set")]
@@ -1908,6 +1961,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_get_own_property(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_get_own_property(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_get_own_property(agent, property_key, gc)
@@ -1917,7 +1974,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_get_own_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_get_own_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get_own_property(agent, property_key, gc),
             #[cfg(feature = "set")]
@@ -2020,6 +2077,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get_own_property(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_get_own_property(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_get_own_property(agent, property_key, gc)
@@ -2029,7 +2090,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_get_own_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_get_own_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get_own_property(agent, property_key, gc),
             #[cfg(feature = "set")]
@@ -2185,6 +2246,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
                 .try_define_own_property(agent, property_key, property_descriptor, gc),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).try_define_own_property(
+                agent,
+                property_key,
+                property_descriptor,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).try_define_own_property(
                 agent,
@@ -2200,7 +2268,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 gc,
             ),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.try_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2356,6 +2426,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => TypedArray::BigUint64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data)
+                .internal_define_own_property(agent, property_key, property_descriptor, gc),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
@@ -2363,7 +2436,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::Float64Array(data) => TypedArray::Float64Array(data)
                 .internal_define_own_property(agent, property_key, property_descriptor, gc),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.internal_define_own_property(agent, property_key, property_descriptor, gc)
+            }
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.internal_define_own_property(agent, property_key, property_descriptor, gc)
@@ -2469,6 +2544,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_has_property(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_has_property(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_has_property(agent, property_key, gc)
@@ -2478,7 +2557,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_has_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_has_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_has_property(agent, property_key, gc),
             #[cfg(feature = "set")]
@@ -2574,6 +2653,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_has_property(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_has_property(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_has_property(agent, property_key, gc)
@@ -2583,7 +2666,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_has_property(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_has_property(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_has_property(agent, property_key, gc),
             #[cfg(feature = "set")]
@@ -2678,6 +2761,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_get(agent, property_key, receiver, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_get(agent, property_key, receiver, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_get(agent, property_key, receiver, gc)
@@ -2687,7 +2774,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_get(agent, property_key, receiver, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_get(agent, property_key, receiver, gc),
             #[cfg(feature = "set")]
@@ -2786,6 +2873,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_get(agent, property_key, receiver, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_get(agent, property_key, receiver, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_get(agent, property_key, receiver, gc)
@@ -2795,7 +2886,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_get(agent, property_key, receiver, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_get(agent, property_key, receiver, gc),
             #[cfg(feature = "set")]
@@ -2901,6 +2992,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_set(agent, property_key, value, receiver, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_set(agent, property_key, value, receiver, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_set(agent, property_key, value, receiver, gc)
@@ -2910,7 +3005,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_set(agent, property_key, value, receiver, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_set(agent, property_key, value, receiver, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_set(agent, property_key, value, receiver, gc),
             #[cfg(feature = "set")]
@@ -3032,6 +3127,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 receiver,
                 gc,
             ),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => TypedArray::Float16Array(data).internal_set(
+                agent,
+                property_key,
+                value,
+                receiver,
+                gc,
+            ),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => TypedArray::Float32Array(data).internal_set(
                 agent,
@@ -3049,7 +3152,9 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 gc,
             ),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => {
+                data.internal_set(agent, property_key, value, receiver, gc)
+            }
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => {
                 data.internal_set(agent, property_key, value, receiver, gc)
@@ -3149,6 +3254,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_delete(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_delete(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_delete(agent, property_key, gc)
@@ -3158,7 +3267,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_delete(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_delete(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_delete(agent, property_key, gc),
             #[cfg(feature = "set")]
@@ -3252,6 +3361,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_delete(agent, property_key, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_delete(agent, property_key, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_delete(agent, property_key, gc)
@@ -3261,7 +3374,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_delete(agent, property_key, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_delete(agent, property_key, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_delete(agent, property_key, gc),
             #[cfg(feature = "set")]
@@ -3348,6 +3461,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).try_own_property_keys(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).try_own_property_keys(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).try_own_property_keys(agent, gc)
@@ -3357,7 +3474,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).try_own_property_keys(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.try_own_property_keys(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.try_own_property_keys(agent, gc),
             #[cfg(feature = "set")]
@@ -3448,6 +3565,10 @@ impl<'a> InternalMethods<'a> for Object<'a> {
             Object::BigUint64Array(data) => {
                 TypedArray::BigUint64Array(data).internal_own_property_keys(agent, gc)
             }
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => {
+                TypedArray::Float16Array(data).internal_own_property_keys(agent, gc)
+            }
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => {
                 TypedArray::Float32Array(data).internal_own_property_keys(agent, gc)
@@ -3457,7 +3578,7 @@ impl<'a> InternalMethods<'a> for Object<'a> {
                 TypedArray::Float64Array(data).internal_own_property_keys(agent, gc)
             }
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.internal_own_property_keys(agent, gc),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.internal_own_property_keys(agent, gc),
             #[cfg(feature = "set")]
@@ -3569,12 +3690,14 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::BigInt64Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.mark_values(queues),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.mark_values(queues),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.mark_values(queues),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.mark_values(queues),
             #[cfg(feature = "set")]
@@ -3641,12 +3764,14 @@ impl HeapMarkAndSweep for Object<'static> {
             Object::BigInt64Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Object::BigUint64Array(data) => data.sweep_values(compactions),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Object::Float32Array(data) => data.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             Object::Float64Array(data) => data.sweep_values(compactions),
             Object::AsyncFromSyncIterator => todo!(),
-            Object::AsyncIterator => todo!(),
+            Object::AsyncGenerator(data) => data.sweep_values(compactions),
             Object::Iterator => todo!(),
             Object::ArrayIterator(data) => data.sweep_values(compactions),
             #[cfg(feature = "set")]
@@ -3666,25 +3791,14 @@ impl CreateHeapData<ObjectHeapData, OrdinaryObject<'static>> for Heap {
     }
 }
 
-impl Rootable for OrdinaryObject<'static> {
-    type RootRepr = HeapRootRef;
+impl TryFrom<HeapRootData> for OrdinaryObject<'static> {
+    type Error = ();
 
-    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Object(value))
-    }
-
-    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
-        Err(*value)
-    }
-
-    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
-        heap_ref
-    }
-
-    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
-        match heap_data {
-            HeapRootData::Object(object) => Some(object),
-            _ => None,
+    fn try_from(value: HeapRootData) -> Result<Self, ()> {
+        if let HeapRootData::Object(value) = value {
+            Ok(value)
+        } else {
+            Err(())
         }
     }
 }
@@ -3694,10 +3808,10 @@ impl TryFrom<HeapRootData> for Object<'_> {
 
     fn try_from(value: HeapRootData) -> Result<Self, ()> {
         match value {
-            HeapRootData::String(_) => Err(()),
-            HeapRootData::Symbol(_) => Err(()),
-            HeapRootData::Number(_) => Err(()),
-            HeapRootData::BigInt(_) => Err(()),
+            HeapRootData::String(_)
+            | HeapRootData::Symbol(_)
+            | HeapRootData::Number(_)
+            | HeapRootData::BigInt(_) => Err(()),
             HeapRootData::Object(ordinary_object) => Ok(Self::Object(ordinary_object)),
             HeapRootData::BoundFunction(bound_function) => Ok(Self::BoundFunction(bound_function)),
             HeapRootData::BuiltinFunction(builtin_function) => {
@@ -3769,12 +3883,14 @@ impl TryFrom<HeapRootData> for Object<'_> {
             HeapRootData::BigInt64Array(base_index) => Ok(Self::BigInt64Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => Ok(Self::BigUint64Array(base_index)),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => Ok(Self::Float16Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => Ok(Self::Float32Array(base_index)),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Ok(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncIterator => Ok(Self::AsyncIterator),
+            HeapRootData::AsyncGenerator(gen) => Ok(Self::AsyncGenerator(gen)),
             HeapRootData::Iterator => Ok(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
             #[cfg(feature = "set")]
@@ -3786,8 +3902,6 @@ impl TryFrom<HeapRootData> for Object<'_> {
                 Ok(Self::EmbedderObject(embedder_object))
             }
             HeapRootData::PromiseReaction(_) => Err(()),
-            // Note: Do not use _ => Err(()) to make sure any added
-            // HeapRootData Value variants cause compile errors if not handled.
         }
     }
 }

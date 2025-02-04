@@ -173,6 +173,13 @@ impl From<SmallF64> for Number<'static> {
     }
 }
 
+#[cfg(feature = "proposal-float16array")]
+impl From<f16> for Number<'_> {
+    fn from(value: f16) -> Self {
+        Number::SmallF64(SmallF64::from(value))
+    }
+}
+
 impl From<f32> for Number<'_> {
     fn from(value: f32) -> Self {
         Number::SmallF64(SmallF64::from(value))
@@ -321,7 +328,7 @@ impl<'a> Number<'a> {
     }
 
     pub fn neg_zero() -> Self {
-        Self::from(-0.0)
+        Self::from(-0.0f32)
     }
 
     pub fn pos_zero() -> Self {

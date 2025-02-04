@@ -19,6 +19,8 @@ use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "date")]
 use crate::ecmascript::types::DATE_DISCRIMINANT;
+#[cfg(feature = "proposal-float16array")]
+use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
 #[cfg(feature = "regexp")]
 use crate::ecmascript::types::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
@@ -47,6 +49,7 @@ use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
             error::Error,
@@ -68,7 +71,7 @@ use crate::{
         types::{
             bigint::HeapBigInt, HeapNumber, HeapString, IntoObject, Object, OrdinaryObject, Symbol,
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
-            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_ITERATOR_DISCRIMINANT,
+            ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
             BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
             BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
             BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
@@ -101,6 +104,7 @@ mod private {
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
             error::Error,
@@ -131,6 +135,7 @@ mod private {
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for ArrayBuffer<'_> {}
     impl RootableSealed for ArrayIterator<'_> {}
+    impl RootableSealed for AsyncGenerator<'_> {}
     impl RootableSealed for BigInt<'_> {}
     impl RootableSealed for BoundFunction<'_> {}
     impl RootableSealed for BuiltinConstructorFunction<'_> {}
@@ -308,12 +313,14 @@ pub enum HeapRootData {
     BigInt64Array(TypedArrayIndex<'static>) = BIGINT_64_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     BigUint64Array(TypedArrayIndex<'static>) = BIGUINT_64_ARRAY_DISCRIMINANT,
+    #[cfg(feature = "proposal-float16array")]
+    Float16Array(TypedArrayIndex<'static>) = FLOAT_16_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float32Array(TypedArrayIndex<'static>) = FLOAT_32_ARRAY_DISCRIMINANT,
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'static>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-    AsyncIterator = ASYNC_ITERATOR_DISCRIMINANT,
+    AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'static>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -382,10 +389,12 @@ impl From<Object<'static>> for HeapRootData {
             Object::Uint32Array(base_index) => Self::Uint32Array(base_index),
             Object::BigInt64Array(base_index) => Self::BigInt64Array(base_index),
             Object::BigUint64Array(base_index) => Self::BigUint64Array(base_index),
+            #[cfg(feature = "proposal-float16array")]
+            Object::Float16Array(base_index) => Self::Float16Array(base_index),
             Object::Float32Array(base_index) => Self::Float32Array(base_index),
             Object::Float64Array(base_index) => Self::Float64Array(base_index),
             Object::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
-            Object::AsyncIterator => Self::AsyncIterator,
+            Object::AsyncGenerator(gen) => Self::AsyncGenerator(gen),
             Object::Iterator => Self::Iterator,
             Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
             #[cfg(feature = "set")]
@@ -505,12 +514,14 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::BigInt64Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => base_index.mark_values(queues),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => base_index.mark_values(queues),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
             HeapRootData::AsyncFromSyncIterator => todo!(),
-            HeapRootData::AsyncIterator => todo!(),
+            HeapRootData::AsyncGenerator(gen) => gen.mark_values(queues),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
             #[cfg(feature = "set")]
@@ -596,12 +607,14 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::BigInt64Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::BigUint64Array(base_index) => base_index.sweep_values(compactions),
+            #[cfg(feature = "proposal-float16array")]
+            HeapRootData::Float16Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float32Array(base_index) => base_index.sweep_values(compactions),
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.sweep_values(compactions),
             HeapRootData::AsyncFromSyncIterator => todo!(),
-            HeapRootData::AsyncIterator => todo!(),
+            HeapRootData::AsyncGenerator(gen) => gen.sweep_values(compactions),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
             #[cfg(feature = "set")]

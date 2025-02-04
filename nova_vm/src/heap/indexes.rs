@@ -25,6 +25,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
+            async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::generator_objects::GeneratorHeapData,
             embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
@@ -62,6 +63,9 @@ const _OPTION_INDEX_SIZE_IS_U32: () =
 
 pub(crate) trait IntoBaseIndex<'a, T: ?Sized> {
     fn into_base_index(self) -> BaseIndex<'a, T>;
+}
+pub(crate) trait GetBaseIndexMut<'a, T: ?Sized> {
+    fn get_base_index_mut(&mut self) -> &mut BaseIndex<'a, T>;
 }
 
 impl<'a, T: ?Sized> Debug for BaseIndex<'a, T> {
@@ -187,6 +191,7 @@ impl<'a, T> Default for BaseIndex<'a, T> {
 pub type ArrayBufferIndex<'a> = BaseIndex<'a, ArrayBufferHeapData>;
 pub type ArrayIndex<'a> = BaseIndex<'a, ArrayHeapData>;
 pub type ArrayIteratorIndex<'a> = BaseIndex<'a, ArrayIteratorHeapData>;
+pub type AsyncGeneratorIndex<'a> = BaseIndex<'a, AsyncGeneratorHeapData>;
 pub type BigIntIndex<'a> = BaseIndex<'a, BigIntHeapData>;
 pub type BoundFunctionIndex<'a> = BaseIndex<'a, BoundFunctionHeapData>;
 pub type BuiltinFunctionIndex<'a> = BaseIndex<'a, BuiltinFunctionHeapData>;

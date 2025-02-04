@@ -72,6 +72,7 @@ struct EmptyParametersList(ast::FormalParameters<'static>);
 unsafe impl Send for EmptyParametersList {}
 unsafe impl Sync for EmptyParametersList {}
 
+#[derive(Debug)]
 pub(crate) enum ExecutionResult {
     Return(Value),
     Throw(JsError),
@@ -2272,7 +2273,7 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Map(_) |
         Value::Promise(_) |
         Value::AsyncFromSyncIterator |
-        Value::AsyncIterator |
+        Value::AsyncGenerator(_) |
         Value::Iterator |
         Value::ArrayIterator(_) |
         Value::MapIterator(_) |
@@ -2304,6 +2305,8 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String {
         Value::Float32Array(_) |
         Value::Float64Array(_) |
         Value::DataView(_) => BUILTIN_STRING_MEMORY.object,
+        #[cfg(feature = "proposal-float16array")]
+        Value::Float16Array(_) => BUILTIN_STRING_MEMORY.object,
         #[cfg(feature = "date")]
         Value::Date(_)  => BUILTIN_STRING_MEMORY.object,
         // 13. If val has a [[Call]] internal slot, return "function".

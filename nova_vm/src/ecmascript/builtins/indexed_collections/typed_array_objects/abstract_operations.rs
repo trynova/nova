@@ -315,6 +315,8 @@ pub(crate) fn validate_typed_array<'a>(
         TypedArray::Uint32Array(_) => is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc),
         TypedArray::BigInt64Array(_) => is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc),
         TypedArray::BigUint64Array(_) => is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc),
+        #[cfg(feature = "proposal-float16array")]
+        TypedArray::Float16Array(_) => is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc),
         TypedArray::Float32Array(_) => is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc),
         TypedArray::Float64Array(_) => is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc),
     } {
