@@ -6,9 +6,12 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    construct, create_array_from_scoped_list, group_by_property, try_get,
+};
 use crate::engine::context::GcScope;
 use crate::engine::TryResult;
+use crate::heap::ObjectEntry;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -145,12 +148,33 @@ impl MapConstructor {
     }
 
     fn group_by(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let items = arguments.get(0);
+        let callback_fn = arguments.get(1);
+        // 1. Let groups be ? GroupBy(items, callback, collection).
+        let mut groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
+        // 2. Let map be ! Construct(%Map%).
+        let map = agent.current_realm().intrinsics().map();
+        let map = construct(agent, map.into_function(), None, None, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        let map = Map::try_from(map).unwrap();
+
+        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
+        for g in groups.iter_mut() {
+            // a. Let elements be CreateArrayFromList(g.[[Elements]]).
+            let elements = create_array_from_scoped_list(agent, g.elements.clone(), gc.nogc());
+            // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
+            let _entry = ObjectEntry::new_data_entry(g.key.get(agent), elements.into_value());
+            // c. Append entry to map.[[MapData]].
+            todo!()
+        }
+        // 4. Return map.
+        Ok(map.into_value())
     }
 
     fn get_species(
