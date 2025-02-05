@@ -723,13 +723,78 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    // ### [ 23.2.3.15 %TypedArray%.prototype.forEach ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.foreach)
+    // The interpretation and use of the arguments of this method are the same as for Array.prototype.forEach as defined in 23.1.3.15.
     fn for_each(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope,
     ) -> JsResult<Value> {
-        todo!()
+        let callback = arguments.get(0).bind(gc.nogc());
+        let this_arg = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let mut o = ta_record.object;
+        let scoped_o = o.scope(agent, gc.nogc());
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        };
+        // 4. If IsCallable(callback) is false, throw a TypeError exception.
+        let Some(callback) = is_callable(callback, gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Callback is not callable",
+                gc.nogc(),
+            ));
+        };
+        let callback = callback.scope(agent, gc.nogc());
+        // 5. Let k be 0.
+        let mut k = 0;
+        // 6. Repeat, while k < len,
+        while k < len {
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk: PropertyKey = k.try_into().unwrap();
+            // b. Let kValue be ! Get(O, Pk).
+            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
+            // c. Perform ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
+            // // SAFETY: pk is Integer, which is what we want for fk as well.
+            let fk = unsafe { pk.into_value_unchecked() };
+            call_function(
+                agent,
+                callback.get(agent),
+                this_arg,
+                Some(ArgumentsList(&[k_value, fk, o.into_value()])),
+                gc.reborrow(),
+            )?;
+            // d. Set k to k + 1.
+            k += 1;
+            o = scoped_o.get(agent).bind(gc.nogc());
+        }
+        // 7. Return undefined.
+        Ok(Value::Undefined)
     }
 
     fn includes(
