@@ -6,16 +6,16 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_abrupt_close_iterator;
-use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{get_iterator, iterator_close, iterator_step_value},
-            operations_on_objects::{call_function, get, get_method},
+            operations_on_iterator_objects::{
+                get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
+            },
+            operations_on_objects::{
+                call_function, construct, create_array_from_scoped_list, get, get_method,
+                group_by_property, try_get,
+            },
             testing_and_comparison::is_callable,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -34,7 +34,12 @@ use crate::{
             PropertyKey, String, Value,
         },
     },
-    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::{Heap, IntrinsicConstructorIndexes, ObjectEntry, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct MapConstructor;
@@ -157,12 +162,33 @@ impl MapConstructor {
     }
 
     fn group_by<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let items = arguments.get(0);
+        let callback_fn = arguments.get(1);
+        // 1. Let groups be ? GroupBy(items, callback, collection).
+        let mut groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
+        // 2. Let map be ! Construct(%Map%).
+        let map = agent.current_realm().intrinsics().map();
+        let map = construct(agent, map.into_function(), None, None, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        let map = Map::try_from(map).unwrap();
+
+        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
+        for g in groups.iter_mut() {
+            // a. Let elements be CreateArrayFromList(g.[[Elements]]).
+            let elements = create_array_from_scoped_list(agent, g.elements.clone(), gc.nogc());
+            // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
+            let _entry = ObjectEntry::new_data_entry(g.key.get(agent), elements.into_value());
+            // c. Append entry to map.[[MapData]].
+            todo!()
+        }
+        // 4. Return map.
+        Ok(map.into_value())
     }
 
     fn get_species<'gc>(
