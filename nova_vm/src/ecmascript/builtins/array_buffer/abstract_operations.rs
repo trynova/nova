@@ -392,11 +392,16 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     let block = agent[array_buffer].get_data_block();
     // 5. If IsSharedArrayBuffer(arrayBuffer) is true, then
     // a. Assert: block is a Shared Data Block.
-    // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type, isTypedArray, order).
+    // b. Let rawValue be GetRawBytesFromSharedBlock(block, byteIndex, type,
+    //    isTypedArray, order).
     // 6. Else,
-    // a. Let rawValue be a List whose elements are bytes from block at indices in the interval from byteIndex (inclusive) to byteIndex + elementSize (exclusive).
+    // a. Let rawValue be a List whose elements are bytes from block at indices
+    //    in the interval from byteIndex (inclusive) to byteIndex + elementSize
+    //    (exclusive).
+    let raw_value = block.get_offset_by_byte::<T>(byte_index).unwrap();
     // 7. Assert: The number of elements in rawValue is elementSize.
-    // 8. If isLittleEndian is not present, set isLittleEndian to the value of the [[LittleEndian]] field of the surrounding agent's Agent Record.
+    // 8. If isLittleEndian is not present, set isLittleEndian to the value of
+    //    the [[LittleEndian]] field of the surrounding agent's Agent Record.
     let is_little_endian = is_little_endian.unwrap_or({
         #[cfg(target_endian = "little")]
         {
@@ -409,12 +414,7 @@ pub(crate) fn get_value_from_buffer<'a, T: Viewable>(
     });
 
     // 9. Return RawBytesToNumeric(type, rawValue, isLittleEndian).
-    raw_bytes_to_numeric::<T>(
-        agent,
-        block.get_offset_by_byte::<T>(byte_index).unwrap(),
-        is_little_endian,
-        gc,
-    )
+    raw_bytes_to_numeric::<T>(agent, raw_value, is_little_endian, gc)
 }
 
 /// ### [25.1.3.16 NumericToRawBytes ( type, value, isLittleEndian )](https://tc39.es/ecma262/#sec-numerictorawbytes)

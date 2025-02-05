@@ -8,17 +8,21 @@ use data::TypedArrayArrayLength;
 
 use crate::{
     ecmascript::{
-        execution::Agent,
+        execution::{Agent, JsResult},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
-            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
-            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT,
-            INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
-            UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
-            UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, Value, BIGINT_64_ARRAY_DISCRIMINANT,
+            BIGUINT_64_ARRAY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
+            FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+            INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
+            UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{GcScope, NoGcScope},
+        rootable::HeapRootData,
+        unwrap_try, Scoped, TryResult,
+    },
     heap::{
         indexes::{IntoBaseIndex, TypedArrayIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -31,7 +35,17 @@ use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
 use self::data::TypedArrayHeapData;
 
 use super::{
-    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
+    array_buffer::{Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
+    indexed_collections::typed_array_objects::abstract_operations::{
+        is_typed_array_fixed_length, is_typed_array_out_of_bounds, is_valid_integer_index_generic,
+        make_typed_array_with_buffer_witness_record, try_typed_array_set_element_generic,
+        typed_array_get_element_generic, typed_array_length, typed_array_set_element_generic,
+    },
+    ordinary::{
+        ordinary_define_own_property, ordinary_delete, ordinary_get, ordinary_get_own_property,
+        ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
+        ordinary_try_has_property_entry, ordinary_try_set,
+    },
     ArrayBuffer,
 };
 
@@ -340,7 +354,470 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
     }
 }
 
-impl<'a> InternalMethods<'a> for TypedArray<'a> {}
+impl<'a> InternalMethods<'a> for TypedArray<'a> {
+    /// ### [10.4.5.2 Infallible \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-getownproperty)
+    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+        // 1. NOTE: The extensibility-related invariants specified in 6.1.7.3
+        //    do not allow this method to return true when O can gain (or lose
+        //    and then regain) properties, which might occur for properties
+        //    with integer index names when its underlying buffer is resized.
+        if !is_typed_array_fixed_length(agent, self, gc) {
+            // 2. If IsTypedArrayFixedLength(O) is false, return false.
+            TryResult::Continue(false)
+        } else {
+            // 3. Return OrdinaryPreventExtensions(O).
+            TryResult::Continue(match self.get_backing_object(agent) {
+                Some(backing_object) => ordinary_prevent_extensions(agent, backing_object),
+                None => {
+                    self.internal_set_extensible(agent, false);
+                    true
+                }
+            })
+        }
+    }
+
+    /// ### [10.4.5.2 Infallible \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-getownproperty)
+    fn try_get_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: NoGcScope,
+    ) -> TryResult<Option<PropertyDescriptor>> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            // i. Let value be TypedArrayGetElement(O, numericIndex).
+            let value = typed_array_get_element_generic(agent, self, numeric_index.into_i64(), gc);
+            if let Some(value) = value {
+                // iii. Return the PropertyDescriptor {
+                //          [[Value]]: value,
+                //          [[Writable]]: true,
+                //          [[Enumerable]]: true,
+                //          [[Configurable]]: true
+                //      }.
+                TryResult::Continue(Some(PropertyDescriptor {
+                    value: Some(value.into_value()),
+                    writable: Some(true),
+                    enumerable: Some(true),
+                    configurable: Some(true),
+                    ..Default::default()
+                }))
+            } else {
+                // ii. If value is undefined, return undefined.
+                TryResult::Continue(None)
+            }
+        } else {
+            // 2. Return OrdinaryGetOwnProperty(O, P).
+            TryResult::Continue(
+                self.get_backing_object(agent)
+                    .and_then(|object| ordinary_get_own_property(agent, object, property_key)),
+            )
+        }
+    }
+
+    /// ### [10.4.5.3 Infallible \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-hasproperty)
+    fn try_has_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, return IsValidIntegerIndex(O, numericIndex).
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            let numeric_index = numeric_index.into_i64();
+            let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
+            TryResult::Continue(result.is_some())
+        } else {
+            // 2. Return ? OrdinaryHasProperty(O, P).
+            ordinary_try_has_property_entry(agent, self, property_key, gc)
+        }
+    }
+
+    /// ### [10.4.5.3 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-hasproperty)
+    fn internal_has_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: GcScope,
+    ) -> JsResult<bool> {
+        if let PropertyKey::Integer(_) = property_key {
+            Ok(unwrap_try(self.try_has_property(
+                agent,
+                property_key,
+                gc.into_nogc(),
+            )))
+        } else {
+            // 2. Return ? OrdinaryHasProperty(O, P).
+            ordinary_has_property_entry(agent, self, property_key, gc)
+        }
+    }
+
+    /// ### [10.4.5.4 Infallible \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-typedarray-defineownproperty)
+    fn try_define_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
+            let numeric_index = numeric_index.into_i64();
+            let numeric_index = is_valid_integer_index_generic(agent, self, numeric_index, gc);
+            let Some(numeric_index) = numeric_index else {
+                return TryResult::Continue(false);
+            };
+            // ii. If Desc has a [[Configurable]] field and
+            //     Desc.[[Configurable]] is false, return false.
+            if property_descriptor.configurable == Some(false) {
+                return TryResult::Continue(false);
+            }
+            // iii. If Desc has an [[Enumerable]] field and Desc.[[Enumerable]]
+            //      is false, return false.
+            if property_descriptor.enumerable == Some(false) {
+                return TryResult::Continue(false);
+            }
+            // iv. If IsAccessorDescriptor(Desc) is true, return false.
+            if property_descriptor.is_accessor_descriptor() {
+                return TryResult::Continue(false);
+            }
+            // v. If Desc has a [[Writable]] field and Desc.[[Writable]] is
+            //    false, return false.
+            if property_descriptor.writable == Some(false) {
+                return TryResult::Continue(false);
+            }
+            // vi. If Desc has a [[Value]] field, perform ?
+            //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
+            if let Some(value) = property_descriptor.value {
+                let numeric_index = numeric_index as i64;
+                try_typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
+            }
+            // vii. Return true.
+            TryResult::Continue(true)
+        } else {
+            // 2. Return ! OrdinaryDefineOwnProperty(O, P, Desc).
+            let backing_object = self
+                .get_backing_object(agent)
+                .unwrap_or_else(|| self.create_backing_object(agent));
+            TryResult::Continue(ordinary_define_own_property(
+                agent,
+                backing_object,
+                property_key,
+                property_descriptor,
+                gc,
+            ))
+        }
+    }
+
+    /// ### [10.4.5.4 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-typedarray-defineownproperty)
+    fn internal_define_own_property(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
+        gc: GcScope,
+    ) -> JsResult<bool> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            // i. If IsValidIntegerIndex(O, numericIndex) is false, return false.
+            let numeric_index = numeric_index.into_i64();
+            let numeric_index =
+                is_valid_integer_index_generic(agent, self, numeric_index, gc.nogc());
+            let Some(numeric_index) = numeric_index else {
+                return Ok(false);
+            };
+            // ii. If Desc has a [[Configurable]] field and
+            //     Desc.[[Configurable]] is false, return false.
+            if property_descriptor.configurable == Some(false) {
+                return Ok(false);
+            }
+            // iii. If Desc has an [[Enumerable]] field and Desc.[[Enumerable]]
+            //      is false, return false.
+            if property_descriptor.enumerable == Some(false) {
+                return Ok(false);
+            }
+            // iv. If IsAccessorDescriptor(Desc) is true, return false.
+            if property_descriptor.is_accessor_descriptor() {
+                return Ok(false);
+            }
+            // v. If Desc has a [[Writable]] field and Desc.[[Writable]] is
+            //    false, return false.
+            if property_descriptor.writable == Some(false) {
+                return Ok(false);
+            }
+            // vi. If Desc has a [[Value]] field, perform ?
+            //     TypedArraySetElement(O, numericIndex, Desc.[[Value]]).
+            if let Some(value) = property_descriptor.value {
+                let numeric_index = numeric_index as i64;
+                typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
+            }
+            // vii. Return true.
+            Ok(true)
+        } else {
+            // 2. Return ! OrdinaryDefineOwnProperty(O, P, Desc).
+            let backing_object = self
+                .get_backing_object(agent)
+                .unwrap_or_else(|| self.create_backing_object(agent));
+            Ok(ordinary_define_own_property(
+                agent,
+                backing_object,
+                property_key,
+                property_descriptor,
+                gc.into_nogc(),
+            ))
+        }
+    }
+
+    /// ### [10.4.5.5 Infallible \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
+    fn try_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+        gc: NoGcScope,
+    ) -> TryResult<Value> {
+        // 1. 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            // i. Return TypedArrayGetElement(O, numericIndex).
+            let numeric_index = numeric_index.into_i64();
+            let result = typed_array_get_element_generic(agent, self, numeric_index, gc);
+            TryResult::Continue(result.map_or(Value::Undefined, |v| v.into_value()))
+        } else {
+            // 2. Return ? OrdinaryGet(O, P, Receiver).
+            match self.get_backing_object(agent) {
+                Some(backing_object) => {
+                    ordinary_try_get(agent, backing_object, property_key, receiver, gc)
+                }
+                None => {
+                    // a. Let parent be ? O.[[GetPrototypeOf]]().
+                    let Some(parent) = self.try_get_prototype_of(agent, gc)? else {
+                        // b. If parent is null, return undefined.
+                        return TryResult::Continue(Value::Undefined);
+                    };
+
+                    // c. Return ? parent.[[Get]](P, Receiver).
+                    parent.try_get(agent, property_key, receiver, gc)
+                }
+            }
+        }
+    }
+
+    /// ### [10.4.5.5 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
+    fn internal_get(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+        mut gc: GcScope,
+    ) -> JsResult<Value> {
+        // 1. 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if property_key.is_array_index() {
+            Ok(unwrap_try(self.try_get(
+                agent,
+                property_key,
+                receiver,
+                gc.into_nogc(),
+            )))
+        } else {
+            // 2. Return ? OrdinaryGet(O, P, Receiver).
+            match self.get_backing_object(agent) {
+                Some(backing_object) => {
+                    ordinary_get(agent, backing_object, property_key.unbind(), receiver, gc)
+                }
+                None => {
+                    let property_key = property_key.scope(agent, gc.nogc());
+                    // a. Let parent be ? O.[[GetPrototypeOf]]().
+                    let Some(parent) = self.internal_get_prototype_of(agent, gc.reborrow())? else {
+                        // b. If parent is null, return undefined.
+                        return Ok(Value::Undefined);
+                    };
+
+                    // c. Return ? parent.[[Get]](P, Receiver).
+                    parent
+                        .unbind()
+                        .internal_get(agent, property_key.get(agent), receiver, gc)
+                }
+            }
+        }
+    }
+
+    /// ### [10.4.5.6 Infallible \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
+    fn try_set(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            let numeric_index = numeric_index.into_i64();
+            // i. If SameValue(O, Receiver) is true, then
+            if self.into_value() == receiver {
+                // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
+                try_typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
+                // 2. Return true.
+                return TryResult::Continue(true);
+            } else {
+                // ii. If IsValidIntegerIndex(O, numericIndex) is false, return true.
+                let result = is_valid_integer_index_generic(agent, self, numeric_index, gc);
+                if result.is_none() {
+                    return TryResult::Continue(true);
+                }
+            }
+        }
+        // 2. Return ? OrdinarySet(O, P, V, Receiver).
+        ordinary_try_set(agent, self.into_object(), property_key, value, receiver, gc)
+    }
+
+    /// ### [10.4.5.6 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-typedarray-set)
+    fn internal_set(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+        gc: GcScope,
+    ) -> JsResult<bool> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            let numeric_index = numeric_index.into_i64();
+            // i. If SameValue(O, Receiver) is true, then
+            if self.into_value() == receiver {
+                // 1. Perform ? TypedArraySetElement(O, numericIndex, V).
+                typed_array_set_element_generic(agent, self, numeric_index, value, gc)?;
+                // 2. Return true.
+                return Ok(true);
+            } else {
+                // ii. If IsValidIntegerIndex(O, numericIndex) is false, return true.
+                let result = is_valid_integer_index_generic(agent, self, numeric_index, gc.nogc());
+                if result.is_none() {
+                    return Ok(true);
+                }
+            }
+        }
+        // 2. Return ? OrdinarySet(O, P, V, Receiver).
+        ordinary_set(agent, self.into_object(), property_key, value, receiver, gc)
+    }
+
+    /// ### [10.4.5.7 Infallible \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-typedarray-delete)
+    fn try_delete(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        // 1. If P is a String, then
+        // a. Let numericIndex be CanonicalNumericIndexString(P).
+        // b. If numericIndex is not undefined, then
+        if let PropertyKey::Integer(numeric_index) = property_key {
+            let numeric_index = numeric_index.into_i64();
+            // i. If IsValidIntegerIndex(O, numericIndex) is false, return true; else return false.
+            let numeric_index = is_valid_integer_index_generic(agent, self, numeric_index, gc);
+            TryResult::Continue(numeric_index.is_none())
+        } else {
+            // 2. Return ! OrdinaryDelete(O, P).
+            TryResult::Continue(self.get_backing_object(agent).map_or(true, |object| {
+                ordinary_delete(agent, object, property_key, gc)
+            }))
+        }
+    }
+
+    /// ### [10.4.5.8 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-typedarray-ownpropertykeys)
+    fn try_own_property_keys<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+        // 1. Let taRecord be MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
+        let ta_record =
+            make_typed_array_with_buffer_witness_record(agent, self, Ordering::SeqCst, gc);
+        // 3. If IsTypedArrayOutOfBounds(taRecord) is false, then
+        // a. Let length be TypedArrayLength(taRecord).
+        let length = match self {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                if !is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc) {
+                    typed_array_length::<u8>(agent, &ta_record, gc)
+                } else {
+                    0
+                }
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                if !is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc) {
+                    typed_array_length::<u16>(agent, &ta_record, gc)
+                } else {
+                    0
+                }
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                if !is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc) {
+                    typed_array_length::<f16>(agent, &ta_record, gc)
+                } else {
+                    0
+                }
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                if !is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc) {
+                    typed_array_length::<u32>(agent, &ta_record, gc)
+                } else {
+                    0
+                }
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                if !is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc) {
+                    typed_array_length::<u64>(agent, &ta_record, gc)
+                } else {
+                    0
+                }
+            }
+        };
+        // 2. Let keys be a new empty List.
+        let mut keys = Vec::with_capacity(length);
+        // b. For each integer i such that 0 ≤ i < length, in ascending order, do
+        // i. Append ! ToString(𝔽(i)) to keys.
+        for i in 0..length {
+            keys.push(i.try_into().unwrap());
+        }
+        if let Some(backing_object) = self.get_backing_object(agent) {
+            // 4. For each own property key P of O such that P is a String and P is
+            //    not an integer index, in ascending chronological order of
+            //    property creation, do
+            // a. Append P to keys.
+            // 5. For each own property key P of O such that P is a Symbol, in
+            //    ascending chronological order of property creation, do
+            // a. Append P to keys.
+            keys.append(&mut unwrap_try(
+                backing_object.try_own_property_keys(agent, gc),
+            ));
+        }
+        // 6. Return keys.
+        TryResult::Continue(keys)
+    }
+}
 
 impl TryFrom<HeapRootData> for TypedArray<'_> {
     type Error = ();

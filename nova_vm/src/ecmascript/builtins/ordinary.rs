@@ -543,6 +543,30 @@ pub(crate) fn ordinary_try_has_property(
     TryResult::Continue(false)
 }
 
+pub(crate) fn ordinary_try_has_property_entry<'a>(
+    agent: &mut Agent,
+    object: impl InternalMethods<'a>,
+    property_key: PropertyKey,
+    gc: NoGcScope,
+) -> TryResult<bool> {
+    match object.get_backing_object(agent) {
+        Some(backing_object) => ordinary_try_has_property(agent, backing_object, property_key, gc),
+        None => {
+            // 3. Let parent be ? O.[[GetPrototypeOf]]().
+            let parent = unwrap_try(object.try_get_prototype_of(agent, gc));
+
+            // 4. If parent is not null, then
+            if let Some(parent) = parent {
+                // a. Return ? parent.[[HasProperty]](P).
+                parent.try_has_property(agent, property_key, gc)
+            } else {
+                // 5. Return false.
+                TryResult::Continue(false)
+            }
+        }
+    }
+}
+
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
@@ -593,6 +617,35 @@ pub(crate) fn ordinary_has_property(
 
     // 5. Return false.
     Ok(false)
+}
+
+pub(crate) fn ordinary_has_property_entry<'a>(
+    agent: &mut Agent,
+    object: impl InternalMethods<'a>,
+    property_key: PropertyKey,
+    gc: GcScope,
+) -> JsResult<bool> {
+    let property_key = property_key.bind(gc.nogc());
+    match object.get_backing_object(agent) {
+        Some(backing_object) => {
+            ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
+        }
+        None => {
+            // 3. Let parent be ? O.[[GetPrototypeOf]]().
+            let parent = unwrap_try(object.try_get_prototype_of(agent, gc.nogc()));
+
+            // 4. If parent is not null, then
+            if let Some(parent) = parent {
+                // a. Return ? parent.[[HasProperty]](P).
+                parent
+                    .unbind()
+                    .internal_has_property(agent, property_key.unbind(), gc)
+            } else {
+                // 5. Return false.
+                Ok(false)
+            }
+        }
+    }
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
