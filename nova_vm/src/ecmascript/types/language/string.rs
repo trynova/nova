@@ -402,14 +402,7 @@ impl<'a> String<'a> {
                 let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
                 SmallString::from_str_unchecked(str_slice).into()
             }
-            Status::String(string) => {
-                let data = StringHeapData {
-                    data: data::StringBuffer::Owned(string),
-                    mapping: Default::default(),
-                };
-                let hash = agent.heap.string_hasher.hash_one(&data.data);
-                agent.heap.create((data, hash)).bind(gc)
-            }
+            Status::String(string) => agent.heap.create(string.into_string().unwrap()).bind(gc),
         }
     }
 

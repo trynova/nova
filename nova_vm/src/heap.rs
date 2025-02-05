@@ -94,7 +94,6 @@ use crate::{
 use ahash::AHashMap;
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
-use indexes::IntoBaseIndex;
 use wtf8::Wtf8;
 
 #[derive(Debug)]
@@ -381,13 +380,15 @@ impl Heap {
     /// Find existing heap String or return the strings hash.
     fn find_equal_string(&self, message: &str) -> Result<String<'static>, u64> {
         debug_assert!(message.len() > 7);
-        let hash = self.string_hasher.hash_one(Wtf8::from_str(message));
+        let message = Wtf8::from_str(message);
+        let hash = self.string_hasher.hash_one(message);
         self.string_lookup_table
             .find(hash, |heap_string| {
-                let heap_str = self.strings[heap_string.into_base_index().into_index()]
+                let heap_str = self.strings[heap_string.get_index()]
                     .as_ref()
-                    .map(|string| string.as_str());
-                heap_str == Some(message)
+                    .unwrap()
+                    .as_wtf8();
+                heap_str == message
             })
             .map(|&heap_string| heap_string.into())
             .ok_or(hash)
