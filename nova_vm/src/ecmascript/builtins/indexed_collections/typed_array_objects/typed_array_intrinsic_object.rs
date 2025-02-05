@@ -738,8 +738,9 @@ impl TypedArrayPrototype {
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = ta_record.object.bind(gc.nogc()).scope(agent, gc.nogc());
-        let len = match o.get(agent) {
+        let mut o = ta_record.object;
+        let scoped_o = o.scope(agent, gc.nogc());
+        let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -775,23 +776,22 @@ impl TypedArrayPrototype {
         // 6. Repeat, while k < len,
         while k < len {
             // a. Let Pk be ! ToString(𝔽(k)).
-            let pk = PropertyKey::from(SmallInteger::from(k as u32));
+            let pk: PropertyKey = k.try_into().unwrap();
             // b. Let kValue be ! Get(O, Pk).
-            let k_value = unwrap_try(try_get(agent, o.get(agent), pk, gc.nogc()));
+            let k_value = unwrap_try(try_get(agent, o, pk, gc.nogc()));
             // c. Perform ? Call(callback, thisArg, « kValue, 𝔽(k), O »).
+            // // SAFETY: pk is Integer, which is what we want for fk as well.
+            let fk = unsafe { pk.into_value_unchecked() };
             call_function(
                 agent,
                 callback.get(agent),
                 this_arg,
-                Some(ArgumentsList(&[
-                    k_value,
-                    Number::try_from(k).unwrap().into_value(),
-                    o.get(agent).into_value(),
-                ])),
+                Some(ArgumentsList(&[k_value, fk, o.into_value()])),
                 gc.reborrow(),
             )?;
             // d. Set k to k + 1.
             k += 1;
+            o = scoped_o.get(agent).bind(gc.nogc());
         }
         // 7. Return undefined.
         Ok(Value::Undefined)
