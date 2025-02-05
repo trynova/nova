@@ -265,30 +265,46 @@ impl Executable {
 }
 
 pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Instr> {
-    if *ip >= instructions.len() {
+    let len = instructions.len();
+    let cur_ip = *ip;
+    if cur_ip >= len {
         return None;
     }
-
-    let kind: Instruction = unsafe { std::mem::transmute::<u8, Instruction>(instructions[*ip]) };
     *ip += 1;
+    let kind: Instruction = unsafe { std::mem::transmute::<u8, Instruction>(instructions[cur_ip]) };
 
-    let mut args: [Option<IndexType>; 2] = [None, None];
+    let arg_count = kind.argument_count() as usize;
 
-    for item in args.iter_mut().take(kind.argument_count() as usize) {
-        let length = instructions[*ip..].len();
-        if length >= 2 {
-            let bytes = IndexType::from_ne_bytes(unsafe {
-                *std::mem::transmute::<*const u8, *const [u8; 2]>(instructions[*ip..].as_ptr())
-            });
+    let cur_ip = *ip;
+    match arg_count {
+        0 => Some(Instr {
+            kind,
+            args: [None, None],
+        }),
+        1 => {
+            let bytes: [u8; 2] = [instructions[cur_ip], instructions[cur_ip + 1]];
+            let arg0 = IndexType::from_ne_bytes(bytes);
             *ip += 2;
-            *item = Some(bytes);
-        } else {
-            *ip += 1;
-            *item = None;
+            Some(Instr {
+                kind,
+                args: [Some(arg0), None],
+            })
         }
+        2 => {
+            let bytes: [[u8; 2]; 2] = [
+                [instructions[cur_ip], instructions[cur_ip + 1]],
+                [instructions[cur_ip + 2], instructions[cur_ip + 3]],
+            ];
+            let arg0 = IndexType::from_ne_bytes(bytes[0]);
+            let arg1 = IndexType::from_ne_bytes(bytes[1]);
+            *ip += 4;
+            Some(Instr {
+                kind,
+                args: [Some(arg0), Some(arg1)],
+            })
+        }
+        _ => unreachable!(),
     }
-
-    Some(Instr { kind, args })
 }
 
 impl Index<Executable> for Agent {

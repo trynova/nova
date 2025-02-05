@@ -68,6 +68,8 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
 
+use super::executable::get_instruction;
+
 struct EmptyParametersList(ast::FormalParameters<'static>);
 unsafe impl Send for EmptyParametersList {}
 unsafe impl Sync for EmptyParametersList {}
@@ -289,7 +291,9 @@ impl<'a> Vm {
         let do_gc = !agent.options.disable_gc;
         #[cfg(feature = "interleaved-gc")]
         let mut instr_count = 0u8;
-        while let Some(instr) = executable.get_instruction(agent, &mut self.ip) {
+
+        let instructions = executable.get_instructions(agent);
+        while let Some(instr) = get_instruction(instructions, &mut self.ip) {
             #[cfg(feature = "interleaved-gc")]
             if do_gc {
                 instr_count = instr_count.wrapping_add(1);
