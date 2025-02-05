@@ -328,10 +328,25 @@ impl<'a> String<'a> {
         let strings = strings.as_ref();
         let mut status = if strings.len() > 1 {
             let len = strings.iter().fold(0usize, |a, s| a + s.len(agent));
-            Status::String(Wtf8Buf::with_capacity(len))
+            if len > 7 {
+                Status::String(Wtf8Buf::with_capacity(len))
+            } else {
+                Status::Empty
+            }
         } else {
             Status::Empty
         };
+
+        fn push_string_to_wtf8(agent: &Agent, buf: &mut Wtf8Buf, string: String) {
+            match string {
+                String::String(heap_string) => {
+                    buf.push_wtf8(agent[heap_string].as_wtf8());
+                }
+                String::SmallString(small_string) => {
+                    buf.push_str(small_string.as_str());
+                }
+            }
+        }
 
         for string in strings {
             if string.is_empty_string() {
@@ -349,17 +364,11 @@ impl<'a> String<'a> {
                     };
                 }
                 Status::ExistingString(heap_string) => {
+                    let heap_string = *heap_string;
                     let mut result =
-                        Wtf8Buf::with_capacity(agent[*heap_string].len() + string.len(agent));
-                    result.push_wtf8(agent[*heap_string].as_wtf8());
-                    match &string {
-                        String::String(heap_string) => {
-                            result.push_wtf8(agent[*heap_string].as_wtf8());
-                        }
-                        String::SmallString(small_string) => {
-                            result.push_str(small_string.as_str());
-                        }
-                    }
+                        Wtf8Buf::with_capacity(agent[heap_string].len() + string.len(agent));
+                    result.push_wtf8(agent[heap_string].as_wtf8());
+                    push_string_to_wtf8(agent, &mut result, *string);
                     status = Status::String(result)
                 }
                 Status::SmallString { data, len } => {
@@ -376,25 +385,11 @@ impl<'a> String<'a> {
                         // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result
                         // of concatenating UTF-8 strings, which is always valid UTF-8.
                         result.push_str(unsafe { std::str::from_utf8_unchecked(&data[..*len]) });
-                        match &string {
-                            String::String(heap_string) => {
-                                result.push_wtf8(agent[*heap_string].as_wtf8());
-                            }
-                            String::SmallString(small_string) => {
-                                result.push_str(small_string.as_str());
-                            }
-                        }
+                        push_string_to_wtf8(agent, &mut result, *string);
                         status = Status::String(result);
                     }
                 }
-                Status::String(buffer) => match &string {
-                    String::String(heap_string) => {
-                        buffer.push_wtf8(agent[*heap_string].as_wtf8());
-                    }
-                    String::SmallString(small_string) => {
-                        buffer.push_str(small_string.as_str());
-                    }
-                },
+                Status::String(buffer) => push_string_to_wtf8(agent, buffer, *string),
             }
         }
 
