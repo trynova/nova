@@ -29,6 +29,7 @@ use crate::{
 };
 
 pub use data::StringHeapData;
+use wtf8::Wtf8Buf;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -322,11 +323,17 @@ impl<'a> String<'a> {
             Empty,
             ExistingString(HeapString<'a>),
             SmallString { data: [u8; 7], len: usize },
-            String(std::string::String),
+            String(Wtf8Buf),
         }
-        let mut status = Status::Empty;
+        let strings = strings.as_ref();
+        let mut status = if strings.len() > 1 {
+            let len = strings.iter().fold(0usize, |a, s| a + s.len(agent));
+            Status::String(Wtf8Buf::with_capacity(len))
+        } else {
+            Status::Empty
+        };
 
-        for string in strings.as_ref() {
+        for string in strings {
             if string.is_empty_string() {
                 continue;
             }
@@ -341,11 +348,18 @@ impl<'a> String<'a> {
                         String::String(idx) => Status::ExistingString(*idx),
                     };
                 }
-                Status::ExistingString(idx) => {
+                Status::ExistingString(heap_string) => {
                     let mut result =
-                        std::string::String::with_capacity(agent[*idx].len() + string.len(agent));
-                    result.push_str(agent[*idx].as_str());
-                    result.push_str(string.as_str(agent));
+                        Wtf8Buf::with_capacity(agent[*heap_string].len() + string.len(agent));
+                    result.push_wtf8(agent[*heap_string].as_wtf8());
+                    match &string {
+                        String::String(heap_string) => {
+                            result.push_wtf8(agent[*heap_string].as_wtf8());
+                        }
+                        String::SmallString(small_string) => {
+                            result.push_str(small_string.as_str());
+                        }
+                    }
                     status = Status::String(result)
                 }
                 Status::SmallString { data, len } => {
@@ -358,15 +372,29 @@ impl<'a> String<'a> {
                             .copy_from_slice(&smstr.data()[..string_len]);
                         *len += string_len;
                     } else {
-                        let mut result = std::string::String::with_capacity(*len + string_len);
+                        let mut result = Wtf8Buf::with_capacity(*len + string_len);
                         // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result
                         // of concatenating UTF-8 strings, which is always valid UTF-8.
                         result.push_str(unsafe { std::str::from_utf8_unchecked(&data[..*len]) });
-                        result.push_str(string.as_str(agent));
+                        match &string {
+                            String::String(heap_string) => {
+                                result.push_wtf8(agent[*heap_string].as_wtf8());
+                            }
+                            String::SmallString(small_string) => {
+                                result.push_str(small_string.as_str());
+                            }
+                        }
                         status = Status::String(result);
                     }
                 }
-                Status::String(buffer) => buffer.push_str(string.as_str(agent)),
+                Status::String(buffer) => match &string {
+                    String::String(heap_string) => {
+                        buffer.push_wtf8(agent[*heap_string].as_wtf8());
+                    }
+                    String::SmallString(small_string) => {
+                        buffer.push_str(small_string.as_str());
+                    }
+                },
             }
         }
 
@@ -379,7 +407,14 @@ impl<'a> String<'a> {
                 let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
                 SmallString::from_str_unchecked(str_slice).into()
             }
-            Status::String(string) => agent.heap.create(string).bind(gc),
+            Status::String(string) => {
+                let data = StringHeapData {
+                    data: data::StringBuffer::Owned(string),
+                    mapping: Default::default(),
+                };
+                let hash = agent.heap.string_hasher.hash_one(&data.data);
+                agent.heap.create((data, hash)).bind(gc)
+            }
         }
     }
 
@@ -559,9 +594,8 @@ impl Scoped<'_, String<'static>> {
     }
 }
 
-impl CreateHeapData<StringHeapData, String<'static>> for Heap {
-    fn create(&mut self, data: StringHeapData) -> String<'static> {
-        let hash = self.string_hasher.hash_one(data.as_str());
+impl CreateHeapData<(StringHeapData, u64), String<'static>> for Heap {
+    fn create(&mut self, (data, hash): (StringHeapData, u64)) -> String<'static> {
         self.strings.push(Some(data));
         let index = StringIndex::last(&self.strings);
         let heap_string = HeapString(index);

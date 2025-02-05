@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cell::OnceCell, num::NonZeroUsize};
+use std::{cell::OnceCell, hash::Hash, num::NonZeroUsize};
 
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -24,7 +24,12 @@ impl PartialEq for StringHeapData {
                 return true;
             }
         }
-        self.as_str() == other.as_str()
+        match (&self.data, &other.data) {
+            (StringBuffer::Owned(a), StringBuffer::Owned(b)) => a == b,
+            (StringBuffer::Owned(a), StringBuffer::Static(b)) => a == b,
+            (StringBuffer::Static(a), StringBuffer::Owned(b)) => a == b,
+            (StringBuffer::Static(a), StringBuffer::Static(b)) => a == b,
+        }
     }
 }
 impl Eq for StringHeapData {}
@@ -45,6 +50,15 @@ pub(crate) enum IndexMapping {
 pub(crate) enum StringBuffer {
     Owned(Wtf8Buf),
     Static(&'static Wtf8),
+}
+
+impl Hash for StringBuffer {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            StringBuffer::Owned(wtf8_buf) => wtf8_buf.hash(state),
+            StringBuffer::Static(wtf8) => wtf8.hash(state),
+        }
+    }
 }
 
 impl StringHeapData {
@@ -210,6 +224,13 @@ impl StringHeapData {
         match &self.data {
             StringBuffer::Owned(buf) => buf.as_str().unwrap(),
             StringBuffer::Static(buf) => buf.as_str().unwrap(),
+        }
+    }
+
+    pub fn as_wtf8(&self) -> &Wtf8 {
+        match &self.data {
+            StringBuffer::Owned(buf) => buf,
+            StringBuffer::Static(buf) => buf,
         }
     }
 

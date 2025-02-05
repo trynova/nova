@@ -95,6 +95,7 @@ use ahash::AHashMap;
 use hashbrown::HashTable;
 pub(crate) use heap_bits::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 use indexes::IntoBaseIndex;
+use wtf8::Wtf8;
 
 #[derive(Debug)]
 pub struct Heap {
@@ -322,11 +323,13 @@ impl Heap {
     /// guaranteed to never equal true.
     pub(crate) unsafe fn alloc_str(&mut self, message: &str) -> String<'static> {
         let found = self.find_equal_string(message);
-        if let Some(idx) = found {
-            return idx;
+        match found {
+            Ok(string) => string,
+            Err(hash) => {
+                let data = StringHeapData::from_str(message);
+                self.create((data, hash))
+            }
         }
-        let data = StringHeapData::from_str(message);
-        self.create(data)
     }
 
     /// Allocate a static string onto the Agent heap
@@ -343,11 +346,13 @@ impl Heap {
     /// guaranteed to never equal true.
     unsafe fn alloc_string(&mut self, message: std::string::String) -> String<'static> {
         let found = self.find_equal_string(message.as_str());
-        if let Some(idx) = found {
-            return idx;
+        match found {
+            Ok(string) => string,
+            Err(hash) => {
+                let data = StringHeapData::from_string(message);
+                self.create((data, hash))
+            }
         }
-        let data = StringHeapData::from_string(message);
-        self.create(data)
     }
 
     /// Allocate a static string onto the Agent heap
@@ -364,16 +369,19 @@ impl Heap {
     /// guaranteed to never equal true.
     pub(crate) unsafe fn alloc_static_str(&mut self, message: &'static str) -> String<'static> {
         let found = self.find_equal_string(message);
-        if let Some(idx) = found {
-            return idx;
+        match found {
+            Ok(string) => string,
+            Err(hash) => {
+                let data = StringHeapData::from_static_str(message);
+                self.create((data, hash))
+            }
         }
-        let data = StringHeapData::from_static_str(message);
-        self.create(data)
     }
 
-    fn find_equal_string(&self, message: &str) -> Option<String<'static>> {
+    /// Find existing heap String or return the strings hash.
+    fn find_equal_string(&self, message: &str) -> Result<String<'static>, u64> {
         debug_assert!(message.len() > 7);
-        let hash = self.string_hasher.hash_one(message);
+        let hash = self.string_hasher.hash_one(Wtf8::from_str(message));
         self.string_lookup_table
             .find(hash, |heap_string| {
                 let heap_str = self.strings[heap_string.into_base_index().into_index()]
@@ -382,6 +390,7 @@ impl Heap {
                 heap_str == Some(message)
             })
             .map(|&heap_string| heap_string.into())
+            .ok_or(hash)
     }
 
     /// Allocate a 64-bit floating point number onto the Agent heap
