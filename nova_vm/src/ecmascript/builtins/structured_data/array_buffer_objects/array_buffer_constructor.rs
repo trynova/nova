@@ -54,10 +54,10 @@ impl Builtin for ArrayBufferGetSpecies {
 }
 impl BuiltinGetter for ArrayBufferGetSpecies {}
 
-impl<'gc> ArrayBufferConstructor {
+impl ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
     fn constructor(
-        agent: &mut Agent,
+        agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -129,7 +129,7 @@ impl<'gc> ArrayBufferConstructor {
     /// > subclass constructor may over-ride that default behaviour for the
     /// > `ArrayBuffer.prototype.slice ( start, end )` method by redefining its
     /// > `%Symbol.species%` property.
-    fn species(
+    fn species<'gc>(
         _agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,

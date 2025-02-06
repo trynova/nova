@@ -27,7 +27,7 @@ impl ObjectHeapData {
             None
         } else {
             // TODO: Throw error.
-            Some(Object::try_from(prototype).unwrap())
+            Some(Object::try_from(prototype.unbind()).unwrap())
         };
         Self {
             extensible,

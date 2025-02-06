@@ -64,9 +64,9 @@ impl Builtin for MapGetSpecies {
 }
 impl BuiltinGetter for MapGetSpecies {}
 
-impl<'gc> MapConstructor {
-    fn constructor(
-        agent: &mut Agent,
+impl MapConstructor {
+    fn constructor<'gc>(
+        agent: &mut Agent<'gc>,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -153,7 +153,7 @@ impl<'gc> MapConstructor {
         todo!()
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

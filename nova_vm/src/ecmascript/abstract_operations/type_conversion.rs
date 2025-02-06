@@ -62,80 +62,34 @@ pub enum PreferredType {
 /// > this specification only Dates (see 21.4.4.45) and Symbol objects (see
 /// > 20.4.3.5) over-ride the default ToPrimitive behaviour. Dates treat the
 /// > absence of a hint as if the hint were STRING.
-pub(crate) fn to_primitive<'a>(
+pub(crate) fn to_primitive<'a, 'gc>(
     agent: &mut Agent,
-    input: impl IntoValue,
+    input: impl IntoValue<'a>,
     preferred_type: Option<PreferredType>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<Primitive<'a>> {
-    let input = input.into_value();
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Primitive<'gc>> {
+    let input = input.into_value().bind(gc.nogc());
     // 1. If input is an Object, then
     if let Ok(input) = Object::try_from(input) {
-        // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
-        let exotic_to_prim = get_method(
-            agent,
-            input.into_value(),
-            PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
-            gc.reborrow(),
-        )?;
-        // b. If exoticToPrim is not undefined, then
-        if let Some(exotic_to_prim) = exotic_to_prim {
-            let hint = match preferred_type {
-                // i. If preferredType is not present, then
-                // 1. Let hint be "default".
-                None => BUILTIN_STRING_MEMORY.default,
-                // ii. Else if preferredType is STRING, then
-                // 1. Let hint be "string".
-                Some(PreferredType::String) => BUILTIN_STRING_MEMORY.string,
-                // iii. Else,
-                // 1. Assert: preferredType is NUMBER.
-                // 2. Let hint be "number".
-                Some(PreferredType::Number) => BUILTIN_STRING_MEMORY.number,
-            };
-            // iv. Let result be ? Call(exoticToPrim, input, « hint »).
-            let result: Value = call_function(
-                agent,
-                exotic_to_prim.unbind(),
-                input.into(),
-                Some(ArgumentsList(&[hint.into()])),
-                gc.reborrow(),
-            )?;
-            // v. If result is not an Object, return result.
-            Primitive::try_from(result).map_err(|_| {
-                // vi. Throw a TypeError exception.
-                agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "Invalid toPrimitive return value",
-                    gc.nogc(),
-                )
-            })
-        } else {
-            // c. If preferredType is not present, let preferredType be NUMBER.
-            // d. Return ? OrdinaryToPrimitive(input, preferredType).
-            ordinary_to_primitive(
-                agent,
-                input,
-                preferred_type.unwrap_or(PreferredType::Number),
-                gc,
-            )
-        }
+        to_primitive_object(agent, input.unbind(), preferred_type, gc)
     } else {
         // 2. Return input.
-        Ok(Primitive::try_from(input).unwrap())
+        Ok(Primitive::try_from(input.unbind().bind(gc.into_nogc())).unwrap())
     }
 }
 
-pub(crate) fn to_primitive_object<'a, 'b>(
+pub(crate) fn to_primitive_object<'a, 'gc>(
     agent: &mut Agent,
-    input: impl IntoObject<'b>,
+    input: impl IntoObject<'a>,
     preferred_type: Option<PreferredType>,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<Primitive<'a>> {
-    let input = input.into_object();
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Primitive<'gc>> {
+    let input = input.into_object().bind(gc.nogc());
     // a. Let exoticToPrim be ? GetMethod(input, @@toPrimitive).
+    let scoped_input = input.scope(agent, gc.nogc());
     let exotic_to_prim = get_method(
         agent,
-        input.into_value(),
+        input.into_value().unbind(),
         PropertyKey::Symbol(WellKnownSymbolIndexes::ToPrimitive.into()),
         gc.reborrow(),
     )?;
@@ -154,20 +108,23 @@ pub(crate) fn to_primitive_object<'a, 'b>(
             Some(PreferredType::Number) => BUILTIN_STRING_MEMORY.number,
         };
         // iv. Let result be ? Call(exoticToPrim, input, « hint »).
-        let result: Value = call_function(
+        let result = call_function(
             agent,
             exotic_to_prim.unbind(),
-            input.into(),
+            scoped_input.get(agent).into_value().unbind(),
             Some(ArgumentsList(&[hint.into()])),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind();
+        let gc = gc.into_nogc();
+        let result = result.bind(gc);
         // v. If result is not an Object, return result.
         Primitive::try_from(result).map_err(|_| {
             // vi. Throw a TypeError exception.
             agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid toPrimitive return value",
-                gc.nogc(),
+                gc,
             )
         })
     } else {
@@ -175,7 +132,7 @@ pub(crate) fn to_primitive_object<'a, 'b>(
         // d. Return ? OrdinaryToPrimitive(input, preferredType).
         ordinary_to_primitive(
             agent,
-            input,
+            scoped_input.get(agent),
             preferred_type.unwrap_or(PreferredType::Number),
             gc,
         )
@@ -187,12 +144,13 @@ pub(crate) fn to_primitive_object<'a, 'b>(
 /// The abstract operation OrdinaryToPrimitive takes arguments O (an Object)
 /// and hint (STRING or NUMBER) and returns either a normal completion
 /// containing an ECMAScript language value or a throw completion.
-pub(crate) fn ordinary_to_primitive<'a>(
+pub(crate) fn ordinary_to_primitive<'gc>(
     agent: &mut Agent,
     o: Object,
     hint: PreferredType,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<Primitive<'a>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Primitive<'gc>> {
+    let mut o = o.bind(gc.nogc());
     let to_string_key = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
     let value_of_key = PropertyKey::from(BUILTIN_STRING_MEMORY.valueOf);
     let method_names = match hint {
@@ -208,19 +166,28 @@ pub(crate) fn ordinary_to_primitive<'a>(
         }
     };
     // 3. For each element name of methodNames, do
+    let scoped_o = o.scope(agent, gc.nogc());
     for name in method_names {
         // a. Let method be ? Get(O, name).
-        let method = get(agent, o, name, gc.reborrow())?;
+        let method = get(agent, o.unbind(), name, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
         // b. If IsCallable(method) is true, then
         if let Some(method) = is_callable(method, gc.nogc()) {
             // i. Let result be ? Call(method, O).
-            let result: Value =
-                call_function(agent, method.unbind(), o.into(), None, gc.reborrow())?;
+            let result: Value = call_function(
+                agent,
+                method.unbind(),
+                scoped_o.get(agent).into_value(),
+                None,
+                gc.reborrow(),
+            )?;
             // ii. If result is not an Object, return result.
             if let Ok(result) = Primitive::try_from(result) {
-                return Ok(result);
+                return Ok(result.unbind().bind(gc.into_nogc()));
             }
         }
+        o = scoped_o.get(agent).bind(gc.nogc());
     }
     // 4. Throw a TypeError exception.
     Err(agent.throw_exception_with_static_message(
@@ -256,11 +223,11 @@ pub(crate) fn to_boolean(agent: &Agent, argument: Value) -> bool {
 }
 
 /// ### [7.1.3 ToNumeric ( value )](https://tc39.es/ecma262/#sec-tonumeric)
-pub(crate) fn to_numeric<'a>(
+pub(crate) fn to_numeric<'a, 'gc>(
     agent: &mut Agent,
-    value: impl IntoValue,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<Numeric<'a>> {
+    value: impl IntoValue<'a>,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Numeric<'gc>> {
     // 1. Let primValue be ? ToPrimitive(value, number).
     let prim_value =
         to_primitive(agent, value, Some(PreferredType::Number), gc.reborrow())?.unbind();
@@ -299,9 +266,9 @@ pub(crate) fn try_to_number<'gc>(
 }
 
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
-pub(crate) fn to_number<'gc>(
+pub(crate) fn to_number<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue,
+    argument: impl IntoValue<'a>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Number<'gc>> {
     let argument = argument.into_value();
@@ -1010,9 +977,9 @@ pub(crate) fn try_to_string<'gc>(
 }
 
 /// ### [7.1.17 ToString ( argument )](https://tc39.es/ecma262/#sec-tostring)
-pub(crate) fn to_string<'gc>(
+pub(crate) fn to_string<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue,
+    argument: impl IntoValue<'a>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<String<'gc>> {
     let argument = argument.into_value();

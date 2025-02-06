@@ -50,7 +50,7 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncGeneratorPrototype::throw);
 }
 
-impl<'gc> AsyncGeneratorPrototype {
+impl AsyncGeneratorPrototype {
     /// ### [27.6.1.2 %AsyncGeneratorPrototype%.next ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-next)
     fn next(
         agent: &mut Agent,
@@ -104,7 +104,7 @@ impl<'gc> AsyncGeneratorPrototype {
     }
 
     /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
-    fn r#return(
+    fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -156,7 +156,7 @@ impl<'gc> AsyncGeneratorPrototype {
     }
 
     /// ### [27.6.1.4 %AsyncGeneratorPrototype%.throw ( exception )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-throw)
-    fn throw(
+    fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,

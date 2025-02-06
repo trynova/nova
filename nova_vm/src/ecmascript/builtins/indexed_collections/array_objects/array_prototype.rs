@@ -286,9 +286,9 @@ impl Builtin for ArrayPrototypeWith {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayPrototype::with);
 }
 
-impl<'gc> ArrayPrototype {
+impl ArrayPrototype {
     /// ### [23.1.3.1 Array.prototype.at ( index )](https://tc39.es/ecma262/#sec-array.prototype.at)
-    fn at(
+    fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -354,7 +354,7 @@ impl<'gc> ArrayPrototype {
     /// > Note 2: This method is intentionally generic; it does not require
     /// > that its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn concat(
+    fn concat<'gc>(
         agent: &mut Agent,
         this_value: Value,
         items: ArgumentsList,
@@ -487,7 +487,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn copy_within(
+    fn copy_within<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -695,7 +695,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its this
     /// > value be an Array. Therefore it can be transferred to other kinds of
     /// > objects for use as a method.
-    fn every(
+    fn every<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -770,7 +770,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn fill(
+    fn fill<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -901,7 +901,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > **this** value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn filter(
+    fn filter<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -992,7 +992,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn find(
+    fn find<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1028,7 +1028,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn find_index(
+    fn find_index<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1048,7 +1048,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.11 Array.prototype.findLast ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlast)
-    fn find_last(
+    fn find_last<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1069,7 +1069,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.12 Array.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlastindex)
-    fn find_last_index(
+    fn find_last_index<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1090,7 +1090,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.13 Array.prototype.flat ( \[ depth \] )]()
-    fn flat(
+    fn flat<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1133,7 +1133,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.14 Array.prototype.flatMap ( mapperFunction \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.flatmap)
-    fn flat_map(
+    fn flat_map<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1209,7 +1209,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1294,7 +1294,7 @@ impl<'gc> ArrayPrototype {
     /// > of IsStrictlyEqual, allowing it to detect NaN array elements.
     /// > Second, it does not skip missing array elements, instead treating
     /// > them as undefined.
-    fn includes(
+    fn includes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1417,7 +1417,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn index_of(
+    fn index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1530,7 +1530,7 @@ impl<'gc> ArrayPrototype {
     /// This method converts the elements of the array to Strings, and then
     /// concatenates these Strings, separated by occurrences of the separator.
     /// If no separator is provided, a single comma is used as the separator.
-    fn join(
+    fn join<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1634,7 +1634,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn last_index_of(
+    fn last_index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1774,7 +1774,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn map(
+    fn map<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1851,7 +1851,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn pop(
+    fn pop<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1949,7 +1949,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn push(
+    fn push<'gc>(
         agent: &mut Agent,
         this_value: Value,
         items: ArgumentsList,
@@ -2043,7 +2043,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that
     /// > its this value be an Array. Therefore it can be transferred to
     /// > other kinds of objects for use as a method.
-    fn reduce(
+    fn reduce<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -2193,7 +2193,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn reduce_right(
+    fn reduce_right<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -2307,7 +2307,7 @@ impl<'gc> ArrayPrototype {
         Ok(accumulator)
     }
 
-    fn reverse(
+    fn reverse<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2422,7 +2422,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn shift(
+    fn shift<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2552,7 +2552,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn slice(
+    fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -2788,7 +2788,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn some(
+    fn some<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -2870,7 +2870,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore, it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn sort(
+    fn sort<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -2940,7 +2940,7 @@ impl<'gc> ArrayPrototype {
         Ok(obj.get(agent).into_value())
     }
 
-    fn splice(
+    fn splice<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -3136,7 +3136,7 @@ impl<'gc> ArrayPrototype {
         todo!();
     }
 
-    fn to_reversed(
+    fn to_reversed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -3188,7 +3188,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.34 Array.prototype.toSorted ( comparator )](https://tc39.es/ecma262/#sec-array.prototype.tosorted)
-    fn to_sorted(
+    fn to_sorted<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -3253,7 +3253,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -3297,7 +3297,7 @@ impl<'gc> ArrayPrototype {
     /// > This method is intentionally generic; it does not require that its
     /// > this value be an Array. Therefore it can be transferred to other
     /// > kinds of objects for use as a method.
-    fn unshift(
+    fn unshift<'gc>(
         agent: &mut Agent,
         this_value: Value,
         items: ArgumentsList,
@@ -3421,7 +3421,7 @@ impl<'gc> ArrayPrototype {
     }
 
     /// ### [23.1.3.39 Array.prototype.with ( index, value )](https://tc39.es/ecma262/#sec-array.prototype.with)
-    fn with(
+    fn with<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -3941,7 +3941,7 @@ fn flatten_into_array(
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
 fn sort_indexed_properties<'gc, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
-    agent: &mut Agent,
+    agent: &mut Agent<'gc>,
     obj: Object,
     len: usize,
     comparator: Option<Scoped<'_, Function<'static>>>,

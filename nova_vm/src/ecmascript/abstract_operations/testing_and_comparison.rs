@@ -46,7 +46,7 @@ pub(crate) fn require_object_coercible<'gc>(
             gc,
         ))
     } else {
-        Ok(argument)
+        Ok(argument.bind(gc))
     }
 }
 
@@ -55,12 +55,12 @@ pub(crate) fn require_object_coercible<'gc>(
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array(
+pub(crate) fn is_array<'a>(
     agent: &mut Agent,
-    argument: impl IntoValue,
+    argument: impl IntoValue<'a>,
     gc: NoGcScope,
 ) -> JsResult<bool> {
-    let argument = argument.into_value();
+    let argument = argument.into_value().bind(gc);
 
     match argument {
         // 1. If argument is not an Object, return false.
@@ -306,7 +306,7 @@ pub(crate) fn same_value_non_number<'a, T: Copy + Into<Value<'a>>>(
     // 3. If x is a BigInt, then
     if let (Ok(x), Ok(y)) = (BigInt::try_from(x), BigInt::try_from(y)) {
         // a. Return BigInt::equal(x, y).
-        return BigInt::equal(agent, x, y);
+        return BigInt::equal(agent, x.unbind(), y.unbind());
     }
 
     // 4. If x is a String, then

@@ -1973,7 +1973,7 @@ impl ElementArrays {
         )
     }
 
-    pub fn get(&self, vector: ElementsVector) -> &[Option<Value>] {
+    pub fn get(&self, vector: ElementsVector) -> &[Option<Value<'static>>] {
         match vector.cap {
             ElementArrayKey::Empty => &[],
             ElementArrayKey::E4 => {

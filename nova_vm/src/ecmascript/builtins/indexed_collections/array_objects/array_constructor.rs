@@ -91,10 +91,10 @@ impl Builtin for ArrayGetSpecies {
 impl BuiltinGetter for ArrayGetSpecies {}
 
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
-impl<'gc> ArrayConstructor {
+impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
-    fn constructor(
-        agent: &mut Agent,
+    fn constructor<'gc>(
+        agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -222,7 +222,7 @@ impl<'gc> ArrayConstructor {
     }
 
     /// ### [23.1.2.1 Array.from ( items \[ , mapfn \[ , thisArg \] \] )](https://tc39.es/ecma262/#sec-array.from)
-    fn from(
+    fn from<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -470,7 +470,7 @@ impl<'gc> ArrayConstructor {
     }
 
     /// ### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
-    fn of(
+    fn of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -536,7 +536,7 @@ impl<'gc> ArrayConstructor {
         Ok(a.get(agent).into_value())
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

@@ -58,7 +58,7 @@ impl Builtin for SymbolKeyFor {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolConstructor::key_for);
 }
 
-impl<'gc> SymbolConstructor {
+impl SymbolConstructor {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
@@ -88,7 +88,7 @@ impl<'gc> SymbolConstructor {
             .into_value())
     }
 
-    fn r#for(
+    fn r#for<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -97,7 +97,7 @@ impl<'gc> SymbolConstructor {
         Ok(arguments.get(0))
     }
 
-    fn key_for(
+    fn key_for<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

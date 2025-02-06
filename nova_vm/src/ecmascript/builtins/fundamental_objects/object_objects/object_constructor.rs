@@ -262,10 +262,10 @@ impl Builtin for ObjectValues {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ObjectConstructor::values);
 }
 
-impl<'gc> ObjectConstructor {
+impl ObjectConstructor {
     /// ### [20.1.1.1 Object ( \[ value \] )](https://tc39.es/ecma262/#sec-object-value)
     fn constructor(
-        agent: &mut Agent,
+        agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -313,7 +313,7 @@ impl<'gc> ObjectConstructor {
     ///
     /// This function copies the values of all of the enumerable own properties
     /// from one or more source objects to a target object.
-    fn assign(
+    fn assign<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -378,7 +378,7 @@ impl<'gc> ObjectConstructor {
         Ok(to.get(agent).into_value())
     }
 
-    fn create(
+    fn create<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -407,7 +407,7 @@ impl<'gc> ObjectConstructor {
     ///
     /// This function adds own properties and/or updates the attributes of
     /// existing own properties of an object.
-    fn define_properties(
+    fn define_properties<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -432,7 +432,7 @@ impl<'gc> ObjectConstructor {
     ///
     /// This function adds an own property and/or updates the attributes of an
     /// existing own property of an object.
-    fn define_property(
+    fn define_property<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -461,7 +461,7 @@ impl<'gc> ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -479,7 +479,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
-    fn freeze(
+    fn freeze<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -506,7 +506,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
-    fn from_entries(
+    fn from_entries<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -627,7 +627,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
-    fn get_own_property_descriptor(
+    fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -660,7 +660,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
-    fn get_own_property_descriptors(
+    fn get_own_property_descriptors<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -727,7 +727,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
-    fn get_own_property_names(
+    fn get_own_property_names<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -740,7 +740,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
-    fn get_own_property_symbols(
+    fn get_own_property_symbols<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -769,7 +769,7 @@ impl<'gc> ObjectConstructor {
     }
 
     // ### [20.1.2.13 Object.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-object.groupby)
-    fn group_by(
+    fn group_by<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -800,7 +800,7 @@ impl<'gc> ObjectConstructor {
         Ok(object.into_value())
     }
 
-    fn has_own(
+    fn has_own<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -831,7 +831,7 @@ impl<'gc> ObjectConstructor {
         Ok(same_value(agent, arguments.get(0), arguments.get(1)).into())
     }
 
-    fn is_extensible(
+    fn is_extensible<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -845,7 +845,7 @@ impl<'gc> ObjectConstructor {
         Ok(result.into())
     }
 
-    fn is_frozen(
+    fn is_frozen<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -859,7 +859,7 @@ impl<'gc> ObjectConstructor {
         Ok(result.into())
     }
 
-    fn is_sealed(
+    fn is_sealed<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -874,7 +874,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -894,7 +894,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
-    fn prevent_extensions(
+    fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -921,7 +921,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
-    fn seal(
+    fn seal<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -948,7 +948,7 @@ impl<'gc> ObjectConstructor {
     }
 
     /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
-    fn set_prototype_of(
+    fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -988,7 +988,7 @@ impl<'gc> ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,

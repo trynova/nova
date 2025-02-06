@@ -24,8 +24,8 @@ impl Builtin for IteratorPrototypeIterator {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::iterator);
 }
 
-impl<'gc> IteratorPrototype {
-    fn iterator(
+impl IteratorPrototype {
+    fn iterator<'gc>(
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
