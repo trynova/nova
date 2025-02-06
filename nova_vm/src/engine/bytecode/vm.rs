@@ -43,7 +43,7 @@ use crate::{
             OrdinaryFunctionCreateParams,
         },
         execution::{
-            agent::{resolve_binding, ExceptionType, JsError},
+            agent::{resolve_binding, try_resolve_binding, ExceptionType, JsError},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
             JsResult, ProtoIntrinsics,
@@ -1235,10 +1235,23 @@ impl<'a> Vm {
                 vm.stack.push(b);
             }
             Instruction::DirectEvalCall => {
-                let args = vm.get_call_args(instr, gc.nogc());
+                let mut args = vm.get_call_args(instr, gc.nogc());
+                let mut scoped_args = None;
 
-                let func_reference =
-                    resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None, gc.reborrow())?;
+                let func: Value;
+                let func_ref = if let TryResult::Continue(func_ref) =
+                    try_resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None, gc.nogc())
+                {
+                    func_ref
+                } else {
+                    scoped_args = Some(
+                        args.into_iter()
+                            .map(|v| v.scope(agent, gc.nogc()))
+                            .collect::<Vec<_>>(),
+                    );
+                    let func_ref =
+                        resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None, gc.reborrow())?;
+                };
                 let func = { get_value(agent, &func_reference.unbind(), gc.reborrow())? };
 
                 // a. If SameValue(func, %eval%) is true, then
