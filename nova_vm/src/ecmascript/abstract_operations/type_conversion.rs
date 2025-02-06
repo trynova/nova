@@ -252,9 +252,9 @@ pub(crate) fn to_numeric_primitive<'a>(
     to_number_primitive(agent, prim_value, gc).map(|n| n.into_numeric())
 }
 
-pub(crate) fn try_to_number<'gc>(
+pub(crate) fn try_to_number<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue,
+    argument: impl IntoValue<'a>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<JsResult<Number<'gc>>> {
     let argument = argument.into_value();
@@ -963,9 +963,9 @@ pub(crate) fn to_big_uint64_big_int(agent: &mut Agent, n: BigInt) -> u64 {
     }
 }
 
-pub(crate) fn try_to_string<'gc>(
+pub(crate) fn try_to_string<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue,
+    argument: impl IntoValue<'a>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<JsResult<String<'gc>>> {
     let argument = argument.into_value();
@@ -1130,11 +1130,11 @@ pub(crate) fn to_object<'a>(
 }
 
 /// ### [7.1.19 ToPropertyKey ( argument )](https://tc39.es/ecma262/#sec-topropertykey)
-pub(crate) fn to_property_key<'a>(
+pub(crate) fn to_property_key<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue,
-    gc: GcScope<'a, '_>,
-) -> JsResult<PropertyKey<'a>> {
+    argument: impl IntoValue<'a>,
+    gc: GcScope<'gc, '_>,
+) -> JsResult<PropertyKey<'gc>> {
     // Note: Fast path and non-standard special case combined. Usually the
     // argument is already a valid property key. We also need to parse integer
     // strings back into integer property keys.
@@ -1168,11 +1168,11 @@ pub(crate) fn to_property_key<'a>(
 ///
 /// If a complex case is found, the function returns None to indicate that the
 /// caller should handle the uncommon case.
-pub(crate) fn to_property_key_simple<'a>(
+pub(crate) fn to_property_key_simple<'a, 'gc>(
     agent: &Agent,
-    argument: impl IntoValue,
-    _: NoGcScope<'a, '_>,
-) -> TryResult<PropertyKey<'a>> {
+    argument: impl IntoValue<'a>,
+    _: NoGcScope<'gc, '_>,
+) -> TryResult<PropertyKey<'gc>> {
     let argument = argument.into_value();
     match argument {
         Value::String(_) | Value::SmallString(_) => {
@@ -1210,11 +1210,11 @@ pub(crate) fn to_property_key_simple<'a>(
     }
 }
 
-pub(crate) fn to_property_key_complex<'a>(
+pub(crate) fn to_property_key_complex<'a, 'gc>(
     agent: &mut Agent,
-    argument: impl IntoValue,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<PropertyKey<'a>> {
+    argument: impl IntoValue<'a>,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<PropertyKey<'gc>> {
     // 1. Let key be ? ToPrimitive(argument, hint String).
     let key = to_primitive(agent, argument, Some(PreferredType::String), gc.reborrow())?.unbind();
     let gc = gc.into_nogc();

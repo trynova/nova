@@ -57,7 +57,7 @@ impl Builtin for DateUTC {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
 impl<'gc> DateConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

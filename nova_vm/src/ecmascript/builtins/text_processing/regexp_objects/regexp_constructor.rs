@@ -44,7 +44,7 @@ impl Builtin for RegExpGetSpecies {
 impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::is_prototype_of_loop;
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -80,8 +81,8 @@ impl Builtin for ObjectPrototypeValueOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ObjectPrototype::value_of);
 }
 
-impl<'gc> ObjectPrototype {
-    fn has_own_property(
+impl ObjectPrototype {
+    fn has_own_property<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -94,7 +95,7 @@ impl<'gc> ObjectPrototype {
         has_own_property(agent, o.unbind(), p.unbind(), gc.reborrow()).map(|result| result.into())
     }
 
-    fn is_prototype_of(
+    fn is_prototype_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -109,7 +110,7 @@ impl<'gc> ObjectPrototype {
         Ok(result.into())
     }
 
-    fn property_is_enumerable(
+    fn property_is_enumerable<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -129,24 +130,24 @@ impl<'gc> ObjectPrototype {
         }
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let o = this_value;
         let p = PropertyKey::from(BUILTIN_STRING_MEMORY.toString);
-        invoke(agent, o, p, None, gc.reborrow())
+        invoke(agent, o, p, None, gc)
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        match this_value {
+        match this_value.bind(gc.nogc()) {
             // 1. If the this value is undefined, return "[object Undefined]".
             Value::Undefined => Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
             // 2. If the this value is null, return "[object Null]".
@@ -210,11 +211,11 @@ impl<'gc> ObjectPrototype {
                     )?;
                     if let Ok(tag) = String::try_from(tag) {
                         let str = format!("[object {}]", tag.as_str(agent));
-                        Ok(Value::from_string(agent, str, gc.nogc()))
+                        Ok(Value::from_string(agent, str, gc.into_nogc()))
                     } else {
                         let str =
                             format!("[object {}]", BUILTIN_STRING_MEMORY.Object.as_str(agent));
-                        Ok(Value::from_string(agent, str, gc.nogc()))
+                        Ok(Value::from_string(agent, str, gc.into_nogc()))
                     }
                 }
             },
@@ -231,23 +232,23 @@ impl<'gc> ObjectPrototype {
                 )?;
                 if let Ok(tag) = String::try_from(tag) {
                     let str = format!("[object {}]", tag.as_str(agent));
-                    Ok(Value::from_string(agent, str, gc.nogc()))
+                    Ok(Value::from_string(agent, str, gc.into_nogc()))
                 } else {
                     // 14. Else, let builtinTag be "Object".
                     let str = format!("[object {}]", BUILTIN_STRING_MEMORY.Object.as_str(agent));
-                    Ok(Value::from_string(agent, str, gc.nogc()))
+                    Ok(Value::from_string(agent, str, gc.into_nogc()))
                 }
             }
         }
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        to_object(agent, this_value, gc.nogc()).map(|result| result.into_value())
+        to_object(agent, this_value, gc.into_nogc()).map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

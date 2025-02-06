@@ -55,7 +55,7 @@ impl<'gc> BigIntPrototype {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -71,7 +71,7 @@ impl<'gc> BigIntPrototype {
         }
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

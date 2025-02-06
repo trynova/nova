@@ -170,7 +170,7 @@ pub(crate) fn new_class_static_element_environment(
         DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
 
     let env = FunctionEnvironment {
-        this_value: Some(class_constructor.into_value()),
+        this_value: Some(class_constructor.into_value().unbind()),
 
         function_object: class_constructor.unbind(),
 
@@ -203,7 +203,7 @@ pub(crate) fn new_class_field_initializer_environment(
         .heap
         .environments
         .push_function_environment(FunctionEnvironment {
-            this_value: Some(class_instance.into_value()),
+            this_value: Some(class_instance.into_value().unbind()),
             this_binding_status: ThisBindingStatus::Initialized,
             function_object: class_constructor.unbind(),
             new_target: None,
@@ -324,7 +324,7 @@ impl FunctionEnvironmentIndex {
         // 4. Else if the binding for N in envRec is a mutable binding, then
         if binding.mutable {
             // a. Change its bound value to V.
-            binding.value = Some(value);
+            binding.value = Some(value.unbind());
         }
         // 5. Else,
         else {
@@ -398,13 +398,13 @@ impl FunctionEnvironmentIndex {
         }
 
         // 3. Set envRec.[[ThisValue]] to V.
-        env_rec.this_value = Some(value);
+        env_rec.this_value = Some(value.unbind());
 
         // 4. Set envRec.[[ThisBindingStatus]] to INITIALIZED.
         env_rec.this_binding_status = ThisBindingStatus::Initialized;
 
         // 5. Return V.
-        Ok(value)
+        Ok(value.bind(gc))
     }
 
     /// ### [9.1.1.3.2 HasThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hasthisbinding)

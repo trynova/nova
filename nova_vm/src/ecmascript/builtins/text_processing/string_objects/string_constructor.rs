@@ -60,7 +60,7 @@ impl Builtin for StringRaw {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl<'gc> StringConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

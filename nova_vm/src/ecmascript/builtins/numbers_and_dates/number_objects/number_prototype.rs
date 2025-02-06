@@ -430,7 +430,7 @@ impl<'gc> NumberPrototype {
         (flt.len() as i32) - 1
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -445,7 +445,7 @@ impl<'gc> NumberPrototype {
         }
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

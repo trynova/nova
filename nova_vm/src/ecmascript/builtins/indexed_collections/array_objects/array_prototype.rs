@@ -3131,7 +3131,7 @@ impl ArrayPrototype {
         Ok(a.get(agent).into_value())
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

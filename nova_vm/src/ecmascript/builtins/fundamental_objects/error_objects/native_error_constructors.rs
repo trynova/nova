@@ -95,7 +95,7 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 pub(crate) struct NativeErrorConstructors;
 impl<'gc> NativeErrorConstructors {
     #[inline(always)]
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         error_kind: ExceptionType,
         arguments: ArgumentsList,

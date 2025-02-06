@@ -55,7 +55,7 @@ impl BuiltinGetter for SetGetSpecies {}
 
 impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent<'gc>,
         _: Value,
         arguments: ArgumentsList,

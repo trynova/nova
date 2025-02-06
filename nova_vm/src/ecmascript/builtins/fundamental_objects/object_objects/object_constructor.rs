@@ -264,7 +264,7 @@ impl Builtin for ObjectValues {
 
 impl ObjectConstructor {
     /// ### [20.1.1.1 Object ( \[ value \] )](https://tc39.es/ecma262/#sec-object-value)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,

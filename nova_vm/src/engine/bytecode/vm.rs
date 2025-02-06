@@ -50,9 +50,10 @@ use crate::{
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, Base, BigInt, Function, InternalMethods, IntoFunction,
-            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
-            PropertyDescriptor, PropertyKey, Reference, String, Value, BUILTIN_STRING_MEMORY,
+            is_super_reference, put_value, unbind_values, Base, BigInt, Function, InternalMethods,
+            IntoFunction, IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject,
+            Primitive, PropertyDescriptor, PropertyKey, Reference, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -63,7 +64,7 @@ use crate::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
         },
-        context::GcScope,
+        context::{GcScope, NoGcScope},
         unwrap_try, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -1234,7 +1235,7 @@ impl<'a> Vm {
                 vm.stack.push(b);
             }
             Instruction::DirectEvalCall => {
-                let args = vm.get_call_args(instr);
+                let args = vm.get_call_args(instr, gc.nogc());
 
                 let func_reference =
                     resolve_binding(agent, BUILTIN_STRING_MEMORY.eval, None, gc.reborrow())?;
@@ -1273,7 +1274,7 @@ impl<'a> Vm {
                         agent,
                         func,
                         Value::Undefined,
-                        Some(ArgumentsList(&args)),
+                        Some(ArgumentsList(&unbind_values(args))),
                         gc,
                     );
                     let return_vm = agent.vm_stack.pop().unwrap();
@@ -1294,20 +1295,20 @@ impl<'a> Vm {
                         agent,
                         func,
                         Value::Undefined,
-                        Some(ArgumentsList(&args)),
+                        Some(ArgumentsList(&unbind_values(args))),
                         gc,
                     )?);
                 }
             }
             Instruction::EvaluateCall => {
-                let args = vm.get_call_args(instr);
+                let args = vm.get_call_args(instr, gc.nogc());
                 let reference = vm.reference.take();
                 // 1. If ref is a Reference Record, then
                 let this_value = if let Some(reference) = reference {
                     // a. If IsPropertyReference(ref) is true, then
                     match reference.base {
                         // i. Let thisValue be GetThisValue(ref).
-                        Base::Value(_) => get_this_value(&reference),
+                        Base::Value(_) => get_this_value(&reference).bind(gc.nogc()),
                         // b. Else,
                         Base::Environment(ref_env) => {
                             // i. Let refEnv be ref.[[Base]].
@@ -1315,6 +1316,7 @@ impl<'a> Vm {
                             ref_env
                                 .with_base_object(agent)
                                 .map_or(Value::Undefined, |object| object.into_value())
+                                .bind(gc.nogc())
                         }
                         // ii. Assert: refEnv is an Environment Record.
                         Base::Unresolvable => unreachable!(),
@@ -1324,11 +1326,17 @@ impl<'a> Vm {
                     // a. Let thisValue be undefined.
                     Value::Undefined
                 };
-                let func = vm.stack.pop().unwrap();
+                let func = vm.stack.pop().unwrap().bind(gc.nogc());
                 if cfg!(feature = "interleaved-gc") {
                     let mut vm = NonNull::from(vm);
                     agent.vm_stack.push(vm);
-                    let result = call(agent, func, this_value, Some(ArgumentsList(&args)), gc);
+                    let result = call(
+                        agent,
+                        func.unbind(),
+                        this_value.unbind(),
+                        Some(ArgumentsList(&unbind_values(args))),
+                        gc,
+                    );
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
@@ -1336,20 +1344,23 @@ impl<'a> Vm {
                 } else {
                     vm.result = Some(call(
                         agent,
-                        func,
-                        this_value,
-                        Some(ArgumentsList(&args)),
+                        func.unbind(),
+                        this_value.unbind(),
+                        Some(ArgumentsList(&unbind_values(args))),
                         gc,
                     )?);
                 }
             }
             Instruction::EvaluateNew => {
-                let args = vm.get_call_args(instr);
-                let constructor = vm.stack.pop().unwrap();
+                let args = vm.get_call_args(instr, gc.nogc());
+                let constructor = vm.stack.pop().unwrap().bind(gc.nogc());
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let error_message = format!(
                         "'{}' is not a constructor.",
-                        constructor.string_repr(agent, gc.reborrow()).as_str(agent)
+                        constructor
+                            .unbind()
+                            .string_repr(agent, gc.reborrow())
+                            .as_str(agent)
                     );
                     return Err(agent.throw_exception(
                         ExceptionType::TypeError,
@@ -1363,8 +1374,8 @@ impl<'a> Vm {
                     agent.vm_stack.push(vm);
                     let result = construct(
                         agent,
-                        constructor,
-                        Some(ArgumentsList(&args)),
+                        constructor.unbind(),
+                        Some(ArgumentsList(&unbind_values(args))),
                         None,
                         gc.reborrow(),
                     )
@@ -1372,17 +1383,18 @@ impl<'a> Vm {
                     let return_vm = agent.vm_stack.pop().unwrap();
                     assert_eq!(vm, return_vm, "VM Stack was misused");
                     // SAFETY: This is fairly bonkers-unsafe. I'm sorry.
-                    unsafe { vm.as_mut() }.result = Some(result?);
+                    unsafe { vm.as_mut() }.result = Some(result?.unbind());
                 } else {
                     vm.result = Some(
                         construct(
                             agent,
-                            constructor,
-                            Some(ArgumentsList(&args)),
+                            constructor.unbind(),
+                            Some(ArgumentsList(&unbind_values(args))),
                             None,
                             gc.reborrow(),
                         )?
-                        .into_value(),
+                        .into_value()
+                        .unbind(),
                     );
                 }
             }
@@ -1396,19 +1408,20 @@ impl<'a> Vm {
                 let (new_target, func) = {
                     let data = &agent[this_env];
                     (
-                        Function::try_from(data.new_target.unwrap()).unwrap(),
-                        data.function_object
-                            .internal_get_prototype_of(agent, gc.reborrow())
-                            .unwrap(),
+                        Function::try_from(data.new_target.unwrap())
+                            .unwrap()
+                            .bind(gc.nogc()),
+                        unwrap_try(data.function_object.try_get_prototype_of(agent, gc.nogc())),
                     )
                 };
                 // 4. Let argList be ? ArgumentListEvaluation of Arguments.
-                let arg_list = vm.get_call_args(instr);
+                let arg_list = vm.get_call_args(instr, gc.nogc());
                 // 5. If IsConstructor(func) is false, throw a TypeError exception.
                 let Some(func) = func.and_then(|func| is_constructor(agent, func)) else {
                     let error_message = format!(
                         "'{}' is not a constructor.",
                         func.map_or(Value::Null, |func| func.into_value())
+                            .unbind()
                             .string_repr(agent, gc.reborrow())
                             .as_str(agent)
                     );
@@ -1422,8 +1435,8 @@ impl<'a> Vm {
                 let result = construct(
                     agent,
                     func.unbind(),
-                    Some(ArgumentsList(&arg_list)),
-                    Some(new_target),
+                    Some(ArgumentsList(&unbind_values(arg_list))),
+                    Some(new_target.unbind()),
                     gc.reborrow(),
                 )?
                 .unbind()
@@ -1441,7 +1454,7 @@ impl<'a> Vm {
                 };
                 // 11. Perform ? InitializeInstanceElements(result, F).
                 // 12. Return result.
-                vm.result = Some(result.into_value());
+                vm.result = Some(result.into_value().unbind());
             }
             Instruction::EvaluatePropertyAccessWithExpressionKey => {
                 let property_name_value = vm.result.take().unwrap();
@@ -1504,25 +1517,23 @@ impl<'a> Vm {
                 let lhs = vm.result.take().unwrap();
                 let old_value = to_numeric(agent, lhs, gc.reborrow())?;
                 let new_value = if let Ok(old_value) = Number::try_from(old_value) {
-                    Number::add(agent, old_value, 1.into())
+                    Number::add(agent, old_value, 1.into()).into_value()
                 } else {
-                    todo!();
-                    // let old_value = BigInt::try_from(old_value).unwrap();
-                    // BigInt::add(agent, old_value, 1.into());
+                    let old_value = BigInt::try_from(old_value).unwrap();
+                    BigInt::add(agent, old_value, 1.into()).into_value()
                 };
-                vm.result = Some(new_value.into_value());
+                vm.result = Some(new_value.unbind())
             }
             Instruction::Decrement => {
                 let lhs = vm.result.take().unwrap();
                 let old_value = to_numeric(agent, lhs, gc.reborrow())?;
                 let new_value = if let Ok(old_value) = Number::try_from(old_value) {
-                    Number::subtract(agent, old_value, 1.into())
+                    Number::subtract(agent, old_value, 1.into()).into_value()
                 } else {
-                    todo!();
-                    // let old_value = BigInt::try_from(old_value).unwrap();
-                    // BigInt::subtract(agent, old_value, 1.into());
+                    let old_value = BigInt::try_from(old_value).unwrap();
+                    BigInt::subtract(agent, old_value, 1.into()).into_value()
                 };
-                vm.result = Some(new_value.into_value());
+                vm.result = Some(new_value.unbind());
             }
             Instruction::LessThan => {
                 let lval = vm.stack.pop().unwrap();
@@ -1868,7 +1879,7 @@ impl<'a> Vm {
                 let mut length = 0;
                 for ele in vm.stack[last_item..].iter_mut() {
                     if !ele.is_string() {
-                        *ele = to_string(agent, *ele, gc.reborrow())?.into_value();
+                        *ele = to_string(agent, *ele, gc.reborrow())?.into_value().unbind();
                     }
                     let string = String::try_from(*ele).unwrap();
                     length += string.len(agent);
@@ -1879,7 +1890,11 @@ impl<'a> Vm {
                     result_string.push_str(string.as_str(agent));
                 }
                 vm.stack.truncate(last_item);
-                vm.result = Some(String::from_string(agent, result_string, gc.nogc()).into_value());
+                vm.result = Some(
+                    String::from_string(agent, result_string, gc.nogc())
+                        .into_value()
+                        .unbind(),
+                );
             }
             Instruction::Delete => {
                 let refer = vm.reference.take().unwrap();
@@ -1979,7 +1994,7 @@ impl<'a> Vm {
                     // TODO: Handle potential GC.
                     .step_value(agent, gc.reborrow());
                 if let Ok(result) = result {
-                    vm.result = result;
+                    vm.result = result.map(Value::unbind);
                     if result.is_none() {
                         // Iterator finished: Jump to escape iterator loop.
                         vm.iterator_stack.pop().unwrap();
@@ -1995,7 +2010,7 @@ impl<'a> Vm {
                 let iterator = vm.iterator_stack.last_mut().unwrap();
                 let result = iterator.step_value(agent, gc.reborrow());
                 if let Ok(result) = result {
-                    vm.result = Some(result.unwrap_or(Value::Undefined));
+                    vm.result = Some(result.unwrap_or(Value::Undefined).unbind());
                     if result.is_none() {
                         // We have exhausted the iterator; replace it with an empty VmIterator so
                         // further instructions aren't observable.
@@ -2019,7 +2034,7 @@ impl<'a> Vm {
                         agent,
                         array.get(agent),
                         key,
-                        value,
+                        value.unbind(),
                         gc.nogc(),
                     ));
                     idx += 1;
@@ -2043,7 +2058,9 @@ impl<'a> Vm {
                     unreachable!()
                 };
                 vm.result = Some(
-                    create_unmapped_arguments_object(agent, slice.get(), gc.nogc()).into_value(),
+                    create_unmapped_arguments_object(agent, slice.get(), gc.nogc())
+                        .into_value()
+                        .unbind(),
                 );
             }
             other => todo!("{other:?}"),
@@ -2052,7 +2069,7 @@ impl<'a> Vm {
         Ok(ContinuationKind::Normal)
     }
 
-    fn get_call_args(&mut self, instr: &Instr) -> Vec<Value> {
+    fn get_call_args<'gc>(&mut self, instr: &Instr, _gc: NoGcScope<'gc, '_>) -> Vec<Value<'gc>> {
         let instr_arg0 = instr.args[0].unwrap();
         let arg_count = if instr_arg0 != IndexType::MAX {
             instr_arg0 as usize
@@ -2084,34 +2101,38 @@ fn apply_string_or_numeric_binary_operator<'gc>(
     rval: Value,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
-    let mut lnum: Numeric;
-    let rnum: Numeric;
+    let lval = lval.bind(gc.nogc());
+    let rval = rval.bind(gc.nogc());
+    let lnum: Numeric<'gc>;
+    let rnum: Numeric<'gc>;
     // 1. If opText is +, then
     let gc = if op_text == BinaryOperator::Addition {
         // a. Let lprim be ? ToPrimitive(lval).
         // b. Let rprim be ? ToPrimitive(rval).
         let (lprim, rprim, gc) = match (Primitive::try_from(lval), Primitive::try_from(rval)) {
             (Ok(lprim), Ok(rprim)) => {
+                let lprim = lprim.unbind();
+                let rprim = rprim.unbind();
                 let gc = gc.into_nogc();
                 (lprim.bind(gc), rprim.bind(gc), gc)
             }
             (Ok(lprim), Err(_)) => {
                 let lprim = lprim.scope(agent, gc.nogc());
-                let rprim = to_primitive(agent, rval, None, gc.reborrow())?.unbind();
+                let rprim = to_primitive(agent, rval.unbind(), None, gc.reborrow())?.unbind();
                 let gc = gc.into_nogc();
                 let lprim = lprim.get(agent);
                 (lprim.bind(gc), rprim.bind(gc), gc)
             }
             (Err(_), Ok(rprim)) => {
                 let rprim = rprim.scope(agent, gc.nogc());
-                let lprim = to_primitive(agent, lval, None, gc.reborrow())?.unbind();
+                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())?.unbind();
                 let gc = gc.into_nogc();
                 let rprim = rprim.get(agent);
                 (lprim.bind(gc), rprim.bind(gc), gc)
             }
             (Err(_), Err(_)) => {
                 let rval = rval.scope(agent, gc.nogc());
-                let lprim = to_primitive(agent, lval, None, gc.reborrow())?
+                let lprim = to_primitive(agent, lval.unbind(), None, gc.reborrow())?
                     .unbind()
                     .scope(agent, gc.nogc());
                 let rprim = to_primitive(agent, rval.get(agent), None, gc.reborrow())?.unbind();
@@ -2155,13 +2176,11 @@ fn apply_string_or_numeric_binary_operator<'gc>(
     } else {
         let rval = rval.scope(agent, gc.nogc());
         // 3. Let lnum be ? ToNumeric(lval).
-        lnum = to_numeric(agent, lval, gc.reborrow())?
+        let scoped_lnum = to_numeric(agent, lval.unbind(), gc.reborrow())?
             .unbind()
-            .bind(gc.nogc());
-        let scoped_lnum = lnum.scope(agent, gc.nogc());
-        let rval = rval.get(agent).unbind();
+            .scope(agent, gc.nogc());
         // 4. Let rnum be ? ToNumeric(rval).
-        rnum = to_numeric(agent, rval, gc.reborrow())?.unbind();
+        rnum = to_numeric(agent, rval.get(agent), gc.reborrow())?.unbind();
         let gc = gc.into_nogc();
         lnum = scoped_lnum.get(agent).bind(gc);
         gc

@@ -1894,7 +1894,7 @@ impl<'gc> StringPrototype {
     ///
     /// > NOTE: `String.prototype.toString` and `String.prototype.valueOf` are
     /// > different functions but have the exact same steps.
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

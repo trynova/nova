@@ -78,7 +78,7 @@ impl Builtin for TypedArrayGetSpecies {
 }
 impl BuiltinGetter for TypedArrayGetSpecies {}
 impl TypedArrayIntrinsicObject {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
