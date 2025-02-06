@@ -2,6 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use std::ops::Index;
+
+use crate::ecmascript::types::HeapNumber;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -33,7 +36,7 @@ impl Builtin for WeakMapPrototypeHas {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::has);
 }
-struct WeakMapPrototypeSet;
+pub(super) struct WeakMapPrototypeSet;
 impl Builtin for WeakMapPrototypeSet {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
@@ -101,4 +104,25 @@ impl WeakMapPrototype {
             })
             .build();
     }
+}
+
+#[inline(always)]
+/// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
+/// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
+/// (an ECMAScript language value) and returns an ECMAScript language value.
+pub(crate) fn canonicalize_keyed_collection_key(
+    agent: &impl Index<HeapNumber<'static>, Output = f64>,
+    key: Value,
+) -> Value {
+    // 1. If key is -0𝔽, return +0𝔽.
+    if let Value::SmallF64(key) = key {
+        // Note: Only f32 should hold -0.
+        if key.into_f64() == -0.0 {
+            return 0.into();
+        }
+    } else if let Value::Number(key) = key {
+        debug_assert_ne!(agent[key], -0.0, "HeapNumber should never be -0.0");
+    }
+    // 2. Return key.
+    key
 }
