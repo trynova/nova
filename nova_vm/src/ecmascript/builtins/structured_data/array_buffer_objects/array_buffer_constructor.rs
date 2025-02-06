@@ -56,7 +56,7 @@ impl BuiltinGetter for ArrayBufferGetSpecies {}
 
 impl ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,

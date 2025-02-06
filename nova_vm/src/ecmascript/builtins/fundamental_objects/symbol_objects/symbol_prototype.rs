@@ -86,7 +86,7 @@ impl<'gc> SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -96,7 +96,7 @@ impl<'gc> SymbolPrototype {
         Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value())
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

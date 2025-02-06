@@ -102,7 +102,7 @@ impl Builtin for PromiseGetSpecies {
 impl BuiltinGetter for PromiseGetSpecies {}
 
 impl<'gc> PromiseConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,

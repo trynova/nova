@@ -41,7 +41,7 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 }
 
 impl<'gc> FunctionConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

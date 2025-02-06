@@ -60,7 +60,7 @@ impl Builtin for BigIntAsUintN {
 }
 
 impl<'gc> BigIntConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

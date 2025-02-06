@@ -684,7 +684,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -714,7 +714,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

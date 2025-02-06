@@ -37,8 +37,8 @@ impl Builtin for BooleanPrototypeValueOf {
         crate::ecmascript::builtins::Behaviour::Regular(BooleanPrototype::value_of);
 }
 
-impl<'gc> BooleanPrototype {
-    fn to_string(
+impl BooleanPrototype {
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -52,7 +52,7 @@ impl<'gc> BooleanPrototype {
         }
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

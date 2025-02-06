@@ -314,7 +314,7 @@ impl FunctionPrototype {
         call_function(agent, func.unbind(), this_arg, Some(args), gc)
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

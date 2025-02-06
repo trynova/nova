@@ -37,7 +37,7 @@ impl BuiltinIntrinsicConstructor for GeneratorFunctionConstructor {
 }
 
 impl GeneratorFunctionConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,
