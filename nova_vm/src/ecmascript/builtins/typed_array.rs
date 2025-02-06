@@ -397,7 +397,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.into_value()),
+                    value: Some(value.into_value().unbind()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -577,13 +577,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.5 Infallible \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
@@ -613,13 +613,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.5 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then

@@ -381,7 +381,7 @@ impl<'a> Value<'a> {
     // let value = value.bind(&gc);
     // ```
     // to make sure that the unbound Value cannot be used after binding.
-    pub fn bind<'gc>(self, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
+    pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         unsafe { std::mem::transmute::<Self, Value<'gc>>(self) }
     }
 
@@ -637,9 +637,9 @@ impl<'a> Value<'a> {
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString<'static>, Output = StringHeapData>
-            + Index<HeapNumber<'static>, Output = f64>
-            + Index<HeapBigInt<'static>, Output = BigIntHeapData>,
+        A: Index<HeapString<'a>, Output = StringHeapData>
+            + Index<HeapNumber<'a>, Output = f64>
+            + Index<HeapBigInt<'a>, Output = BigIntHeapData>,
     {
         let discriminant = core::mem::discriminant(&self);
         match self {

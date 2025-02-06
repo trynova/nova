@@ -77,7 +77,7 @@ impl Builtin for TypedArrayGetSpecies {
         Some(WellKnownSymbolIndexes::Species.to_property_key());
 }
 impl BuiltinGetter for TypedArrayGetSpecies {}
-impl<'gc> TypedArrayIntrinsicObject {
+impl TypedArrayIntrinsicObject {
     fn constructor(
         agent: &mut Agent,
         _this_value: Value,
@@ -119,7 +119,7 @@ impl<'gc> TypedArrayIntrinsicObject {
         todo!();
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -566,7 +566,7 @@ impl TypedArrayPrototype {
         Ok(Value::try_from(o.byte_offset(agent) as i64).unwrap())
     }
 
-    fn copy_within(
+    fn copy_within<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -672,7 +672,7 @@ impl TypedArrayPrototype {
         Ok(true.into())
     }
 
-    fn fill(
+    fn fill<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -681,7 +681,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn filter(
+    fn filter<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -690,7 +690,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn find(
+    fn find<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -699,7 +699,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn find_index(
+    fn find_index<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -708,7 +708,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn find_last(
+    fn find_last<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -717,7 +717,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn find_last_index(
+    fn find_last_index<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -728,7 +728,7 @@ impl TypedArrayPrototype {
 
     // ### [ 23.2.3.15 %TypedArray%.prototype.forEach ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.foreach)
     // The interpretation and use of the arguments of this method are the same as for Array.prototype.forEach as defined in 23.1.3.15.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -802,7 +802,7 @@ impl TypedArrayPrototype {
 
     // ### [23.2.3.16 %TypedArray%.prototype.includes ( searchElement [ , fromIndex ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.includes)
     // The interpretation and use of the arguments of this method are the same as for Array.prototype.includes as defined in 23.1.3.16.
-    fn includes(
+    fn includes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -901,7 +901,7 @@ impl TypedArrayPrototype {
         Ok(false.into())
     }
 
-    fn index_of(
+    fn index_of<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1228,7 +1228,7 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1244,7 +1244,7 @@ impl TypedArrayPrototype {
         )
     }
 
-    fn last_index_of(
+    fn last_index_of<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1323,7 +1323,7 @@ impl TypedArrayPrototype {
         Ok(Value::try_from(length).unwrap())
     }
 
-    fn map(
+    fn map<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1332,7 +1332,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn reduce(
+    fn reduce<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1341,7 +1341,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn reduce_right(
+    fn reduce_right<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1350,7 +1350,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn reverse(
+    fn reverse<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1359,7 +1359,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn set(
+    fn set<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1368,7 +1368,7 @@ impl TypedArrayPrototype {
         todo!()
     }
 
-    fn slice(
+    fn slice<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1493,7 +1493,7 @@ impl TypedArrayPrototype {
         todo!();
     }
 
-    fn to_sorted(
+    fn to_sorted<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1502,7 +1502,7 @@ impl TypedArrayPrototype {
         todo!();
     }
 
-    fn to_spliced(
+    fn to_spliced<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1528,7 +1528,7 @@ impl TypedArrayPrototype {
         )
     }
 
-    fn with(
+    fn with<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1538,7 +1538,7 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.38 get %TypedArray%.prototype \[ %Symbol.toStringTag% \]](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
-    fn get_to_string_tag(
+    fn get_to_string_tag<'gc>(
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

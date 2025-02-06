@@ -10,8 +10,8 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            language::IntoObject, InternalMethods, InternalSlots, ObjectHeapData, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            language::IntoObject, InternalMethods, InternalSlots, IntoValue, ObjectHeapData,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -199,7 +199,7 @@ pub(crate) fn function_internal_get<'gc, 'a>(
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
         Ok(func.get_length(agent).into())
     } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.name) {
-        Ok(func.get_name(agent).into_value())
+        Ok(func.get_name(agent).into_value().bind(gc.into_nogc()))
     } else {
         // Note: Getting a function's prototype never calls JavaScript.
         let parent = unwrap_try(func.try_get_prototype_of(agent, gc.nogc()));

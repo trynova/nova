@@ -146,7 +146,7 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion.
 pub fn perform_eval<'gc>(
-    agent: &mut Agent,
+    agent: &mut Agent<'gc>,
     x: Value,
     direct: bool,
     strict_caller: bool,
@@ -705,11 +705,11 @@ pub fn eval_declaration_instantiation(
     Ok(())
 }
 
-impl<'gc> GlobalObject {
+impl GlobalObject {
     /// ### [19.2.1 eval ( x )](https://tc39.es/ecma262/#sec-eval-x)
     ///
     /// This function is the %eval% intrinsic object.
-    fn eval(
+    fn eval<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -724,7 +724,7 @@ impl<'gc> GlobalObject {
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
     ///
     /// This function is the %isFinite% intrinsic object.
-    fn is_finite(
+    fn is_finite<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -745,7 +745,7 @@ impl<'gc> GlobalObject {
     /// > NOTE: A reliable way for ECMAScript code to test if a value X is NaN
     /// > is an expression of the form X !== X. The result will be true if and
     /// > only if X is NaN.
-    fn is_nan(
+    fn is_nan<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
@@ -763,7 +763,7 @@ impl<'gc> GlobalObject {
     ///
     /// This function produces a Number value dictated by interpretation of the
     /// contents of the string argument as a decimal literal.
-    fn parse_float(
+    fn parse_float<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -832,7 +832,7 @@ impl<'gc> GlobalObject {
     /// representation begins with "0x" or "0X", in which case it is assumed to
     /// be 16. If radix is 16, the number representation may optionally begin
     /// with "0x" or "0X".
-    fn parse_int(
+    fn parse_int<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

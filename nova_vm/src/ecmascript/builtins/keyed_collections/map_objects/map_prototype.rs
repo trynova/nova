@@ -94,7 +94,7 @@ impl Builtin for MapPrototypeValues {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapPrototype::values);
 }
 
-impl<'gc> MapPrototype {
+impl MapPrototype {
     /// ### [24.1.3.1 Map.prototype.clear ( )](https://tc39.es/ecma262/#sec-map.prototype.clear)
     ///
     /// > #### Note
@@ -222,7 +222,7 @@ impl<'gc> MapPrototype {
     /// > after the call to `forEach` begins and before being visited are not
     /// > visited unless the key is added again before the `forEach` call
     /// > completes.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -553,7 +553,7 @@ fn require_map_data_internal_slot<'a>(
 /// (an ECMAScript language value) and returns an ECMAScript language value.
 pub(crate) fn canonicalize_keyed_collection_key<'gc>(
     agent: &impl Index<HeapNumber<'gc>, Output = f64>,
-    key: Value<'gc>,
+    key: Value,
 ) -> Value<'static> {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {

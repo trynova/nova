@@ -24,8 +24,8 @@ impl Builtin for AsyncIteratorPrototypeIterator {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(AsyncIteratorPrototype::iterator);
 }
 
-impl<'gc> AsyncIteratorPrototype {
-    fn iterator(
+impl AsyncIteratorPrototype {
+    fn iterator<'gc>(
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

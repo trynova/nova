@@ -69,9 +69,9 @@ impl Builtin for NumberIsSafeInteger {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.isSafeInteger;
 }
 
-impl<'gc> NumberConstructor {
-    fn constructor(
-        agent: &mut Agent,
+impl NumberConstructor {
+    fn constructor<'gc>(
+        agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -159,7 +159,7 @@ impl<'gc> NumberConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn is_integer(
+    fn is_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

@@ -175,7 +175,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value()),
+                value: Some(prototype.into_value().unbind()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -343,7 +343,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability.resolve(agent, result, gc.reborrow());
+            promise_capability.resolve(agent, result.unbind(), gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -365,7 +365,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
                 return_promise_capability: promise_capability,
             }));
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let promise = Promise::resolve(agent, awaited_value, gc.reborrow());
+            let promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow());
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
             inner_promise_then(agent, promise.unbind(), handler, handler, None);
         }
@@ -457,16 +457,19 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     let Object::AsyncGenerator(generator) = generator else {
         unreachable!()
     };
+    let generator = generator.unbind();
+    let gc = gc.into_nogc();
+    let generator = generator.bind(gc);
 
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
-    let function_object = scoped_function_object.get(agent).bind(gc.nogc());
+    let function_object = scoped_function_object.get(agent).bind(gc);
     let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        let exe = Executable::compile_function_body(agent, data, gc);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };

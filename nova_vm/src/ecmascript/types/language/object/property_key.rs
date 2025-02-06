@@ -103,7 +103,7 @@ impl<'a> PropertyKey<'a> {
     pub fn convert_to_value<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                Value::from_string(agent, format!("{}", small_integer.into_i64()), gc)
+                Value::from_string(agent, small_integer.into_i64().to_string(), gc)
             }
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
             PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
@@ -319,7 +319,7 @@ impl<'a> From<PropertyKey<'a>> for Value<'a> {
     /// keys don't actually become proper strings here, so converting a
     /// PropertyKey into a Value using this and then comparing that with an
     /// actual Value is unsound.
-    fn from(value: PropertyKey) -> Self {
+    fn from(value: PropertyKey<'a>) -> Self {
         // SAFETY: Don't be silly!
         unsafe { value.into_value_unchecked() }
     }

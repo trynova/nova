@@ -49,7 +49,9 @@ pub(crate) fn get_iterator_from_method(
 ) -> JsResult<IteratorRecord> {
     let method = method.bind(gc.nogc());
     // 1. Let iterator be ? Call(method, obj).
-    let iterator = call_function(agent, method.unbind(), obj, None, gc.reborrow())?;
+    let iterator = call_function(agent, method.unbind(), obj, None, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
 
     // 2. If iterator is not an Object, throw a TypeError exception.
     let Ok(iterator) = Object::try_from(iterator) else {
@@ -59,7 +61,6 @@ pub(crate) fn get_iterator_from_method(
             gc.nogc(),
         ));
     };
-    let iterator = iterator.bind(gc.nogc());
 
     let scoped_iterator = iterator.scope(agent, gc.nogc());
     // 3. Let nextMethod be ? Get(iterator, "next").
@@ -74,7 +75,7 @@ pub(crate) fn get_iterator_from_method(
     // 5. Return iteratorRecord.
     Ok(IteratorRecord {
         iterator: scoped_iterator.get(agent).unbind(),
-        next_method,
+        next_method: next_method.unbind(),
         done: false,
     })
 }
@@ -160,7 +161,9 @@ pub(crate) fn get_iterator(
 pub(crate) fn iterator_next<'a>(
     agent: &mut Agent,
     iterator_record: &IteratorRecord,
-    value: Option<Value>,
+    // SAFETY: The value is immediately passed to Call and never used again:
+    // We don't need to bind/unbind/worry about its lifetime.
+    value: Option<Value<'static>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Object<'a>> {
     // 1. If value is not present, then

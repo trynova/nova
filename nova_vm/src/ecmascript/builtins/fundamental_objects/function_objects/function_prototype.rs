@@ -102,13 +102,13 @@ impl Builtin for FunctionPrototypeHasInstance {
     const CONFIGURABLE: bool = false;
 }
 
-impl<'gc> FunctionPrototype {
+impl FunctionPrototype {
     fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList, _: GcScope) -> JsResult<Value<'gc>> {
         Ok(Value::Undefined)
     }
 
     /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
-    fn apply(
+    fn apply<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -153,7 +153,7 @@ impl<'gc> FunctionPrototype {
     /// > If `Target` is either an arrow function or a bound function exotic
     /// > object, then the `thisArg` passed to this method will not be used by
     /// > subsequent calls to `F`.
-    fn bind(
+    fn bind<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,

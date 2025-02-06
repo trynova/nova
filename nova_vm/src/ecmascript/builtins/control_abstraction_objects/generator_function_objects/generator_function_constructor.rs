@@ -36,9 +36,9 @@ impl BuiltinIntrinsicConstructor for GeneratorFunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::GeneratorFunction;
 }
 
-impl<'gc> GeneratorFunctionConstructor {
+impl GeneratorFunctionConstructor {
     fn constructor(
-        agent: &mut Agent,
+        agent: &mut Agent<'gc>,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,

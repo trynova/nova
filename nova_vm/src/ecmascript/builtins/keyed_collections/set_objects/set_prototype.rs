@@ -86,7 +86,7 @@ impl BuiltinIntrinsic for SetPrototypeValues {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::SetPrototypeValues;
 }
 
-impl<'gc> SetPrototype {
+impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
     fn add(
         agent: &mut Agent,
@@ -275,7 +275,7 @@ impl<'gc> SetPrototype {
     /// > are not visited unless the value is added again before the
     /// > **forEach** call completes. New values added after the call to
     /// > **forEach** begins are visited.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
