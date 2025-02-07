@@ -14,7 +14,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 };
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
 use crate::ecmascript::builtins::array::ArrayHeap;
-use crate::ecmascript::builtins::keyed_collections::weak_map_objects::weak_map_prototype::canonicalize_keyed_collection_key;
+use crate::ecmascript::builtins::keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::weak_map::data::WeakMapData;
 use crate::ecmascript::builtins::weak_map::WeakMap;
