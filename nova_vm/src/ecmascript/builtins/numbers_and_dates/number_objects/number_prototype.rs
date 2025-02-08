@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -25,8 +26,7 @@ impl Builtin for NumberPrototypeToExponential {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_exponential);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_exponential);
 }
 
 struct NumberPrototypeToFixed;
@@ -35,8 +35,7 @@ impl Builtin for NumberPrototypeToFixed {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_fixed);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_fixed);
 }
 
 struct NumberPrototypeToLocaleString;
@@ -45,8 +44,7 @@ impl Builtin for NumberPrototypeToLocaleString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_locale_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_locale_string);
 }
 
 struct NumberPrototypeToPrecision;
@@ -55,8 +53,7 @@ impl Builtin for NumberPrototypeToPrecision {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_precision);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_precision);
 }
 
 struct NumberPrototypeToString;
@@ -65,8 +62,7 @@ impl Builtin for NumberPrototypeToString {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_string);
 }
 
 struct NumberPrototypeValueOf;
@@ -75,12 +71,11 @@ impl Builtin for NumberPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::value_of);
 }
 
-impl<'gc> NumberPrototype {
-    fn to_exponential(
+impl NumberPrototype {
+    fn to_exponential<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -126,7 +121,7 @@ impl<'gc> NumberPrototype {
         }
     }
 
-    fn to_fixed(
+    fn to_fixed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -171,7 +166,7 @@ impl<'gc> NumberPrototype {
         Ok(Value::from_str(agent, string, gc))
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -184,7 +179,7 @@ impl<'gc> NumberPrototype {
     /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L412
     ///
     /// Copyright (c) 2019 Jason Williams
-    fn to_precision(
+    fn to_precision<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,

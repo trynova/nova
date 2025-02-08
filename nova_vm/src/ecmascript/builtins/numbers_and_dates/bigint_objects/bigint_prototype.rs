@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -21,8 +22,7 @@ impl Builtin for BigIntPrototypeToLocaleString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BigIntPrototype::to_locale_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntPrototype::to_locale_string);
 }
 
 struct BigIntPrototypeToString;
@@ -31,8 +31,7 @@ impl Builtin for BigIntPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BigIntPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntPrototype::to_string);
 }
 
 struct BigIntPrototypeValueOf;
@@ -41,12 +40,11 @@ impl Builtin for BigIntPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BigIntPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BigIntPrototype::value_of);
 }
 
-impl<'gc> BigIntPrototype {
-    fn to_locale_string(
+impl BigIntPrototype {
+    fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,

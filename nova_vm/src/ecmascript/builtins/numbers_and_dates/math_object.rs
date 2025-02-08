@@ -8,7 +8,7 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_number_primitive, to_uint32},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Number, Primitive, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -33,8 +33,7 @@ impl Builtin for MathObjectAbs {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::abs);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::abs);
 }
 
 struct MathObjectAcos;
@@ -43,8 +42,7 @@ impl Builtin for MathObjectAcos {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::acos);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::acos);
 }
 struct MathObjectAcosh;
 impl Builtin for MathObjectAcosh {
@@ -52,8 +50,7 @@ impl Builtin for MathObjectAcosh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::acosh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::acosh);
 }
 struct MathObjectAsin;
 impl Builtin for MathObjectAsin {
@@ -61,8 +58,7 @@ impl Builtin for MathObjectAsin {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::asin);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::asin);
 }
 struct MathObjectAsinh;
 impl Builtin for MathObjectAsinh {
@@ -70,8 +66,7 @@ impl Builtin for MathObjectAsinh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::asinh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::asinh);
 }
 struct MathObjectAtan;
 impl Builtin for MathObjectAtan {
@@ -79,8 +74,7 @@ impl Builtin for MathObjectAtan {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::atan);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::atan);
 }
 struct MathObjectAtanh;
 impl Builtin for MathObjectAtanh {
@@ -88,8 +82,7 @@ impl Builtin for MathObjectAtanh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::atanh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::atanh);
 }
 struct MathObjectAtan2;
 impl Builtin for MathObjectAtan2 {
@@ -97,8 +90,7 @@ impl Builtin for MathObjectAtan2 {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::atan2);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::atan2);
 }
 struct MathObjectCbrt;
 impl Builtin for MathObjectCbrt {
@@ -106,8 +98,7 @@ impl Builtin for MathObjectCbrt {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::cbrt);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::cbrt);
 }
 struct MathObjectCeil;
 impl Builtin for MathObjectCeil {
@@ -115,8 +106,7 @@ impl Builtin for MathObjectCeil {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::ceil);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::ceil);
 }
 struct MathObjectClz32;
 impl Builtin for MathObjectClz32 {
@@ -124,8 +114,7 @@ impl Builtin for MathObjectClz32 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::clz32);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::clz32);
 }
 struct MathObjectCos;
 impl Builtin for MathObjectCos {
@@ -133,8 +122,7 @@ impl Builtin for MathObjectCos {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::cos);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::cos);
 }
 struct MathObjectCosh;
 impl Builtin for MathObjectCosh {
@@ -142,8 +130,7 @@ impl Builtin for MathObjectCosh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::cosh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::cosh);
 }
 struct MathObjectExp;
 impl Builtin for MathObjectExp {
@@ -151,8 +138,7 @@ impl Builtin for MathObjectExp {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::exp);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::exp);
 }
 struct MathObjectExpm1;
 impl Builtin for MathObjectExpm1 {
@@ -160,8 +146,7 @@ impl Builtin for MathObjectExpm1 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::expm1);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::expm1);
 }
 struct MathObjectFloor;
 impl Builtin for MathObjectFloor {
@@ -169,8 +154,7 @@ impl Builtin for MathObjectFloor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::floor);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::floor);
 }
 struct MathObjectFround;
 impl Builtin for MathObjectFround {
@@ -178,8 +162,7 @@ impl Builtin for MathObjectFround {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::fround);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::fround);
 }
 struct MathObjectHypot;
 impl Builtin for MathObjectHypot {
@@ -187,8 +170,7 @@ impl Builtin for MathObjectHypot {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::hypot);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::hypot);
 }
 struct MathObjectImul;
 impl Builtin for MathObjectImul {
@@ -196,8 +178,7 @@ impl Builtin for MathObjectImul {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::imul);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::imul);
 }
 struct MathObjectLog;
 impl Builtin for MathObjectLog {
@@ -205,8 +186,7 @@ impl Builtin for MathObjectLog {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log);
 }
 struct MathObjectLog1p;
 impl Builtin for MathObjectLog1p {
@@ -214,8 +194,7 @@ impl Builtin for MathObjectLog1p {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log1p);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log1p);
 }
 struct MathObjectLog10;
 impl Builtin for MathObjectLog10 {
@@ -223,8 +202,7 @@ impl Builtin for MathObjectLog10 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log10);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log10);
 }
 struct MathObjectLog2;
 impl Builtin for MathObjectLog2 {
@@ -232,8 +210,7 @@ impl Builtin for MathObjectLog2 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log2);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log2);
 }
 struct MathObjectMax;
 impl Builtin for MathObjectMax {
@@ -241,8 +218,7 @@ impl Builtin for MathObjectMax {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::max);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::max);
 }
 struct MathObjectMin;
 impl Builtin for MathObjectMin {
@@ -250,8 +226,7 @@ impl Builtin for MathObjectMin {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::min);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::min);
 }
 struct MathObjectPow;
 impl Builtin for MathObjectPow {
@@ -259,8 +234,7 @@ impl Builtin for MathObjectPow {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::pow);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::pow);
 }
 struct MathObjectRandom;
 impl Builtin for MathObjectRandom {
@@ -268,8 +242,7 @@ impl Builtin for MathObjectRandom {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::random);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::random);
 }
 struct MathObjectRound;
 impl Builtin for MathObjectRound {
@@ -277,8 +250,7 @@ impl Builtin for MathObjectRound {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::round);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::round);
 }
 struct MathObjectSign;
 impl Builtin for MathObjectSign {
@@ -286,8 +258,7 @@ impl Builtin for MathObjectSign {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sign);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sign);
 }
 struct MathObjectSin;
 impl Builtin for MathObjectSin {
@@ -295,8 +266,7 @@ impl Builtin for MathObjectSin {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sin);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sin);
 }
 struct MathObjectSinh;
 impl Builtin for MathObjectSinh {
@@ -304,8 +274,7 @@ impl Builtin for MathObjectSinh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sinh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sinh);
 }
 struct MathObjectSqrt;
 impl Builtin for MathObjectSqrt {
@@ -313,8 +282,7 @@ impl Builtin for MathObjectSqrt {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sqrt);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sqrt);
 }
 struct MathObjectTan;
 impl Builtin for MathObjectTan {
@@ -322,8 +290,7 @@ impl Builtin for MathObjectTan {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::tan);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::tan);
 }
 struct MathObjectTanh;
 impl Builtin for MathObjectTanh {
@@ -331,8 +298,7 @@ impl Builtin for MathObjectTanh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::tanh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::tanh);
 }
 struct MathObjectTrunc;
 impl Builtin for MathObjectTrunc {
@@ -340,8 +306,7 @@ impl Builtin for MathObjectTrunc {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::trunc);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::trunc);
 }
 
 #[cfg(feature = "proposal-float16array")]
@@ -352,8 +317,7 @@ impl Builtin for MathObjectF16round {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::f16round);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::f16round);
 }
 
 #[cfg(feature = "proposal-math-sum")]
@@ -364,12 +328,11 @@ impl Builtin for MathObjectSumPrecise {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sum_precise);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sum_precise);
 }
 
-impl<'gc> MathObject {
-    fn abs(
+impl MathObject {
+    fn abs<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -379,7 +342,7 @@ impl<'gc> MathObject {
         Ok(n.abs(agent).into_value())
     }
 
-    fn acos(
+    fn acos<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -393,7 +356,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.acos(), gc.into_nogc()))
     }
 
-    fn acosh(
+    fn acosh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -419,7 +382,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.acosh(), gc.into_nogc()))
     }
 
-    fn asin(
+    fn asin<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -444,7 +407,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.asin(), gc.into_nogc()))
     }
 
-    fn asinh(
+    fn asinh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -463,7 +426,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
-    fn atan(
+    fn atan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -492,7 +455,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
-    fn atanh(
+    fn atanh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -527,7 +490,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.atanh(), gc.into_nogc()))
     }
 
-    fn atan2(
+    fn atan2<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -670,7 +633,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, r, gc.into_nogc()))
     }
 
-    fn cbrt(
+    fn cbrt<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -690,7 +653,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.into_f64(agent).cbrt(), gc))
     }
 
-    fn ceil(
+    fn ceil<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -726,7 +689,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.ceil(), gc.into_nogc()))
     }
 
-    fn clz32(
+    fn clz32<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -742,7 +705,7 @@ impl<'gc> MathObject {
         Ok(Value::from(p))
     }
 
-    fn cos(
+    fn cos<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -765,7 +728,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.cos(), gc.into_nogc()))
     }
 
-    fn cosh(
+    fn cosh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -793,7 +756,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.cosh(), gc.into_nogc()))
     }
 
-    fn exp(
+    fn exp<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -823,7 +786,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.exp(), gc.into_nogc()))
     }
 
-    fn expm1(
+    fn expm1<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -852,7 +815,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.exp_m1(), gc.into_nogc()))
     }
 
-    fn floor(
+    fn floor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -889,7 +852,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.floor(), gc.into_nogc()))
     }
 
-    fn fround(
+    fn fround<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -922,7 +885,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n64, gc.into_nogc()))
     }
 
-    fn hypot(
+    fn hypot<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -980,7 +943,7 @@ impl<'gc> MathObject {
         ))
     }
 
-    fn imul(
+    fn imul<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -999,7 +962,7 @@ impl<'gc> MathObject {
         Ok(Value::from(product as i32))
     }
 
-    fn log(
+    fn log<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1033,7 +996,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.ln(), gc.into_nogc()))
     }
 
-    fn log1p(
+    fn log1p<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1058,7 +1021,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.ln_1p(), gc.into_nogc()))
     }
 
-    fn log10(
+    fn log10<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1088,7 +1051,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.log10(), gc.into_nogc()))
     }
 
-    fn log2(
+    fn log2<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1117,7 +1080,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.log2(), gc.into_nogc()))
     }
 
-    fn max(
+    fn max<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1216,7 +1179,7 @@ impl<'gc> MathObject {
         }
     }
 
-    fn min(
+    fn min<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1317,7 +1280,7 @@ impl<'gc> MathObject {
         }
     }
 
-    fn pow(
+    fn pow<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1374,7 +1337,7 @@ impl<'gc> MathObject {
         Ok(Number::exponentiate(agent, base, exponent).into_value())
     }
 
-    fn random(
+    fn random<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1387,7 +1350,7 @@ impl<'gc> MathObject {
         ))
     }
 
-    fn round(
+    fn round<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1421,7 +1384,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.round(), gc.into_nogc()))
     }
 
-    fn sign(
+    fn sign<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1441,7 +1404,7 @@ impl<'gc> MathObject {
         Ok(Value::from(1))
     }
 
-    fn sin(
+    fn sin<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1462,7 +1425,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.sin(), gc.into_nogc()))
     }
 
-    fn sinh(
+    fn sinh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1479,7 +1442,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.sinh(), gc.into_nogc()))
     }
 
-    fn sqrt(
+    fn sqrt<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1500,7 +1463,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.sqrt(), gc.into_nogc()))
     }
 
-    fn tan(
+    fn tan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1521,7 +1484,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.tan(), gc.into_nogc()))
     }
 
-    fn tanh(
+    fn tanh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1546,7 +1509,7 @@ impl<'gc> MathObject {
         Ok(Value::from_f64(agent, n.tanh(), gc.into_nogc()))
     }
 
-    fn trunc(
+    fn trunc<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1596,7 +1559,7 @@ impl<'gc> MathObject {
     /// > adjusted value to binary16 under roundTiesToEven then produces the
     /// > correct value.
     #[cfg(feature = "proposal-float16array")]
-    fn f16round(
+    fn f16round<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -1644,7 +1607,7 @@ impl<'gc> MathObject {
     /// > recent algorithm is given in "Fast exact summation using small and large superaccumulators",
     /// > code for which is available at https://gitlab.com/radfordneal/xsum.
     #[cfg(feature = "proposal-math-sum")]
-    fn sum_precise(
+    fn sum_precise<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

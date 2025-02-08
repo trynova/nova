@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -21,12 +22,11 @@ impl Builtin for RegExpStringIteratorPrototypeNext {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(RegExpStringIteratorPrototype::next);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(RegExpStringIteratorPrototype::next);
 }
 
-impl<'gc> RegExpStringIteratorPrototype {
-    fn next(
+impl RegExpStringIteratorPrototype {
+    fn next<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

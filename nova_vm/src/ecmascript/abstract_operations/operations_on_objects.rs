@@ -1142,12 +1142,17 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
         match next {
             Value::String(_) | Value::SmallString(_) => {
                 let string_value = String::try_from(next).unwrap();
-                let scoped_property_key =
-                    unwrap_try(to_property_key_simple(agent, string_value, gc.nogc()))
-                        .scope(agent, gc.nogc());
+                let scoped_property_key = unwrap_try(to_property_key_simple(
+                    agent,
+                    string_value.unbind(),
+                    gc.nogc(),
+                ))
+                .scope(agent, gc.nogc());
                 list.push(scoped_property_key);
             }
-            Value::Symbol(sym) => list.push(PropertyKey::Symbol(sym).scope(agent, gc.nogc())),
+            Value::Symbol(sym) => {
+                list.push(PropertyKey::Symbol(sym.unbind()).scope(agent, gc.nogc()))
+            }
             _ => {
                 return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -1864,14 +1869,19 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     excluded_items: &AHashSet<PropertyKey<'a>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<OrdinaryObject<'a>> {
-    let from = source.into_object();
+    let from = source.into_object().bind(gc.nogc());
+    let scoped_from = from.scope(agent, gc.nogc());
     let mut entries = Vec::new();
 
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
     let mut keys = bind_property_keys(
-        unbind_property_keys(from.internal_own_property_keys(agent, gc.reborrow())?),
+        unbind_property_keys(
+            from.unbind()
+                .internal_own_property_keys(agent, gc.reborrow())?,
+        ),
         gc.nogc(),
     );
+    let from = scoped_from.get(agent).bind(gc.nogc());
     // 4. For each element nextKey of keys, do
     let mut broke = false;
     let mut i = 0;
@@ -1898,7 +1908,8 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
         if let Some(desc) = desc {
             if desc.enumerable.unwrap() {
                 // 1. Let propValue be ? Get(from, nextKey).
-                let TryResult::Continue(prop_value) = try_get(agent, from, next_key, gc.nogc())
+                let TryResult::Continue(prop_value) =
+                    try_get(agent, from.unbind(), next_key, gc.nogc())
                 else {
                     broke = true;
                     break;
@@ -1923,7 +1934,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
         let _ = keys.drain(..i);
         Ok(copy_data_properties_into_object_slow(
             agent,
-            from,
+            scoped_from,
             excluded_items,
             unbind_property_keys(keys),
             object.unbind(),
@@ -1936,15 +1947,14 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     }
 }
 
-fn copy_data_properties_into_object_slow<'a>(
+fn copy_data_properties_into_object_slow<'a, 'b>(
     agent: &mut Agent,
-    from: Object,
+    from: Scoped<'b, Object<'static>>,
     excluded_items: &AHashSet<PropertyKey<'a>>,
     keys: Vec<PropertyKey<'a>>,
     object: OrdinaryObject<'a>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<OrdinaryObject<'a>> {
-    let from = from.scope(agent, gc.nogc());
     let keys = bind_property_keys(keys, gc.nogc());
     let object = object.scope(agent, gc.nogc());
     // We need to collect the excluded items into a vector, as we cannot hash
@@ -2065,7 +2075,7 @@ pub(crate) fn add_value_to_keyed_group<
     agent: &mut Agent,
     groups: &mut Vec<GroupByRecord<'scope, K>>,
     key: K,
-    value: Value,
+    value: Scoped<'scope, Value<'static>>,
     gc: NoGcScope<'_, 'scope>,
 ) -> JsResult<()> {
     // 1. For each Record { [[Key]], [[Elements]] } g of groups, do
@@ -2074,7 +2084,7 @@ pub(crate) fn add_value_to_keyed_group<
         if same_value(agent, g.key.get(agent), key) {
             // i. Assert: Exactly one element of groups meets this criterion.
             // ii. Append value to g.[[Elements]].
-            g.elements.push(value.scope(agent, gc));
+            g.elements.push(value);
 
             // iii. Return UNUSED.
             return Ok(());
@@ -2085,7 +2095,7 @@ pub(crate) fn add_value_to_keyed_group<
     let key = Scoped::new(agent, key, gc);
     let group = GroupByRecord {
         key,
-        elements: vec![value.scope(agent, gc)],
+        elements: vec![value],
     };
 
     // 3. Append group to groups.
@@ -2134,7 +2144,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
     let mut groups: Vec<GroupByRecord<'scope, PropertyKey<'static>>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
-    let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;
+    let mut iterator_record = get_iterator(agent, items.unbind(), false, gc.reborrow())?;
 
     // 5. Let k be 0.
     let mut k = 0;
@@ -2152,7 +2162,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
             );
 
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error), gc.reborrow());
+            return iterator_close(agent, &iterator_record, Err(error), gc);
         }
 
         // b. Let next be ? IteratorStepValue(iteratorRecord).
@@ -2165,7 +2175,8 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         };
 
         // d. Let value be next.
-        let value = next;
+        let value = next.unbind().bind(gc.nogc());
+        let scoped_value = value.scope(agent, gc.nogc());
 
         // 𝔽(k)
         let fk = Number::try_from(k).unwrap().into_value();
@@ -2175,22 +2186,32 @@ pub(crate) fn group_by_property<'gc, 'scope>(
             agent,
             callback_fn.get(agent),
             Value::Undefined,
-            Some(ArgumentsList(&[value, fk])),
+            Some(ArgumentsList(&[value.unbind(), fk])),
             gc.reborrow(),
         );
 
         // f. IfAbruptCloseIterator(key, iteratorRecord).
-        let key = if_abrupt_close_iterator(agent, key, &iterator_record, gc.reborrow())?;
+        let key = if_abrupt_close_iterator(
+            agent,
+            key.map(|k| k.unbind()),
+            &iterator_record,
+            gc.reborrow(),
+        )?;
 
         // g. If keyCoercion is property, then
         // i. Set key to Completion(ToPropertyKey(key)).
-        let key = to_property_key(agent, key, gc.reborrow()).map(|pk| pk.unbind());
+        let key = to_property_key(agent, key.unbind(), gc.reborrow()).map(|pk| pk.unbind());
 
         // ii. IfAbruptCloseIterator(key, iteratorRecord).
-        let key = if_abrupt_close_iterator(agent, key, &iterator_record, gc.reborrow())?;
+        let key = if_abrupt_close_iterator(
+            agent,
+            key.map(|k| k.unbind()),
+            &iterator_record,
+            gc.reborrow(),
+        )?;
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key.unbind(), value, gc.nogc())?;
+        add_value_to_keyed_group(agent, &mut groups, key.unbind(), scoped_value, gc.nogc())?;
 
         // j. Set k to k + 1.
         k += 1;
@@ -2286,7 +2307,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         let key = canonicalize_keyed_collection_key(agent, key);
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key, scoped_value.get(agent), gc.nogc())?;
+        add_value_to_keyed_group(agent, &mut groups, key, scoped_value, gc.nogc())?;
 
         // j. Set k to k + 1.
         k += 1;

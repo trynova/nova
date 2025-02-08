@@ -25,7 +25,7 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakMap;
 }
 
-impl<'gc> WeakMapConstructor {
+impl WeakMapConstructor {
     fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,

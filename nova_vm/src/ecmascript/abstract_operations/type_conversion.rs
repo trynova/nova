@@ -257,7 +257,7 @@ pub(crate) fn try_to_number<'a, 'gc>(
     argument: impl IntoValue<'a>,
     gc: NoGcScope<'gc, '_>,
 ) -> Option<JsResult<Number<'gc>>> {
-    let argument = argument.into_value();
+    let argument = argument.into_value().unbind().bind(gc);
     if let Ok(argument) = Primitive::try_from(argument) {
         Some(to_number_primitive(agent, argument, gc))
     } else {
@@ -271,16 +271,20 @@ pub(crate) fn to_number<'a, 'gc>(
     argument: impl IntoValue<'a>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Number<'gc>> {
-    let argument = argument.into_value();
+    let argument = argument.into_value().unbind().bind(gc.nogc());
     if let Ok(argument) = Primitive::try_from(argument) {
-        to_number_primitive(agent, argument, gc.into_nogc())
+        to_number_primitive(agent, argument.unbind(), gc.into_nogc())
     } else {
         // 7. Assert: argument is an Object.
         let argument = Object::try_from(argument).unwrap();
         // 8. Let primValue be ? ToPrimitive(argument, number).
-        let prim_value =
-            to_primitive_object(agent, argument, Some(PreferredType::Number), gc.reborrow())?
-                .unbind();
+        let prim_value = to_primitive_object(
+            agent,
+            argument.unbind(),
+            Some(PreferredType::Number),
+            gc.reborrow(),
+        )?
+        .unbind();
         let gc = gc.into_nogc();
         let prim_value = prim_value.bind(gc);
         // 9. Assert: primValue is not an Object.
@@ -292,7 +296,7 @@ pub(crate) fn to_number<'a, 'gc>(
 /// ### [7.1.4 ToNumber ( argument )](https://tc39.es/ecma262/#sec-tonumber)
 pub(crate) fn to_number_primitive<'gc>(
     agent: &mut Agent,
-    argument: Primitive<'gc>,
+    argument: Primitive,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<Number<'gc>> {
     match argument {
@@ -312,7 +316,7 @@ pub(crate) fn to_number_primitive<'gc>(
             gc,
         )),
         // 1. If argument is a Number, return argument.
-        Primitive::Number(idx) => Ok(idx.into()),
+        Primitive::Number(idx) => Ok(idx.unbind().bind(gc).into()),
         Primitive::Integer(idx) => Ok(idx.into()),
         Primitive::SmallF64(idx) => Ok(idx.into()),
         Primitive::BigInt(_) | Primitive::SmallBigInt(_) => Err(agent
@@ -968,7 +972,7 @@ pub(crate) fn try_to_string<'a, 'gc>(
     argument: impl IntoValue<'a>,
     gc: NoGcScope<'gc, '_>,
 ) -> TryResult<JsResult<String<'gc>>> {
-    let argument = argument.into_value();
+    let argument = argument.into_value().unbind().bind(gc);
     if let Ok(argument) = Primitive::try_from(argument) {
         TryResult::Continue(to_string_primitive(agent, argument, gc))
     } else {
@@ -982,16 +986,21 @@ pub(crate) fn to_string<'a, 'gc>(
     argument: impl IntoValue<'a>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<String<'gc>> {
-    let argument = argument.into_value();
+    let argument = argument.into_value().unbind().bind(gc.nogc());
     // 1. If argument is a String, return argument.
     if let Ok(argument) = Primitive::try_from(argument) {
-        to_string_primitive(agent, argument, gc.into_nogc())
+        to_string_primitive(agent, argument.unbind(), gc.into_nogc())
     } else {
         // 9. Assert: argument is an Object.
         assert!(Object::try_from(argument).is_ok());
         // 10. Let primValue be ? ToPrimitive(argument, string).
-        let prim_value =
-            to_primitive(agent, argument, Some(PreferredType::String), gc.reborrow())?.unbind();
+        let prim_value = to_primitive(
+            agent,
+            argument.unbind(),
+            Some(PreferredType::String),
+            gc.reborrow(),
+        )?
+        .unbind();
         let gc = gc.into_nogc();
         let prim_value = prim_value.bind(gc);
         // 11. Assert: primValue is not an Object.
@@ -1051,6 +1060,7 @@ pub(crate) fn to_object<'a>(
     argument: Value,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<Object<'a>> {
+    let argument = argument.bind(gc);
     match argument {
         Value::Undefined | Value::Null => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -1070,7 +1080,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectHeapData {
                 object_index: None,
-                data: PrimitiveObjectData::String(str),
+                data: PrimitiveObjectData::String(str.unbind()),
             })
             .into_object()),
         Value::SmallString(str) => Ok(agent
@@ -1085,7 +1095,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectHeapData {
                 object_index: None,
-                data: PrimitiveObjectData::Symbol(symbol),
+                data: PrimitiveObjectData::Symbol(symbol.unbind()),
             })
             .into_object()),
         // Return a new Number object whose [[NumberData]] internal slot is set to argument.
@@ -1093,7 +1103,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectHeapData {
                 object_index: None,
-                data: PrimitiveObjectData::Number(number),
+                data: PrimitiveObjectData::Number(number.unbind()),
             })
             .into_object()),
         Value::Integer(integer) => Ok(agent
@@ -1115,7 +1125,7 @@ pub(crate) fn to_object<'a>(
             .heap
             .create(PrimitiveObjectHeapData {
                 object_index: None,
-                data: PrimitiveObjectData::BigInt(bigint),
+                data: PrimitiveObjectData::BigInt(bigint.unbind()),
             })
             .into_object()),
         Value::SmallBigInt(bigint) => Ok(agent

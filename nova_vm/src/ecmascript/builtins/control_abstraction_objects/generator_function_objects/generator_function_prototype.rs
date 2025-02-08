@@ -13,7 +13,7 @@ use crate::{
 
 pub(crate) struct GeneratorFunctionPrototype;
 
-impl<'gc> GeneratorFunctionPrototype {
+impl GeneratorFunctionPrototype {
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
         let intrinsics = agent.get_realm(realm).intrinsics();
         let function_prototype = intrinsics.function_prototype();

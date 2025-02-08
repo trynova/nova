@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -22,8 +22,7 @@ impl Builtin for ErrorPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ErrorPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ErrorPrototype::to_string);
 }
 
 impl ErrorPrototype {

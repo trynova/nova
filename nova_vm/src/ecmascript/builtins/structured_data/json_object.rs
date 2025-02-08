@@ -8,6 +8,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     length_of_array_like, try_create_data_property, try_create_data_property_or_throw,
 };
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
+use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{IntoObject, IntoValue};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::{unwrap_try, Scoped};
@@ -42,8 +43,7 @@ impl Builtin for JSONObjectParse {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(JSONObject::parse);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(JSONObject::parse);
 }
 
 struct JSONObjectStringify;
@@ -52,11 +52,10 @@ impl Builtin for JSONObjectStringify {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(JSONObject::stringify);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(JSONObject::stringify);
 }
 
-impl<'gc> JSONObject {
+impl JSONObject {
     /// ### [25.5.1 JSON.parse ( text \[ , reviver \] )](https://tc39.es/ecma262/#sec-json.parse)
     ///
     /// This function parses a JSON text (a JSON-formatted String) and produces
@@ -88,7 +87,7 @@ impl<'gc> JSONObject {
     /// > likewise does not apply during JSON.parse, means that not all texts
     /// > accepted by JSON.parse are valid as a PrimaryExpression, despite
     /// > matching the grammar.
-    fn parse(
+    fn parse<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -169,7 +168,7 @@ impl<'gc> JSONObject {
         Ok(unfiltered)
     }
 
-    fn stringify(
+    fn stringify<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
