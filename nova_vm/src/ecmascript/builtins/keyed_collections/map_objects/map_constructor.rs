@@ -9,10 +9,11 @@ use ahash::AHasher;
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     create_array_from_scoped_list, group_by_property, try_get,
 };
+use crate::ecmascript::abstract_operations::testing_and_comparison::same_value;
 use crate::ecmascript::builtins::map::data::MapHeapData;
 use crate::engine::context::GcScope;
 use crate::engine::TryResult;
-use crate::heap::{CreateHeapData, ObjectEntry};
+use crate::heap::CreateHeapData;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -148,6 +149,7 @@ impl MapConstructor {
         }
     }
 
+    // ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/multipage/keyed-collections.html#sec-map.groupby)
     fn group_by(
         agent: &mut Agent,
         _this_value: Value,
@@ -157,21 +159,73 @@ impl MapConstructor {
         let items = arguments.get(0);
         let callback_fn = arguments.get(1);
         // 1. Let groups be ? GroupBy(items, callback, collection).
-        let mut groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
-        // 2. Let map be ! Construct(%Map%).
+        let groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
+        // 2. Let map be ! Construct(%Map%).
         let mut map_data = MapHeapData::default();
         map_data.reserve(groups.len());
         let map = agent.heap.create(map_data);
-        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
-        for g in groups.iter_mut() {
+
+        let gc = gc.nogc();
+
+        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
+        let mut keys_and_elements = Vec::with_capacity(groups.len());
+        for g in groups {
+            let key = g.key.get(agent); // Get the key BEFORE mutable borrow
+            let key = key.convert_to_value(agent, gc);
             // a. Let elements be CreateArrayFromList(g.[[Elements]]).
-            let elements = create_array_from_scoped_list(agent, g.elements.clone(), gc.nogc());
-            // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
-            let _entry = ObjectEntry::new_data_entry(g.key.get(agent), elements.into_value());
-            // c. Append entry to map.[[MapData]].
-            todo!()
+            let elements = create_array_from_scoped_list(agent, g.elements.clone(), gc);
+            keys_and_elements.push((key, elements));
         }
-        // 4. Return map.
+
+        let Heap {
+            maps,
+            bigints,
+            numbers,
+            strings,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+        let map_entry = &mut maps[map];
+        let MapData {
+            keys,
+            values,
+            map_data,
+            ..
+        } = &mut map_entry.borrow_mut(&primitive_heap);
+        let map_data = map_data.get_mut();
+        let hasher = |value: Value| {
+            let mut hasher = AHasher::default();
+            value.hash(&primitive_heap, &mut hasher);
+            hasher.finish()
+        };
+
+        for (key, elements) in keys_and_elements {
+            let key_hash = hasher(key);
+            let entry = map_data.entry(
+                key_hash,
+                |hash_equal_index| {
+                    let found_key = keys[*hash_equal_index as usize].unwrap();
+                    found_key == key || same_value(&primitive_heap, found_key, key)
+                },
+                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
+            );
+            match entry {
+                hashbrown::hash_table::Entry::Occupied(occupied) => {
+                    let index = *occupied.get();
+                    values[index as usize] = Some(elements.into_value());
+                }
+                hashbrown::hash_table::Entry::Vacant(vacant) => {
+                    // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
+                    // c. Append entry to map.[[MapData]].
+                    let index = u32::try_from(values.len()).unwrap();
+                    vacant.insert(index);
+                    keys.push(Some(key));
+                    values.push(Some(elements.into_value()));
+                }
+            }
+        }
+        // 4. Return map
         Ok(map.into_value())
     }
 
