@@ -38,8 +38,8 @@ impl Builtin for SharedArrayBufferGetSpecies {
 }
 impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 
-impl<'gc> SharedArrayBufferConstructor {
-    fn constructor(
+impl SharedArrayBufferConstructor {
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -49,7 +49,7 @@ impl<'gc> SharedArrayBufferConstructor {
         todo!()
     }
 
-    fn species(
+    fn species<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

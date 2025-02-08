@@ -52,8 +52,8 @@ impl Builtin for PromisePrototypeThen {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(PromisePrototype::then);
 }
 
-impl<'gc> PromisePrototype {
-    fn catch(
+impl PromisePrototype {
+    fn catch<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -73,7 +73,7 @@ impl<'gc> PromisePrototype {
         )
     }
 
-    fn finally(
+    fn finally<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -82,7 +82,7 @@ impl<'gc> PromisePrototype {
         todo!()
     }
 
-    fn then(
+    fn then<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -154,7 +154,7 @@ pub(crate) fn perform_promise_then(
     // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
     // other than browsers, [[HostDefined]] must be EMPTY.
     let on_fulfilled_job_callback = match Function::try_from(on_fulfilled) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
         Err(_) => PromiseReactionHandler::Empty,
     };
     // 5. If IsCallable(onRejected) is false, then
@@ -162,7 +162,7 @@ pub(crate) fn perform_promise_then(
     // 6. Else,
     //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
     let on_rejected_job_callback = match Function::try_from(on_rejected) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
         Err(_) => PromiseReactionHandler::Empty,
     };
 

@@ -144,7 +144,7 @@ impl MapConstructor {
         }
     }
 
-    fn group_by(
+    fn group_by<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

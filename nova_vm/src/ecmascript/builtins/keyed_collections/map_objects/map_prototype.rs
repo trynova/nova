@@ -101,7 +101,7 @@ impl MapPrototype {
     /// > The existing \[\[MapData]] List is preserved because there may be
     /// > existing Map Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear(
+    fn clear<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -125,7 +125,7 @@ impl MapPrototype {
     /// > The value EMPTY is used as a specification device to indicate that an
     /// > entry has been deleted. Actual implementations may take other actions
     /// > such as physically removing the entry from internal data structures.
-    fn delete(
+    fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -181,7 +181,7 @@ impl MapPrototype {
         }
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -282,7 +282,7 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
-    fn get(
+    fn get<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -333,7 +333,7 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
-    fn has(
+    fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -376,7 +376,7 @@ impl MapPrototype {
         Ok(found.into())
     }
 
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -393,7 +393,7 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
-    fn set(
+    fn set<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -462,7 +462,7 @@ impl MapPrototype {
         Ok(m.into_value())
     }
 
-    fn get_size(
+    fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -474,7 +474,7 @@ impl MapPrototype {
         Ok(count.into())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

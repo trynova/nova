@@ -87,12 +87,12 @@ impl Builtin for ArrayBufferPrototypeTransferToFixedLength {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayBufferPrototype::transfer_to_fixed_length);
 }
 
-impl<'gc> ArrayBufferPrototype {
+impl ArrayBufferPrototype {
     /// ### [25.1.6.1 get ArrayBuffer.prototype.byteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.bytelength)
     ///
     /// ArrayBuffer.prototype.byteLength is an accessor property whose set
     /// accessor function is undefined.
-    fn get_byte_length(
+    fn get_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -114,7 +114,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.3 get ArrayBuffer.prototype.detached](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.detached)
     ///
     /// ArrayBuffer.prototype.detached is an accessor property whose set accessor function is undefined.
-    fn get_detached(
+    fn get_detached<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -131,7 +131,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.4 get ArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.maxbytelength)
     ///
     /// ArrayBuffer.prototype.maxByteLength is an accessor property whose set accessor function is undefined.
-    fn get_max_byte_length(
+    fn get_max_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -153,7 +153,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.5 get ArrayBuffer.prototype.resizable](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.resizable)
     ///
     /// ArrayBuffer.prototype.resizable is an accessor property whose set accessor function is undefined.
-    fn get_resizable(
+    fn get_resizable<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -170,7 +170,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
     ///
     /// This method performs the following steps when called:
-    fn resize(
+    fn resize<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -236,7 +236,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.7 ArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice)
     ///
     /// This method performs the following steps when called:
-    fn slice(
+    fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -362,7 +362,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.8 ArrayBuffer.prototype.transfer ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfer)
     ///
     /// This method performs the following steps when called:
-    fn transfer(
+    fn transfer<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -376,7 +376,7 @@ impl<'gc> ArrayBufferPrototype {
     /// ### [25.1.6.9 ArrayBuffer.prototype.transferToFixedLength ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfertofixedlength)
     ///
     /// This method performs the following steps when called:
-    fn transfer_to_fixed_length(
+    fn transfer_to_fixed_length<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

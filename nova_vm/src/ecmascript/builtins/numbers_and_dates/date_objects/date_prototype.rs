@@ -297,8 +297,8 @@ impl Builtin for DatePrototypeToPrimitive {
 
 const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
 
-impl<'gc> DatePrototype {
-    fn get_date(
+impl DatePrototype {
+    fn get_date<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -308,7 +308,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_day(
+    fn get_day<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -318,7 +318,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_full_year(
+    fn get_full_year<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -328,7 +328,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_hours(
+    fn get_hours<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -338,7 +338,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_milliseconds(
+    fn get_milliseconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -348,7 +348,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_minutes(
+    fn get_minutes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -358,7 +358,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_month(
+    fn get_month<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -368,7 +368,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_seconds(
+    fn get_seconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -378,7 +378,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_time(
+    fn get_time<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -388,7 +388,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_timezone_offset(
+    fn get_timezone_offset<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -398,7 +398,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_date(
+    fn get_utc_date<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -408,7 +408,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_day(
+    fn get_utc_day<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -418,7 +418,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_full_year(
+    fn get_utc_full_year<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -428,7 +428,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_hours(
+    fn get_utc_hours<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -438,7 +438,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_milliseconds(
+    fn get_utc_milliseconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -448,7 +448,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_minutes(
+    fn get_utc_minutes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -458,7 +458,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_month(
+    fn get_utc_month<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -468,7 +468,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn get_utc_seconds(
+    fn get_utc_seconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -478,7 +478,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_date(
+    fn set_date<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -488,7 +488,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_full_year(
+    fn set_full_year<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -498,7 +498,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_hours(
+    fn set_hours<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -508,7 +508,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_milliseconds(
+    fn set_milliseconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -518,7 +518,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_minutes(
+    fn set_minutes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -528,7 +528,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_month(
+    fn set_month<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -538,7 +538,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_seconds(
+    fn set_seconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -548,7 +548,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_time(
+    fn set_time<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -558,7 +558,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_date(
+    fn set_utc_date<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -568,7 +568,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_full_year(
+    fn set_utc_full_year<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -578,7 +578,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_hours(
+    fn set_utc_hours<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -588,7 +588,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_milliseconds(
+    fn set_utc_milliseconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -598,7 +598,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_minutes(
+    fn set_utc_minutes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -608,7 +608,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_month(
+    fn set_utc_month<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -618,7 +618,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn set_utc_seconds(
+    fn set_utc_seconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -628,7 +628,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_date_string(
+    fn to_date_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -638,7 +638,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_iso_string(
+    fn to_iso_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -648,7 +648,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_json(
+    fn to_json<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -657,7 +657,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_locale_date_string(
+    fn to_locale_date_string<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -666,7 +666,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -675,7 +675,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_locale_time_string(
+    fn to_locale_time_string<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -694,7 +694,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_time_string(
+    fn to_time_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -704,7 +704,7 @@ impl<'gc> DatePrototype {
         todo!()
     }
 
-    fn to_utc_string(
+    fn to_utc_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -769,7 +769,7 @@ impl<'gc> DatePrototype {
     /// object in that they treat "default" as being equivalent to "string".
     /// All other built-in ECMAScript objects treat "default" as being
     /// equivalent to "number".
-    fn to_primitive(
+    fn to_primitive<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -805,7 +805,10 @@ impl<'gc> DatePrototype {
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
         // 6. Return ? OrdinaryToPrimitive(O, tryFirst).
-        ordinary_to_primitive(agent, o, try_first, gc.reborrow()).map(|result| result.into_value())
+        Ok(ordinary_to_primitive(agent, o, try_first, gc.reborrow())?
+            .into_value()
+            .unbind()
+            .bind(gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -873,7 +876,7 @@ fn check_date_object<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<Date<'a>> {
     match this_value {
-        Value::Date(date) => Ok(date),
+        Value::Date(date) => Ok(date.bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "this is not a Date object.",

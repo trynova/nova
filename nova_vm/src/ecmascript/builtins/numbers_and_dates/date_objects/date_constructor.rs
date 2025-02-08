@@ -56,7 +56,7 @@ impl Builtin for DateUTC {
     const LENGTH: u8 = 7;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
-impl<'gc> DateConstructor {
+impl DateConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -125,7 +125,7 @@ impl<'gc> DateConstructor {
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn now(
+    fn now<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -144,7 +144,7 @@ impl<'gc> DateConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn parse(
+    fn parse<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -154,7 +154,7 @@ impl<'gc> DateConstructor {
     }
 
     /// ### [21.4.3.4 Date.UTC ( year \[ , month \[ , date \[ , hours \[ , minutes \[ , seconds \[ , ms \] \] \] \] \] \] )](https://tc39.es/ecma262/#sec-date.utc)
-    fn utc(
+    fn utc<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

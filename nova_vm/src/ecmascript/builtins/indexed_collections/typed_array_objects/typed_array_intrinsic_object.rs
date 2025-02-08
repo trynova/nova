@@ -445,7 +445,7 @@ impl TypedArrayPrototype {
     ///
     /// %TypedArray%.prototype.buffer is an accessor property whose set accessor
     /// function is undefined.
-    fn get_buffer(
+    fn get_buffer<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -466,7 +466,7 @@ impl TypedArrayPrototype {
     ///
     /// %TypedArray%.prototype.byteLength is an accessor property whose set
     /// accessor function is undefined.
-    fn get_byte_length(
+    fn get_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -511,7 +511,7 @@ impl TypedArrayPrototype {
     ///
     /// %TypedArray%.prototype.byteOffset is an accessor property whose set
     /// accessor function is undefined.
-    fn get_byte_offset(
+    fn get_byte_offset<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -576,7 +576,7 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.7 %TypedArray%.prototype.entries ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.entries)
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1254,7 +1254,7 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.21 get %TypedArray%.prototype.length](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.length)
-    fn get_length(
+    fn get_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1512,7 +1512,7 @@ impl TypedArrayPrototype {
     }
 
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

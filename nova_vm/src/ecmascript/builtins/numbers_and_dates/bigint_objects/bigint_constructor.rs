@@ -59,7 +59,7 @@ impl Builtin for BigIntAsUintN {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.asUintN;
 }
 
-impl<'gc> BigIntConstructor {
+impl BigIntConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -91,7 +91,7 @@ impl<'gc> BigIntConstructor {
         }
     }
 
-    fn as_int_n(
+    fn as_int_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -169,7 +169,7 @@ impl<'gc> BigIntConstructor {
         }
     }
 
-    fn as_uint_n(
+    fn as_uint_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

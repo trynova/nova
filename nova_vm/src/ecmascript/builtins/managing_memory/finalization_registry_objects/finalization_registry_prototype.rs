@@ -28,8 +28,8 @@ impl Builtin for FinalizationRegistryPrototypeUnregister {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(FinalizationRegistryPrototype::unregister);
 }
 
-impl<'gc> FinalizationRegistryPrototype {
-    fn register(
+impl FinalizationRegistryPrototype {
+    fn register<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -38,7 +38,7 @@ impl<'gc> FinalizationRegistryPrototype {
         todo!()
     }
 
-    fn unregister(
+    fn unregister<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

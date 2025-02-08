@@ -37,8 +37,8 @@ impl BuiltinIntrinsicConstructor for BooleanConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Boolean;
 }
 
-impl<'gc> BooleanConstructor {
-    fn constructor(
+impl BooleanConstructor {
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

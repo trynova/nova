@@ -28,8 +28,8 @@ impl BuiltinIntrinsicConstructor for AsyncFunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AsyncFunction;
 }
 
-impl<'gc> AsyncFunctionConstructor {
-    fn constructor(
+impl AsyncFunctionConstructor {
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

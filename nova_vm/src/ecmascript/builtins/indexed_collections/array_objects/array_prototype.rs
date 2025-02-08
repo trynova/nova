@@ -641,7 +641,7 @@ impl ArrayPrototype {
         Ok(o.get(agent).into_value())
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1599,7 +1599,7 @@ impl ArrayPrototype {
         Ok(Value::from_string(agent, r, gc.nogc()).into_value())
     }
 
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -3247,7 +3247,7 @@ impl ArrayPrototype {
         Ok(a.into())
     }
 
-    fn to_spliced(
+    fn to_spliced<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

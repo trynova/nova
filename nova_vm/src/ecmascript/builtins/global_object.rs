@@ -1009,7 +1009,7 @@ impl GlobalObject {
         }
     }
 
-    fn decode_uri(
+    fn decode_uri<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1017,7 +1017,7 @@ impl GlobalObject {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn decode_uri_component(
+    fn decode_uri_component<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1025,7 +1025,7 @@ impl GlobalObject {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn encode_uri(
+    fn encode_uri<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1033,7 +1033,7 @@ impl GlobalObject {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn encode_uri_component(
+    fn encode_uri_component<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1041,7 +1041,7 @@ impl GlobalObject {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn escape(
+    fn escape<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1049,7 +1049,7 @@ impl GlobalObject {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn unescape(
+    fn unescape<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

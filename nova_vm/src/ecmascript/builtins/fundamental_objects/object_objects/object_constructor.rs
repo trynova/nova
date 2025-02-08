@@ -753,7 +753,7 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
-    fn get_prototype_of(
+    fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -822,7 +822,7 @@ impl ObjectConstructor {
             .map(|result| result.into())
     }
 
-    fn is(
+    fn is<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

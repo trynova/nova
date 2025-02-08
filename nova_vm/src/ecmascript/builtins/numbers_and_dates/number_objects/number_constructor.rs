@@ -71,7 +71,7 @@ impl Builtin for NumberIsSafeInteger {
 
 impl NumberConstructor {
     fn constructor<'gc>(
-        agent: &mut Agent<'gc>,
+        agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -140,7 +140,7 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn is_finite(
+    fn is_finite<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -172,7 +172,7 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
-    fn is_nan(
+    fn is_nan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -191,7 +191,7 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
-    fn is_safe_integer(
+    fn is_safe_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

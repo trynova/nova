@@ -56,8 +56,8 @@ impl Builtin for SharedArrayBufferPrototypeSlice {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(SharedArrayBufferPrototype::slice);
 }
 
-impl<'gc> SharedArrayBufferPrototype {
-    fn get_byte_length(
+impl SharedArrayBufferPrototype {
+    fn get_byte_length<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -66,7 +66,7 @@ impl<'gc> SharedArrayBufferPrototype {
         todo!()
     }
 
-    fn grow(
+    fn grow<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -75,7 +75,7 @@ impl<'gc> SharedArrayBufferPrototype {
         todo!()
     }
 
-    fn get_growable(
+    fn get_growable<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -84,7 +84,7 @@ impl<'gc> SharedArrayBufferPrototype {
         todo!()
     }
 
-    fn get_max_byte_length(
+    fn get_max_byte_length<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -93,7 +93,7 @@ impl<'gc> SharedArrayBufferPrototype {
         todo!()
     }
 
-    fn slice(
+    fn slice<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

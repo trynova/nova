@@ -103,7 +103,12 @@ impl Builtin for FunctionPrototypeHasInstance {
 }
 
 impl FunctionPrototype {
-    fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList, _: GcScope) -> JsResult<Value<'gc>> {
+    fn behaviour(
+        _: &mut Agent,
+        _: Value,
+        _: ArgumentsList,
+        _: GcScope,
+    ) -> JsResult<Value<'static>> {
         Ok(Value::Undefined)
     }
 
@@ -294,7 +299,7 @@ impl FunctionPrototype {
         Ok(f.into_value())
     }
 
-    fn call(
+    fn call<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -392,7 +397,7 @@ impl FunctionPrototype {
         // <?:...> is an optional template part.
     }
 
-    fn has_instance(
+    fn has_instance<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -459,8 +464,8 @@ impl BuiltinIntrinsic for ThrowTypeError {
     const INDEX: IntrinsicFunctionIndexes = IntrinsicFunctionIndexes::ThrowTypeError;
 }
 
-impl<'gc> ThrowTypeError {
-    fn behaviour(
+impl ThrowTypeError {
+    fn behaviour<'gc>(
         agent: &mut Agent,
         _: Value,
         _: ArgumentsList,

@@ -26,7 +26,7 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
 }
 
 impl<'gc> WeakMapConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

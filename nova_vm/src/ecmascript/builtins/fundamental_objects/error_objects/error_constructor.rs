@@ -41,7 +41,7 @@ impl BuiltinIntrinsicConstructor for ErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Error;
 }
 
-impl<'gc> ErrorConstructor {
+impl ErrorConstructor {
     /// ### [20.5.1.1 Error ( message \[ , options \] )](https://tc39.es/ecma262/#sec-error-message)
     fn constructor<'gc>(
         agent: &mut Agent,

@@ -385,8 +385,8 @@ impl Builtin for StringPrototypeSup {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(StringPrototype::sup);
 }
 
-impl<'gc> StringPrototype {
-    fn at(
+impl StringPrototype {
+    fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -428,7 +428,7 @@ impl<'gc> StringPrototype {
         }
     }
 
-    fn char_at(
+    fn char_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -462,7 +462,7 @@ impl<'gc> StringPrototype {
         }
     }
 
-    fn char_code_at(
+    fn char_code_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -497,7 +497,7 @@ impl<'gc> StringPrototype {
         }
     }
 
-    fn code_point_at(
+    fn code_point_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -536,7 +536,7 @@ impl<'gc> StringPrototype {
         }
     }
 
-    fn concat(
+    fn concat<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -595,7 +595,7 @@ impl<'gc> StringPrototype {
         Ok(String::concat(agent, &strings, gc.nogc()).into_value())
     }
 
-    fn ends_with(
+    fn ends_with<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -684,7 +684,7 @@ impl<'gc> StringPrototype {
         ))
     }
 
-    fn includes(
+    fn includes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -758,7 +758,7 @@ impl<'gc> StringPrototype {
         Ok(Value::from(haystack_str.contains(search_str.as_str(agent))))
     }
 
-    fn index_of(
+    fn index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -824,7 +824,7 @@ impl<'gc> StringPrototype {
         }
     }
 
-    fn is_well_formed(
+    fn is_well_formed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -852,7 +852,7 @@ impl<'gc> StringPrototype {
     /// > otherwise, **`-1𝔽`** is returned. If position is **undefined**, the
     /// > length of the String value is assumed, so as to search all of the
     /// > String.
-    fn last_index_of(
+    fn last_index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -945,7 +945,7 @@ impl<'gc> StringPrototype {
         }
     }
 
-    fn locale_compare(
+    fn locale_compare<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -954,7 +954,7 @@ impl<'gc> StringPrototype {
         todo!()
     }
 
-    fn r#match(
+    fn r#match<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -963,7 +963,7 @@ impl<'gc> StringPrototype {
         todo!()
     }
 
-    fn match_all(
+    fn match_all<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -973,7 +973,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.15 String.prototype.normalize ( \[ form \] )](https://tc39.es/ecma262/#sec-string.prototype.normalize)
-    fn normalize(
+    fn normalize<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1024,7 +1024,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
-    fn pad_end(
+    fn pad_end<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1041,7 +1041,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.17 String.prototype.padStart ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padstart)
-    fn pad_start(
+    fn pad_start<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1058,7 +1058,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
-    fn repeat(
+    fn repeat<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -1120,7 +1120,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replace)
-    fn replace(
+    fn replace<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1224,7 +1224,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replaceall)
-    fn replace_all(
+    fn replace_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1362,7 +1362,7 @@ impl<'gc> StringPrototype {
         Ok(String::from_string(agent, result, gc.nogc()).into_value())
     }
 
-    fn search(
+    fn search<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1371,7 +1371,7 @@ impl<'gc> StringPrototype {
         todo!()
     }
 
-    fn slice(
+    fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1457,7 +1457,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.split)
-    fn split(
+    fn split<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1567,7 +1567,7 @@ impl<'gc> StringPrototype {
         Ok(results.into_value())
     }
 
-    fn starts_with(
+    fn starts_with<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1631,7 +1631,7 @@ impl<'gc> StringPrototype {
         ))
     }
 
-    fn substring(
+    fn substring<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1707,7 +1707,7 @@ impl<'gc> StringPrototype {
         Ok(String::from_str(agent, substring, gc.nogc()).into_value())
     }
 
-    fn to_locale_lower_case(
+    fn to_locale_lower_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1726,7 +1726,7 @@ impl<'gc> StringPrototype {
         Ok(String::from_string(agent, lower_case_string, gc.nogc()).into_value())
     }
 
-    fn to_locale_upper_case(
+    fn to_locale_upper_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1746,7 +1746,7 @@ impl<'gc> StringPrototype {
     }
 
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_lower_case(
+    fn to_lower_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1766,7 +1766,7 @@ impl<'gc> StringPrototype {
     }
 
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_upper_case(
+    fn to_upper_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1785,7 +1785,7 @@ impl<'gc> StringPrototype {
         Ok(String::from_string(agent, upper_case_string, gc.nogc()).into_value())
     }
 
-    fn to_well_formed(
+    fn to_well_formed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1815,7 +1815,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
-    fn trim(
+    fn trim<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1827,7 +1827,7 @@ impl<'gc> StringPrototype {
     }
 
     /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
-    fn trim_string(
+    fn trim_string<'gc>(
         agent: &mut Agent,
         value: Value,
         trim_where: TrimWhere,
@@ -1866,7 +1866,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
-    fn trim_end(
+    fn trim_end<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1878,7 +1878,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
-    fn trim_start(
+    fn trim_start<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -1904,7 +1904,7 @@ impl<'gc> StringPrototype {
         this_string_value(agent, this_value, gc.nogc()).map(|string| string.into_value())
     }
 
-    fn iterator(
+    fn iterator<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -1922,7 +1922,7 @@ impl<'gc> StringPrototype {
     /// sourceLength is the length of the String. The result is a String value,
     /// not a String object.
     #[cfg(feature = "annex-b-string")]
-    fn substr(
+    fn substr<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1984,7 +1984,7 @@ impl<'gc> StringPrototype {
 
     /// ### [B.2.2.2 String.prototype.anchor ( name )](https://tc39.es/ecma262/#sec-string.prototype.anchor)
     #[cfg(feature = "annex-b-string")]
-    fn anchor(
+    fn anchor<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -1998,7 +1998,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.3 String.prototype.big ( )](https://tc39.es/ecma262/#sec-string.prototype.big)
-    fn big(
+    fn big<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2010,7 +2010,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.4 String.prototype.blink ( )](https://tc39.es/ecma262/#sec-string.prototype.blink)
-    fn blink(
+    fn blink<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2022,7 +2022,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.5 String.prototype.bold ( )](https://tc39.es/ecma262/#sec-string.prototype.bold)
-    fn bold(
+    fn bold<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2034,7 +2034,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.6 String.prototype.fixed ( )](https://tc39.es/ecma262/#sec-string.prototype.fixed)
-    fn fixed(
+    fn fixed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2046,7 +2046,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.7 String.prototype.fontcolor ( colour )](https://tc39.es/ecma262/#sec-string.prototype.fontcolor)
-    fn fontcolor(
+    fn fontcolor<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -2060,7 +2060,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.8 String.prototype.fontsize ( size )](https://tc39.es/ecma262/#sec-string.prototype.fontsize)
-    fn fontsize(
+    fn fontsize<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -2074,7 +2074,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.9 String.prototype.italics ( )](https://tc39.es/ecma262/#sec-string.prototype.italics)
-    fn italics(
+    fn italics<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2086,7 +2086,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.10 String.prototype.link ( url )](https://tc39.es/ecma262/#sec-string.prototype.link)
-    fn link(
+    fn link<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
@@ -2100,7 +2100,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.11 String.prototype.small ( )](https://tc39.es/ecma262/#sec-string.prototype.small)
-    fn small(
+    fn small<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2112,7 +2112,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.12 String.prototype.strike ( )](https://tc39.es/ecma262/#sec-string.prototype.strike)
-    fn strike(
+    fn strike<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2124,7 +2124,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.13 String.prototype.sub ( )](https://tc39.es/ecma262/#sec-string.prototype.sub)
-    fn sub(
+    fn sub<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -2136,7 +2136,7 @@ impl<'gc> StringPrototype {
     }
 
     /// ### [B.2.2.14 String.prototype.sup ( )](https://tc39.es/ecma262/#sec-string.prototype.sup)
-    fn sup(
+    fn sup<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
