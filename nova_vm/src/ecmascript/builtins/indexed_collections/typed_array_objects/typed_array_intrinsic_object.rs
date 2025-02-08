@@ -958,9 +958,20 @@ impl TypedArrayPrototype {
             result?
         };
         // 6. Assert: If fromIndex is undefined, then n is 0.
-        if from_index.is_undefined() && !search_element.is_numeric() {
-            return Ok((-1).into());
-        };
+        if from_index.is_undefined() {
+            if matches!(
+                o,
+                TypedArray::BigInt64Array(_) | TypedArray::BigUint64Array(_)
+            ) {
+                if !search_element.is_bigint() {
+                    return Ok((-1).into());
+                }
+            } else {
+                if !search_element.is_number() {
+                    return Ok((-1).into());
+                }
+            }
+        }
         // 7. If n = +∞, return false.
         let n = if n.is_pos_infinity() {
             return Ok(false.into());
