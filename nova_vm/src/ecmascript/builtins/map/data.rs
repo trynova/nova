@@ -85,6 +85,19 @@ impl MapHeapData {
         self.map_data.rehash_if_needed_mut(arena);
         &mut self.map_data
     }
+
+    pub fn reserve(&mut self, new_len: usize) {
+        self.map_data.keys.reserve(new_len);
+        self.map_data.values.reserve(new_len);
+        self.map_data
+            .map_data
+            .borrow_mut()
+            .reserve(new_len, |key_index: &u32| {
+                let mut hasher = AHasher::default();
+                key_index.hash(&mut hasher);
+                hasher.finish()
+            });
+    }
 }
 
 impl MapData {

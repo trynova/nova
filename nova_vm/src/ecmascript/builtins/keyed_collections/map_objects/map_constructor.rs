@@ -25,7 +25,10 @@ use crate::{
             keyed_collections::map_objects::map_prototype::{
                 MapPrototypeSet, canonicalize_keyed_collection_key,
             },
-            map::{Map, data::MapData},
+            map::{
+                Map,
+                data::{MapData, MapHeapData},
+            },
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
@@ -39,7 +42,10 @@ use crate::{
         context::{Bindable, GcScope},
         rootable::Scopable,
     },
-    heap::{Heap, IntrinsicConstructorIndexes, ObjectEntry, PrimitiveHeap, WellKnownSymbolIndexes},
+    heap::{
+        CreateHeapData, Heap, IntrinsicConstructorIndexes, ObjectEntry, PrimitiveHeap,
+        WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct MapConstructor;
@@ -172,12 +178,9 @@ impl MapConstructor {
         // 1. Let groups be ? GroupBy(items, callback, collection).
         let mut groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
         // 2. Let map be ! Construct(%Map%).
-        let map = agent.current_realm().intrinsics().map();
-        let map = construct(agent, map.into_function(), None, None, gc.reborrow())?
-            .unbind()
-            .bind(gc.nogc());
-        let map = Map::try_from(map).unwrap();
-
+        let mut map_data = MapHeapData::default();
+        map_data.reserve(groups.len());
+        let map = agent.heap.create(map_data);
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         for g in groups.iter_mut() {
             // a. Let elements be CreateArrayFromList(g.[[Elements]]).
