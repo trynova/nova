@@ -1171,9 +1171,9 @@ pub(crate) fn to_property_key<'a, 'gc>(
 pub(crate) fn to_property_key_simple<'a, 'gc>(
     agent: &Agent,
     argument: impl IntoValue<'a>,
-    _: NoGcScope<'gc, '_>,
+    gc: NoGcScope<'gc, '_>,
 ) -> TryResult<PropertyKey<'gc>> {
-    let argument = argument.into_value();
+    let argument = argument.into_value().unbind().bind(gc);
     match argument {
         Value::String(_) | Value::SmallString(_) => {
             let (str, string_key) = match &argument {
