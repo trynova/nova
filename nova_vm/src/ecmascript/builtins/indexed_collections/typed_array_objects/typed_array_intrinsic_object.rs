@@ -6,7 +6,7 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, has_property, try_get},
+            operations_on_objects::{call_function, try_get, try_has_property},
             testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
@@ -921,11 +921,8 @@ impl TypedArrayPrototype {
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
         let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
         // 3. Let len be TypedArrayLength(taRecord).
-        let o = TypedArray::try_from(o)
-            .unwrap()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
-        let len = match o.get(agent) {
+        let mut o = ta_record.object;
+        let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
             | TypedArray::Uint8ClampedArray(_) => {
@@ -955,11 +952,14 @@ impl TypedArrayPrototype {
         {
             n?
         } else {
-            to_integer_or_infinity(agent, from_index, gc.reborrow())?
+            let scoped_o = o.scope(agent, gc.nogc());
+            let result = to_integer_or_infinity(agent, from_index, gc.reborrow());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            result?
         };
         // 6. Assert: If fromIndex is undefined, then n is 0.
-        if from_index.is_undefined() {
-            assert_eq!(n.into_i64(), 0);
+        if from_index.is_undefined() && !search_element.is_numeric() {
+            return Ok((-1).into());
         };
         // 7. If n = +∞, return false.
         let n = if n.is_pos_infinity() {
@@ -984,18 +984,18 @@ impl TypedArrayPrototype {
         // 11. Repeat, while k < len,
         while k < len {
             // a. Let kPresent be ! HasProperty(O, ! ToString(𝔽(k))).
-            let k_present = has_property(
+            let k_present = unwrap_try(try_has_property(
                 agent,
-                o.get(agent).into_object(),
+                o.into_object(),
                 PropertyKey::from(SmallInteger::from(k as u32)),
-                gc.reborrow(),
-            )?;
+                gc.nogc(),
+            ));
             // b. If kPresent is true, then
             if k_present {
                 //  i. Let elementK be ! Get(O, ! ToString(𝔽(k))).
                 let element_k = unwrap_try(try_get(
                     agent,
-                    o.get(agent),
+                    o,
                     PropertyKey::from(SmallInteger::from(k as u32)),
                     gc.nogc(),
                 ));
