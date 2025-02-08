@@ -7,11 +7,12 @@ use std::hash::Hasher;
 use ahash::AHasher;
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{
-    construct, create_array_from_scoped_list, group_by_property, try_get,
+    create_array_from_scoped_list, group_by_property, try_get,
 };
+use crate::ecmascript::builtins::map::data::MapHeapData;
 use crate::engine::context::GcScope;
 use crate::engine::TryResult;
-use crate::heap::ObjectEntry;
+use crate::heap::{CreateHeapData, ObjectEntry};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -158,12 +159,9 @@ impl MapConstructor {
         // 1. Let groups be ? GroupBy(items, callback, collection).
         let mut groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
         // 2. Let map be ! Construct(%Map%).
-        let map = agent.current_realm().intrinsics().map();
-        let map = construct(agent, map.into_function(), None, None, gc.reborrow())?
-            .unbind()
-            .bind(gc.nogc());
-        let map = Map::try_from(map).unwrap();
-
+        let mut map_data = MapHeapData::default();
+        map_data.reserve(groups.len());
+        let map = agent.heap.create(map_data);
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         for g in groups.iter_mut() {
             // a. Let elements be CreateArrayFromList(g.[[Elements]]).
