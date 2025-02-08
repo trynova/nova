@@ -26,7 +26,7 @@ impl BuiltinIntrinsicConstructor for WeakSetConstructor {
 }
 
 impl<'gc> WeakSetConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

@@ -57,7 +57,7 @@ impl BuiltinGetter for ArrayBufferGetSpecies {}
 impl ArrayBufferConstructor {
     // ### [25.1.4.1 ArrayBuffer ( length \[ , options \] )](https://tc39.es/ecma262/#sec-arraybuffer-constructor)
     fn constructor<'gc>(
-        agent: &mut Agent<'gc>,
+        agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
@@ -71,11 +71,18 @@ impl ArrayBufferConstructor {
                 gc.nogc(),
             ));
         };
+        let length = arguments.get(0).bind(gc.nogc());
+        let options = if arguments.len() > 1 {
+            Some(arguments.get(1).bind(gc.nogc()))
+        } else {
+            None
+        };
+        let new_target = new_target.bind(gc.nogc());
         // 2. Let byteLength be ? ToIndex(length).
-        let byte_length = to_index(agent, arguments.get(0), gc.reborrow())? as u64;
+        let byte_length = to_index(agent, length, gc.reborrow())? as u64;
         // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
-        let requested_max_byte_length = if arguments.len() > 1 {
-            get_array_buffer_max_byte_length_option(agent, arguments.get(1), gc.reborrow())?
+        let requested_max_byte_length = if let Some(options) = options {
+            get_array_buffer_max_byte_length_option(agent, options, gc.reborrow())?
         } else {
             None
         };
@@ -85,13 +92,13 @@ impl ArrayBufferConstructor {
             Function::try_from(new_target).unwrap(),
             byte_length,
             requested_max_byte_length,
-            gc.nogc(),
+            gc.into_nogc(),
         )
         .map(|ab| ab.into_value())
     }
 
     /// ### [25.1.5.1 ArrayBuffer.isView ( arg )](https://tc39.es/ecma262/#sec-arraybuffer.isview)
-    fn is_view(
+    fn is_view<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -133,11 +140,11 @@ impl ArrayBufferConstructor {
         _agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         // 1. Return the this value.
         // The value of the "name" property of this function is "get [Symbol.species]".
-        Ok(this_value)
+        Ok(this_value.bind(gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -180,6 +187,6 @@ fn get_array_buffer_max_byte_length_option(
         Ok(None)
     } else {
         // 4. Return ? ToIndex(maxByteLength).
-        Ok(Some(to_index(agent, max_byte_length, gc)? as u64))
+        Ok(Some(to_index(agent, max_byte_length.unbind(), gc)? as u64))
     }
 }

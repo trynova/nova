@@ -101,7 +101,7 @@ impl Builtin for PromiseGetSpecies {
 }
 impl BuiltinGetter for PromiseGetSpecies {}
 
-impl<'gc> PromiseConstructor {
+impl PromiseConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -191,7 +191,7 @@ impl<'gc> PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
-    fn all(
+    fn all<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -200,7 +200,7 @@ impl<'gc> PromiseConstructor {
         todo!()
     }
 
-    fn all_settled(
+    fn all_settled<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -208,7 +208,7 @@ impl<'gc> PromiseConstructor {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn any(
+    fn any<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -216,7 +216,7 @@ impl<'gc> PromiseConstructor {
     ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn race(
+    fn race<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -225,12 +225,13 @@ impl<'gc> PromiseConstructor {
         todo!()
     }
 
-    fn reject(
+    fn reject<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        _: GcScope,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let r = arguments.get(0).bind(gc.nogc());
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -246,14 +247,14 @@ impl<'gc> PromiseConstructor {
         let promise = agent.heap.create(PromiseHeapData {
             object_index: None,
             promise_state: PromiseState::Rejected {
-                promise_result: arguments.get(0),
+                promise_result: r.unbind(),
                 is_handled: false,
             },
         });
         Ok(promise.into_value())
     }
 
-    fn resolve(
+    fn resolve<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -270,7 +271,7 @@ impl<'gc> PromiseConstructor {
     }
 
     /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
-    fn r#try(
+    fn r#try<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -316,14 +317,14 @@ impl<'gc> PromiseConstructor {
             // 6. Else,
             Ok(result) => {
                 // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
-                Promise::resolve(agent, result, gc)
+                Promise::resolve(agent, result.unbind(), gc)
             }
         };
         // 7. Return promiseCapability.[[Promise]].
         Ok(promise.into_value())
     }
 
-    fn with_resolvers(
+    fn with_resolvers<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
@@ -393,11 +394,11 @@ impl<'gc> PromiseConstructor {
         Ok(obj.into_value())
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _: GcScope,
+        _: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }

@@ -191,12 +191,12 @@ impl Builtin for DataViewPrototypeSetUint32 {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DataViewPrototype::set_uint32);
 }
 
-impl<'gc> DataViewPrototype {
+impl DataViewPrototype {
     /// ### [25.3.4.1 get DataView.prototype.buffer](https://tc39.es/ecma262/#sec-get-dataview.prototype.buffer)
     ///
     /// DataView.prototype.buffer is an accessor property whose set accessor
     /// function is undefined.
-    fn get_buffer(
+    fn get_buffer<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -216,7 +216,7 @@ impl<'gc> DataViewPrototype {
     ///
     /// DataView.prototype.byteLength is an accessor property whose set accessor
     /// function is undefined.
-    fn get_byte_length(
+    fn get_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -247,7 +247,7 @@ impl<'gc> DataViewPrototype {
     ///
     /// DataView.prototype.byteOffset is an accessor property whose set accessor
     /// function is undefined.
-    fn get_byte_offset(
+    fn get_byte_offset<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -274,7 +274,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.5 DataView.prototype.getBigInt64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbigint64)
-    fn get_big_int64(
+    fn get_big_int64<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -289,7 +289,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.6 DataView.prototype.getBigUint64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getbiguint64)
-    fn get_big_uint64(
+    fn get_big_uint64<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -305,7 +305,7 @@ impl<'gc> DataViewPrototype {
 
     /// ### [7.1 DataView.prototype.getFloat16 ( byteOffset [ , littleEndian ] )](https://tc39.es/proposal-float16array/#sec-dataview.prototype.getfloat16)
     #[cfg(feature = "proposal-float16array")]
-    fn get_float16(
+    fn get_float16<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -321,7 +321,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.7 DataView.prototype.getFloat32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat32)
-    fn get_float32(
+    fn get_float32<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -337,7 +337,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.8 DataView.prototype.getFloat64 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getfloat64)
-    fn get_float64(
+    fn get_float64<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -353,7 +353,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.9 DataView.prototype.getInt8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getint8)
-    fn get_int8(
+    fn get_int8<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -366,7 +366,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.10 DataView.prototype.getInt16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint16)
-    fn get_int16(
+    fn get_int16<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -382,7 +382,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.11 DataView.prototype.getInt32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getint32)
-    fn get_int32(
+    fn get_int32<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -398,7 +398,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.12 DataView.prototype.getUint8 ( byteOffset )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint8)
-    fn get_uint8(
+    fn get_uint8<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -411,7 +411,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.13 DataView.prototype.getUint16 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint16)
-    fn get_uint16(
+    fn get_uint16<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -427,7 +427,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.14 DataView.prototype.getUint32 ( byteOffset \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.getuint32)
-    fn get_uint32(
+    fn get_uint32<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -443,7 +443,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.15 DataView.prototype.setBigInt64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setbigint64)
-    fn set_big_int64(
+    fn set_big_int64<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -458,7 +458,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.16 DataView.prototype.setBigUint64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setbiguint64)
-    fn set_big_uint64(
+    fn set_big_uint64<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -474,7 +474,7 @@ impl<'gc> DataViewPrototype {
 
     /// ### [7.2 DataView.prototype.setFloat16 ( byteOffset, value [ , littleEndian ] )](https://tc39.es/proposal-float16array/#sec-dataview.prototype.setfloat16)
     #[cfg(feature = "proposal-float16array")]
-    fn set_float16(
+    fn set_float16<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -490,7 +490,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.17 DataView.prototype.setFloat32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setfloat32)
-    fn set_float32(
+    fn set_float32<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -506,7 +506,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.18 DataView.prototype.setFloat64 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setfloat64)
-    fn set_float64(
+    fn set_float64<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -522,7 +522,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.19 DataView.prototype.setInt8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setint8)
-    fn set_int8(
+    fn set_int8<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -536,7 +536,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.20 DataView.prototype.setInt16 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setint16)
-    fn set_int16(
+    fn set_int16<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -552,7 +552,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.21 DataView.prototype.setInt32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setint32)
-    fn set_int32(
+    fn set_int32<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -568,7 +568,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.22 DataView.prototype.setUint8 ( byteOffset, value )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint8)
-    fn set_uint8(
+    fn set_uint8<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -582,7 +582,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.23 DataView.prototype.setUint16 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint16)
-    fn set_uint16(
+    fn set_uint16<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -598,7 +598,7 @@ impl<'gc> DataViewPrototype {
     }
 
     /// ### [25.3.4.24 DataView.prototype.setUint32 ( byteOffset, value \[ , littleEndian \] )](https://tc39.es/ecma262/#sec-dataview.prototype.setuint32)
-    fn set_uint32(
+    fn set_uint32<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -677,7 +677,7 @@ pub(crate) fn require_internal_slot_data_view<'a>(
 ) -> JsResult<DataView<'a>> {
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[DataView]]).
-        Value::DataView(array_buffer) => Ok(array_buffer),
+        Value::DataView(array_buffer) => Ok(array_buffer.unbind().bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be DataView",

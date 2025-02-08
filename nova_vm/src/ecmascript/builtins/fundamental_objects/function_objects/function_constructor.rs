@@ -40,7 +40,7 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Function;
 }
 
-impl<'gc> FunctionConstructor {
+impl FunctionConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,

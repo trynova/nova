@@ -38,8 +38,8 @@ impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::AggregateError;
 }
 
-impl<'gc> AggregateErrorConstructor {
-    fn constructor(
+impl AggregateErrorConstructor {
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

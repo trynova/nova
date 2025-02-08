@@ -25,8 +25,8 @@ impl BuiltinIntrinsicConstructor for WeakRefConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakRef;
 }
 
-impl<'gc> WeakRefConstructor {
-    fn constructor(
+impl WeakRefConstructor {
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

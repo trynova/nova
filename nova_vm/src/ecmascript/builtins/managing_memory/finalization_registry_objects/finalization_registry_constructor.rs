@@ -25,8 +25,8 @@ impl BuiltinIntrinsicConstructor for FinalizationRegistryConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::FinalizationRegistry;
 }
 
-impl<'gc> FinalizationRegistryConstructor {
-    fn constructor(
+impl FinalizationRegistryConstructor {
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -22,8 +23,8 @@ impl Builtin for WeakRefPrototypeDeref {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakRefPrototype::deref);
 }
 
-impl<'gc> WeakRefPrototype {
-    fn deref(
+impl WeakRefPrototype {
+    fn deref<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

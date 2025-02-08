@@ -47,8 +47,8 @@ impl Builtin for GeneratorPrototypeThrow {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(GeneratorPrototype::throw);
 }
 
-impl<'gc> GeneratorPrototype {
-    fn next(
+impl GeneratorPrototype {
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -67,7 +67,7 @@ impl<'gc> GeneratorPrototype {
         Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
     }
 
-    fn r#return(
+    fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -124,7 +124,7 @@ impl<'gc> GeneratorPrototype {
         Ok(create_iter_result_object(agent, arguments.get(0), true, gc).into_value())
     }
 
-    fn throw(
+    fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,

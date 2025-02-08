@@ -40,8 +40,8 @@ impl Builtin for WeakMapPrototypeSet {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::set);
 }
 
-impl<'gc> WeakMapPrototype {
-    fn delete(
+impl WeakMapPrototype {
+    fn delete<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -50,7 +50,7 @@ impl<'gc> WeakMapPrototype {
         todo!()
     }
 
-    fn get(
+    fn get<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -59,7 +59,7 @@ impl<'gc> WeakMapPrototype {
         todo!()
     }
 
-    fn has(
+    fn has<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -68,7 +68,7 @@ impl<'gc> WeakMapPrototype {
         todo!()
     }
 
-    fn set(
+    fn set<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

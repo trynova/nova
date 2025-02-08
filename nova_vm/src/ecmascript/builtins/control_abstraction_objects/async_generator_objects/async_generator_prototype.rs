@@ -52,7 +52,7 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 
 impl AsyncGeneratorPrototype {
     /// ### [27.6.1.2 %AsyncGeneratorPrototype%.next ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-next)
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,

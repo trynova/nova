@@ -41,9 +41,9 @@ impl BuiltinIntrinsicConstructor for DataViewConstructor {
 }
 
 /// ### [25.3.2 The DataView Constructor](https://tc39.es/ecma262/#sec-dataview-constructor)
-impl<'gc> DataViewConstructor {
+impl DataViewConstructor {
     /// ### [25.3.2.1 DataView ( buffer \[ , byteOffset \[ , byteLength \] \] )](https://tc39.es/ecma262/#sec-dataview-buffer-byteoffset-bytelength)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

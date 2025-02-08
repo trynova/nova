@@ -161,8 +161,8 @@ impl Builtin for RegExpPrototypeGetUnicodeSets {
 }
 impl BuiltinGetter for RegExpPrototypeGetUnicodeSets {}
 
-impl<'gc> RegExpPrototype {
-    fn exec(
+impl RegExpPrototype {
+    fn exec<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -171,7 +171,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_dot_all(
+    fn get_dot_all<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -181,7 +181,7 @@ impl<'gc> RegExpPrototype {
     }
 
     /// ### [22.2.6.4 get RegExp.prototype.flags](https://tc39.es/ecma262/#sec-get-regexp.prototype.flags)
-    fn get_flags(
+    fn get_flags<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -328,7 +328,7 @@ impl<'gc> RegExpPrototype {
         Ok(Value::from_string(agent, res.to_string(), gc.nogc()))
     }
 
-    fn get_global(
+    fn get_global<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -337,7 +337,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_has_indices(
+    fn get_has_indices<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -346,7 +346,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_ignore_case(
+    fn get_ignore_case<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -355,7 +355,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn r#match(
+    fn r#match<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -364,7 +364,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn match_all(
+    fn match_all<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -373,7 +373,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_multiline(
+    fn get_multiline<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -382,7 +382,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn replace(
+    fn replace<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -391,7 +391,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn search(
+    fn search<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -400,7 +400,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_source(
+    fn get_source<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -409,7 +409,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn split(
+    fn split<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -418,7 +418,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_sticky(
+    fn get_sticky<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -427,7 +427,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn test(
+    fn test<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -495,7 +495,7 @@ impl<'gc> RegExpPrototype {
         Ok(result.into_value())
     }
 
-    fn get_unicode(
+    fn get_unicode<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
@@ -504,7 +504,7 @@ impl<'gc> RegExpPrototype {
         todo!()
     }
 
-    fn get_unicode_sets(
+    fn get_unicode_sets<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,

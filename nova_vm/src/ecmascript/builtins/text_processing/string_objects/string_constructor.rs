@@ -59,7 +59,7 @@ impl Builtin for StringRaw {
     const LENGTH: u8 = 1;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
-impl<'gc> StringConstructor {
+impl StringConstructor {
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -129,7 +129,7 @@ impl<'gc> StringConstructor {
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codeUnits`.
-    fn from_char_code(
+    fn from_char_code<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         code_units: ArgumentsList,
@@ -168,7 +168,7 @@ impl<'gc> StringConstructor {
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codePoints`.
-    fn from_code_point(
+    fn from_code_point<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         code_points: ArgumentsList,
@@ -230,7 +230,7 @@ impl<'gc> StringConstructor {
         Ok(String::from_string(agent, result, gc.nogc()).into())
     }
 
-    fn raw(
+    fn raw<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

@@ -460,7 +460,7 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
-    fn is_array(
+    fn is_array<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
