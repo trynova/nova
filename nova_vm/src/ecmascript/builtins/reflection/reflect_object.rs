@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::type_conversion::{
     to_property_key_complex, to_property_key_simple,
 };
+use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{bind_property_keys, unbind_property_keys};
 use crate::engine::context::GcScope;
 use crate::engine::TryResult;
@@ -35,8 +36,7 @@ impl Builtin for ReflectObjectApply {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::apply);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::apply);
 }
 
 struct ReflectObjectConstruct;
@@ -45,8 +45,7 @@ impl Builtin for ReflectObjectConstruct {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::construct);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::construct);
 }
 struct ReflectObjectDefineProperty;
 impl Builtin for ReflectObjectDefineProperty {
@@ -54,8 +53,7 @@ impl Builtin for ReflectObjectDefineProperty {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::define_property);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::define_property);
 }
 struct ReflectObjectDeleteProperty;
 impl Builtin for ReflectObjectDeleteProperty {
@@ -63,8 +61,7 @@ impl Builtin for ReflectObjectDeleteProperty {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::delete_property);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::delete_property);
 }
 struct ReflectObjectGet;
 impl Builtin for ReflectObjectGet {
@@ -72,8 +69,7 @@ impl Builtin for ReflectObjectGet {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::get);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::get);
 }
 struct ReflectObjectGetOwnPropertyDescriptor;
 impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
@@ -81,8 +77,7 @@ impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::get_own_property_descriptor);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::get_own_property_descriptor);
 }
 struct ReflectObjectGetPrototypeOf;
 impl Builtin for ReflectObjectGetPrototypeOf {
@@ -90,8 +85,7 @@ impl Builtin for ReflectObjectGetPrototypeOf {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::get_prototype_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::get_prototype_of);
 }
 
 struct ReflectObjectHas;
@@ -100,8 +94,7 @@ impl Builtin for ReflectObjectHas {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::has);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::has);
 }
 struct ReflectObjectIsExtensible;
 impl Builtin for ReflectObjectIsExtensible {
@@ -109,8 +102,7 @@ impl Builtin for ReflectObjectIsExtensible {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::is_extensible);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::is_extensible);
 }
 struct ReflectObjectOwnKeys;
 impl Builtin for ReflectObjectOwnKeys {
@@ -118,8 +110,7 @@ impl Builtin for ReflectObjectOwnKeys {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::own_keys);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::own_keys);
 }
 struct ReflectObjectPreventExtensions;
 impl Builtin for ReflectObjectPreventExtensions {
@@ -127,8 +118,7 @@ impl Builtin for ReflectObjectPreventExtensions {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::prevent_extensions);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::prevent_extensions);
 }
 struct ReflectObjectSet;
 impl Builtin for ReflectObjectSet {
@@ -136,8 +126,7 @@ impl Builtin for ReflectObjectSet {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::set);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::set);
 }
 struct ReflectObjectSetPrototypeOf;
 impl Builtin for ReflectObjectSetPrototypeOf {
@@ -145,8 +134,7 @@ impl Builtin for ReflectObjectSetPrototypeOf {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::set_prototype_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::set_prototype_of);
 }
 
 impl ReflectObject {
@@ -429,7 +417,7 @@ impl ReflectObject {
     }
 
     /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
-    fn get_prototype_of(
+    fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

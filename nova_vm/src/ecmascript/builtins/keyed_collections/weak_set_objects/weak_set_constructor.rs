@@ -25,7 +25,7 @@ impl BuiltinIntrinsicConstructor for WeakSetConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::WeakSet;
 }
 
-impl<'gc> WeakSetConstructor {
+impl WeakSetConstructor {
     fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,

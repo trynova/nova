@@ -289,8 +289,7 @@ impl Builtin for DatePrototypeToPrimitive {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(DatePrototype::to_primitive);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::to_primitive);
 
     const WRITABLE: bool = false;
 }

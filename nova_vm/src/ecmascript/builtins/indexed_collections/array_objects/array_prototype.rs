@@ -3402,7 +3402,7 @@ impl ArrayPrototype {
         Ok(len)
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

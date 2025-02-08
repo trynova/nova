@@ -7,7 +7,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-            ArgumentsList, Builtin,
+            ArgumentsList, Behaviour, Builtin,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{String, Value, BUILTIN_STRING_MEMORY},
@@ -23,8 +23,7 @@ impl Builtin for BooleanPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BooleanPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BooleanPrototype::to_string);
 }
 
 struct BooleanPrototypeValueOf;
@@ -33,8 +32,7 @@ impl Builtin for BooleanPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BooleanPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BooleanPrototype::value_of);
 }
 
 impl BooleanPrototype {

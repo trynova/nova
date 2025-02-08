@@ -52,8 +52,7 @@ impl Builtin for FunctionPrototypeApply {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::apply);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::apply);
 }
 
 struct FunctionPrototypeBind;
@@ -62,8 +61,7 @@ impl Builtin for FunctionPrototypeBind {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::bind);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::bind);
 }
 
 struct FunctionPrototypeCall;
@@ -72,8 +70,7 @@ impl Builtin for FunctionPrototypeCall {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::call);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::call);
 }
 
 struct FunctionPrototypeToString;
@@ -82,8 +79,7 @@ impl Builtin for FunctionPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::to_string);
 }
 
 struct FunctionPrototypeHasInstance;
@@ -95,8 +91,7 @@ impl Builtin for FunctionPrototypeHasInstance {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::has_instance);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::has_instance);
 
     const WRITABLE: bool = false;
     const CONFIGURABLE: bool = false;

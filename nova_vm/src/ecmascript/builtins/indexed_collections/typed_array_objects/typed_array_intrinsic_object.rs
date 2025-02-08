@@ -92,7 +92,7 @@ impl TypedArrayIntrinsicObject {
         ))
     }
 
-    fn from(
+    fn from<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -101,7 +101,7 @@ impl TypedArrayIntrinsicObject {
         todo!();
     }
 
-    fn is_array(
+    fn is_array<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -110,7 +110,7 @@ impl TypedArrayIntrinsicObject {
         is_array(agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
     }
 
-    fn of(
+    fn of<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

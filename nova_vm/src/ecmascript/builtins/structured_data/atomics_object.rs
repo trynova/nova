@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -21,8 +22,7 @@ impl Builtin for AtomicsObjectAdd {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::add);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::add);
 }
 
 struct AtomicsObjectAnd;
@@ -31,8 +31,7 @@ impl Builtin for AtomicsObjectAnd {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::and);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::and);
 }
 struct AtomicsObjectCompareExchange;
 impl Builtin for AtomicsObjectCompareExchange {
@@ -40,8 +39,7 @@ impl Builtin for AtomicsObjectCompareExchange {
 
     const LENGTH: u8 = 4;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::compare_exchange);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::compare_exchange);
 }
 struct AtomicsObjectExchange;
 impl Builtin for AtomicsObjectExchange {
@@ -49,8 +47,7 @@ impl Builtin for AtomicsObjectExchange {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::exchange);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::exchange);
 }
 struct AtomicsObjectIsLockFree;
 impl Builtin for AtomicsObjectIsLockFree {
@@ -58,8 +55,7 @@ impl Builtin for AtomicsObjectIsLockFree {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::is_lock_free);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::is_lock_free);
 }
 struct AtomicsObjectLoad;
 impl Builtin for AtomicsObjectLoad {
@@ -67,8 +63,7 @@ impl Builtin for AtomicsObjectLoad {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::load);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::load);
 }
 struct AtomicsObjectOr;
 impl Builtin for AtomicsObjectOr {
@@ -76,8 +71,7 @@ impl Builtin for AtomicsObjectOr {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::or);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::or);
 }
 struct AtomicsObjectStore;
 impl Builtin for AtomicsObjectStore {
@@ -85,8 +79,7 @@ impl Builtin for AtomicsObjectStore {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::store);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::store);
 }
 struct AtomicsObjectSub;
 impl Builtin for AtomicsObjectSub {
@@ -94,8 +87,7 @@ impl Builtin for AtomicsObjectSub {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::sub);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::sub);
 }
 struct AtomicsObjectWait;
 impl Builtin for AtomicsObjectWait {
@@ -103,8 +95,7 @@ impl Builtin for AtomicsObjectWait {
 
     const LENGTH: u8 = 4;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::wait);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::wait);
 }
 struct AtomicsObjectWaitAsync;
 impl Builtin for AtomicsObjectWaitAsync {
@@ -112,8 +103,7 @@ impl Builtin for AtomicsObjectWaitAsync {
 
     const LENGTH: u8 = 4;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::wait_async);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::wait_async);
 }
 struct AtomicsObjectNotify;
 impl Builtin for AtomicsObjectNotify {
@@ -121,8 +111,7 @@ impl Builtin for AtomicsObjectNotify {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::notify);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::notify);
 }
 struct AtomicsObjectXor;
 impl Builtin for AtomicsObjectXor {
@@ -130,12 +119,11 @@ impl Builtin for AtomicsObjectXor {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(AtomicsObject::xor);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(AtomicsObject::xor);
 }
 
-impl<'gc> AtomicsObject {
-    fn add(
+impl AtomicsObject {
+    fn add<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -144,7 +132,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn and(
+    fn and<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -153,7 +141,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn compare_exchange(
+    fn compare_exchange<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -162,7 +150,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn exchange(
+    fn exchange<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -171,7 +159,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn is_lock_free(
+    fn is_lock_free<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -180,7 +168,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn load(
+    fn load<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -189,7 +177,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn or(
+    fn or<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -198,7 +186,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn store(
+    fn store<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -207,7 +195,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn sub(
+    fn sub<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -216,7 +204,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn wait(
+    fn wait<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -225,7 +213,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn wait_async(
+    fn wait_async<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -234,7 +222,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn notify(
+    fn notify<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
@@ -243,7 +231,7 @@ impl<'gc> AtomicsObject {
         todo!();
     }
 
-    fn xor(
+    fn xor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,

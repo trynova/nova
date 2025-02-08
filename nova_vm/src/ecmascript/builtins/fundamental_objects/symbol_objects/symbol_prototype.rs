@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -26,8 +27,7 @@ impl Builtin for SymbolPrototypeGetDescription {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::get_description);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::get_description);
 }
 impl BuiltinGetter for SymbolPrototypeGetDescription {}
 
@@ -37,8 +37,7 @@ impl Builtin for SymbolPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::to_string);
 }
 
 struct SymbolPrototypeValueOf;
@@ -47,8 +46,7 @@ impl Builtin for SymbolPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::value_of);
 }
 
 struct SymbolPrototypeToPrimitive;
@@ -60,18 +58,17 @@ impl Builtin for SymbolPrototypeToPrimitive {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::value_of);
 
     const WRITABLE: bool = false;
 }
 
-impl<'gc> SymbolPrototype {
+impl SymbolPrototype {
     /// ### [20.4.3.2 get Symbol.prototype.description](https://tc39.es/ecma262/multipage/fundamental-objects.html#sec-symbol.prototype.description)
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
-    fn get_description(
+    fn get_description<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,

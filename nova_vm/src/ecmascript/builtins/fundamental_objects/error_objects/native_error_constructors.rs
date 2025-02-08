@@ -93,7 +93,7 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 }
 
 pub(crate) struct NativeErrorConstructors;
-impl<'gc> NativeErrorConstructors {
+impl NativeErrorConstructors {
     #[inline(always)]
     fn constructor<'gc>(
         agent: &mut Agent,
@@ -153,7 +153,7 @@ impl<'gc> NativeErrorConstructors {
         Ok(o.into_value())
     }
 
-    fn eval_error_constructor(
+    fn eval_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -163,7 +163,7 @@ impl<'gc> NativeErrorConstructors {
         Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
 
-    fn range_error_constructor(
+    fn range_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -173,7 +173,7 @@ impl<'gc> NativeErrorConstructors {
         Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
 
-    fn reference_error_constructor(
+    fn reference_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -189,7 +189,7 @@ impl<'gc> NativeErrorConstructors {
         )
     }
 
-    fn syntax_error_constructor(
+    fn syntax_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -199,7 +199,7 @@ impl<'gc> NativeErrorConstructors {
         Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
 
-    fn type_error_constructor(
+    fn type_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -209,7 +209,7 @@ impl<'gc> NativeErrorConstructors {
         Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
 
-    fn uri_error_constructor(
+    fn uri_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,

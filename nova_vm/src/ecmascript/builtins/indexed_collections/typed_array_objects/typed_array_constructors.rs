@@ -181,8 +181,8 @@ impl BuiltinIntrinsicConstructor for Float64ArrayConstructor {
     const INDEX: IntrinsicConstructorIndexes = IntrinsicConstructorIndexes::Float64Array;
 }
 
-impl<'gc> TypedArrayConstructors {
-    fn int8_array_constructor(
+impl TypedArrayConstructors {
+    fn int8_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -192,7 +192,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<i8>(agent, arguments, new_target, gc)
     }
 
-    fn uint8_array_constructor(
+    fn uint8_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -202,7 +202,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<u8>(agent, arguments, new_target, gc)
     }
 
-    fn uint8_clamped_array_constructor(
+    fn uint8_clamped_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -212,7 +212,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<U8Clamped>(agent, arguments, new_target, gc)
     }
 
-    fn int16_array_constructor(
+    fn int16_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -222,7 +222,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<i16>(agent, arguments, new_target, gc)
     }
 
-    fn uint16_array_constructor(
+    fn uint16_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -232,7 +232,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<u16>(agent, arguments, new_target, gc)
     }
 
-    fn int32_array_constructor(
+    fn int32_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -242,7 +242,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<i32>(agent, arguments, new_target, gc)
     }
 
-    fn uint32_array_constructor(
+    fn uint32_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -252,7 +252,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<u32>(agent, arguments, new_target, gc)
     }
 
-    fn big_int64_array_constructor(
+    fn big_int64_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -262,7 +262,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<i64>(agent, arguments, new_target, gc)
     }
 
-    fn big_uint64_array_constructor(
+    fn big_uint64_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -273,17 +273,17 @@ impl<'gc> TypedArrayConstructors {
     }
 
     #[cfg(feature = "proposal-float16array")]
-    fn float16_array_constructor(
+    fn float16_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         typed_array_constructor::<f16>(agent, arguments, new_target, gc)
     }
 
-    fn float32_array_constructor(
+    fn float32_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
@@ -293,7 +293,7 @@ impl<'gc> TypedArrayConstructors {
         typed_array_constructor::<f32>(agent, arguments, new_target, gc)
     }
 
-    fn float64_array_constructor(
+    fn float64_array_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
