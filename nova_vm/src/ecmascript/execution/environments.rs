@@ -524,10 +524,10 @@ impl EnvironmentIndex {
     ) -> JsResult<Value<'gc>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                idx.get_binding_value(agent, name, is_strict, gc.nogc())
+                idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
             EnvironmentIndex::Function(idx) => {
-                idx.get_binding_value(agent, name, is_strict, gc.nogc())
+                idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
             EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, name, is_strict, gc),
             EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, name, is_strict, gc),

@@ -629,6 +629,7 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 if is_reference(&self.argument) {
                     ctx.add_instruction(Instruction::GetValue);
                 }
+                ctx.add_instruction(Instruction::ToNumeric);
                 ctx.add_instruction(Instruction::BitwiseNot);
             }
             // 13.5.3 The typeof Operator
@@ -1753,10 +1754,10 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.add_instruction(Instruction::GetValueKeepReference);
+        ctx.add_instruction(Instruction::ToNumeric);
         if !self.prefix {
             // The return value of postfix increment/decrement is the value
             // after ToNumeric.
-            ctx.add_instruction(Instruction::ToNumeric);
             ctx.add_instruction(Instruction::LoadCopy);
         }
         match self.operator {

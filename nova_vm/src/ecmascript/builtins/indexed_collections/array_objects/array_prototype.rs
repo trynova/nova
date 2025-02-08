@@ -1784,15 +1784,15 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let callback_fn = arguments.get(0).scope(agent, gc.nogc());
+        let this_arg = arguments.get(1).scope(agent, gc.nogc());
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",

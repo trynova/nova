@@ -25,7 +25,7 @@ use agent::{Agent, JsResult};
 /// operators as delete, typeof, the assignment operators, the super keyword
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Reference<'a> {
     /// ### \[\[Base]]
     ///
@@ -231,6 +231,127 @@ pub(crate) fn get_value<'gc>(
                 referenced_name.as_display(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
+        }
+    }
+}
+
+/// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
+/// The abstract operation GetValue takes argument V (a Reference Record or an
+/// ECMAScript language value) and returns either a normal completion
+/// containing an ECMAScript language value or an abrupt completion.
+pub(crate) fn try_get_value<'gc>(
+    agent: &mut Agent,
+    reference: &Reference,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<JsResult<Value<'gc>>> {
+    let referenced_name = reference.referenced_name.bind(gc);
+    match reference.base {
+        Base::Value(value) => {
+            // 3. If IsPropertyReference(V) is true, then
+            // a. Let baseObj be ? ToObject(V.[[Base]]).
+
+            // NOTE
+            // The object that may be created in step 3.a is not
+            // accessible outside of the above abstract operation
+            // and the ordinary object [[Get]] internal method. An
+            // implementation might choose to avoid the actual
+            // creation of the object.
+            if let Ok(object) = Object::try_from(value) {
+                // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
+                TryResult::Continue(Ok(object.try_get(
+                    agent,
+                    referenced_name.unbind(),
+                    get_this_value(reference),
+                    gc,
+                )?))
+            } else {
+                // Primitive value. annoying stuff.
+                match value {
+                    Value::Undefined => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of undefined.",
+                            referenced_name.as_display(agent)
+                        );
+                        TryResult::Continue(Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc,
+                        )))
+                    }
+                    Value::Null => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of null.",
+                            referenced_name.as_display(agent)
+                        );
+                        TryResult::Continue(Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc,
+                        )))
+                    }
+                    Value::Boolean(_) => TryResult::Continue(Ok(agent
+                        .current_realm()
+                        .intrinsics()
+                        .boolean_prototype()
+                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
+                    Value::String(_) | Value::SmallString(_) => {
+                        let string = String::try_from(value).unwrap();
+                        if let Some(prop_desc) =
+                            string.get_property_descriptor(agent, referenced_name)
+                        {
+                            TryResult::Continue(Ok(prop_desc.value.unwrap()))
+                        } else {
+                            TryResult::Continue(Ok(agent
+                                .current_realm()
+                                .intrinsics()
+                                .string_prototype()
+                                .try_get(agent, referenced_name.unbind(), value, gc)?))
+                        }
+                    }
+                    Value::Symbol(_) => TryResult::Continue(Ok(agent
+                        .current_realm()
+                        .intrinsics()
+                        .symbol_prototype()
+                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
+                    Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
+                        TryResult::Continue(Ok(agent
+                            .current_realm()
+                            .intrinsics()
+                            .number_prototype()
+                            .try_get(agent, referenced_name.unbind(), value, gc)?))
+                    }
+                    Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
+                        .current_realm()
+                        .intrinsics()
+                        .big_int_prototype()
+                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
+                    _ => unreachable!(),
+                }
+            }
+        }
+        Base::Environment(env) => {
+            // 4. Else,
+            // a. Let base be V.[[Base]].
+            // b. Assert: base is an Environment Record.
+            // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
+            let referenced_name = match &reference.referenced_name {
+                PropertyKey::String(data) => String::String(*data),
+                PropertyKey::SmallString(data) => String::SmallString(*data),
+                _ => unreachable!(),
+            };
+            env.try_get_binding_value(agent, referenced_name, reference.strict, gc)
+        }
+        Base::Unresolvable => {
+            // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
+            let error_message = format!(
+                "Cannot access undeclared variable '{}'.",
+                referenced_name.as_display(agent)
+            );
+            TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc,
+            )))
         }
     }
 }
@@ -484,7 +605,7 @@ pub(crate) fn get_this_value<'a>(reference: &Reference<'a>) -> Value<'a> {
         })
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Base<'a> {
     Value(Value<'a>),
     Environment(EnvironmentIndex),

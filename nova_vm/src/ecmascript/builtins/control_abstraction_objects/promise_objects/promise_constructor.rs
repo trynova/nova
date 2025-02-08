@@ -251,7 +251,7 @@ impl<'gc> PromiseConstructor {
             },
         });
         Ok(promise.into_value())
-    }<'gc>
+    }
 
     fn resolve(
         agent: &mut Agent,

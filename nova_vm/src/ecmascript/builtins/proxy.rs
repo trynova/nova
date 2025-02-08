@@ -179,8 +179,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 BUILTIN_STRING_MEMORY.getPrototypeOf.into(),
                 gc.reborrow(),
             )?
-            .map(Function::unbind);
-            let trap = trap.map(|t| t.bind(gc.nogc()));
+            .map(Function::unbind)
+            .map(|t| t.bind(gc.nogc()));
             handler = scoped_handler.get(agent).bind(gc.nogc());
             trap
         };
@@ -195,7 +195,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let handler_proto = call_function(
             agent,
             trap.unbind(),
-            handler.into(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
         )?;
@@ -213,7 +213,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             ));
         };
 
-        // 9. Let extensibleTarget be ? IsExtensible(target).
+        // 9. Let extensibleTarget be ? IsExtensible(target).
         let extensible_target = is_extensible(agent, target.get(agent), gc.reborrow())?;
 
         // 10. If extensibleTarget is true, return handlerProto.
