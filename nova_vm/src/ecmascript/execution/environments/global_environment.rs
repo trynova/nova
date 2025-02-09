@@ -998,6 +998,8 @@ impl GlobalEnvironmentIndex {
         d: bool,
         mut gc: GcScope,
     ) -> JsResult<()> {
+        let name = name.bind(gc.nogc());
+        let value = value.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;

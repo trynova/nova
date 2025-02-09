@@ -6,6 +6,7 @@ use super::{ObjectEnvironmentIndex, OuterEnv};
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_define_property_or_throw, try_get, try_has_property, try_set,
 };
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
@@ -185,7 +186,7 @@ impl ObjectEnvironmentIndex {
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = get(agent, unscopables, name, gc.reborrow())?;
+            let blocked = get(agent, unscopables.unbind(), name, gc.reborrow())?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Ok(!blocked)
