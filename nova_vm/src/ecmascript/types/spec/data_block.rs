@@ -6,6 +6,7 @@
 
 use std::{
     alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc, Layout},
+    mem::MaybeUninit,
     ptr::{self, read_unaligned, write_unaligned, NonNull},
 };
 
@@ -737,6 +738,24 @@ impl DataBlock {
         // size is non-zero, and cannot overflow isize (on a 64-bit machine).
         let ptr = unsafe { realloc(ptr, layout, new_byte_length) };
         self.ptr = NonNull::new(ptr);
+        if new_byte_length > self.byte_length {
+            // Need to zero out the new data.
+            if let Some(ptr) = self.ptr {
+                // SAFETY: The new pointer does point to valid data which is
+                // big enough.
+                let new_data_ptr = unsafe { ptr.add(self.byte_length) };
+                // SAFETY: The new pointer does point to valid, big enough
+                // allocation which contains uninitialized bytes. No one else
+                // can hold a reference to it currently.
+                let data_slice = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        new_data_ptr.as_ptr().cast::<MaybeUninit<u8>>(),
+                        new_byte_length - self.byte_length,
+                    )
+                };
+                data_slice.fill(MaybeUninit::new(0));
+            }
+        }
         self.byte_length = new_byte_length;
     }
 }
