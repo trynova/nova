@@ -183,7 +183,7 @@ impl MapConstructor {
         map_data.reserve(groups.len());
         let map = agent.heap.create(map_data);
 
-        let gc = gc.nogc();
+        let gc = gc.into_nogc();
 
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         let mut keys_and_elements = Vec::with_capacity(groups.len());
@@ -191,7 +191,7 @@ impl MapConstructor {
             let key = g.key.get(agent); // Get the key BEFORE mutable borrow
             let key = key.convert_to_value(agent, gc);
             // a. Let elements be CreateArrayFromList(g.[[Elements]]).
-            let elements = create_array_from_scoped_list(agent, g.elements.clone(), gc);
+            let elements = create_array_from_scoped_list(agent, g.elements, gc);
             keys_and_elements.push((key, elements));
         }
 
