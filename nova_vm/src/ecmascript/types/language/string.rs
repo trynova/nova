@@ -5,7 +5,7 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use std::{
+use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
@@ -40,7 +40,7 @@ impl HeapString<'_> {
     /// use the HeapString as a parameter in a call that can perform garbage
     /// collection.
     pub const fn unbind(self) -> HeapString<'static> {
-        unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'static>>(self) }
+        unsafe { core::mem::transmute::<HeapString<'_>, HeapString<'static>>(self) }
     }
 
     // Bind this HeapString to the garbage collection lifetime. This enables
@@ -53,7 +53,7 @@ impl HeapString<'_> {
     // ```
     // to make sure that the unbound HeapString cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapString<'gc> {
-        unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'gc>>(self) }
+        unsafe { core::mem::transmute::<HeapString<'_>, HeapString<'gc>>(self) }
     }
 
     pub fn len(self, agent: &Agent) -> usize {
@@ -265,7 +265,7 @@ impl<'a> String<'a> {
     /// the String as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> String<'static> {
-        unsafe { std::mem::transmute::<String<'_>, String<'static>>(self) }
+        unsafe { core::mem::transmute::<String<'_>, String<'static>>(self) }
     }
 
     // Bind this String to the garbage collection lifetime. This enables Rust's
@@ -278,7 +278,7 @@ impl<'a> String<'a> {
     // ```
     // to make sure that the unbound String cannot be used after binding.
     pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> String<'gc> {
-        unsafe { std::mem::transmute::<String<'_>, String<'gc>>(self) }
+        unsafe { core::mem::transmute::<String<'_>, String<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
@@ -384,7 +384,7 @@ impl<'a> String<'a> {
                         let mut result = Wtf8Buf::with_capacity(*len + string_len);
                         // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result
                         // of concatenating UTF-8 strings, which is always valid UTF-8.
-                        result.push_str(unsafe { std::str::from_utf8_unchecked(&data[..*len]) });
+                        result.push_str(unsafe { core::str::from_utf8_unchecked(&data[..*len]) });
                         push_string_to_wtf8(agent, &mut result, *string);
                         status = Status::String(result);
                     }
@@ -399,7 +399,7 @@ impl<'a> String<'a> {
             Status::SmallString { data, len } => {
                 // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
                 // concatenating UTF-8 strings, which is always valid UTF-8.
-                let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
+                let str_slice = unsafe { core::str::from_utf8_unchecked(&data[..len]) };
                 SmallString::from_str_unchecked(str_slice).into()
             }
             Status::String(string) => agent.heap.create(string.into_string().unwrap()).bind(gc),

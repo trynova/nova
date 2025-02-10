@@ -4,7 +4,7 @@
 
 mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use super::{
     value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
@@ -39,7 +39,7 @@ impl<'a> HeapNumber<'a> {
     /// the HeapNumber as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> HeapNumber<'static> {
-        unsafe { std::mem::transmute::<HeapNumber<'_>, HeapNumber<'static>>(self) }
+        unsafe { core::mem::transmute::<HeapNumber<'_>, HeapNumber<'static>>(self) }
     }
 
     // Bind this HeapNumber to the garbage collection lifetime. This enables Rust's
@@ -52,7 +52,7 @@ impl<'a> HeapNumber<'a> {
     // ```
     // to make sure that the unbound HeapNumber cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapNumber<'gc> {
-        unsafe { std::mem::transmute::<HeapNumber<'a>, HeapNumber<'gc>>(self) }
+        unsafe { core::mem::transmute::<HeapNumber<'a>, HeapNumber<'gc>>(self) }
     }
 
     pub(crate) const fn _def() -> Self {
@@ -145,8 +145,8 @@ impl<'a> IntoNumeric<'a> for Number<'a> {
     }
 }
 
-impl std::fmt::Debug for Number<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Number<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self {
             Number::Number(idx) => write!(f, "Number({:?})", idx),
             Number::Integer(value) => write!(f, "{}", value.into_i64()),
@@ -301,7 +301,7 @@ impl<'a> Number<'a> {
     /// the Number as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Number<'static> {
-        unsafe { std::mem::transmute::<Number<'_>, Number<'static>>(self) }
+        unsafe { core::mem::transmute::<Number<'_>, Number<'static>>(self) }
     }
 
     // Bind this Number to the garbage collection lifetime. This enables Rust's
@@ -314,7 +314,7 @@ impl<'a> Number<'a> {
     // ```
     // to make sure that the unbound Number cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Number<'gc> {
-        unsafe { std::mem::transmute::<Number<'a>, Number<'gc>>(self) }
+        unsafe { core::mem::transmute::<Number<'a>, Number<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

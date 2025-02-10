@@ -9,7 +9,7 @@ pub mod rootable;
 pub mod small_f64;
 pub mod small_integer;
 
-use std::ops::ControlFlow;
+use core::ops::ControlFlow;
 
 pub(crate) use bytecode::*;
 pub use rootable::{Global, Scoped};

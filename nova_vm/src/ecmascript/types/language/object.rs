@@ -9,7 +9,7 @@ mod into_object;
 mod property_key;
 mod property_storage;
 
-use std::hash::Hash;
+use core::hash::Hash;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
@@ -362,7 +362,7 @@ impl<'a> OrdinaryObject<'a> {
     /// the OrdinaryObject as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> OrdinaryObject<'static> {
-        unsafe { std::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'static>>(self) }
+        unsafe { core::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'static>>(self) }
     }
 
     // Bind this OrdinaryObject to the garbage collection lifetime. This enables Rust's
@@ -375,7 +375,7 @@ impl<'a> OrdinaryObject<'a> {
     // ```
     // to make sure that the unbound OrdinaryObject cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> OrdinaryObject<'gc> {
-        unsafe { std::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'gc>>(self) }
+        unsafe { core::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
@@ -586,7 +586,7 @@ impl<'a> Object<'a> {
     /// the Object as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Object<'static> {
-        unsafe { std::mem::transmute::<Self, Object<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Object<'static>>(self) }
     }
 
     // Bind this Object to the garbage collection lifetime. This enables Rust's
@@ -599,7 +599,7 @@ impl<'a> Object<'a> {
     // ```
     // to make sure that the unbound Object cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Object<'gc> {
-        unsafe { std::mem::transmute::<Self, Object<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, Object<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
@@ -620,7 +620,7 @@ impl<'a> Object<'a> {
 }
 
 impl Hash for Object<'_> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
         match self {
             Object::Object(data) => data.get_index().hash(state),

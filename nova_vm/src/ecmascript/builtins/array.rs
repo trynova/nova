@@ -9,7 +9,7 @@
 pub(crate) mod abstract_operations;
 mod data;
 
-use std::ops::{Index, IndexMut, RangeInclusive};
+use core::ops::{Index, IndexMut, RangeInclusive};
 
 use crate::{
     ecmascript::{
@@ -51,7 +51,7 @@ impl<'a> Array<'a> {
     /// the Array as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Array<'static> {
-        unsafe { std::mem::transmute::<Array<'a>, Array<'static>>(self) }
+        unsafe { core::mem::transmute::<Array<'a>, Array<'static>>(self) }
     }
 
     // Bind this Array to the garbage collection lifetime. This enables Rust's
@@ -64,7 +64,7 @@ impl<'a> Array<'a> {
     // ```
     // to make sure that the unbound Array cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Array<'gc> {
-        unsafe { std::mem::transmute::<Array<'a>, Array<'gc>>(self) }
+        unsafe { core::mem::transmute::<Array<'a>, Array<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

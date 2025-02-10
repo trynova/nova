@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use data::TypedArrayArrayLength;
 
@@ -75,7 +75,7 @@ impl TypedArray<'_> {
     /// the TypedArray as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> TypedArray<'static> {
-        unsafe { std::mem::transmute::<Self, TypedArray<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, TypedArray<'static>>(self) }
     }
 
     // Bind this TypedArray to the garbage collection lifetime. This enables Rust's
@@ -88,7 +88,7 @@ impl TypedArray<'_> {
     // ```
     // to make sure that the unbound TypedArray cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> TypedArray<'gc> {
-        unsafe { std::mem::transmute::<Self, TypedArray<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, TypedArray<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

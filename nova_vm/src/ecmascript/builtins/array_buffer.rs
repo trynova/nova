@@ -29,8 +29,8 @@ pub(crate) use abstract_operations::{
     allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
     is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, DetachKey, Ordering,
 };
+use core::ops::{Index, IndexMut};
 pub use data::*;
-use std::ops::{Index, IndexMut};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -41,7 +41,7 @@ impl<'a> ArrayBuffer<'a> {
     /// the ArrayBuffer as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> ArrayBuffer<'static> {
-        unsafe { std::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'static>>(self) }
+        unsafe { core::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'static>>(self) }
     }
 
     // Bind this ArrayBuffer to the garbage collection lifetime. This enables Rust's
@@ -54,7 +54,7 @@ impl<'a> ArrayBuffer<'a> {
     // ```
     // to make sure that the unbound ArrayBuffer cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ArrayBuffer<'gc> {
-        unsafe { std::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'gc>>(self) }
+        unsafe { core::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

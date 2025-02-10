@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::rootable::HeapRootData;
@@ -108,7 +108,7 @@ impl Module<'_> {
     /// the Module as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Module<'static> {
-        unsafe { std::mem::transmute::<Self, Module<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Module<'static>>(self) }
     }
 
     // Bind this Module to the garbage collection lifetime. This enables Rust's
@@ -121,7 +121,7 @@ impl Module<'_> {
     // ```
     // to make sure that the unbound Module cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Module<'gc> {
-        unsafe { std::mem::transmute::<Self, Module<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, Module<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

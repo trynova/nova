@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::Ordering, hint::unreachable_unchecked};
+use core::{cmp::Ordering, hint::unreachable_unchecked};
 
 use crate::heap::{CompactionLists, HeapMarkAndSweep, WorkQueues};
 use num_bigint::{BigInt, Sign};

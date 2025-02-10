@@ -562,7 +562,7 @@ mod test_metadata {
             impl<'de> serde::de::Visitor<'de> for Visitor {
                 type Value = Flags;
 
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                     formatter.write_str("a sequence")
                 }
 

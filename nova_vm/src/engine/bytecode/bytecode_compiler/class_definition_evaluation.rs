@@ -450,14 +450,14 @@ impl CompileEvaluation for ast::Class<'_> {
                     // SAFETY: The SourceCode that contains this code cannot be garbage collected
                     // as long as the constructor function we produce here lives.
                     body: unsafe {
-                        std::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
+                        core::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
                             constructor.value.body.as_ref().unwrap(),
                         )
                     },
                     // SAFETY: The SourceCode that contains this code cannot be garbage collected
                     // as long as the constructor function we produce here lives.
                     params: unsafe {
-                        std::mem::transmute::<
+                        core::mem::transmute::<
                             &ast::FormalParameters<'_>,
                             &ast::FormalParameters<'static>,
                         >(&constructor.value.params)
@@ -589,7 +589,7 @@ fn define_constructor_method(
         Instruction::ClassDefineConstructor,
         FunctionExpression {
             expression: SendableRef::new(unsafe {
-                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
                     &class_element.value,
                 )
             }),
@@ -651,7 +651,7 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
         instruction,
         FunctionExpression {
             expression: SendableRef::new(unsafe {
-                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
                     &class_element.value,
                 )
             }),

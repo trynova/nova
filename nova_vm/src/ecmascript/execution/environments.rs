@@ -24,7 +24,7 @@
 //! functions will have as their outer Environment Record the Environment Record
 //! of the current evaluation of the surrounding function.
 
-use std::{marker::PhantomData, num::NonZeroU32};
+use core::{marker::PhantomData, num::NonZeroU32};
 
 mod declarative_environment;
 mod function_environment;
@@ -76,8 +76,8 @@ macro_rules! create_environment_index {
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         pub(crate) struct $index(NonZeroU32, PhantomData<$name>);
 
-        impl std::fmt::Debug for $index {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl core::fmt::Debug for $index {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 write!(f, "$index({:?})", self.0)
             }
         }
@@ -117,7 +117,7 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl std::ops::Index<$index> for Agent {
+        impl core::ops::Index<$index> for Agent {
             type Output = $name;
 
             fn index(&self, index: $index) -> &Self::Output {
@@ -125,13 +125,13 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl std::ops::IndexMut<$index> for Agent {
+        impl core::ops::IndexMut<$index> for Agent {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
                 &mut self.heap.environments.$entry[index]
             }
         }
 
-        impl std::ops::Index<$index> for Vec<Option<$name>> {
+        impl core::ops::Index<$index> for Vec<Option<$name>> {
             type Output = $name;
 
             fn index(&self, index: $index) -> &Self::Output {
@@ -142,7 +142,7 @@ macro_rules! create_environment_index {
             }
         }
 
-        impl std::ops::IndexMut<$index> for Vec<Option<$name>> {
+        impl core::ops::IndexMut<$index> for Vec<Option<$name>> {
             fn index_mut(&mut self, index: $index) -> &mut Self::Output {
                 self.get_mut(index.into_index())
                     .expect("Environment out of bounds")
@@ -209,8 +209,8 @@ pub(crate) enum EnvironmentIndex {
     Object(ObjectEnvironmentIndex),
 }
 
-impl std::fmt::Debug for EnvironmentIndex {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for EnvironmentIndex {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             EnvironmentIndex::Declarative(d) => write!(f, "DeclarativeEnvironment({:?})", d.0),
             EnvironmentIndex::Function(d) => write!(f, "FunctionEnvironment({:?})", d.0),

@@ -4,7 +4,8 @@
 
 mod binding_methods;
 
-use std::{ptr::NonNull, sync::OnceLock};
+use core::ptr::NonNull;
+use std::sync::OnceLock;
 
 use ahash::AHashSet;
 use binding_methods::{execute_simple_array_binding, execute_simple_object_binding};
@@ -201,7 +202,7 @@ impl<'a> Vm {
             ip: self.ip,
             stack: self.stack.into_boxed_slice(),
             reference_stack: unsafe {
-                std::mem::transmute::<Box<[Reference<'a>]>, Box<[Reference<'static>]>>(
+                core::mem::transmute::<Box<[Reference<'a>]>, Box<[Reference<'static>]>>(
                     self.reference_stack.into_boxed_slice(),
                 )
             },
@@ -316,7 +317,7 @@ impl<'a> Vm {
                 }
             }
             let temp = &mut self;
-            let temp_self = unsafe { std::mem::transmute::<&mut Vm, &mut Vm>(temp) };
+            let temp_self = unsafe { core::mem::transmute::<&mut Vm, &mut Vm>(temp) };
             match Self::execute_instruction(agent, temp_self, executable, &instr, gc.reborrow()) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {

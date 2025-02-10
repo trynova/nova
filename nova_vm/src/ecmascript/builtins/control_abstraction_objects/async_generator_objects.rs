@@ -5,10 +5,8 @@
 mod async_generator_abstract_operations;
 mod async_generator_prototype;
 
-use std::{
-    collections::VecDeque,
-    ops::{Index, IndexMut},
-};
+use core::ops::{Index, IndexMut};
+use std::collections::VecDeque;
 
 use async_generator_abstract_operations::{
     async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
@@ -48,7 +46,7 @@ impl AsyncGenerator<'_> {
     /// the AsyncGenerator as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> AsyncGenerator<'static> {
-        unsafe { std::mem::transmute::<AsyncGenerator, AsyncGenerator<'static>>(self) }
+        unsafe { core::mem::transmute::<AsyncGenerator, AsyncGenerator<'static>>(self) }
     }
 
     // Bind this AsyncGenerator to the garbage collection lifetime. This enables Rust's
@@ -61,7 +59,7 @@ impl AsyncGenerator<'_> {
     // ```
     // to make sure that the unbound AsyncGenerator cannot be used after binding.
     pub const fn bind<'a>(self, _: NoGcScope<'a, '_>) -> AsyncGenerator<'a> {
-        unsafe { std::mem::transmute::<AsyncGenerator, AsyncGenerator<'a>>(self) }
+        unsafe { core::mem::transmute::<AsyncGenerator, AsyncGenerator<'a>>(self) }
     }
 
     pub fn scope<'scope>(

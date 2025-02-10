@@ -24,16 +24,16 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use ahash::AHashSet;
-use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
-use oxc_diagnostics::OxcDiagnostic;
-use oxc_ecmascript::BoundNames;
-use oxc_span::SourceType;
-use std::{
+use core::{
     any::Any,
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Index, IndexMut},
 };
+use oxc_ast::ast::{BindingIdentifier, Program, VariableDeclarationKind};
+use oxc_diagnostics::OxcDiagnostic;
+use oxc_ecmascript::BoundNames;
+use oxc_span::SourceType;
 
 use super::source_code::SourceCode;
 
@@ -352,7 +352,7 @@ pub(crate) fn global_declaration_instantiation(
         // long as the Script is alive in the heap as they are not reallocated.
         // Thus in effect VarScopedDeclaration<'_> is valid for the duration
         // of the global_declaration_instantiation call.
-        let script = unsafe { std::mem::transmute::<&Program, &'static Program<'static>>(script) };
+        let script = unsafe { core::mem::transmute::<&Program, &'static Program<'static>>(script) };
         // 1. Let lexNames be the LexicallyDeclaredNames of script.
         let lex_names = script_lexically_declared_names(script);
         // 2. Let varNames be the VarDeclaredNames of script.

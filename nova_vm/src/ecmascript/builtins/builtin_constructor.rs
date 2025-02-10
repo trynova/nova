@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use oxc_span::Span;
 
@@ -48,7 +48,7 @@ impl<'a> BuiltinConstructorFunction<'a> {
     /// collection.
     pub fn unbind(self) -> BuiltinConstructorFunction<'static> {
         unsafe {
-            std::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'static>>(
+            core::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'static>>(
                 self,
             )
         }
@@ -65,7 +65,9 @@ impl<'a> BuiltinConstructorFunction<'a> {
     // to make sure that the unbound BuiltinConstructorFunction cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinConstructorFunction<'gc> {
         unsafe {
-            std::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'gc>>(self)
+            core::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'gc>>(
+                self,
+            )
         }
     }
 

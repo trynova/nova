@@ -47,7 +47,7 @@ impl<'a> Numeric<'a> {
     /// the Numeric as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Numeric<'static> {
-        unsafe { std::mem::transmute::<Self, Numeric<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Numeric<'static>>(self) }
     }
 
     // Bind this Numeric to the garbage collection lifetime. This enables
@@ -60,7 +60,7 @@ impl<'a> Numeric<'a> {
     // ```
     // to make sure that the unbound Numeric cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Numeric<'_>, Self>(self) }
+        unsafe { core::mem::transmute::<Numeric<'_>, Self>(self) }
     }
 
     pub fn scope<'scope>(
