@@ -228,26 +228,40 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
                                 unreachable!()
                             };
                             let slice = entry.as_slice(&array_heap);
-                            let key = canonicalize_keyed_collection_key(numbers, slice[0].unwrap());
-                            let key_hash = hasher(key);
-                            let value = slice[1].unwrap();
-                            let next_index = keys.len() as u32;
-                            let entry = map_data.entry(
-                                key_hash,
-                                |hash_equal_index| keys[*hash_equal_index as usize].unwrap() == key,
-                                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
-                            );
-                            match entry {
-                                hashbrown::hash_table::Entry::Occupied(occupied) => {
-                                    // We have duplicates in the array. Latter
-                                    // ones overwrite earlier ones.
-                                    let index = *occupied.get();
-                                    values[index as usize] = Some(value);
-                                }
-                                hashbrown::hash_table::Entry::Vacant(vacant) => {
-                                    vacant.insert(next_index);
-                                    keys.push(Some(key));
-                                    values.push(Some(value));
+                            if let Some(value) = slice[0] {
+                                if value.is_object() || value.is_symbol() {
+                                    let key = canonicalize_keyed_collection_key(numbers, value);
+                                    let key_hash = hasher(key);
+                                    let value = slice[1].unwrap();
+                                    let next_index = keys.len() as u32;
+                                    let entry = map_data.entry(
+                                        key_hash,
+                                        |hash_equal_index| {
+                                            keys[*hash_equal_index as usize].unwrap() == key
+                                        },
+                                        |index_to_hash| {
+                                            hasher(keys[*index_to_hash as usize].unwrap())
+                                        },
+                                    );
+                                    match entry {
+                                        hashbrown::hash_table::Entry::Occupied(occupied) => {
+                                            // We have duplicates in the array. Latter
+                                            // ones overwrite earlier ones.
+                                            let index = *occupied.get();
+                                            values[index as usize] = Some(value);
+                                        }
+                                        hashbrown::hash_table::Entry::Vacant(vacant) => {
+                                            vacant.insert(next_index);
+                                            keys.push(Some(key));
+                                            values.push(Some(value));
+                                        }
+                                    }
+                                } else {
+                                    return Err(agent.throw_exception_with_static_message(
+                                        ExceptionType::TypeError,
+                                        "WeakMap key must be an Object or Symbol",
+                                        gc.nogc(),
+                                    ));
                                 }
                             }
                         }
