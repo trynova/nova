@@ -6,14 +6,10 @@ use std::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
-    get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
-};
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    call_function, get, get_method, try_get,
-};
+use crate::ecmascript::abstract_operations::operations_on_objects::{get, get_method, try_get};
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
 use crate::ecmascript::builtins::array::ArrayHeap;
+use crate::ecmascript::builtins::keyed_collections::map_objects::map_constructor::add_entries_from_iterable;
 use crate::ecmascript::builtins::keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::weak_map::data::WeakMapData;
@@ -263,68 +259,12 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
         }
     }
 
-    add_entries_from_iterable(agent, target.unbind(), iterable, adder.unbind(), gc)
-}
-
-/// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
-///
-/// The abstract operation AddEntriesFromIterable takes arguments target (an
-/// Object), iterable (an ECMAScript language value, but not undefined or
-/// null), and adder (a function object) and returns either a normal completion
-/// containing an ECMAScript language value or a throw completion. adder will
-/// be invoked, with target as the receiver.
-///
-/// > NOTE: The parameter iterable is expected to be an object that implements
-/// > an @@iterator method that returns an iterator object that produces a two
-/// > element array-like object whose first element is a value that will be used
-/// > as a WeakMap key and whose second element is the value to associate with that
-/// > key.
-pub(crate) fn add_entries_from_iterable<'a>(
-    agent: &mut Agent,
-    target: WeakMap,
-    iterable: Value,
-    adder: Function,
-    mut gc: GcScope<'a, '_>,
-) -> JsResult<WeakMap<'a>> {
-    let target = target.bind(gc.nogc()).scope(agent, gc.nogc());
-    let adder = adder.bind(gc.nogc()).scope(agent, gc.nogc());
-    // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
-    // 2. Repeat,
-    loop {
-        // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
-        // b. If next is DONE, return target.
-        let Some(next) = next else {
-            return Ok(target.get(agent).bind(gc.into_nogc()));
-        };
-        // c. If next is not an Object, then
-        let Ok(next) = Object::try_from(next) else {
-            // i. Let error be ThrowCompletion(a newly created TypeError object).
-            let error = agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Invalid iterator next return value",
-                gc.nogc(),
-            );
-            // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error), gc.reborrow());
-        };
-        // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next, 0.into(), gc.reborrow());
-        // e. IfAbruptCloseIterator(k, iteratorRecord).
-        let k = if_abrupt_close_iterator(agent, k, &iterator_record, gc.reborrow())?;
-        // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, next, 1.into(), gc.reborrow());
-        // g. IfAbruptCloseIterator(v, iteratorRecord).
-        let v = if_abrupt_close_iterator(agent, v, &iterator_record, gc.reborrow())?;
-        // h. Let status be Completion(Call(adder, target, « k, v »)).
-        let status = call_function(
-            agent,
-            adder.get(agent),
-            target.get(agent).into_value(),
-            Some(ArgumentsList(&[k, v])),
-            gc.reborrow(),
-        );
-        let _ = if_abrupt_close_iterator(agent, status, &iterator_record, gc.reborrow())?;
-    }
+    Ok(WeakMap::try_from(add_entries_from_iterable(
+        agent,
+        target.into_object().unbind(),
+        iterable,
+        adder.unbind(),
+        gc,
+    )?)
+    .unwrap())
 }
