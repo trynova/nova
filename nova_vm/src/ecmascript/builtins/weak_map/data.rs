@@ -35,19 +35,6 @@ pub(crate) struct WeakMapData {
 }
 
 impl WeakMapHeapData {
-    /// ### [24.2.1.5 WeakMapDataSize ( setData )](https://tc39.es/ecma262/#sec-setdatasize)
-    ///
-    /// The abstract operation MapDataSize takes argument setData (a List of either
-    /// ECMAScript language values or EMPTY) and returns a non-negative integer.
-    #[inline(always)]
-    pub fn size(&self) -> u32 {
-        // 1. Let count be 0.
-        // 2. For each element e of setData, do
-        // a. If e is not EMPTY, set count to count + 1.
-        // 3. Return count.
-        self.weak_map_data.weak_map_data.borrow().len() as u32
-    }
-
     pub fn keys(&self) -> &[Option<Value>] {
         &self.weak_map_data.keys
     }
