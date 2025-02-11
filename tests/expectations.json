@@ -9557,7 +9557,6 @@
   "built-ins/TypedArray/of/not-a-constructor.js": "FAIL",
   "built-ins/TypedArray/of/prop-desc.js": "FAIL",
   "built-ins/TypedArray/of/resized-with-out-of-bounds-and-in-bounds-indices.js": "CRASH",
-  "built-ins/TypedArray/out-of-bounds-get-and-set.js": "CRASH",
   "built-ins/TypedArray/prototype/byteLength/resized-out-of-bounds-1.js": "CRASH",
   "built-ins/TypedArray/prototype/byteLength/resized-out-of-bounds-2.js": "CRASH",
   "built-ins/TypedArray/prototype/byteOffset/resized-out-of-bounds.js": "CRASH",
