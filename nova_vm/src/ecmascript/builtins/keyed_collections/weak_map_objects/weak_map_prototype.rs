@@ -33,7 +33,7 @@ impl Builtin for WeakMapPrototypeHas {
     const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(WeakMapPrototype::has);
 }
-struct WeakMapPrototypeSet;
+pub(super) struct WeakMapPrototypeSet;
 impl Builtin for WeakMapPrototypeSet {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.set;
     const LENGTH: u8 = 2;
