@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -41,7 +41,7 @@ impl<'a> DataView<'a> {
     /// the DataView as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> DataView<'static> {
-        unsafe { std::mem::transmute::<DataView<'a>, DataView<'static>>(self) }
+        unsafe { core::mem::transmute::<DataView<'a>, DataView<'static>>(self) }
     }
 
     // Bind this DataView to the garbage collection lifetime. This enables Rust's
@@ -54,7 +54,7 @@ impl<'a> DataView<'a> {
     // ```
     // to make sure that the unbound DataView cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<DataView, Self>(self) }
+        unsafe { core::mem::transmute::<DataView, Self>(self) }
     }
 
     pub fn scope<'scope>(

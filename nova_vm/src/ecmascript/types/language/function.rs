@@ -50,8 +50,8 @@ pub enum Function<'a> {
     BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
 }
 
-impl std::fmt::Debug for Function<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Function<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Function::BoundFunction(d) => write!(f, "BoundFunction({:?})", d),
             Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({:?})", d),
@@ -181,7 +181,7 @@ impl<'a> Function<'a> {
     /// use the Function as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Function<'static> {
-        unsafe { std::mem::transmute::<Function<'a>, Function<'static>>(self) }
+        unsafe { core::mem::transmute::<Function<'a>, Function<'static>>(self) }
     }
 
     // Bind this Function to the garbage collection lifetime. This enables
@@ -194,7 +194,7 @@ impl<'a> Function<'a> {
     // ```
     // to make sure that the unbound Function cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Function<'gc> {
-        unsafe { std::mem::transmute::<Function<'a>, Function<'gc>>(self) }
+        unsafe { core::mem::transmute::<Function<'a>, Function<'gc>>(self) }
     }
 
     pub fn scope<'b>(

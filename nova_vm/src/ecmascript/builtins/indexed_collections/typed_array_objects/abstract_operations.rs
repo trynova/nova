@@ -421,7 +421,7 @@ pub(crate) fn typed_array_get_element<'a, O: Viewable>(
     // 2. Let offset be O.[[ByteOffset]].
     let offset = o.byte_offset(agent);
     // 3. Let elementSize be TypedArrayElementSize(O).
-    let element_size = std::mem::size_of::<O>();
+    let element_size = core::mem::size_of::<O>();
     // 4. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
     let byte_index_in_buffer = (index * element_size) + offset;
     // 5. Let elementType be TypedArrayElementType(O).
@@ -632,7 +632,7 @@ fn typed_array_set_element_internal<O: Viewable>(
         // a. Let offset be O.[[ByteOffset]].
         let offset = o.byte_offset(agent);
         // b. Let elementSize be TypedArrayElementSize(O).
-        let element_size = std::mem::size_of::<O>();
+        let element_size = core::mem::size_of::<O>();
         // c. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
         let byte_index_in_buffer = index * element_size + offset;
         // d. Let elementType be TypedArrayElementType(O).

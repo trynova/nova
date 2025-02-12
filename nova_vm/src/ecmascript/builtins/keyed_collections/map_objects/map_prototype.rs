@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{hash::Hasher, ops::Index};
+use core::{hash::Hasher, ops::Index};
 
 use ahash::AHasher;
 

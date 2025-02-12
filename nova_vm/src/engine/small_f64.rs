@@ -10,8 +10,8 @@ pub struct SmallF64 {
     data: [u8; 7],
 }
 
-impl std::fmt::Debug for SmallF64 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for SmallF64 {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", Into::<f64>::into(*self))
     }
 }
@@ -112,7 +112,7 @@ impl From<SmallF64> for f64 {
         }
 
         // SAFETY: This matches the format on the endian platform.
-        let number: u64 = unsafe { std::mem::transmute(Repr::Data(data)) };
+        let number: u64 = unsafe { core::mem::transmute(Repr::Data(data)) };
 
         // The enum repr zero is the first byte
         if cfg!(target_endian = "little") {

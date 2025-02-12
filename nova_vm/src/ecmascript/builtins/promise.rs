@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
@@ -35,7 +35,7 @@ impl<'a> Promise<'a> {
     /// the Promise as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Promise<'static> {
-        unsafe { std::mem::transmute::<Self, Promise<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Promise<'static>>(self) }
     }
 
     // Bind this Promise to the garbage collection lifetime. This enables Rust's
@@ -48,7 +48,7 @@ impl<'a> Promise<'a> {
     // ```
     // to make sure that the unbound Promise cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Promise<'gc> {
-        unsafe { std::mem::transmute::<Promise, Promise<'gc>>(self) }
+        unsafe { core::mem::transmute::<Promise, Promise<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

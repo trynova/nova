@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::hash::Hasher;
+use core::hash::Hasher;
 
 use ahash::AHasher;
 
@@ -374,7 +374,14 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
         }
     }
 
-    add_entries_from_iterable(agent, target.unbind(), iterable, adder.unbind(), gc)
+    Ok(Map::try_from(add_entries_from_iterable(
+        agent,
+        target.into_object().unbind(),
+        iterable,
+        adder.unbind(),
+        gc,
+    )?)
+    .unwrap())
 }
 
 /// ### [24.1.1.2 AddEntriesFromIterable ( target, iterable, adder )](https://tc39.es/ecma262/#sec-add-entries-from-iterable)
@@ -392,11 +399,11 @@ pub fn add_entries_from_iterable_map_constructor<'a>(
 /// > key.
 pub(crate) fn add_entries_from_iterable<'a>(
     agent: &mut Agent,
-    target: Map,
+    target: Object,
     iterable: Value,
     adder: Function,
     mut gc: GcScope<'a, '_>,
-) -> JsResult<Map<'a>> {
+) -> JsResult<Object<'a>> {
     let target = target.bind(gc.nogc()).scope(agent, gc.nogc());
     let adder = adder.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).

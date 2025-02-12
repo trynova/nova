@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 
 use small_string::SmallString;
 
@@ -2624,7 +2624,7 @@ impl ArrayPrototype {
                         // the destination would not call any JS code so this
                         // is spec-wise correct.
                         unsafe {
-                            std::ptr::copy_nonoverlapping(source_data, destination_data, count)
+                            core::ptr::copy_nonoverlapping(source_data, destination_data, count)
                         };
                         set(
                             agent,
@@ -3327,7 +3327,7 @@ impl ArrayPrototype {
                 slice[..arg_count].copy_from_slice(unsafe {
                     // SAFETY: Option<Value> is an extra variant of the Value enum.
                     // The transmute effectively turns Value into Some(Value).
-                    std::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
+                    core::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
                 });
                 return Ok(final_len.unwrap().into());
             }
