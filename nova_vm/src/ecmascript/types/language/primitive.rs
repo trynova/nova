@@ -159,7 +159,7 @@ impl<'a> Primitive<'a> {
     /// use the Primitive as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Primitive<'static> {
-        unsafe { std::mem::transmute::<Self, Primitive<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Primitive<'static>>(self) }
     }
 
     // Bind this Primitive to the garbage collection lifetime. This enables
@@ -172,7 +172,7 @@ impl<'a> Primitive<'a> {
     // ```
     // to make sure that the unbound Primitive cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Primitive<'_>, Self>(self) }
+        unsafe { core::mem::transmute::<Primitive<'_>, Self>(self) }
     }
 
     pub fn scope<'scope>(

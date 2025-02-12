@@ -931,52 +931,52 @@ impl TypedArrayPrototype {
         let (len, element_size) = match o {
             TypedArray::Int8Array(_) => (
                 typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<i8>(),
+                core::mem::size_of::<i8>(),
             ),
             TypedArray::Uint8Array(_) => (
                 typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<u8>(),
+                core::mem::size_of::<u8>(),
             ),
             TypedArray::Uint8ClampedArray(_) => (
                 typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<U8Clamped>(),
+                core::mem::size_of::<U8Clamped>(),
             ),
             TypedArray::Int16Array(_) => (
                 typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<i16>(),
+                core::mem::size_of::<i16>(),
             ),
             TypedArray::Uint16Array(_) => (
                 typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<u16>(),
+                core::mem::size_of::<u16>(),
             ),
             TypedArray::Int32Array(_) => (
                 typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<i32>(),
+                core::mem::size_of::<i32>(),
             ),
             TypedArray::Uint32Array(_) => (
                 typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<u32>(),
+                core::mem::size_of::<u32>(),
             ),
             TypedArray::BigInt64Array(_) => (
                 typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<i64>(),
+                core::mem::size_of::<i64>(),
             ),
             TypedArray::BigUint64Array(_) => (
                 typed_array_length::<u64>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<u64>(),
+                core::mem::size_of::<u64>(),
             ),
             #[cfg(feature = "proposal-float16array")]
             TypedArray::Float16Array(_) => (
                 typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<f16>(),
+                core::mem::size_of::<f16>(),
             ),
             TypedArray::Float32Array(_) => (
                 typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<f32>(),
+                core::mem::size_of::<f32>(),
             ),
             TypedArray::Float64Array(_) => (
                 typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
-                std::mem::size_of::<f64>(),
+                core::mem::size_of::<f64>(),
             ),
         };
         // 4. If separator is undefined, let sep be ",".

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -32,7 +32,7 @@ impl WeakMap<'_> {
     /// the WeakMap as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> WeakMap<'static> {
-        unsafe { std::mem::transmute::<Self, WeakMap<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, WeakMap<'static>>(self) }
     }
 
     // Bind this WeakMap to the garbage collection lifetime. This enables Rust's
@@ -45,7 +45,7 @@ impl WeakMap<'_> {
     // ```
     // to make sure that the unbound WeakMap cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> WeakMap<'gc> {
-        unsafe { std::mem::transmute::<Self, WeakMap<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, WeakMap<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

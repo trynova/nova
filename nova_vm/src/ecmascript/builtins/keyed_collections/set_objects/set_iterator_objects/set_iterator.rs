@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -30,7 +30,7 @@ impl SetIterator<'_> {
     /// the SetIterator as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> SetIterator<'static> {
-        unsafe { std::mem::transmute::<Self, SetIterator<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, SetIterator<'static>>(self) }
     }
 
     // Bind this SetIterator to the garbage collection lifetime. This enables Rust's
@@ -43,7 +43,7 @@ impl SetIterator<'_> {
     // ```
     // to make sure that the unbound SetIterator cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> SetIterator<'gc> {
-        unsafe { std::mem::transmute::<Self, SetIterator<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, SetIterator<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

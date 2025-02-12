@@ -59,7 +59,7 @@ impl<'a> Reference<'a> {
     /// the Reference as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Reference<'static> {
-        unsafe { std::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
+        unsafe { core::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
     }
 
     // Bind this Reference to the garbage collection lifetime. This enables Rust's
@@ -72,7 +72,7 @@ impl<'a> Reference<'a> {
     // ```
     // to make sure that the unbound Reference cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Reference<'gc> {
-        unsafe { std::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
+        unsafe { core::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
     }
 }
 

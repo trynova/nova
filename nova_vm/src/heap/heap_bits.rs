@@ -1,4 +1,4 @@
-use std::{hash::Hash, num::NonZeroU32};
+use core::{hash::Hash, num::NonZeroU32};
 
 use ahash::AHashMap;
 use hashbrown::HashTable;
@@ -996,7 +996,7 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         });
 }
 
-pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
+pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + core::fmt::Debug>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
     bits: &[bool],

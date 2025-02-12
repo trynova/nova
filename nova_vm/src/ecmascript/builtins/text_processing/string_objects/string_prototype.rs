@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::max, collections::VecDeque, iter::repeat, str::FromStr};
-
+use core::{cmp::max, iter::repeat, str::FromStr};
 use small_string::SmallString;
+use std::collections::VecDeque;
 use unicode_normalization::{
     is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick, IsNormalized, UnicodeNormalization,
 };
@@ -1452,7 +1452,7 @@ impl StringPrototype {
         };
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
-        let substring: &'static str = unsafe { std::mem::transmute(substring) };
+        let substring: &'static str = unsafe { core::mem::transmute(substring) };
         Ok(String::from_str(agent, substring, gc.nogc()).into_value())
     }
 
@@ -1703,7 +1703,7 @@ impl StringPrototype {
         let substring = &s.as_str(agent)[u8_from..u8_to];
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
-        let substring: &'static str = unsafe { std::mem::transmute(substring) };
+        let substring: &'static str = unsafe { core::mem::transmute(substring) };
         Ok(String::from_str(agent, substring, gc.nogc()).into_value())
     }
 
@@ -2346,7 +2346,7 @@ fn string_pad(
                 .utf16_char(agent, i as usize)
                 .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..]);
         }
-        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        let sub_string = core::str::from_utf8(&sub_string).unwrap();
         // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
         vec.push_back(String::from_string(agent, sub_string.to_owned(), gc));
         vec
@@ -2361,7 +2361,7 @@ fn string_pad(
                 .utf16_char(agent, i)
                 .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap()..]);
         }
-        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        let sub_string = core::str::from_utf8(&sub_string).unwrap();
         vec.push_back(String::from_string(agent, sub_string.to_owned(), gc));
         vec
     };

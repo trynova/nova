@@ -170,7 +170,7 @@ pub(crate) fn iterator_next<'a>(
         iterator_record.iterator.into(),
         value
             .as_ref()
-            .map(|data| ArgumentsList(std::slice::from_ref(data))),
+            .map(|data| ArgumentsList(core::slice::from_ref(data))),
         gc.reborrow(),
     )?;
 

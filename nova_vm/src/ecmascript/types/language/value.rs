@@ -66,7 +66,7 @@ use crate::{
     SmallInteger, SmallString,
 };
 
-use std::{
+use core::{
     hash::{Hash, Hasher},
     mem::size_of,
     ops::Index,

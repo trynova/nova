@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
@@ -52,7 +52,7 @@ impl BuiltinPromiseResolvingFunction<'_> {
     /// collection.
     pub fn unbind(self) -> BuiltinPromiseResolvingFunction<'static> {
         unsafe {
-            std::mem::transmute::<
+            core::mem::transmute::<
                 BuiltinPromiseResolvingFunction,
                 BuiltinPromiseResolvingFunction<'static>,
             >(self)
@@ -70,7 +70,7 @@ impl BuiltinPromiseResolvingFunction<'_> {
     // to make sure that the unbound BuiltinPromiseResolvingFunction cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinPromiseResolvingFunction<'gc> {
         unsafe {
-            std::mem::transmute::<
+            core::mem::transmute::<
                 BuiltinPromiseResolvingFunction,
                 BuiltinPromiseResolvingFunction<'gc>,
             >(self)

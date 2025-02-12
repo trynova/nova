@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
@@ -34,7 +34,7 @@ impl Generator<'_> {
     /// the Generator as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Generator<'static> {
-        unsafe { std::mem::transmute::<Self, Generator<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Generator<'static>>(self) }
     }
 
     // Bind this Generator to the garbage collection lifetime. This enables Rust's
@@ -47,7 +47,7 @@ impl Generator<'_> {
     // ```
     // to make sure that the unbound Generator cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Generator<'gc> {
-        unsafe { std::mem::transmute::<Self, Generator<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, Generator<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
