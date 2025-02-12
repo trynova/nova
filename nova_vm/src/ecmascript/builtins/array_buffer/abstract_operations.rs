@@ -26,8 +26,8 @@ pub struct DetachKey {}
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub(crate) enum Ordering {
-    Unordered = std::sync::atomic::Ordering::Relaxed as u8,
-    SeqCst = std::sync::atomic::Ordering::SeqCst as u8,
+    Unordered = core::sync::atomic::Ordering::Relaxed as u8,
+    SeqCst = core::sync::atomic::Ordering::SeqCst as u8,
     Init,
 }
 

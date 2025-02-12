@@ -2,10 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    ops::{Index, IndexMut},
-    vec,
-};
+use core::ops::{Index, IndexMut};
+use std::vec;
 
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::try_create_data_property,

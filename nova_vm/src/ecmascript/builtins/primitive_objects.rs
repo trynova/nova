@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
@@ -131,7 +131,7 @@ impl<'a> PrimitiveObject<'a> {
     /// the PrimitiveObject as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> PrimitiveObject<'static> {
-        unsafe { std::mem::transmute::<PrimitiveObject, PrimitiveObject<'static>>(self) }
+        unsafe { core::mem::transmute::<PrimitiveObject, PrimitiveObject<'static>>(self) }
     }
 
     // Bind this PrimitiveObject to the garbage collection lifetime. This enables Rust's
@@ -144,7 +144,7 @@ impl<'a> PrimitiveObject<'a> {
     // ```
     // to make sure that the unbound PrimitiveObject cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> PrimitiveObject<'a> {
-        unsafe { std::mem::transmute::<PrimitiveObject, PrimitiveObject<'a>>(self) }
+        unsafe { core::mem::transmute::<PrimitiveObject, PrimitiveObject<'a>>(self) }
     }
 
     pub fn scope<'scope>(

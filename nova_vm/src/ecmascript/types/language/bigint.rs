@@ -21,9 +21,9 @@ use crate::{
     },
     SmallInteger,
 };
+use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
 use num_bigint::Sign;
-use std::ops::{Index, IndexMut, Neg};
 
 impl IntoValue for BigInt<'_> {
     fn into_value(self) -> Value {
@@ -61,7 +61,7 @@ impl<'a> HeapBigInt<'a> {
     /// the HeapBigInt as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> HeapBigInt<'static> {
-        unsafe { std::mem::transmute::<Self, HeapBigInt<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, HeapBigInt<'static>>(self) }
     }
 
     // Bind this HeapBigInt to the garbage collection lifetime. This enables Rust's
@@ -74,7 +74,7 @@ impl<'a> HeapBigInt<'a> {
     // ```
     // to make sure that the unbound HeapBigInt cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<HeapBigInt<'_>, Self>(self) }
+        unsafe { core::mem::transmute::<HeapBigInt<'_>, Self>(self) }
     }
 
     pub(crate) const fn _def() -> Self {
@@ -176,7 +176,7 @@ impl SmallBigInt {
     }
 }
 
-impl std::ops::Not for SmallBigInt {
+impl core::ops::Not for SmallBigInt {
     type Output = Self;
     #[inline(always)]
     fn not(self) -> Self::Output {
@@ -184,7 +184,7 @@ impl std::ops::Not for SmallBigInt {
     }
 }
 
-impl std::ops::Neg for SmallBigInt {
+impl core::ops::Neg for SmallBigInt {
     type Output = Self;
     #[inline(always)]
     fn neg(self) -> Self::Output {
@@ -275,7 +275,7 @@ impl<'a> BigInt<'a> {
     /// the BigInt as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> BigInt<'static> {
-        unsafe { std::mem::transmute::<Self, BigInt<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, BigInt<'static>>(self) }
     }
 
     // Bind this BigInt to the garbage collection lifetime. This enables Rust's
@@ -288,7 +288,7 @@ impl<'a> BigInt<'a> {
     // ```
     // to make sure that the unbound BigInt cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BigInt<'gc> {
-        unsafe { std::mem::transmute::<Self, BigInt<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, BigInt<'gc>>(self) }
     }
 
     pub const fn zero() -> Self {

@@ -8,14 +8,14 @@ pub struct SmallInteger {
     data: [u8; 7],
 }
 
-impl std::fmt::Debug for SmallInteger {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for SmallInteger {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", Into::<i64>::into(*self))
     }
 }
 
-impl std::hash::Hash for SmallInteger {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl core::hash::Hash for SmallInteger {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.into_i64().hash(state);
     }
 }
@@ -56,7 +56,7 @@ impl SmallInteger {
     }
 }
 
-impl std::ops::Neg for SmallInteger {
+impl core::ops::Neg for SmallInteger {
     type Output = Self;
 
     /// ## Panics
@@ -66,7 +66,7 @@ impl std::ops::Neg for SmallInteger {
     }
 }
 
-impl std::ops::Not for SmallInteger {
+impl core::ops::Not for SmallInteger {
     type Output = Self;
     fn not(self) -> Self::Output {
         // NOTE: This is safe because the bitwise not of any number in the range
@@ -173,7 +173,7 @@ impl From<SmallInteger> for i64 {
         }
 
         // SAFETY: This matches the format on the endian platform.
-        let number: i64 = unsafe { std::mem::transmute(Repr::Data(data)) };
+        let number: i64 = unsafe { core::mem::transmute(Repr::Data(data)) };
 
         if cfg!(target_endian = "little") {
             number >> 8

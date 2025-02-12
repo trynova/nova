@@ -4,7 +4,7 @@
 
 pub(crate) mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -34,7 +34,7 @@ impl<'a> Date<'a> {
     /// the Date as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Date<'static> {
-        unsafe { std::mem::transmute::<Self, Date<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Date<'static>>(self) }
     }
 
     // Bind this Date to the garbage collection lifetime. This enables Rust's
@@ -47,7 +47,7 @@ impl<'a> Date<'a> {
     // ```
     // to make sure that the unbound Date cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Date<'gc> {
-        unsafe { std::mem::transmute::<Date, Date<'gc>>(self) }
+        unsafe { core::mem::transmute::<Date, Date<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

@@ -152,7 +152,7 @@ pub(crate) fn create_dynamic_function<'a>(
             body_string = String::try_from(body_arg).unwrap().bind(gc.nogc());
             parameter_strings_slice =
                 // Safety: All the strings were checked to be strings.
-                unsafe { std::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
+                unsafe { core::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
         } else if body_arg.is_primitive() && parameter_args.iter().all(|arg| arg.is_primitive()) {
             // We don't need to call JavaScript here. Nice.
             let gc = gc.nogc();
@@ -255,7 +255,7 @@ pub(crate) fn create_dynamic_function<'a>(
                         // alive as long as `source_code` is kept alive. Similarly, the inner
                         // lifetime of Function is also kept alive by `source_code`.`
                         function = Some(unsafe {
-                            std::mem::transmute::<
+                            core::mem::transmute::<
                                 &oxc_ast::ast::Function,
                                 &'static oxc_ast::ast::Function,
                             >(funct)

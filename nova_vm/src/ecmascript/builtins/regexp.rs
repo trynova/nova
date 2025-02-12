@@ -5,7 +5,7 @@
 pub(crate) mod abstract_operations;
 pub(crate) mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -41,7 +41,7 @@ impl RegExp<'_> {
     /// the RegExp as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> RegExp<'static> {
-        unsafe { std::mem::transmute::<Self, RegExp<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, RegExp<'static>>(self) }
     }
 
     // Bind this RegExp to the garbage collection lifetime. This enables Rust's
@@ -54,7 +54,7 @@ impl RegExp<'_> {
     // ```
     // to make sure that the unbound RegExp cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> RegExp<'gc> {
-        unsafe { std::mem::transmute::<Self, RegExp<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, RegExp<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -31,7 +31,7 @@ impl SharedArrayBuffer<'_> {
     /// the SharedArrayBuffer as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> SharedArrayBuffer<'static> {
-        unsafe { std::mem::transmute::<Self, SharedArrayBuffer<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, SharedArrayBuffer<'static>>(self) }
     }
 
     // Bind this SharedArrayBuffer to the garbage collection lifetime. This enables Rust's
@@ -44,7 +44,7 @@ impl SharedArrayBuffer<'_> {
     // ```
     // to make sure that the unbound SharedArrayBuffer cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> SharedArrayBuffer<'gc> {
-        unsafe { std::mem::transmute::<Self, SharedArrayBuffer<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, SharedArrayBuffer<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
