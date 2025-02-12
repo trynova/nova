@@ -2904,7 +2904,7 @@ impl ArrayPrototype {
         //       a. Return ? CompareArrayElements(x, y, comparator).
         // 5. Let sortedList be ? SortIndexedProperties(obj, len, SortCompare,
         //     skip-holes).
-        let sorted_list: Vec<Value> = sort_indexed_properties::<true, false>(
+        let sorted_list: Vec<Scoped<Value>> = sort_indexed_properties::<true, false>(
             agent,
             obj.get(agent),
             len,
@@ -2922,7 +2922,7 @@ impl ArrayPrototype {
                 agent,
                 obj.get(agent),
                 j.try_into().unwrap(),
-                sorted_list[j],
+                sorted_list[j].get(agent),
                 true,
                 gc.reborrow(),
             )?;
@@ -3223,26 +3223,26 @@ impl ArrayPrototype {
         //     called:
         //       a. Return ? CompareArrayElements(x, y, comparator).
         // 6. Let sortedList be ? SortIndexedProperties(O, len, SortCompare, read-through-holes).
-        let sorted_list: Vec<Value> = sort_indexed_properties::<false, false>(
+        let sorted_list: Vec<Scoped<Value>> = sort_indexed_properties::<false, false>(
             agent,
             o.get(agent),
             len,
             comparator,
             gc.reborrow(),
         )?;
+        let gc = gc.into_nogc();
         // 7. Let j be 0.
         // 8. Repeat, while j < len,
         //      a. Perform ! CreateDataPropertyOrThrow(A, ! ToString(𝔽(j)), sortedList[j]).
         //      b. Set j to j + 1.
         // Fast path: Copy sorted items directly into array.
-        let a = a.get(agent);
+        let a = a.get(agent).bind(gc);
+        let sorted_list = sorted_list
+            .into_iter()
+            .map(|v| Some(v.get(agent)))
+            .collect::<Vec<Option<Value>>>();
         let slice = a.as_mut_slice(agent);
-        slice.copy_from_slice(
-            &sorted_list
-                .into_iter()
-                .map(Some)
-                .collect::<Vec<Option<Value>>>()[..],
-        );
+        slice.copy_from_slice(&sorted_list);
         // 9. Return A.
         Ok(a.into())
     }
@@ -3263,6 +3263,7 @@ impl ArrayPrototype {
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         // 1. Let array be ? ToObject(this value).
         let array = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let func be ? Get(array, "join").
@@ -3271,7 +3272,9 @@ impl ArrayPrototype {
             array.get(agent),
             BUILTIN_STRING_MEMORY.join.into(),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // 3. If IsCallable(func) is false, set func to the intrinsic function %Object.prototype.toString%.
         let func = is_callable(func, gc.nogc()).unwrap_or_else(|| {
             agent
@@ -3307,6 +3310,7 @@ impl ArrayPrototype {
         items: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.unbind();
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by unshift.
         if let Value::Array(array) = this_value {
@@ -3336,6 +3340,10 @@ impl ArrayPrototype {
                 return Ok(final_len.unwrap().into());
             }
         }
+        let items = items
+            .iter()
+            .map(|v| v.scope(agent, gc.nogc()))
+            .collect::<Vec<_>>();
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -3367,7 +3375,14 @@ impl ArrayPrototype {
                     // 1. Let fromValue be ? Get(O, from).
                     let from_value = get(agent, o.get(agent), from, gc.reborrow())?;
                     // 2. Perform ? Set(O, to, fromValue, true).
-                    set(agent, o.get(agent), to, from_value, true, gc.reborrow())?;
+                    set(
+                        agent,
+                        o.get(agent),
+                        to,
+                        from_value.unbind(),
+                        true,
+                        gc.reborrow(),
+                    )?;
                 } else {
                     // v. Else,
                     // 1. Assert: fromPresent is false.
@@ -3386,7 +3401,7 @@ impl ArrayPrototype {
                     agent,
                     o.get(agent),
                     j.try_into().unwrap(),
-                    *e,
+                    e.get(agent),
                     true,
                     gc.reborrow(),
                 )?;
@@ -3431,8 +3446,10 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let index = arguments.get(0);
-        let value = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let index = arguments.get(0).bind(nogc);
+        let value = arguments.get(1).bind(nogc);
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by with.
         if let (Value::Array(array), Value::Integer(index)) = (this_value, index) {
@@ -3448,21 +3465,24 @@ impl ArrayPrototype {
                     return Err(agent.throw_exception_with_static_message(
                         ExceptionType::RangeError,
                         "invalid or out-of-range index",
-                        gc.nogc(),
+                        nogc,
                     ));
                 }
                 // Fast path: Set new value in cloned array.
                 let cloned_array = array.to_cloned(agent);
-                cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value);
-                return Ok(cloned_array.into());
+                cloned_array.as_mut_slice(agent)[actual_index as usize] = Some(value.unbind());
+                return Ok(cloned_array.into_value().unbind().bind(gc.into_nogc()));
             }
         }
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
+        let index = index.scope(agent, nogc);
+        let value = value.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
+        let relative_index =
+            to_integer_or_infinity(agent, index.get(agent), gc.reborrow())?.into_i64();
         // 4. If relativeIndex ≥ 0, let actualIndex be relativeIndex.
         let actual_index = if relative_index >= 0 {
             relative_index
@@ -3489,17 +3509,19 @@ impl ArrayPrototype {
             let pk = PropertyKey::try_from(k).unwrap();
             // b. If k = actualIndex, let fromValue be value.
             let from_value = if k == actual_index {
-                value
+                value.get(agent).bind(gc.nogc())
             // c. Else, let fromValue be ? Get(O, Pk).
             } else {
                 get(agent, o.get(agent), pk, gc.reborrow())?
+                    .unbind()
+                    .bind(gc.nogc())
             };
             // d. Perform ! CreateDataPropertyOrThrow(A, Pk, fromValue).
             unwrap_try(try_create_data_property_or_throw(
                 agent,
                 a.get(agent),
                 pk,
-                from_value,
+                from_value.unbind(),
                 gc.nogc(),
             ))
             .unwrap();
@@ -3507,7 +3529,7 @@ impl ArrayPrototype {
             k += 1;
         }
         // 10. Return A.
-        Ok(a.get(agent).into())
+        Ok(a.get(agent).bind(gc.into_nogc()).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -3626,14 +3648,16 @@ impl ArrayPrototype {
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
 fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResult<bool> {
+    let o = o.bind(gc.nogc());
     // 1. If O is not an Object, return false.
     let Ok(o) = Object::try_from(o) else {
         return Ok(false);
     };
+    let scoped_o = o.scope(agent, gc.nogc());
     // 2. Let spreadable be ? Get(O, @@isConcatSpreadable).
     let spreadable = get(
         agent,
-        o,
+        o.unbind(),
         WellKnownSymbolIndexes::IsConcatSpreadable.into(),
         gc.reborrow(),
     )?;
@@ -3647,7 +3671,7 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
         }
     } else {
         // 4. Return ? IsArray(O).
-        let o_is_array = is_array(agent, o.into_value(), gc.nogc())?;
+        let o_is_array = is_array(agent, scoped_o.get(agent).into_value(), gc.nogc())?;
         if o_is_array {
             Ok(true)
         } else {
@@ -3943,13 +3967,14 @@ fn flatten_into_array(
 /// > The above conditions are necessary and sufficient to ensure that
 /// > comparator divides the set S into equivalence classes and that these
 /// > equivalence classes are totally ordered.
-fn sort_indexed_properties<'gc, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
-    agent: &mut Agent<'gc>,
+fn sort_indexed_properties<'scope, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>(
+    agent: &mut Agent,
     obj: Object,
     len: usize,
-    comparator: Option<Scoped<'_, Function<'static>>>,
-    mut gc: GcScope<'gc, '_>,
-) -> JsResult<Vec<Value<'gc>>> {
+    comparator: Option<Scoped<'scope, Function<'static>>>,
+    mut gc: GcScope<'_, 'scope>,
+) -> JsResult<Vec<Scoped<'scope, Value<'static>>>> {
+    let obj = obj.scope(agent, gc.nogc());
     // 1. Let items be a new empty List.
     let mut items = Vec::with_capacity(len);
     // 2. Let k be 0.
@@ -3961,7 +3986,7 @@ fn sort_indexed_properties<'gc, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>
         // b. If holes is skip-holes, then
         let k_read = if SKIP_HOLES {
             // i. Let kRead be ? HasProperty(obj, Pk).
-            has_property(agent, obj, pk, gc.reborrow())?
+            has_property(agent, obj.get(agent), pk, gc.reborrow())?
         } else {
             // c. Else,
             // i. Assert: holes is read-through-holes.
@@ -3971,9 +3996,9 @@ fn sort_indexed_properties<'gc, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>
         // d. If kRead is true, then
         if k_read {
             // i. Let kValue be ? Get(obj, Pk).
-            let k_value = get(agent, obj, pk, gc.reborrow())?;
+            let k_value = get(agent, obj.get(agent), pk, gc.reborrow())?;
             // ii. Append kValue to items.
-            items.push(k_value);
+            items.push(k_value.unbind().scope(agent, gc.nogc()));
         }
         // e. Set k to k + 1.
         k += 1;
@@ -3991,7 +4016,13 @@ fn sort_indexed_properties<'gc, const SKIP_HOLES: bool, const TYPED_ARRAY: bool>
                 // This is dangerous but we don't have much of a choice.
                 return Ordering::Equal;
             }
-            let result = compare_array_elements(agent, *a, *b, comparator.clone(), gc.reborrow());
+            let result = compare_array_elements(
+                agent,
+                a.get(agent),
+                b.get(agent),
+                comparator.clone(),
+                gc.reborrow(),
+            );
             let Ok(result) = result else {
                 error = Some(result.unwrap_err());
                 return Ordering::Equal;

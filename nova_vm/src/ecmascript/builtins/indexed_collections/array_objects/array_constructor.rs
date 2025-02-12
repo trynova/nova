@@ -94,7 +94,7 @@ impl BuiltinGetter for ArrayGetSpecies {}
 impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
     fn constructor<'gc>(
-        agent: &mut Agent<'gc>,
+        agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
