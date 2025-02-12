@@ -16,7 +16,7 @@ jobs:
     name: Build
     # TODO: Run CI on all three platforms.
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
@@ -24,7 +24,10 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        run: >
+          cargo clippy --all-targets
+          --features default,annex-b,interleaved-gc,typescript
+          -- -D warnings
       - name: Spell check
         uses: crate-ci/typos@master
       - name: Build
@@ -32,5 +35,10 @@ jobs:
       - name: Test
         run: cargo test
         timeout-minutes: 20
+      - name: Checkout test262 submodule
+        run: git submodule update --init
+      - name: Test262
+        run: cargo run --bin test262 -- --noprogress
+        timeout-minutes: 15
       - name: Build binaries and examples
         run: cargo build --bins --examples

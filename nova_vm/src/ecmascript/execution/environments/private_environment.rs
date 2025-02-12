@@ -1,16 +1,22 @@
-use oxc_span::Atom;
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::types::{Function, Value};
-use std::collections::HashMap;
+use ahash::AHashMap;
+
+use crate::{
+    ecmascript::types::{Function, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 use super::PrivateEnvironmentIndex;
 
 #[derive(Debug)]
 pub enum PrivateName {
     Field(Option<Value>),
-    Method(Option<Function>),
+    Method(Option<Function<'static>>),
     /// Accessor(get, set)
-    Accessor(Option<Function>, Option<Function>),
+    Accessor(Option<Function<'static>>, Option<Function<'static>>),
 }
 
 impl PrivateName {
@@ -35,12 +41,22 @@ pub struct PrivateEnvironment {
     /// The PrivateEnvironment Record of the nearest containing class. null if
     /// the class with which this PrivateEnvironment Record is associated is
     /// not contained in any other class.
-    outer_private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) outer_private_environment: Option<PrivateEnvironmentIndex>,
 
     /// ### \[\[Names\]\]
     ///
     /// The Private Names declared by this class.
-    names: HashMap<Atom, PrivateName>,
+    pub(crate) names: AHashMap<String, PrivateName>,
+}
+
+impl HeapMarkAndSweep for PrivateEnvironment {
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        todo!()
+    }
 }
 
 /// ### [9.2.1.1 NewPrivateEnvironment ( outerPrivEnv )](https://tc39.es/ecma262/#sec-newprivateenvironment)
@@ -59,4 +75,14 @@ pub(crate) fn new_private_environment(
         names: Default::default(),
     }
     // }.
+}
+
+impl HeapMarkAndSweep for PrivateEnvironmentIndex {
+    fn mark_values(&self, _queues: &mut WorkQueues) {
+        todo!()
+    }
+
+    fn sweep_values(&mut self, _compactions: &CompactionLists) {
+        todo!()
+    }
 }

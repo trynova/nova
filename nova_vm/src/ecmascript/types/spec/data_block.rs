@@ -1,11 +1,35 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! ### [6.2.9 Data Blocks](https://tc39.es/ecma262/#sec-data-blocks)
 
 use std::{
-    alloc::{alloc_zeroed, dealloc, handle_alloc_error, Layout},
-    ptr::{read_unaligned, write_bytes, write_unaligned, NonNull},
+    alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc, Layout},
+    mem::MaybeUninit,
+    ptr::{self, read_unaligned, write_unaligned, NonNull},
 };
 
-use crate::ecmascript::execution::{agent::JsError, Agent, JsResult};
+use crate::{
+    ecmascript::{
+        abstract_operations::type_conversion::{
+            to_big_int64_big_int, to_big_uint64_big_int, to_int16_number, to_int32_number,
+            to_int8_number, to_uint16_number, to_uint32_number, to_uint8_clamp_number,
+            to_uint8_number,
+        },
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{BigInt, IntoNumeric, Number, Numeric},
+    },
+    engine::context::NoGcScope,
+};
+
+#[cfg(feature = "array-buffer")]
+use crate::ecmascript::execution::ProtoIntrinsics;
+
+/// Sentinel pointer for a detached data block.
+///
+/// We allocate at 8 byte alignment so this is never a valid DataBlock pointer normally.
+const DETACHED_DATA_BLOCK_POINTER: *mut u8 = 0xde7ac4ed as *mut u8;
 
 /// # Data Block
 ///
@@ -22,22 +46,32 @@ use crate::ecmascript::execution::{agent::JsError, Agent, JsResult};
 #[derive(Debug, Clone)]
 pub(crate) struct DataBlock {
     ptr: Option<NonNull<u8>>,
-    cap: usize,
     byte_length: usize,
 }
 
 impl Drop for DataBlock {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
-            let layout = Layout::from_size_align(self.cap, 8).unwrap();
+            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
+                // Don't try to dealloc a detached data block.
+                return;
+            }
+            let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
             unsafe { dealloc(ptr.as_ptr(), layout) }
         }
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub(crate) struct U8Clamped(pub u8);
+
 mod private {
+    use super::U8Clamped;
+
     pub trait Sealed {}
     impl Sealed for u8 {}
+    impl Sealed for U8Clamped {}
     impl Sealed for i8 {}
     impl Sealed for u16 {}
     impl Sealed for i16 {}
@@ -45,24 +79,362 @@ mod private {
     impl Sealed for i32 {}
     impl Sealed for u64 {}
     impl Sealed for i64 {}
+    #[cfg(feature = "proposal-float16array")]
+    impl Sealed for f16 {}
     impl Sealed for f32 {}
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: private::Sealed {}
+pub trait Viewable: private::Sealed + Copy {
+    /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
+    /// as a marker for data views. Used to determine that the viewable type is
+    /// a BigInt.
+    const IS_BIGINT: bool = false;
 
-impl Viewable for u8 {}
-impl Viewable for i8 {}
-impl Viewable for u16 {}
-impl Viewable for i16 {}
-impl Viewable for u32 {}
-impl Viewable for i32 {}
-impl Viewable for u64 {}
-impl Viewable for i64 {}
-impl Viewable for f32 {}
-impl Viewable for f64 {}
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics;
+
+    fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a>;
+    fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a>;
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
+}
+
+impl Viewable for u8 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint8_number(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint8_number(agent, value).to_le()
+    }
+}
+impl Viewable for U8Clamped {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint8ClampedArray;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.0.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.0.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self(to_uint8_clamp_number(agent, value).to_be())
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self(to_uint8_clamp_number(agent, value).to_le())
+    }
+}
+impl Viewable for i8 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int8Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int8_number(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int8_number(agent, value).to_le()
+    }
+}
+impl Viewable for u16 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint16Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint16_number(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint16_number(agent, value).to_le()
+    }
+}
+impl Viewable for i16 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int16Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int16_number(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int16_number(agent, value).to_le()
+    }
+}
+impl Viewable for u32 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Uint32Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint32_number(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_uint32_number(agent, value).to_le()
+    }
+}
+impl Viewable for i32 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Int32Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int32_number(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        to_int32_number(agent, value).to_le()
+    }
+}
+impl Viewable for u64 {
+    const IS_BIGINT: bool = true;
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigUint64Array;
+
+    fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        BigInt::from_u64(agent, self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        BigInt::from_u64(agent, self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_uint64_big_int(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_uint64_big_int(agent, value).to_le()
+    }
+}
+impl Viewable for i64 {
+    const IS_BIGINT: bool = true;
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::BigInt64Array;
+
+    fn into_be_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        BigInt::from_i64(agent, self.to_be()).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, agent: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        BigInt::from_i64(agent, self.to_le()).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_int64_big_int(agent, value).to_be()
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = BigInt::try_from(value) else {
+            unreachable!()
+        };
+        to_big_int64_big_int(agent, value).to_le()
+    }
+}
+#[cfg(feature = "proposal-float16array")]
+impl Viewable for f16 {
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float16Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
+    }
+}
+impl Viewable for f32 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float32Array;
+
+    fn into_be_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(Self::from_ne_bytes(self.to_be_bytes())).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, _: &mut Agent, _: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from(Self::from_ne_bytes(self.to_le_bytes())).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
+    }
+}
+impl Viewable for f64 {
+    #[cfg(feature = "array-buffer")]
+    const PROTO: ProtoIntrinsics = ProtoIntrinsics::Float64Array;
+
+    fn into_be_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_be_bytes()), gc).into_numeric()
+    }
+
+    fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a> {
+        Number::from_f64(agent, Self::from_ne_bytes(self.to_le_bytes()), gc).into_numeric()
+    }
+
+    fn from_be_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_be_bytes())
+    }
+
+    fn from_le_value(agent: &mut Agent, value: Numeric) -> Self {
+        let Ok(value) = Number::try_from(value) else {
+            unreachable!()
+        };
+        Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
+    }
+}
 
 impl DataBlock {
+    /// Sentinel value for detached DataBlocks.
+    ///
+    /// This sentinel value is never safe to read from or write data to. The
+    /// length is 0 so it shouldn't be possible to either.
+    pub const DETACHED_DATA_BLOCK: DataBlock = DataBlock {
+        // SAFETY: 0xde7ac4ed is not 0. Note that we always allocate at 8 byte
+        // alignment, so a DataBlock pointer cannot have this value naturally.
+        ptr: Some(unsafe { NonNull::new_unchecked(DETACHED_DATA_BLOCK_POINTER) }),
+        byte_length: 0,
+    };
+
+    pub fn is_detached(&self) -> bool {
+        if let (Some(a), Some(b)) = (self.ptr, Self::DETACHED_DATA_BLOCK.ptr) {
+            ptr::eq(a.as_ptr(), b.as_ptr())
+        } else {
+            false
+        }
+    }
+
     fn new(len: usize) -> Self {
         let ptr = if len == 0 {
             None
@@ -79,52 +451,13 @@ impl DataBlock {
         };
         Self {
             ptr,
-            cap: len,
             byte_length: len,
         }
     }
 
-    pub fn new_with_capacity(len: usize, cap: usize) -> Self {
-        debug_assert!(cap >= len);
-        let ptr = if cap == 0 {
-            None
-        } else {
-            let layout = Layout::from_size_align(cap, 8).unwrap();
-            // SAFETY: Size of allocation is non-zero.
-            let data = unsafe { alloc_zeroed(layout) };
-            if data.is_null() {
-                handle_alloc_error(layout);
-            }
-            debug_assert_eq!(data.align_offset(8), 0);
-            NonNull::new(data)
-        };
-        Self {
-            ptr,
-            cap,
-            byte_length: len,
-        }
-    }
-
+    #[inline]
     pub fn len(&self) -> usize {
         self.byte_length
-    }
-
-    pub fn capacity(&self) -> usize {
-        self.cap
-    }
-
-    pub fn resize(&mut self, size: usize) {
-        debug_assert!(size <= self.cap);
-        let len = self.byte_length;
-        self.byte_length = size;
-        if size < len {
-            // Zero out the "dropped" bytes.
-            if let Some(data) = self.ptr {
-                // SAFETY: The data is properly initialized, and the T being written is
-                // checked to be fully within the length of the data allocation.
-                unsafe { write_bytes(data.as_ptr().add(size), 0, len - size) }
-            }
-        }
     }
 
     pub fn view_len<T: Viewable>(&self, byte_offset: usize) -> usize {
@@ -170,14 +503,44 @@ impl DataBlock {
         }
     }
 
+    pub fn get_offset_by_byte<T: Viewable>(&self, byte_offset: usize) -> Option<T> {
+        let size = std::mem::size_of::<T>();
+        let end_byte_offset = byte_offset + size;
+        if end_byte_offset > self.byte_length {
+            None
+        } else {
+            self.ptr.map(|data| {
+                // SAFETY: The data is properly initialized, and the T being read is
+                // checked to be fully within the length of the data allocation.
+                unsafe { read_unaligned(data.as_ptr().byte_add(byte_offset).cast()) }
+            })
+        }
+    }
+
     pub fn set<T: Viewable>(&mut self, offset: usize, value: T) {
         let size = std::mem::size_of::<T>();
-        let byte_offset = offset * size;
         if let Some(data) = self.ptr {
-            if byte_offset <= self.byte_length {
+            // Note: We have to check offset + 1 to ensure that the write does
+            // not reach data beyond the end of the DataBlock allocation.
+            let end_byte_offset = (offset + 1) * size;
+            if end_byte_offset <= self.byte_length {
                 // SAFETY: The data is properly initialized, and the T being written is
                 // checked to be fully within the length of the data allocation.
                 unsafe { write_unaligned(data.as_ptr().add(offset).cast(), value) }
+            }
+        }
+    }
+
+    pub fn set_offset_by_byte<T: Viewable>(&mut self, byte_offset: usize, value: T) {
+        let size = std::mem::size_of::<T>();
+        if let Some(data) = self.ptr {
+            // Note: We have to check offset + 1 to ensure that the write does
+            // not reach data beyond the end of the DataBlock allocation.
+            let end_byte_offset = byte_offset + size;
+            if end_byte_offset <= self.byte_length {
+                // SAFETY: The data is properly initialized, and the T being written is
+                // checked to be fully within the length of the data allocation.
+                unsafe { write_unaligned(data.as_ptr().byte_add(byte_offset).cast(), value) }
             }
         }
     }
@@ -233,11 +596,15 @@ impl DataBlock {
     /// The abstract operation CreateByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Data Block or a throw completion.
-    pub fn create_byte_data_block(_agent: &Agent, size: u64) -> JsResult<Self> {
+    pub fn create_byte_data_block(agent: &mut Agent, size: u64, gc: NoGcScope) -> JsResult<Self> {
         // 1. If size > 2**53 - 1, throw a RangeError exception.
         if size > u64::pow(2, 53) - 1 {
             // TODO: throw a RangeError exception
-            Err(JsError {})
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Not a safe integer",
+                gc,
+            ))
         } else if let Ok(size) = usize::try_from(size) {
             // 2. Let db be a new Data Block value consisting of size bytes.
             // 3. Set all of the bytes of db to 0.
@@ -246,7 +613,11 @@ impl DataBlock {
         } else {
             // 2. cont: If it is impossible to create such a Data Block, throw a RangeError exception.
             // TODO: throw a RangeError exception
-            Err(JsError {})
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Invalid Data Block length",
+                gc,
+            ))
         }
     }
 
@@ -255,7 +626,11 @@ impl DataBlock {
     /// The abstract operation CreateSharedByteDataBlock takes argument size (a
     /// non-negative integer) and returns either a normal completion containing
     /// a Shared Data Block or a throw completion.
-    pub fn create_shared_byte_data_block(size: u64) -> JsResult<Self> {
+    pub fn create_shared_byte_data_block(
+        agent: &mut Agent,
+        size: u64,
+        gc: NoGcScope,
+    ) -> JsResult<Self> {
         // 1. Let db be a new Shared Data Block value consisting of size bytes. If it is impossible to create such a Shared Data Block, throw a RangeError exception.
         if let Ok(size) = usize::try_from(size) {
             // 2. Let execution be the [[CandidateExecution]] field of the surrounding agent's Agent Record.
@@ -265,7 +640,11 @@ impl DataBlock {
             // a. Append WriteSharedMemory { [[Order]]: INIT, [[NoTear]]: true, [[Block]]: db, [[ByteIndex]]: i, [[ElementSize]]: 1, [[Payload]]: zero } to eventsRecord.[[EventList]].
             Ok(Self::new(size))
         } else {
-            Err(JsError {})
+            Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Invalid Shared Data Block length",
+                gc,
+            ))
         }
         // 6. Return db.
     }
@@ -290,9 +669,9 @@ impl DataBlock {
             to_block.ptr.is_none()
                 || from_block.ptr.is_none()
                 || unsafe {
-                    to_block.ptr.unwrap().as_ptr().add(to_block.capacity())
+                    to_block.ptr.unwrap().as_ptr().add(to_block.len())
                         <= from_block.ptr.unwrap().as_ptr()
-                        || from_block.ptr.unwrap().as_ptr().add(from_block.capacity())
+                        || from_block.ptr.unwrap().as_ptr().add(from_block.len())
                             <= to_block.ptr.unwrap().as_ptr()
                 }
         );
@@ -337,40 +716,60 @@ impl DataBlock {
         unsafe { to_ptr.copy_from_nonoverlapping(from_ptr, count) };
         // 7. Return UNUSED.
     }
+
+    pub fn realloc(&mut self, new_byte_length: usize) {
+        // Max byte length should be within safe integer length.
+        debug_assert!(new_byte_length < 2usize.pow(53));
+        let ptr = self
+            .as_mut_ptr(0)
+            .expect("Tried to realloc a detached DataBlock");
+        let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
+        if new_byte_length == 0 {
+            // When resizing to zero, we just drop the data instead.
+            if let Some(ptr) = self.ptr {
+                unsafe { dealloc(ptr.as_ptr(), layout) };
+            }
+            self.ptr = None;
+            self.byte_length = 0;
+            return;
+        }
+        // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
+        // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
+        // size is non-zero, and cannot overflow isize (on a 64-bit machine).
+        let ptr = unsafe { realloc(ptr, layout, new_byte_length) };
+        self.ptr = NonNull::new(ptr);
+        if new_byte_length > self.byte_length {
+            // Need to zero out the new data.
+            if let Some(ptr) = self.ptr {
+                // SAFETY: The new pointer does point to valid data which is
+                // big enough.
+                let new_data_ptr = unsafe { ptr.add(self.byte_length) };
+                // SAFETY: The new pointer does point to valid, big enough
+                // allocation which contains uninitialized bytes. No one else
+                // can hold a reference to it currently.
+                let data_slice = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        new_data_ptr.as_ptr().cast::<MaybeUninit<u8>>(),
+                        new_byte_length - self.byte_length,
+                    )
+                };
+                data_slice.fill(MaybeUninit::new(0));
+            }
+        }
+        self.byte_length = new_byte_length;
+    }
 }
 
 #[test]
 fn new_data_block() {
     let db = DataBlock::new(0);
     assert_eq!(db.len(), 0);
-    assert_eq!(db.capacity(), 0);
     assert_eq!(db.get::<u8>(0), None);
 
     let db = DataBlock::new(8);
     assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 8);
     for i in 0..8 {
         assert_eq!(db.get::<u8>(i), Some(0));
-    }
-}
-
-#[test]
-fn new_data_block_with_capacity() {
-    let db = DataBlock::new_with_capacity(0, 8);
-    assert_eq!(db.len(), 0);
-    assert_eq!(db.capacity(), 8);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i), None);
-    }
-
-    let db = DataBlock::new_with_capacity(8, 16);
-    assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 16);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i), Some(0));
-    }
-    for i in 8..16 {
-        assert_eq!(db.get::<u8>(i), None);
     }
 }
 
@@ -378,7 +777,6 @@ fn new_data_block_with_capacity() {
 fn data_block_set() {
     let mut db = DataBlock::new(8);
     assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 8);
     for i in 0..8 {
         assert_eq!(db.get::<u8>(i), Some(0));
     }
@@ -389,34 +787,6 @@ fn data_block_set() {
 
     for i in 0..8 {
         assert_eq!(db.get::<u8>(i as usize), Some(i + 1));
-    }
-}
-
-#[test]
-fn data_block_resize() {
-    let mut db = DataBlock::new_with_capacity(0, 8);
-    db.resize(8);
-    assert_eq!(db.len(), 8);
-    assert_eq!(db.capacity(), 8);
-    for i in 0..8 {
-        assert_eq!(db.get::<u8>(i as usize), Some(0));
-    }
-
-    for i in 0..8 {
-        db.set::<u8>(i as usize, i + 1);
-    }
-
-    let ptr = db.as_ptr(0).unwrap();
-    db.resize(0);
-
-    // SAFETY: Backing store is not deallocated: Zero index pointer is still valid
-    // and is not read beyond its allocated capacity. The only usual safety requirement
-    // broken is to read beyond the buffer length, which is safe as the outside is still
-    // properly initialized u8s.
-    unsafe {
-        for i in 0..8 {
-            assert_eq!(ptr.add(i).read(), 0);
-        }
     }
 }
 

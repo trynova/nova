@@ -1,14 +1,80 @@
 [package]
 name = "nova_vm"
-version = "0.1.0"
-edition = "2021"
+repository = "https://github.com/trynova/nova/tree/main/nova_vm"
+description = "Nova Virtual Machine"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
+ahash = { workspace = true }
+fast-float = { workspace = true }
+hashbrown = { workspace = true }
 num-bigint = { workspace = true }
+num-traits = { workspace = true }
+oxc_allocator = { workspace = true }
+oxc_ast = { workspace = true }
+oxc_diagnostics = { workspace = true }
 oxc_parser = { workspace = true }
+oxc_semantic = { workspace = true }
 oxc_span = { workspace = true }
 oxc_syntax = { workspace = true }
-oxc_ast = { workspace = true }
-oxc_allocator = { workspace = true }
-oxc_diagnostics = { workspace = true }
+oxc_ecmascript = { workspace = true }
+rand = { workspace = true }
+ryu-js = { workspace = true }
+small_string = { path = "../small_string" }
+sonic-rs = { workspace = true, optional = true }
+unicode-normalization = { workspace = true }
 wtf8 = { workspace = true }
+
+[features]
+default = [
+    "math",
+    "json",
+    "date",
+    "array-buffer",
+    "shared-array-buffer",
+    "weak-refs",
+    "atomics",
+    "regexp",
+    "set",
+    "annex-b"
+]
+array-buffer = []
+atomics = ["array-buffer", "shared-array-buffer"]
+date = []
+interleaved-gc = []
+json = ["dep:sonic-rs"]
+math = []
+regexp = []
+shared-array-buffer = []
+weak-refs = []
+set = []
+typescript = []
+
+# Enables features defined by [Annex B](https://tc39.es/ecma262/#sec-additional-ecmascript-features-for-web-browsers)
+annex-b = ["annex-b-string", "annex-b-global", "annex-b-date", "annex-b-regexp"]
+# Adds the additional properties to the global object as defined by Annex B section [B.2.1](https://tc39.es/ecma262/#sec-additional-properties-of-the-global-object)
+annex-b-global = []
+# Adds the additional properties to the string prototype as defined by Annex B section [B.2.2](https://tc39.es/ecma262/#sec-additional-properties-of-the-string.prototype-object)
+annex-b-string = []
+# Adds the additional properties to the date prototype as defined by Annex B section [B.2.3](https://tc39.es/ecma262/#sec-additional-properties-of-the-date.prototype-object)
+annex-b-date = ["date"]
+# Adds the additional properties and syntax to regular expressions as defined by Annex B section:
+# - [B.1.2](https://tc39.es/ecma262/#sec-regular-expressions-patterns)
+# - [B.2.4](https://tc39.es/ecma262/#sec-additional-properties-of-the-regexp.prototype-object)
+annex-b-regexp = ["regexp"]
+
+# Enables all currently supported proposals
+proposals = ["proposal-float16array", "proposal-math-sum"]
+# Enables the [Float16Array proposal](https://tc39.es/proposal-float16array/)
+proposal-float16array = []
+# Enables the [Math.sumPrecise proposal](https://tc39.es/proposal-math-sum/)
+proposal-math-sum = []
+
+[build-dependencies]
+small_string = { path = "../small_string" }

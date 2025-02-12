@@ -1,139 +1,111 @@
-use crate::ecmascript::{
-    abstract_operations::{
-        operations_on_objects::{create_data_property, get, get_function_realm},
-        testing_and_comparison::same_value,
-    },
-    execution::{Agent, JsResult, ProtoIntrinsics},
-    types::{
-        Function, InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
-        PropertyDescriptor, PropertyKey, String, Value,
-    },
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+use std::{
+    ops::{Index, IndexMut},
+    vec,
 };
 
-/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
-impl InternalMethods for OrdinaryObject {
-    /// ### [10.1.1 \[\[GetPrototypeOf\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getprototypeof)
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(ordinary_get_prototype_of(agent, self.into()))
-    }
+use crate::{
+    ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
+    engine::{
+        context::{GcScope, NoGcScope},
+        unwrap_try, Scoped, TryResult,
+    },
+};
+use crate::{
+    ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{call_function, create_data_property, get, get_function_realm},
+            testing_and_comparison::same_value,
+        },
+        builtins::ArgumentsList,
+        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        types::{
+            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
+            BUILTIN_STRING_MEMORY,
+        },
+    },
+    heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
+};
 
-    /// ### [10.1.2 \[\[SetPrototypeOf\]\] ( V )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-setprototypeof-v)
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
-        Ok(ordinary_set_prototype_of(agent, self.into(), prototype))
-    }
+#[cfg(feature = "date")]
+use super::date::data::DateHeapData;
+#[cfg(feature = "regexp")]
+use super::regexp::RegExpHeapData;
+#[cfg(feature = "shared-array-buffer")]
+use super::shared_array_buffer::data::SharedArrayBufferHeapData;
+use super::{
+    async_generator_objects::AsyncGeneratorHeapData,
+    control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
+    finalization_registry::data::FinalizationRegistryHeapData,
+    indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
+    keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
+    map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectHeapData,
+    promise::data::PromiseHeapData, ArrayHeapData,
+};
+#[cfg(feature = "array-buffer")]
+use super::{
+    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+};
+#[cfg(feature = "set")]
+use super::{
+    keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIteratorHeapData,
+    set::data::SetHeapData,
+};
+#[cfg(feature = "weak-refs")]
+use super::{
+    weak_map::data::WeakMapHeapData, weak_ref::data::WeakRefHeapData,
+    weak_set::data::WeakSetHeapData,
+};
 
-    /// ### [10.1.3 \[\[IsExtensible\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-isextensible)
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        // 1. Return OrdinaryIsExtensible(O).
-        Ok(ordinary_is_extensible(agent, self.into()))
-    }
+impl Index<OrdinaryObject<'_>> for Agent {
+    type Output = ObjectHeapData;
 
-    /// ### [10.1.4 \[\[PreventExtensions\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-preventextensions)
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        // 1. Return OrdinaryPreventExtensions(O).
-        Ok(ordinary_prevent_extensions(agent, self.into()))
-    }
-
-    /// ### [10.1.5 \[\[GetOwnProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-getownproperty-p)
-    fn get_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        // 1. Return OrdinaryGetOwnProperty(O, P).
-        Ok(ordinary_get_own_property(agent, self.into(), property_key))
-    }
-
-    /// ### [10.1.6 \[\[DefineOwnProperty\]\] ( P, Desc )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-defineownproperty-p-desc)
-    fn define_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        descriptor: PropertyDescriptor,
-    ) -> JsResult<bool> {
-        ordinary_define_own_property(agent, self.into(), property_key, descriptor)
-    }
-
-    /// ### [10.1.7 \[\[HasProperty\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-hasproperty-p)
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        // 1. Return ? OrdinaryHasProperty(O, P).
-        ordinary_has_property(agent, self.into(), property_key)
-    }
-
-    /// ### [10.1.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-get-p-receiver)
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
-        // 1. Return ? OrdinaryGet(O, P, Receiver).
-        ordinary_get(agent, self.into(), property_key, receiver)
-    }
-
-    /// ### [10.1.9 \[\[Set\]\] ( P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver)
-    fn set(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
-        // 1. Return ? OrdinarySet(O, P, V, Receiver).
-        ordinary_set(agent, self.into(), property_key, value, receiver)
-    }
-
-    /// ### [10.1.10 \[\[Delete\]\] ( P )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-delete-p)
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        // 1. Return ? OrdinaryDelete(O, P).
-        ordinary_delete(agent, self.into(), property_key)
-    }
-
-    /// ### [10.1.11 \[\[OwnPropertyKeys\]\] ( )](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots-ownpropertykeys)
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        // 1. Return OrdinaryOwnPropertyKeys(O).
-        ordinary_own_property_keys(agent, self.into())
+    fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
+        &self.heap.objects[index]
     }
 }
+
+impl IndexMut<OrdinaryObject<'_>> for Agent {
+    fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
+        &mut self.heap.objects[index]
+    }
+}
+
+impl Index<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
+    type Output = ObjectHeapData;
+
+    fn index(&self, index: OrdinaryObject<'_>) -> &Self::Output {
+        self.get(index.get_index())
+            .expect("Object out of bounds")
+            .as_ref()
+            .expect("Object slot empty")
+    }
+}
+
+impl IndexMut<OrdinaryObject<'_>> for Vec<Option<ObjectHeapData>> {
+    fn index_mut(&mut self, index: OrdinaryObject<'_>) -> &mut Self::Output {
+        self.get_mut(index.get_index())
+            .expect("Object out of bounds")
+            .as_mut()
+            .expect("Object slot empty")
+    }
+}
+
+/// ### [10.1 Ordinary Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-ordinary-object-internal-methods-and-internal-slots)
+impl<'a> InternalMethods<'a> for OrdinaryObject<'a> {}
 
 /// ### [10.1.1.1 OrdinaryGetPrototypeOf ( O )](https://tc39.es/ecma262/#sec-ordinarygetprototypeof)
-pub(crate) fn ordinary_get_prototype_of(agent: &mut Agent, object: Object) -> Option<Object> {
-    // 1. Return O.[[Prototype]].
-    object.prototype(agent)
-}
-
-/// Implements steps 5 through 7 of OrdinarySetPrototypeOf
-///
-/// Returns true if a loop is detected, corresponding to substep 7.b.i. of the
-/// abstract operation.
-pub(crate) fn ordinary_set_prototype_of_check_loop(
+pub(crate) fn ordinary_get_prototype_of<'a>(
     agent: &mut Agent,
-    o: Object,
-    v: Option<Object>,
-) -> bool {
-    // 5. Let p be V.
-    let mut p = v;
-    // 6. Let done be false.
-    // 7. Repeat, while done is false,
-    while let Some(p_inner) = p {
-        // a. If p is null, then
-        //     i. Set done to true.
-
-        // b. Else if SameValue(p, O) is true, then
-        if same_value(agent, p_inner, o) {
-            // i. Return false.
-            return false;
-        }
-
-        // c. Else,
-        // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
-        //    set done to true.
-        // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
-        // methods. Those are Proxy and Module.
-
-        // if parent_prototype.get_prototype_of != get_prototype_of {
-        //     break;
-        // }
-
-        // ii. Else, set p to p.[[Prototype]].
-        p = p_inner.prototype(agent);
-    }
-    true
+    object: OrdinaryObject,
+    _: NoGcScope<'a, '_>,
+) -> Option<Object<'a>> {
+    // 1. Return O.[[Prototype]].
+    object.internal_prototype(agent)
 }
 
 /// ### [10.1.2.1 OrdinarySetPrototypeOf ( O, V )](https://tc39.es/ecma262/#sec-ordinarysetprototypeof)
@@ -143,17 +115,15 @@ pub(crate) fn ordinary_set_prototype_of(
     prototype: Option<Object>,
 ) -> bool {
     // 1. Let current be O.[[Prototype]].
-    let current = object.prototype(agent);
+    let current = object.internal_prototype(agent);
 
     // 2. If SameValue(V, current) is true, return true.
-    match (prototype, current) {
-        (Some(prototype), Some(current)) if same_value(agent, prototype, current) => return true,
-        (None, None) => return true,
-        _ => {}
+    if prototype == current {
+        return true;
     }
 
     // 3. Let extensible be O.[[Extensible]].
-    let extensible = object.extensible(agent);
+    let extensible = object.internal_extensible(agent);
 
     // 4. If extensible is false, return false.
     if !extensible {
@@ -161,27 +131,55 @@ pub(crate) fn ordinary_set_prototype_of(
         return false;
     }
 
-    if ordinary_set_prototype_of_check_loop(agent, object, prototype) {
-        return false;
+    // 5. Let p be V.
+    let mut p = prototype;
+    // 6. Let done be false.
+    let mut done = false;
+
+    // 7. Repeat, while done is false,
+    while !done {
+        if let Some(p_inner) = p {
+            // b. Else if SameValue(p, O) is true, then
+            if p_inner == object {
+                // i. Return false.
+                return false;
+            } else {
+                // c. Else,
+                // i. If p.[[GetPrototypeOf]] is not the ordinary object internal method defined in 10.1.1,
+                //    set done to true.
+                // NOTE: At present there are two exotic objects that define their own [[GetPrototypeOf]]
+                // methods. Those are Proxy and Module.
+                if matches!(p_inner, Object::Module(_) | Object::Proxy(_)) {
+                    done = true;
+                } else {
+                    // ii. Else, set p to p.[[Prototype]].
+                    p = p_inner.internal_prototype(agent);
+                }
+            }
+        } else {
+            // a. If p is null, then
+            // i. Set done to true.
+            done = true;
+        }
     }
 
     // 8. Set O.[[Prototype]] to V.
-    object.set_prototype(agent, prototype);
+    object.internal_set_prototype(agent, prototype);
 
     // 9. Return true.
     true
 }
 
 /// ### [10.1.3.1 OrdinaryIsExtensible ( O )](https://tc39.es/ecma262/#sec-ordinaryisextensible)
-pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: Object) -> bool {
+pub(crate) fn ordinary_is_extensible(agent: &mut Agent, object: OrdinaryObject) -> bool {
     // 1. Return O.[[Extensible]].
-    object.extensible(agent)
+    object.internal_extensible(agent)
 }
 
 /// ### [10.1.4.1 OrdinaryPreventExtensions ( O )](https://tc39.es/ecma262/#sec-ordinarypreventextensions)
-pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> bool {
+pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: OrdinaryObject) -> bool {
     // 1. Set O.[[Extensible]] to false.
-    object.set_extensible(agent, false);
+    object.internal_set_extensible(agent, false);
 
     // 2. Return true.
     true
@@ -189,13 +187,16 @@ pub(crate) fn ordinary_prevent_extensions(agent: &mut Agent, object: Object) -> 
 
 /// ### [10.1.5.1 OrdinaryGetOwnProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinarygetownproperty)
 pub(crate) fn ordinary_get_own_property(
-    agent: &mut Agent,
-    object: Object,
+    agent: &Agent,
+    object: OrdinaryObject,
     property_key: PropertyKey,
 ) -> Option<PropertyDescriptor> {
     // 1. If O does not have an own property with key P, return undefined.
     // 3. Let X be O's own property whose key is P.
-    let x = object.property_storage().get(agent, property_key)?;
+    let x = object
+        .into_object()
+        .property_storage()
+        .get(agent, property_key)?;
 
     // 2. Let D be a newly created Property Descriptor with no fields.
     let mut descriptor = PropertyDescriptor::default();
@@ -232,15 +233,18 @@ pub(crate) fn ordinary_get_own_property(
 /// ### [10.1.6.1 OrdinaryDefineOwnProperty ( O, P, Desc )](https://tc39.es/ecma262/#sec-ordinarydefineownproperty)
 pub(crate) fn ordinary_define_own_property(
     agent: &mut Agent,
-    object: Object,
+    object: OrdinaryObject,
     property_key: PropertyKey,
     descriptor: PropertyDescriptor,
-) -> JsResult<bool> {
-    // 1. Let current be ? O.[[GetOwnProperty]](P).
-    let current = object.get_own_property(agent, property_key)?;
+    gc: NoGcScope,
+) -> bool {
+    // Note: OrdinaryDefineOwnProperty is only used by the backing object type,
+    // meaning that we know that this method cannot call into JavaScript.
+    // 1. Let current be ! O.[[GetOwnProperty]](P).
+    let current = unwrap_try(object.try_get_own_property(agent, property_key, gc));
 
-    // 2. Let extensible be ? IsExtensible(O).
-    let extensible = object.extensible(agent);
+    // 2. Let extensible be ! IsExtensible(O).
+    let extensible = object.internal_extensible(agent);
 
     // 3. Return ValidateAndApplyPropertyDescriptor(O, P, extensible, Desc, current).
     validate_and_apply_property_descriptor(
@@ -253,27 +257,46 @@ pub(crate) fn ordinary_define_own_property(
     )
 }
 
+/// ### [10.1.6.2 IsCompatiblePropertyDescriptor ( Extensible, Desc, Current )](https://tc39.es/ecma262/#sec-iscompatiblepropertydescriptor)
+pub(crate) fn is_compatible_property_descriptor(
+    agent: &mut Agent,
+    extensible: bool,
+    descriptor: PropertyDescriptor,
+    current: Option<PropertyDescriptor>,
+    gc: NoGcScope,
+) -> bool {
+    let property_key = PropertyKey::from_str(agent, "", gc);
+    validate_and_apply_property_descriptor(
+        agent,
+        None,
+        property_key,
+        extensible,
+        descriptor,
+        current,
+    )
+}
+
 /// ### [10.1.6.3 ValidateAndApplyPropertyDescriptor ( O, P, extensible, Desc, current )](https://tc39.es/ecma262/#sec-validateandapplypropertydescriptor)
 fn validate_and_apply_property_descriptor(
     agent: &mut Agent,
-    object: Option<Object>,
+    object: Option<OrdinaryObject>,
     property_key: PropertyKey,
     extensible: bool,
     descriptor: PropertyDescriptor,
     current: Option<PropertyDescriptor>,
-) -> JsResult<bool> {
+) -> bool {
     // 1. Assert: IsPropertyKey(P) is true.
 
     // 2. If current is undefined, then
     let Some(current) = current else {
         // a. If extensible is false, return false.
         if !extensible {
-            return Ok(false);
+            return false;
         }
 
         // b. If O is undefined, return true.
         let Some(object) = object else {
-            return Ok(true);
+            return true;
         };
 
         // c. If IsAccessorDescriptor(Desc) is true, then
@@ -282,7 +305,7 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -300,17 +323,12 @@ fn validate_and_apply_property_descriptor(
             //    [[Enumerable]], and [[Configurable]] attributes are set to the value of the
             //    corresponding field in Desc if Desc has that field, or to the attribute's default
             //    value otherwise.
-            // try object.propertyStorage().set(property_key, PropertyDescriptor{
-            //     .value = descriptor.value orelse .undefined,
-            //     .writable = descriptor.writable orelse false,
-            //     .enumerable = descriptor.enumerable orelse false,
-            //     .configurable = descriptor.configurable orelse false,
-            // });
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
                     value: Some(descriptor.value.unwrap_or(Value::Undefined)),
+                    writable: Some(descriptor.writable.unwrap_or(false)),
                     enumerable: Some(descriptor.enumerable.unwrap_or(false)),
                     configurable: Some(descriptor.configurable.unwrap_or(false)),
                     ..Default::default()
@@ -319,7 +337,7 @@ fn validate_and_apply_property_descriptor(
         }
 
         // e. Return true.
-        return Ok(true);
+        return true;
     };
 
     // 3. Assert: current is a fully populated Property Descriptor.
@@ -327,22 +345,20 @@ fn validate_and_apply_property_descriptor(
 
     // 4. If Desc does not have any fields, return true.
     if !descriptor.has_fields() {
-        return Ok(true);
+        return true;
     }
 
     // 5. If current.[[Configurable]] is false, then
     if !current.configurable.unwrap() {
         // a. If Desc has a [[Configurable]] field and Desc.[[Configurable]] is true, return false.
         if let Some(true) = descriptor.configurable {
-            return Ok(false);
+            return false;
         }
 
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
-        if let Some(true) = descriptor.enumerable {
-            if descriptor.enumerable != current.enumerable {
-                return Ok(false);
-            }
+        if descriptor.enumerable.is_some() && descriptor.enumerable != current.enumerable {
+            return false;
         }
 
         // c. If IsGenericDescriptor(Desc) is false and SameValue(IsAccessorDescriptor(Desc), IsAccessorDescriptor(current))
@@ -350,7 +366,7 @@ fn validate_and_apply_property_descriptor(
         if !descriptor.is_generic_descriptor()
             && descriptor.is_accessor_descriptor() != current.is_accessor_descriptor()
         {
-            return Ok(false);
+            return false;
         }
 
         // d. If IsAccessorDescriptor(current) is true, then
@@ -360,10 +376,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_get) = descriptor.get {
                 if let Some(cur_get) = current.get {
                     if desc_get != cur_get {
-                        return Ok(false);
+                        return false;
                     }
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             }
 
@@ -372,18 +388,18 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_set) = descriptor.set {
                 if let Some(cur_set) = current.set {
                     if desc_set != cur_set {
-                        return Ok(false);
+                        return false;
                     }
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
         // e. Else if current.[[Writable]] is false, then
-        else if let Some(true) = current.writable {
+        else if current.writable == Some(false) {
             // i. If Desc has a [[Writable]] field and Desc.[[Writable]] is true, return false.
             if let Some(true) = descriptor.writable {
-                return Ok(false);
+                return false;
             }
 
             // ii. If Desc has a [[Value]] field and SameValue(Desc.[[Value]], current.[[Value]])
@@ -391,10 +407,10 @@ fn validate_and_apply_property_descriptor(
             if let Some(desc_value) = descriptor.value {
                 if let Some(cur_value) = current.value {
                     if !same_value(agent, desc_value, cur_value) {
-                        return Ok(false);
+                        return false;
                     }
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
@@ -421,7 +437,7 @@ fn validate_and_apply_property_descriptor(
             //      enumerable, respectively, and whose [[Get]] and [[Set]] attributes are set to
             //      the value of the corresponding field in Desc if Desc has that field, or to the
             //      attribute's default value otherwise.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -458,7 +474,7 @@ fn validate_and_apply_property_descriptor(
             //     .enumerable = enumerable,
             //     .configurable = configurable,
             // });
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
@@ -474,12 +490,12 @@ fn validate_and_apply_property_descriptor(
         else {
             // i. For each field of Desc, set the corresponding attribute of the property named P
             //    of object O to the value of the field.
-            object.property_storage().set(
+            object.into_object().property_storage().set(
                 agent,
                 property_key,
                 PropertyDescriptor {
                     value: descriptor.value.or(current.value),
-                    writable: Some(descriptor.writable.unwrap_or(false)),
+                    writable: descriptor.writable.or(current.writable),
                     get: descriptor.get.or(current.get),
                     set: descriptor.set.or(current.set),
                     enumerable: descriptor.enumerable.or(current.enumerable),
@@ -490,17 +506,85 @@ fn validate_and_apply_property_descriptor(
     }
 
     // 7. Return true.
-    Ok(true)
+    true
+}
+
+/// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
+pub(crate) fn ordinary_try_has_property(
+    agent: &mut Agent,
+    object: OrdinaryObject,
+    property_key: PropertyKey,
+    gc: NoGcScope,
+) -> TryResult<bool> {
+    // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
+    // Note: ? means that if we'd call a Proxy's GetOwnProperty trap then we'll
+    // instead return None.
+    let has_own = object.try_get_own_property(agent, property_key, gc)?;
+
+    // 2. If hasOwn is not undefined, return true.
+    if has_own.is_some() {
+        return TryResult::Continue(true);
+    }
+
+    // 3. Let parent be ? O.[[GetPrototypeOf]]().
+    // Note: ? means that if we'd call a Proxy's GetPrototypeOf trap then we'll
+    // instead return None.
+    let parent = object.try_get_prototype_of(agent, gc)?;
+
+    // 4. If parent is not null, then
+    if let Some(parent) = parent {
+        // a. Return ? parent.[[HasProperty]](P).
+        // Note: Here too, if we would call a Proxy's HasProperty trap then
+        // we'll instead return None.
+        return parent.try_has_property(agent, property_key, gc);
+    }
+
+    // 5. Return false.
+    TryResult::Continue(false)
+}
+
+pub(crate) fn ordinary_try_has_property_entry<'a>(
+    agent: &mut Agent,
+    object: impl InternalMethods<'a>,
+    property_key: PropertyKey,
+    gc: NoGcScope,
+) -> TryResult<bool> {
+    match object.get_backing_object(agent) {
+        Some(backing_object) => ordinary_try_has_property(agent, backing_object, property_key, gc),
+        None => {
+            // 3. Let parent be ? O.[[GetPrototypeOf]]().
+            let parent = unwrap_try(object.try_get_prototype_of(agent, gc));
+
+            // 4. If parent is not null, then
+            if let Some(parent) = parent {
+                // a. Return ? parent.[[HasProperty]](P).
+                parent.try_has_property(agent, property_key, gc)
+            } else {
+                // 5. Return false.
+                TryResult::Continue(false)
+            }
+        }
+    }
 }
 
 /// ### [10.1.7.1 OrdinaryHasProperty ( O, P )](https://tc39.es/ecma262/#sec-ordinaryhasproperty)
 pub(crate) fn ordinary_has_property(
     agent: &mut Agent,
-    object: Object,
+    object: OrdinaryObject,
     property_key: PropertyKey,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
+    let object = object.bind(gc.nogc());
+    let property_key = property_key.bind(gc.nogc());
+    // Note: We scope here because it's likely we've already tried.
+    let scoped_object = object.scope(agent, gc.nogc());
+    let scoped_property_key = property_key.scope(agent, gc.nogc());
     // 1. Let hasOwn be ? O.[[GetOwnProperty]](P).
-    let has_own = object.get_own_property(agent, property_key)?;
+
+    let has_own =
+        object
+            .unbind()
+            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
 
     // 2. If hasOwn is not undefined, return true.
     if has_own.is_some() {
@@ -508,36 +592,166 @@ pub(crate) fn ordinary_has_property(
     }
 
     // 3. Let parent be ? O.[[GetPrototypeOf]]().
-    let parent = object.get_prototype_of(agent)?;
+    let object = scoped_object.get(agent).bind(gc.nogc());
+    let (parent, property_key) =
+        if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
+            (parent, scoped_property_key.get(agent).bind(gc.nogc()))
+        } else {
+            (
+                object
+                    .unbind()
+                    .internal_get_prototype_of(agent, gc.reborrow())?
+                    .map(|f| f.unbind())
+                    .map(|f| f.bind(gc.nogc())),
+                scoped_property_key.get(agent).bind(gc.nogc()),
+            )
+        };
 
     // 4. If parent is not null, then
     if let Some(parent) = parent {
         // a. Return ? parent.[[HasProperty]](P).
-        return parent.has_property(agent, property_key);
+        return parent
+            .unbind()
+            .internal_has_property(agent, property_key.unbind(), gc);
     }
 
     // 5. Return false.
     Ok(false)
 }
 
-/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_get(
+pub(crate) fn ordinary_has_property_entry<'a>(
     agent: &mut Agent,
-    object: Object,
+    object: impl InternalMethods<'a>,
+    property_key: PropertyKey,
+    gc: GcScope,
+) -> JsResult<bool> {
+    let property_key = property_key.bind(gc.nogc());
+    match object.get_backing_object(agent) {
+        Some(backing_object) => {
+            ordinary_has_property(agent, backing_object, property_key.unbind(), gc)
+        }
+        None => {
+            // 3. Let parent be ? O.[[GetPrototypeOf]]().
+            let parent = unwrap_try(object.try_get_prototype_of(agent, gc.nogc()));
+
+            // 4. If parent is not null, then
+            if let Some(parent) = parent {
+                // a. Return ? parent.[[HasProperty]](P).
+                parent
+                    .unbind()
+                    .internal_has_property(agent, property_key.unbind(), gc)
+            } else {
+                // 5. Return false.
+                Ok(false)
+            }
+        }
+    }
+}
+
+/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
+pub(crate) fn ordinary_try_get(
+    agent: &mut Agent,
+    object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-) -> JsResult<Value> {
+    gc: NoGcScope,
+) -> TryResult<Value> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let Some(descriptor) = object.get_own_property(agent, property_key)? else {
+    let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
         // 2. If desc is undefined, then
 
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let Some(parent) = object.get_prototype_of(agent)? else {
-            return Ok(Value::Undefined);
+        let parent = object.try_get_prototype_of(agent, gc)?;
+
+        // b. If parent is null, return undefined.
+        let Some(parent) = parent else {
+            return TryResult::Continue(Value::Undefined);
         };
+        // c. Return ? parent.[[Get]](P, Receiver).
+        return parent.try_get(agent, property_key, receiver, gc);
+    };
+
+    // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
+    if let Some(value) = descriptor.value {
+        debug_assert!(descriptor.is_data_descriptor());
+        return TryResult::Continue(value);
+    }
+
+    // 4. Assert: IsAccessorDescriptor(desc) is true.
+    debug_assert!(descriptor.is_accessor_descriptor());
+
+    // 5. Let getter be desc.[[Get]].
+    // 6. If getter is undefined, return undefined.
+    let Some(_getter) = descriptor.get else {
+        return TryResult::Continue(Value::Undefined);
+    };
+
+    // 7. Return ? Call(getter, Receiver).
+    // call_function(agent, getter, receiver, None, gc)
+    // Note: We cannot call a function without risking GC! There are future
+    // options here:
+    // 1. Special function types that are guaranteed to trigger no GC.
+    // 2. Return a special value that tells which getter to call. Note that the
+    //    receiver is statically known, so just returning the getter function
+    //    should be enough.
+    TryResult::Break(())
+}
+
+/// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
+pub(crate) fn ordinary_get(
+    agent: &mut Agent,
+    object: OrdinaryObject,
+    property_key: PropertyKey,
+    receiver: Value,
+    mut gc: GcScope,
+) -> JsResult<Value> {
+    let object = object.bind(gc.nogc());
+    let property_key = property_key.bind(gc.nogc());
+    // Note: We scope here because it's likely we've already tried.
+    let scoped_object = object.scope(agent, gc.nogc());
+    let scoped_property_key = property_key.scope(agent, gc.nogc());
+    // 1. Let desc be ? O.[[GetOwnProperty]](P).
+    let Some(descriptor) =
+        object
+            .unbind()
+            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?
+    else {
+        // 2. If desc is undefined, then
+
+        // a. Let parent be ? O.[[GetPrototypeOf]]().
+        let object = scoped_object.get(agent).bind(gc.nogc());
+        let (parent, property_key, receiver) =
+            if let TryResult::Continue(parent) = object.try_get_prototype_of(agent, gc.nogc()) {
+                let Some(parent) = parent else {
+                    return Ok(Value::Undefined);
+                };
+                (
+                    parent,
+                    scoped_property_key.get(agent).bind(gc.nogc()),
+                    receiver,
+                )
+            } else {
+                // Note: We should root property_key and receiver here.
+                let receiver = receiver.scope(agent, gc.nogc());
+                let Some(parent) = object
+                    .unbind()
+                    .internal_get_prototype_of(agent, gc.reborrow())?
+                else {
+                    return Ok(Value::Undefined);
+                };
+                let parent = parent.unbind().bind(gc.nogc());
+                let receiver = receiver.get(agent);
+                (
+                    parent,
+                    scoped_property_key.get(agent).bind(gc.nogc()),
+                    receiver,
+                )
+            };
 
         // c. Return ? parent.[[Get]](P, Receiver).
-        return parent.get(agent, property_key, receiver);
+        return parent
+            .unbind()
+            .internal_get(agent, property_key.unbind(), receiver, gc.reborrow());
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -551,12 +765,39 @@ pub(crate) fn ordinary_get(
 
     // 5. Let getter be desc.[[Get]].
     // 6. If getter is undefined, return undefined.
-    let Some(_getter) = descriptor.get else {
+    let Some(getter) = descriptor.get else {
         return Ok(Value::Undefined);
     };
 
     // 7. Return ? Call(getter, Receiver).
-    todo!()
+    call_function(agent, getter, receiver, None, gc)
+}
+
+/// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
+pub(crate) fn ordinary_try_set(
+    agent: &mut Agent,
+    object: Object,
+    property_key: PropertyKey,
+    value: Value,
+    receiver: Value,
+    gc: NoGcScope,
+) -> TryResult<bool> {
+    let property_key = property_key.bind(gc);
+
+    // 1. Let ownDesc be ! O.[[GetOwnProperty]](P).
+    // We're guaranteed to always get a result here.
+    let own_descriptor = object.try_get_own_property(agent, property_key, gc)?;
+
+    // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
+    ordinary_try_set_with_own_descriptor(
+        agent,
+        object,
+        property_key,
+        value,
+        receiver,
+        own_descriptor,
+        gc,
+    )
 }
 
 /// ### [10.1.9.1 OrdinarySet ( O, P, V, Receiver )](https://tc39.es/ecma262/#sec-ordinaryset)
@@ -566,34 +807,162 @@ pub(crate) fn ordinary_set(
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
+    let property_key = property_key.bind(gc.nogc());
+    // Note: We scope here because it's likely we've already tried.
+    let scoped_property_key = property_key.scope(agent, gc.nogc());
+
     // 1. Let ownDesc be ? O.[[GetOwnProperty]](P).
-    let own_descriptor = object.get_own_property(agent, property_key)?;
+    let own_descriptor =
+        object.internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
 
     // 2. Return ? OrdinarySetWithOwnDescriptor(O, P, V, Receiver, ownDesc).
-    ordinary_set_with_own_descriptor(agent, object, property_key, value, receiver, own_descriptor)
+    ordinary_set_with_own_descriptor(
+        agent,
+        object,
+        scoped_property_key,
+        value,
+        receiver,
+        own_descriptor,
+        gc,
+    )
 }
 
 /// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
-pub(crate) fn ordinary_set_with_own_descriptor(
+fn ordinary_try_set_with_own_descriptor(
     agent: &mut Agent,
     object: Object,
     property_key: PropertyKey,
     value: Value,
     receiver: Value,
     own_descriptor: Option<PropertyDescriptor>,
+    gc: NoGcScope,
+) -> TryResult<bool> {
+    let own_descriptor = if let Some(own_descriptor) = own_descriptor {
+        own_descriptor
+    } else {
+        // 1. If ownDesc is undefined, then
+        // a. Let parent be ! O.[[GetPrototypeOf]]().
+        let parent = unwrap_try(object.try_get_prototype_of(agent, gc));
+
+        // b. If parent is not null, then
+        if let Some(parent) = parent {
+            // i. Return ? parent.[[Set]](P, V, Receiver).
+            // Note: Here we do not have guarantees: Parent could be a Proxy.
+            return parent.try_set(agent, property_key, value, receiver, gc);
+        }
+        // c. Else,
+        else {
+            // i. Set ownDesc to the PropertyDescriptor {
+            //      [[Value]]: undefined, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: true
+            //    }.
+            PropertyDescriptor {
+                value: Some(Value::Undefined),
+                writable: Some(true),
+                enumerable: Some(true),
+                configurable: Some(true),
+                ..Default::default()
+            }
+        }
+    };
+
+    // 2. If IsDataDescriptor(ownDesc) is true, then
+    if own_descriptor.is_data_descriptor() {
+        // a. If ownDesc.[[Writable]] is false, return false.
+        if own_descriptor.writable == Some(false) {
+            return TryResult::Continue(false);
+        }
+
+        // b. If Receiver is not an Object, return false.
+        let Ok(receiver) = Object::try_from(receiver) else {
+            return TryResult::Continue(false);
+        };
+
+        // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
+        // Note: Here again we do not have guarantees; the receiver could be a
+        // Proxy.
+        let existing_descriptor = receiver.try_get_own_property(agent, property_key, gc)?;
+
+        // d. If existingDescriptor is not undefined, then
+        if let Some(existing_descriptor) = existing_descriptor {
+            // i. If IsAccessorDescriptor(existingDescriptor) is true, return false.
+            if existing_descriptor.is_accessor_descriptor() {
+                return TryResult::Continue(false);
+            }
+
+            // ii. If existingDescriptor.[[Writable]] is false, return false.
+            if existing_descriptor.writable == Some(false) {
+                return TryResult::Continue(false);
+            }
+
+            // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
+            let value_descriptor = PropertyDescriptor {
+                value: Some(value),
+                ..Default::default()
+            };
+
+            // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
+            // Again: Receiver could be a Proxy.
+            return receiver.try_define_own_property(agent, property_key, value_descriptor, gc);
+        }
+        // e. Else,
+        else {
+            // i. Assert: Receiver does not currently have a property P.
+            let result = unwrap_try(receiver.try_get_own_property(agent, property_key, gc));
+            debug_assert!(result.is_none());
+
+            // ii. Return ? CreateDataProperty(Receiver, P, V).
+            // Again: Receiver could be a Proxy.
+            return try_create_data_property(agent, receiver, property_key, value, gc);
+        }
+    }
+
+    // 3. Assert: IsAccessorDescriptor(ownDesc) is true.
+    debug_assert!(own_descriptor.is_accessor_descriptor());
+
+    // 4. Let setter be ownDesc.[[Set]].
+    // 5. If setter is undefined, return false.
+    let Some(_setter) = own_descriptor.set else {
+        return TryResult::Continue(false);
+    };
+
+    // 6. Perform ? Call(setter, Receiver, « V »).
+    // Note: We cannot call a function as it may trigger GC. See above for
+    // future options.
+    // call_function(agent, setter, receiver, Some(ArgumentsList(&[value])), gc)?;
+
+    // 7. Return true.
+    // Some(true)
+    TryResult::Break(())
+}
+
+/// ### [10.1.9.2 OrdinarySetWithOwnDescriptor ( O, P, V, Receiver, ownDesc )](https://tc39.es/ecma262/#sec-ordinarysetwithowndescriptor)
+fn ordinary_set_with_own_descriptor(
+    agent: &mut Agent,
+    object: Object,
+    scoped_property_key: Scoped<'_, PropertyKey<'static>>,
+    value: Value,
+    receiver: Value,
+    own_descriptor: Option<PropertyDescriptor>,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
+    let property_key = scoped_property_key.get(agent).bind(gc.nogc());
     let own_descriptor = if let Some(own_descriptor) = own_descriptor {
         own_descriptor
     } else {
         // 1. If ownDesc is undefined, then
         // a. Let parent be ? O.[[GetPrototypeOf]]().
-        let parent = object.get_prototype_of(agent)?;
+        // Note: OrdinaryObject never fails to get prototype.
+        let parent = unwrap_try(object.try_get_prototype_of(agent, gc.nogc()));
 
         // b. If parent is not null, then
         if let Some(parent) = parent {
             // i. Return ? parent.[[Set]](P, V, Receiver).
-            return parent.set(agent, property_key, value, receiver);
+            // Note: Prototype might be a Proxy or contain a setter.
+            return parent
+                .unbind()
+                .internal_set(agent, property_key.unbind(), value, receiver, gc);
         }
         // c. Else,
         else {
@@ -623,7 +992,11 @@ pub(crate) fn ordinary_set_with_own_descriptor(
         };
 
         // c. Let existingDescriptor be ? Receiver.[[GetOwnProperty]](P).
-        let existing_descriptor = receiver.get_own_property(agent, property_key)?;
+        let existing_descriptor = receiver.internal_get_own_property(
+            agent,
+            scoped_property_key.get(agent),
+            gc.reborrow(),
+        )?;
 
         // d. If existingDescriptor is not undefined, then
         if let Some(existing_descriptor) = existing_descriptor {
@@ -644,15 +1017,29 @@ pub(crate) fn ordinary_set_with_own_descriptor(
             };
 
             // iv. Return ? Receiver.[[DefineOwnProperty]](P, valueDesc).
-            return receiver.define_own_property(agent, property_key, value_descriptor);
+            return receiver.internal_define_own_property(
+                agent,
+                scoped_property_key.get(agent).unbind(),
+                value_descriptor,
+                gc,
+            );
         }
         // e. Else,
         else {
             // i. Assert: Receiver does not currently have a property P.
-            debug_assert!(!receiver.property_storage().has(agent, property_key));
+            // Note: Kiesel and Ladybird check receiver object's property
+            // storage here. Boa does nothing. We cannot test property storage
+            // as only ordinary objects really have one, other objects at most
+            // set up some partial property storage.
 
             // ii. Return ? CreateDataProperty(Receiver, P, V).
-            return create_data_property(agent, receiver, property_key, value);
+            return create_data_property(
+                agent,
+                receiver,
+                scoped_property_key.get(agent),
+                value,
+                gc,
+            );
         }
     }
 
@@ -661,86 +1048,102 @@ pub(crate) fn ordinary_set_with_own_descriptor(
 
     // 4. Let setter be ownDesc.[[Set]].
     // 5. If setter is undefined, return false.
-    let Some(_setter) = own_descriptor.set else {
+    let Some(setter) = own_descriptor.set else {
         return Ok(false);
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
-    todo!();
+    call_function(agent, setter, receiver, Some(ArgumentsList(&[value])), gc)?;
+
     // 7. Return true.
+    Ok(true)
 }
 
 /// ### [10.1.10.1 OrdinaryDelete ( O, P )](https://tc39.es/ecma262/#sec-ordinarydelete)
 pub(crate) fn ordinary_delete(
     agent: &mut Agent,
-    object: Object,
+    object: OrdinaryObject,
     property_key: PropertyKey,
-) -> JsResult<bool> {
+    gc: NoGcScope,
+) -> bool {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
-    let descriptor = object.get_own_property(agent, property_key)?;
+    // We're guaranteed to always get a result here.
+    let descriptor = unwrap_try(object.try_get_own_property(agent, property_key, gc));
 
     // 2. If desc is undefined, return true.
     let Some(descriptor) = descriptor else {
-        return Ok(true);
+        return true;
     };
 
     // 3. If desc.[[Configurable]] is true, then
     if let Some(true) = descriptor.configurable {
         // a. Remove the own property with name P from O.
-        object.property_storage().remove(agent, property_key);
+        object
+            .into_object()
+            .property_storage()
+            .remove(agent, property_key);
 
         // b. Return true.
-        return Ok(true);
+        return true;
     }
 
     // 4. Return false.
-    Ok(false)
+    false
 }
 
 /// ### [10.1.11.1 OrdinaryOwnPropertyKeys ( O )](https://tc39.es/ecma262/#sec-ordinaryownpropertykeys)
-pub(crate) fn ordinary_own_property_keys(
-    _agent: &mut Agent,
-    _object: Object,
-) -> JsResult<Vec<PropertyKey>> {
+pub(crate) fn ordinary_own_property_keys<'a>(
+    agent: &Agent,
+    object: OrdinaryObject<'a>,
+    _: NoGcScope<'a, '_>,
+) -> Vec<PropertyKey<'a>> {
+    let object_keys = agent[object].keys;
     // 1. Let keys be a new empty List.
-    let keys = Vec::new();
-
-    // 2. For each own property key P of O such that P is an array index, in ascending numeric
-    //    index order, do
-    // for entry in object.property_storage().entries(agent) {
-    // 	if entry.key.is_array_index() {
-    // 		// a. Append P to keys.
-    // 		keys.push(entry.key);
-    // 	}
-    // }
-
-    // for (object.property_storage().hash_map.keys()) |property_key| {
-    //     if (property_key.is_array_index()) {
-    //         // a. Append P to keys.
-    //         keys.appendAssumeCapacity(property_key);
-    //     }
-    // }
+    let mut integer_keys = vec![];
+    let mut keys = Vec::with_capacity(object_keys.len() as usize);
+    let mut symbol_keys = vec![];
 
     // 3. For each own property key P of O such that P is a String and P is not an array index, in
     //    ascending chronological order of property creation, do
-    // for (object.propertyStorage().hash_map.keys()) |property_key| {
-    //     if (property_key == .string or (property_key == .integer_index and !property_key.isArrayIndex())) {
-    //         // a. Append P to keys.
-    //         keys.appendAssumeCapacity(property_key);
-    //     }
-    // }
+    for key in agent[object_keys].iter() {
+        // SAFETY: Keys are all PropertyKeys reinterpreted as Values without
+        // conversion.
+        let key = unsafe { PropertyKey::from_value_unchecked(key.unwrap()) };
+        match key {
+            PropertyKey::Integer(integer_key) => {
+                let key_value = integer_key.into_i64();
+                if (0..u32::MAX as i64).contains(&key_value) {
+                    // Integer property key! This requires sorting
+                    integer_keys.push(key_value as u32);
+                } else {
+                    keys.push(key);
+                }
+            }
+            PropertyKey::Symbol(symbol) => symbol_keys.push(symbol),
+            // a. Append P to keys.
+            _ => keys.push(key),
+        }
+    }
 
-    // 4. For each own property key P of O such that P is a Symbol, in ascending chronological
-    //    order of property creation, do
-    // for (object.propertyStorage().hash_map.keys()) |property_key| {
-    //     if (property_key == .symbol) {
-    //         // a. Append P to keys.
-    //         keys.appendAssumeCapacity(property_key);
-    //     }
-    // }
+    // 2. For each own property key P of O such that P is an array index,
+    if !integer_keys.is_empty() {
+        // in ascending numeric index order, do
+        integer_keys.sort();
+        // a. Append P to keys.
+        keys.splice(0..0, integer_keys.into_iter().map(|key| key.into()));
+    }
+
+    // 4. For each own property key P of O such that P is a Symbol,
+    if !symbol_keys.is_empty() {
+        // in ascending chronological order of property creation, do
+        // a. Append P to keys.
+        keys.extend(symbol_keys.iter().map(|key| PropertyKey::Symbol(*key)));
+    }
+
+    debug_assert_eq!(keys.len() as u32, object_keys.len());
 
     // 5. Return keys.
-    Ok(keys)
+    keys
 }
 
 /// ### [10.1.12 OrdinaryObjectCreate ( proto \[ , additionalInternalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinaryobjectcreate)
@@ -750,41 +1153,277 @@ pub(crate) fn ordinary_own_property_keys(
 /// of internal slots) and returns an Object. It is used to specify the runtime
 /// creation of new ordinary objects. additionalInternalSlotsList contains the
 /// names of additional internal slots that must be defined as part of the
-/// object, beyond [[Prototype]] and [[Extensible]]. If
+/// object, beyond \[\[Prototype]] and \[\[Extensible]]. If
 /// additionalInternalSlotsList is not provided, a new empty List is used.
 ///
 /// > NOTE: Although OrdinaryObjectCreate does little more than call
-/// MakeBasicObject, its use communicates the intention to create an ordinary
-/// object, and not an exotic one. Thus, within this specification, it is not
-/// called by any algorithm that subsequently modifies the internal methods of
-/// the object in ways that would make the result non-ordinary. Operations that
-/// create exotic objects invoke MakeBasicObject directly.
-pub(crate) fn ordinary_object_create_with_intrinsics(
+/// > MakeBasicObject, its use communicates the intention to create an ordinary
+/// > object, and not an exotic one. Thus, within this specification, it is not
+/// > called by any algorithm that subsequently modifies the internal methods of
+/// > the object in ways that would make the result non-ordinary. Operations that
+/// > create exotic objects invoke MakeBasicObject directly.
+///
+/// NOTE: In this implementation, `proto_intrinsics` determines the heap in
+/// which the object is placed, and therefore its heap data type and its
+/// internal slots. If `prototype` is None, the object will be created with the
+/// default prototype from the intrinsics, otherwise with the given prototype.
+/// To create an object with null prototype, both `proto_intrinsics` and
+/// `prototype` must be None.
+pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
     agent: &mut Agent,
-    prototype: Option<ProtoIntrinsics>,
-) -> Object {
-    let Some(prototype) = prototype else {
-        return agent.heap.create_null_object(vec![]).into();
+    proto_intrinsics: Option<ProtoIntrinsics>,
+    prototype: Option<Object>,
+    gc: NoGcScope<'a, '_>,
+) -> Object<'a> {
+    let Some(proto_intrinsics) = proto_intrinsics else {
+        assert!(prototype.is_none());
+        return agent.heap.create_null_object(&[]).into();
     };
 
-    match prototype {
-        ProtoIntrinsics::Array => todo!(),
-        ProtoIntrinsics::ArrayBuffer => todo!(),
-        ProtoIntrinsics::BigInt => todo!(),
-        ProtoIntrinsics::Boolean => todo!(),
-        ProtoIntrinsics::Error => todo!(),
-        ProtoIntrinsics::EvalError => todo!(),
+    let object = match proto_intrinsics {
+        ProtoIntrinsics::Array => agent.heap.create(ArrayHeapData::default()).into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::ArrayBuffer => agent
+            .heap
+            .create(ArrayBufferHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::ArrayIterator => agent
+            .heap
+            .create(ArrayIteratorHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::BigInt => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_big_int_object(0.into()))
+            .into_object(),
+        ProtoIntrinsics::Boolean => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_boolean_object(false))
+            .into_object(),
+        ProtoIntrinsics::Error => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::Error, None, None))
+            .into_object(),
+        ProtoIntrinsics::EvalError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::EvalError, None, None))
+            .into_object(),
+        #[cfg(feature = "date")]
+        ProtoIntrinsics::Date => agent.heap.create(DateHeapData::new_invalid()).into_object(),
         ProtoIntrinsics::Function => todo!(),
-        ProtoIntrinsics::Number => todo!(),
-        ProtoIntrinsics::Object => agent.heap.create_object(vec![]).into(),
-        ProtoIntrinsics::RangeError => todo!(),
-        ProtoIntrinsics::ReferenceError => todo!(),
-        ProtoIntrinsics::String => todo!(),
-        ProtoIntrinsics::Symbol => todo!(),
-        ProtoIntrinsics::SyntaxError => todo!(),
-        ProtoIntrinsics::TypeError => todo!(),
-        ProtoIntrinsics::UriError => todo!(),
+        ProtoIntrinsics::Number => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_number_object(0.into()))
+            .into_object(),
+        ProtoIntrinsics::Object => agent
+            .heap
+            .create_object_with_prototype(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .object_prototype()
+                    .into_object(),
+                &[],
+            )
+            .into(),
+        ProtoIntrinsics::RangeError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::RangeError, None, None))
+            .into_object(),
+        ProtoIntrinsics::ReferenceError => agent
+            .heap
+            .create(ErrorHeapData::new(
+                ExceptionType::ReferenceError,
+                None,
+                None,
+            ))
+            .into_object(),
+        ProtoIntrinsics::String => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_string_object(
+                String::EMPTY_STRING,
+            ))
+            .into_object(),
+        ProtoIntrinsics::Symbol => agent
+            .heap
+            .create(PrimitiveObjectHeapData::new_symbol_object(Symbol::from(
+                WellKnownSymbolIndexes::AsyncIterator,
+            )))
+            .into_object(),
+        ProtoIntrinsics::SyntaxError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::SyntaxError, None, None))
+            .into_object(),
+        ProtoIntrinsics::TypeError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::TypeError, None, None))
+            .into_object(),
+        ProtoIntrinsics::UriError => agent
+            .heap
+            .create(ErrorHeapData::new(ExceptionType::UriError, None, None))
+            .into_object(),
+        ProtoIntrinsics::AggregateError => agent
+            .heap
+            .create(ErrorHeapData::new(
+                ExceptionType::AggregateError,
+                None,
+                None,
+            ))
+            .into_object(),
+        ProtoIntrinsics::AsyncFunction => todo!(),
+        ProtoIntrinsics::AsyncGenerator => agent
+            .heap
+            .create(AsyncGeneratorHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::AsyncGeneratorFunction => todo!(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::BigInt64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::BigUint64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::DataView => agent.heap.create(DataViewHeapData::default()).into_object(),
+        ProtoIntrinsics::FinalizationRegistry => agent
+            .heap
+            .create(FinalizationRegistryHeapData::default())
+            .into_object(),
+        #[cfg(feature = "proposal-float16array")]
+        ProtoIntrinsics::Float16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Float32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Float64Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Generator => agent
+            .heap
+            .create(GeneratorHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::GeneratorFunction => todo!(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Int16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Int32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Int8Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
+        ProtoIntrinsics::MapIterator => agent
+            .heap
+            .create(MapIteratorHeapData::default())
+            .into_object(),
+        ProtoIntrinsics::Promise => agent.heap.create(PromiseHeapData::default()).into_object(),
+        #[cfg(feature = "regexp")]
+        ProtoIntrinsics::RegExp => agent.heap.create(RegExpHeapData::default()).into_object(),
+        #[cfg(feature = "set")]
+        ProtoIntrinsics::Set => agent.heap.create(SetHeapData::default()).into_object(),
+        #[cfg(feature = "set")]
+        ProtoIntrinsics::SetIterator => agent
+            .heap
+            .create(SetIteratorHeapData::default())
+            .into_object(),
+        #[cfg(feature = "shared-array-buffer")]
+        ProtoIntrinsics::SharedArrayBuffer => agent
+            .heap
+            .create(SharedArrayBufferHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint16Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint32Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint8Array => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "array-buffer")]
+        ProtoIntrinsics::Uint8ClampedArray => agent
+            .heap
+            .create(TypedArrayHeapData::default())
+            .into_object(),
+        #[cfg(feature = "weak-refs")]
+        ProtoIntrinsics::WeakMap => agent.heap.create(WeakMapHeapData::default()).into_object(),
+        #[cfg(feature = "weak-refs")]
+        ProtoIntrinsics::WeakRef => agent.heap.create(WeakRefHeapData::default()).into_object(),
+        #[cfg(feature = "weak-refs")]
+        ProtoIntrinsics::WeakSet => agent.heap.create(WeakSetHeapData::default()).into_object(),
+    };
+
+    if let Some(prototype) = prototype {
+        object.internal_set_prototype(agent, Some(prototype));
     }
+
+    object.bind(gc)
+}
+
+/// ### [10.1.13 OrdinaryCreateFromConstructor ( constructor, intrinsicDefaultProto \[ , internalSlotsList \] )](https://tc39.es/ecma262/#sec-ordinarycreatefromconstructor)
+///
+/// The abstract operation OrdinaryCreateFromConstructor takes arguments
+/// constructor (a constructor) and intrinsicDefaultProto (a String) and
+/// optional argument internalSlotsList (a List of names of internal slots) and
+/// returns either a normal completion containing an Object or a throw
+/// completion. It creates an ordinary object whose \[\[Prototype]] value is
+/// retrieved from a constructor's "prototype" property, if it exists.
+/// Otherwise the intrinsic named by intrinsicDefaultProto is used for
+/// \[\[Prototype]]. internalSlotsList contains the names of additional
+/// internal slots that must be defined as part of the object. If
+/// internalSlotsList is not provided, a new empty List is used.
+///
+/// NOTE: In this implementation, `intrinsic_default_proto` also defines which
+/// kind of heap data type the created object uses, and therefore which internal
+/// slots it has. Therefore the `internalSlotsList` property isn't present.
+pub(crate) fn ordinary_create_from_constructor<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    intrinsic_default_proto: ProtoIntrinsics,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Object<'a>> {
+    let constructor = constructor.bind(gc.nogc());
+    // 1. Assert: intrinsicDefaultProto is this specification's name of an
+    // intrinsic object. The corresponding object must be an intrinsic that is
+    // intended to be used as the [[Prototype]] value of an object.
+
+    // 2. Let proto be ? GetPrototypeFromConstructor(constructor, intrinsicDefaultProto).
+    let proto = get_prototype_from_constructor(
+        agent,
+        constructor.unbind(),
+        intrinsic_default_proto,
+        gc.reborrow(),
+    )?;
+    // 3. If internalSlotsList is present, let slotsList be internalSlotsList.
+    // 4. Else, let slotsList be a new empty List.
+    // 5. Return OrdinaryObjectCreate(proto, slotsList).
+    Ok(ordinary_object_create_with_intrinsics(
+        agent,
+        Some(intrinsic_default_proto),
+        proto.map(|f| f.unbind()),
+        gc.into_nogc(),
+    ))
 }
 
 /// ### [10.1.14 GetPrototypeFromConstructor ( constructor, intrinsicDefaultProto )](https://tc39.es/ecma262/#sec-getprototypefromconstructor)
@@ -797,30 +1436,168 @@ pub(crate) fn ordinary_object_create_with_intrinsics(
 /// retrieved from the constructor's "prototype" property, if it exists.
 /// Otherwise the intrinsic named by intrinsicDefaultProto is used for
 /// \[\[Prototype\]\].
-pub(crate) fn get_prototype_from_constructor(
+///
+/// NOTE: In this implementation, the function returns None if the prototype it
+/// would otherwise return is the prototype that corresponds to
+/// `intrinsic_default_proto`.
+pub(crate) fn get_prototype_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     intrinsic_default_proto: ProtoIntrinsics,
-) -> JsResult<Object> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<Option<Object<'a>>> {
+    let constructor = constructor.bind(gc.nogc());
+    let function_realm = get_function_realm(agent, constructor);
+    // NOTE: %Constructor%.prototype is an immutable property; we can thus
+    // check if we %Constructor% is the ProtoIntrinsic we expect and if it is,
+    // return None because we know %Constructor%.prototype corresponds to the
+    // ProtoIntrinsic.
+    if let Ok(intrinsics) = function_realm.map(|realm| agent.get_realm(realm).intrinsics()) {
+        let intrinsic_constructor = match intrinsic_default_proto {
+            ProtoIntrinsics::AggregateError => Some(intrinsics.aggregate_error().into_function()),
+            ProtoIntrinsics::Array => Some(intrinsics.array().into_function()),
+            ProtoIntrinsics::ArrayIterator => None,
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::ArrayBuffer => Some(intrinsics.array_buffer().into_function()),
+            ProtoIntrinsics::AsyncFunction => Some(intrinsics.async_function().into_function()),
+            ProtoIntrinsics::AsyncGenerator => None,
+            ProtoIntrinsics::AsyncGeneratorFunction => {
+                Some(intrinsics.async_generator_function().into_function())
+            }
+            ProtoIntrinsics::BigInt => Some(intrinsics.big_int().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::BigInt64Array => Some(intrinsics.big_int64_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::BigUint64Array => Some(intrinsics.big_uint64_array().into_function()),
+            ProtoIntrinsics::Boolean => Some(intrinsics.boolean().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::DataView => Some(intrinsics.data_view().into_function()),
+            #[cfg(feature = "date")]
+            ProtoIntrinsics::Date => Some(intrinsics.date().into_function()),
+            ProtoIntrinsics::Error => Some(intrinsics.error().into_function()),
+            ProtoIntrinsics::EvalError => Some(intrinsics.eval_error().into_function()),
+            ProtoIntrinsics::FinalizationRegistry => {
+                Some(intrinsics.finalization_registry().into_function())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            ProtoIntrinsics::Float16Array => Some(intrinsics.float16_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Float32Array => Some(intrinsics.float32_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Float64Array => Some(intrinsics.float64_array().into_function()),
+            ProtoIntrinsics::Function => Some(intrinsics.function().into_function()),
+            ProtoIntrinsics::Generator => None,
+            ProtoIntrinsics::GeneratorFunction => {
+                Some(intrinsics.generator_function().into_function())
+            }
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Int16Array => Some(intrinsics.int16_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
+            ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
+            ProtoIntrinsics::MapIterator => None,
+            ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),
+            ProtoIntrinsics::Object => Some(intrinsics.object().into_function()),
+            ProtoIntrinsics::Promise => Some(intrinsics.promise().into_function()),
+            ProtoIntrinsics::RangeError => Some(intrinsics.range_error().into_function()),
+            ProtoIntrinsics::ReferenceError => Some(intrinsics.reference_error().into_function()),
+            #[cfg(feature = "regexp")]
+            ProtoIntrinsics::RegExp => Some(intrinsics.reg_exp().into_function()),
+            #[cfg(feature = "set")]
+            ProtoIntrinsics::Set => Some(intrinsics.set().into_function()),
+            #[cfg(feature = "set")]
+            ProtoIntrinsics::SetIterator => None,
+            #[cfg(feature = "shared-array-buffer")]
+            ProtoIntrinsics::SharedArrayBuffer => {
+                Some(intrinsics.shared_array_buffer().into_function())
+            }
+            ProtoIntrinsics::String => Some(intrinsics.string().into_function()),
+            ProtoIntrinsics::Symbol => Some(intrinsics.symbol().into_function()),
+            ProtoIntrinsics::SyntaxError => Some(intrinsics.syntax_error().into_function()),
+            ProtoIntrinsics::TypeError => Some(intrinsics.type_error().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint16Array => Some(intrinsics.uint16_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint32Array => Some(intrinsics.uint32_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint8Array => Some(intrinsics.uint8_array().into_function()),
+            #[cfg(feature = "array-buffer")]
+            ProtoIntrinsics::Uint8ClampedArray => {
+                Some(intrinsics.uint8_clamped_array().into_function())
+            }
+            ProtoIntrinsics::UriError => Some(intrinsics.uri_error().into_function()),
+            #[cfg(feature = "weak-refs")]
+            ProtoIntrinsics::WeakMap => Some(intrinsics.weak_map().into_function()),
+            #[cfg(feature = "weak-refs")]
+            ProtoIntrinsics::WeakRef => Some(intrinsics.weak_ref().into_function()),
+            #[cfg(feature = "weak-refs")]
+            ProtoIntrinsics::WeakSet => Some(intrinsics.weak_set().into_function()),
+        };
+        if Some(constructor) == intrinsic_constructor {
+            // The ProtoIntrinsic's constructor matches the constructor we're
+            // being called with, so the constructor's prototype matches the
+            // ProtoIntrinsic.
+            return Ok(None);
+        }
+    }
+
     // 1. Assert: intrinsicDefaultProto is this specification's name of an
     // intrinsic object. The corresponding object must be an intrinsic that is
     // intended to be used as the [[Prototype]] value of an object.
     // 2. Let proto be ? Get(constructor, "prototype").
-    let prototype_key = String::from_str(agent, "prototype").into();
-    let proto = get(agent, constructor.into(), prototype_key)?;
+    let prototype_key = BUILTIN_STRING_MEMORY.prototype.into();
+    let proto = get(agent, constructor.unbind(), prototype_key, gc)?;
     // 3. If proto is not an Object, then
+    //   a. Let realm be ? GetFunctionRealm(constructor).
+    //   b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
+    // 4. Return proto.
     match Object::try_from(proto) {
         Err(_) => {
-            // a. Let realm be ? GetFunctionRealm(constructor).
-            let realm = get_function_realm(agent, constructor)?;
-            // b. Set proto to realm's intrinsic object named intrinsicDefaultProto.
-            Ok(realm
-                .intrinsics()
-                .get_intrinsic_default_proto(intrinsic_default_proto))
+            function_realm?;
+            Ok(None)
         }
         Ok(proto) => {
-            // 4. Return proto.
-            Ok(proto)
+            if let Ok(realm) = function_realm {
+                let default_proto = agent
+                    .get_realm(realm)
+                    .intrinsics()
+                    .get_intrinsic_default_proto(intrinsic_default_proto);
+                if proto == default_proto {
+                    return Ok(None);
+                }
+            }
+            Ok(Some(proto))
         }
+    }
+}
+
+/// 10.4.7.2 SetImmutablePrototype ( O, V )
+///
+/// The abstract operation SetImmutablePrototype takes arguments O (an Object)
+/// and V (an Object or null) and returns either a normal completion containing
+/// a Boolean or a throw completion.
+#[inline]
+pub(crate) fn set_immutable_prototype(
+    agent: &mut Agent,
+    o: Module,
+    v: Option<Object>,
+    gc: NoGcScope,
+) -> bool {
+    // 1. Let current be ? O.[[GetPrototypeOf]]().
+    let current = unwrap_try(o.try_get_prototype_of(agent, gc));
+    // 2. If SameValue(V, current) is true, return true.
+    // 3. Return false.
+    v == current
+}
+
+impl HeapMarkAndSweep for OrdinaryObject<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.objects.push(*self);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.objects.shift_index(&mut self.0);
     }
 }

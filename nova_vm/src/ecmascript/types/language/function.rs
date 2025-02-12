@@ -1,288 +1,720 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 mod data;
 pub mod into_function;
 
 use super::{
     value::{
-        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_FUNCTION_DISCRIMINANT,
+        BOUND_FUNCTION_DISCRIMINANT, BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_FUNCTION_DISCRIMINANT, BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
-    },
-    InternalMethods, IntoObject, IntoValue, Object, OrdinaryObjectInternalSlots, Value,
+    }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
+use crate::engine::{context::{GcScope, NoGcScope}, Scoped, TryResult};
 use crate::{
     ecmascript::{
-        builtins::{ArgumentsList, BuiltinFunction, ECMAScriptFunction},
-        execution::{Agent, JsResult},
-    },
-    heap::{
-        indexes::{BoundFunctionIndex, BuiltinFunctionIndex, ECMAScriptFunctionIndex},
-        GetHeapData,
-    },
+        builtins::{
+            bound_function::BoundFunction, control_abstraction_objects::promise_objects::promise_abstract_operations::promise_resolving_functions::BuiltinPromiseResolvingFunction, ArgumentsList, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics},
+        types::PropertyDescriptor,
+    }, engine::rootable::{HeapRootData, HeapRootRef, Rootable}, heap::{CompactionLists, HeapMarkAndSweep, WorkQueues}
 };
 
 pub(crate) use data::*;
 pub use into_function::IntoFunction;
+pub(crate) use into_function::{
+    function_create_backing_object, function_internal_define_own_property,
+    function_internal_delete, function_internal_get, function_internal_get_own_property,
+    function_internal_has_property, function_internal_own_property_keys, function_internal_set,
+    function_try_get, function_try_has_property, function_try_set, FunctionInternalProperties,
+};
 
 /// https://tc39.es/ecma262/#function-object
 #[derive(Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum Function {
-    BoundFunction(BoundFunctionIndex) = BOUND_FUNCTION_DISCRIMINANT,
-    BuiltinFunction(BuiltinFunctionIndex) = BUILTIN_FUNCTION_DISCRIMINANT,
-    ECMAScriptFunction(ECMAScriptFunctionIndex) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+pub enum Function<'a> {
+    BoundFunction(BoundFunction<'a>) = BOUND_FUNCTION_DISCRIMINANT,
+    BuiltinFunction(BuiltinFunction<'a>) = BUILTIN_FUNCTION_DISCRIMINANT,
+    ECMAScriptFunction(ECMAScriptFunction<'a>) = ECMASCRIPT_FUNCTION_DISCRIMINANT,
+    BuiltinGeneratorFunction = BUILTIN_GENERATOR_FUNCTION_DISCRIMINANT,
+    BuiltinConstructorFunction(BuiltinConstructorFunction<'a>) =
+        BUILTIN_CONSTRUCTOR_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>) =
+        BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT,
+    BuiltinPromiseCollectorFunction = BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
+    BuiltinProxyRevokerFunction = BUILTIN_PROXY_REVOKER_FUNCTION,
 }
 
-impl std::fmt::Debug for Function {
+impl std::fmt::Debug for Function<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Function::BoundFunction(d) => write!(f, "BoundFunction({:?})", d),
             Function::BuiltinFunction(d) => write!(f, "BuiltinFunction({:?})", d),
             Function::ECMAScriptFunction(d) => write!(f, "ECMAScriptFunction({:?})", d),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(d) => {
+                write!(f, "BuiltinConstructorFunction({:?})", d)
+            }
+            Function::BuiltinPromiseResolvingFunction(d) => {
+                write!(f, "BuiltinPromiseResolvingFunction({:?})", d)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
 }
 
-impl IntoValue for Function {
+impl IntoValue for Function<'_> {
     fn into_value(self) -> Value {
         self.into()
     }
 }
 
-impl IntoObject for Function {
-    fn into_object(self) -> Object {
+impl<'a> IntoObject<'a> for Function<'a> {
+    fn into_object(self) -> Object<'a> {
         self.into()
     }
 }
 
-impl From<BoundFunctionIndex> for Function {
-    fn from(value: BoundFunctionIndex) -> Self {
+impl<'a> IntoFunction<'a> for Function<'a> {
+    #[inline(always)]
+    fn into_function(self) -> Function<'a> {
+        self
+    }
+}
+
+impl<'a> From<BoundFunction<'a>> for Function<'a> {
+    fn from(value: BoundFunction<'a>) -> Self {
         Function::BoundFunction(value)
     }
 }
 
-impl From<BuiltinFunctionIndex> for Function {
-    fn from(value: BuiltinFunctionIndex) -> Self {
-        Function::BuiltinFunction(value)
-    }
-}
-
-impl From<ECMAScriptFunctionIndex> for Function {
-    fn from(value: ECMAScriptFunctionIndex) -> Self {
-        Function::ECMAScriptFunction(value)
-    }
-}
-
-impl TryFrom<Object> for Function {
+impl<'a> TryFrom<Object<'a>> for Function<'a> {
     type Error = ();
-    fn try_from(value: Object) -> Result<Self, Self::Error> {
+    fn try_from(value: Object<'a>) -> Result<Self, Self::Error> {
         match value {
-            Object::BoundFunction(d) => Ok(Function::from(d)),
-            Object::BuiltinFunction(d) => Ok(Function::from(d)),
-            Object::ECMAScriptFunction(d) => Ok(Function::from(d)),
+            Object::BoundFunction(d) => Ok(Function::BoundFunction(d)),
+            Object::BuiltinFunction(d) => Ok(Function::BuiltinFunction(d)),
+            Object::ECMAScriptFunction(d) => Ok(Function::ECMAScriptFunction(d)),
+            Object::BuiltinGeneratorFunction => Ok(Function::BuiltinGeneratorFunction),
+            Object::BuiltinConstructorFunction(data) => {
+                Ok(Function::BuiltinConstructorFunction(data))
+            }
+            Object::BuiltinPromiseResolvingFunction(data) => {
+                Ok(Function::BuiltinPromiseResolvingFunction(data))
+            }
+            Object::BuiltinPromiseCollectorFunction => {
+                Ok(Function::BuiltinPromiseCollectorFunction)
+            }
+            Object::BuiltinProxyRevokerFunction => Ok(Function::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }
     }
 }
 
-impl TryFrom<Value> for Function {
+impl TryFrom<Value> for Function<'_> {
     type Error = ();
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
-            Value::BoundFunction(d) => Ok(Function::from(d)),
-            Value::BuiltinFunction(d) => Ok(Function::from(d)),
-            Value::ECMAScriptFunction(d) => Ok(Function::from(d)),
+            Value::BoundFunction(d) => Ok(Function::BoundFunction(d)),
+            Value::BuiltinFunction(d) => Ok(Function::BuiltinFunction(d)),
+            Value::ECMAScriptFunction(d) => Ok(Function::ECMAScriptFunction(d)),
+            Value::BuiltinGeneratorFunction => Ok(Function::BuiltinGeneratorFunction),
+            Value::BuiltinConstructorFunction(data) => {
+                Ok(Function::BuiltinConstructorFunction(data))
+            }
+            Value::BuiltinPromiseResolvingFunction(data) => {
+                Ok(Function::BuiltinPromiseResolvingFunction(data))
+            }
+            Value::BuiltinPromiseCollectorFunction => Ok(Function::BuiltinPromiseCollectorFunction),
+            Value::BuiltinProxyRevokerFunction => Ok(Function::BuiltinProxyRevokerFunction),
             _ => Err(()),
         }
     }
 }
 
-impl From<Function> for Object {
-    fn from(value: Function) -> Self {
+impl<'a> From<Function<'a>> for Object<'a> {
+    fn from(value: Function<'a>) -> Self {
         match value {
             Function::BoundFunction(d) => Object::from(d),
             Function::BuiltinFunction(d) => Object::from(d),
             Function::ECMAScriptFunction(d) => Object::from(d),
+            Function::BuiltinGeneratorFunction => Object::BuiltinGeneratorFunction,
+            Function::BuiltinConstructorFunction(data) => {
+                Object::BuiltinConstructorFunction(data.unbind())
+            }
+            Function::BuiltinPromiseResolvingFunction(data) => {
+                Object::BuiltinPromiseResolvingFunction(data.unbind())
+            }
+            Function::BuiltinPromiseCollectorFunction => Object::BuiltinPromiseCollectorFunction,
+            Function::BuiltinProxyRevokerFunction => Object::BuiltinProxyRevokerFunction,
         }
     }
 }
 
-impl From<Function> for Value {
+impl From<Function<'_>> for Value {
     fn from(value: Function) -> Self {
         match value {
-            Function::BoundFunction(d) => Value::BoundFunction(d),
-            Function::BuiltinFunction(d) => Value::BuiltinFunction(d),
-            Function::ECMAScriptFunction(d) => Value::ECMAScriptFunction(d),
+            Function::BoundFunction(d) => Value::BoundFunction(d.unbind()),
+            Function::BuiltinFunction(d) => Value::BuiltinFunction(d.unbind()),
+            Function::ECMAScriptFunction(d) => Value::ECMAScriptFunction(d.unbind()),
+            Function::BuiltinGeneratorFunction => Value::BuiltinGeneratorFunction,
+            Function::BuiltinConstructorFunction(data) => {
+                Value::BuiltinConstructorFunction(data.unbind())
+            }
+            Function::BuiltinPromiseResolvingFunction(data) => {
+                Value::BuiltinPromiseResolvingFunction(data.unbind())
+            }
+            Function::BuiltinPromiseCollectorFunction => Value::BuiltinPromiseCollectorFunction,
+            Function::BuiltinProxyRevokerFunction => Value::BuiltinProxyRevokerFunction,
         }
     }
 }
 
-impl Function {
-    pub(crate) const fn new_builtin_function(idx: BuiltinFunctionIndex) -> Self {
-        Self::BuiltinFunction(idx)
+impl<'a> Function<'a> {
+    /// Unbind this Function from its current lifetime. This is necessary to
+    /// use the Function as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Function<'static> {
+        unsafe { std::mem::transmute::<Function<'a>, Function<'static>>(self) }
+    }
+
+    // Bind this Function to the garbage collection lifetime. This enables
+    // Rust's borrow checker to verify that your Functions cannot not be
+    // invalidated by garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let function = function.bind(&gc);
+    // ```
+    // to make sure that the unbound Function cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Function<'gc> {
+        unsafe { std::mem::transmute::<Function<'a>, Function<'gc>>(self) }
+    }
+
+    pub fn scope<'b>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'b>,
+    ) -> Scoped<'b, Function<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
+    pub fn is_constructor(self, agent: &Agent) -> bool {
+        match self {
+            Function::BoundFunction(f) => f.is_constructor(agent),
+            Function::BuiltinFunction(f) => f.is_constructor(agent),
+            Function::ECMAScriptFunction(f) => f.is_constructor(agent),
+            Function::BuiltinPromiseResolvingFunction(_) => false,
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(_) => true,
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 }
 
-impl OrdinaryObjectInternalSlots for Function {
-    fn extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
-        } {
-            Object::from(object_index).extensible(agent)
-        } else {
-            true
+impl<'a> InternalSlots<'a> for Function<'a> {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
+
+    fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
+        unreachable!("Function should not try to create backing object");
+    }
+
+    fn set_backing_object(self, _agent: &mut Agent, _backing_object: OrdinaryObject<'static>) {
+        unreachable!("Function should not try to set backing object");
+    }
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+        match self {
+            Function::BoundFunction(d) => agent[d].object_index,
+            Function::BuiltinFunction(d) => agent[d].object_index,
+            Function::ECMAScriptFunction(d) => agent[d].object_index,
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(d) => agent[d].object_index,
+            Function::BuiltinPromiseResolvingFunction(d) => agent[d].object_index,
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
 
-    fn set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
-        } {
-            Object::from(object_index).set_extensible(agent, value)
+    fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
+        if let Some(object_index) = self.get_backing_object(agent) {
+            object_index.internal_set_extensible(agent, value)
         } else if !value {
             // Create function base object and set inextensible
             todo!()
         }
     }
 
-    fn prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
-        } {
-            Object::from(object_index).prototype(agent)
-        } else {
-            Some(agent.current_realm().intrinsics().function_prototype())
-        }
-    }
-
-    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = match self {
-            Function::BoundFunction(d) => agent.heap.get(d).object_index,
-            Function::BuiltinFunction(d) => agent.heap.get(d).object_index,
-            Function::ECMAScriptFunction(d) => agent.heap.get(d).object_index,
-        } {
-            Object::from(object_index).set_prototype(agent, prototype)
-        } else if prototype != Some(agent.current_realm().intrinsics().function_prototype()) {
+    fn internal_set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
+        if let Some(object_index) = self.get_backing_object(agent) {
+            object_index.internal_set_prototype(agent, prototype)
+        } else if prototype
+            != Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .function_prototype()
+                    .into(),
+            )
+        {
             // Create function base object with custom prototype
             todo!()
         }
     }
 }
 
-impl InternalMethods for Function {
-    fn get_prototype_of(
+impl<'a> InternalMethods<'a> for Function<'a> {
+    fn try_get_prototype_of<'gc>(
         self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<Option<Object>> {
-        todo!()
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Option<Object<'gc>>> {
+        match self {
+            Function::BoundFunction(x) => x.try_get_prototype_of(agent, gc),
+            Function::BuiltinFunction(x) => x.try_get_prototype_of(agent, gc),
+            Function::ECMAScriptFunction(x) => x.try_get_prototype_of(agent, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_get_prototype_of(agent, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => x.try_get_prototype_of(agent, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn set_prototype_of(
+    fn try_set_prototype_of(
         self,
-        _agent: &mut Agent,
-        _prototype: Option<Object>,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        prototype: Option<Object>,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
+            Function::BuiltinFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
+            Function::ECMAScriptFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_set_prototype_of(agent, prototype, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.try_set_prototype_of(agent, prototype, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn is_extensible(self, _agent: &mut Agent) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+    fn try_is_extensible(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.try_is_extensible(agent, gc),
+            Function::BuiltinFunction(x) => x.try_is_extensible(agent, gc),
+            Function::ECMAScriptFunction(x) => x.try_is_extensible(agent, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_is_extensible(agent, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => x.try_is_extensible(agent, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn prevent_extensions(
+    fn try_prevent_extensions(self, agent: &mut Agent, gc: NoGcScope) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.try_prevent_extensions(agent, gc),
+            Function::BuiltinFunction(x) => x.try_prevent_extensions(agent, gc),
+            Function::ECMAScriptFunction(x) => x.try_prevent_extensions(agent, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_prevent_extensions(agent, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => x.try_prevent_extensions(agent, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn try_get_own_property(
         self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: NoGcScope,
+    ) -> TryResult<Option<PropertyDescriptor>> {
+        match self {
+            Function::BoundFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.try_get_own_property(agent, property_key, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_get_own_property(agent, property_key, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.try_get_own_property(agent, property_key, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn get_own_property(
+    fn try_define_own_property(
         self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<Option<crate::ecmascript::types::PropertyDescriptor>>
-    {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        property_descriptor: PropertyDescriptor,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => {
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Function::BuiltinFunction(x) => {
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Function::ECMAScriptFunction(x) => {
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.try_define_own_property(agent, property_key, property_descriptor, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn define_own_property(
+    fn try_has_property(
         self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-        _property_descriptor: crate::ecmascript::types::PropertyDescriptor,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_has_property(agent, property_key, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.try_has_property(agent, property_key, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn has_property(
+    fn internal_has_property(
         self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: GcScope,
+    ) -> JsResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.internal_has_property(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.internal_has_property(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.internal_has_property(agent, property_key, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.internal_has_property(agent, property_key, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.internal_has_property(agent, property_key, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn get(
+    fn try_get(
         self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-        _receiver: Value,
-    ) -> crate::ecmascript::execution::JsResult<Value> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+        gc: NoGcScope,
+    ) -> TryResult<Value> {
+        match self {
+            Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::ECMAScriptFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_get(agent, property_key, receiver, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.try_get(agent, property_key, receiver, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn set(
+    fn internal_get(
         self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-        _value: Value,
-        _receiver: Value,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        receiver: Value,
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        match self {
+            Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
+            Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver, gc),
+            Function::ECMAScriptFunction(x) => x.internal_get(agent, property_key, receiver, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.internal_get(agent, property_key, receiver, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.internal_get(agent, property_key, receiver, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn delete(
+    fn try_set(
         self,
-        _agent: &mut Agent,
-        _property_key: super::PropertyKey,
-    ) -> crate::ecmascript::execution::JsResult<bool> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
+            Function::BuiltinFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
+            Function::ECMAScriptFunction(x) => x.try_set(agent, property_key, value, receiver, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.try_set(agent, property_key, value, receiver, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.try_set(agent, property_key, value, receiver, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn own_property_keys(
+    fn internal_set(
         self,
-        _agent: &mut Agent,
-    ) -> crate::ecmascript::execution::JsResult<Vec<super::PropertyKey>> {
-        todo!()
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        value: Value,
+        receiver: Value,
+        gc: GcScope,
+    ) -> JsResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.internal_set(agent, property_key, value, receiver, gc),
+            Function::BuiltinFunction(x) => {
+                x.internal_set(agent, property_key, value, receiver, gc)
+            }
+            Function::ECMAScriptFunction(x) => {
+                x.internal_set(agent, property_key, value, receiver, gc)
+            }
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.internal_set(agent, property_key, value, receiver, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.internal_set(agent, property_key, value, receiver, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
     }
 
-    fn call(
+    fn try_delete(
+        self,
+        agent: &mut Agent,
+        property_key: PropertyKey,
+        gc: NoGcScope,
+    ) -> TryResult<bool> {
+        match self {
+            Function::BoundFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::BuiltinFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::ECMAScriptFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => x.try_delete(agent, property_key, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn try_own_property_keys<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Vec<PropertyKey<'gc>>> {
+        match self {
+            Function::BoundFunction(x) => x.try_own_property_keys(agent, gc),
+            Function::BuiltinFunction(x) => x.try_own_property_keys(agent, gc),
+            Function::ECMAScriptFunction(x) => x.try_own_property_keys(agent, gc),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.try_own_property_keys(agent, gc),
+            Function::BuiltinPromiseResolvingFunction(x) => x.try_own_property_keys(agent, gc),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn internal_call(
         self,
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
+        gc: GcScope,
     ) -> JsResult<Value> {
         match self {
-            Function::BoundFunction(_idx) => todo!(),
-            Function::BuiltinFunction(idx) => {
-                BuiltinFunction::from(idx).call(agent, this_argument, arguments_list)
+            Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments_list, gc),
+            Function::BuiltinFunction(x) => {
+                x.internal_call(agent, this_argument, arguments_list, gc)
             }
-            Function::ECMAScriptFunction(idx) => {
-                ECMAScriptFunction::from(idx).call(agent, this_argument, arguments_list)
-            } //Function::ECMAScriptFunction(idx) => agent.heap.get(idx).ecmascript_function.call(agent, self, this_argument, ArgumentsList(arguments_list)),
+            Function::ECMAScriptFunction(x) => {
+                x.internal_call(agent, this_argument, arguments_list, gc)
+            }
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.internal_call(agent, this_argument, arguments_list, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.internal_call(agent, this_argument, arguments_list, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
         }
     }
 
-    fn construct(
+    fn internal_construct<'gc>(
         self,
-        _agent: &mut Agent,
-        _arguments_list: ArgumentsList,
-        _new_target: Function,
-    ) -> JsResult<Object> {
-        todo!()
+        agent: &mut Agent,
+        arguments_list: ArgumentsList,
+        new_target: Function,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Object<'gc>> {
+        match self {
+            Function::BoundFunction(x) => {
+                x.internal_construct(agent, arguments_list, new_target, gc)
+            }
+            Function::BuiltinFunction(x) => {
+                x.internal_construct(agent, arguments_list, new_target, gc)
+            }
+            Function::ECMAScriptFunction(x) => {
+                x.internal_construct(agent, arguments_list, new_target, gc)
+            }
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => {
+                x.internal_construct(agent, arguments_list, new_target, gc)
+            }
+            Function::BuiltinPromiseResolvingFunction(x) => {
+                x.internal_construct(agent, arguments_list, new_target, gc)
+            }
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+}
+
+impl HeapMarkAndSweep for Function<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Function::BoundFunction(x) => x.mark_values(queues),
+            Function::BuiltinFunction(x) => x.mark_values(queues),
+            Function::ECMAScriptFunction(x) => x.mark_values(queues),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.mark_values(queues),
+            Function::BuiltinPromiseResolvingFunction(x) => x.mark_values(queues),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Function::BoundFunction(x) => x.sweep_values(compactions),
+            Function::BuiltinFunction(x) => x.sweep_values(compactions),
+            Function::ECMAScriptFunction(x) => x.sweep_values(compactions),
+            Function::BuiltinGeneratorFunction => todo!(),
+            Function::BuiltinConstructorFunction(x) => x.sweep_values(compactions),
+            Function::BuiltinPromiseResolvingFunction(x) => x.sweep_values(compactions),
+            Function::BuiltinPromiseCollectorFunction => todo!(),
+            Function::BuiltinProxyRevokerFunction => todo!(),
+        }
+    }
+}
+
+impl Function<'_> {
+    pub fn call(
+        self,
+        agent: &mut Agent,
+        this_argument: Value,
+        args: &[Value],
+        gc: GcScope,
+    ) -> JsResult<Value> {
+        self.internal_call(agent, this_argument, ArgumentsList(args), gc)
+    }
+}
+
+impl Rootable for Function<'_> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        match value {
+            Self::BoundFunction(d) => Err(HeapRootData::BoundFunction(d.unbind())),
+            Self::BuiltinFunction(d) => Err(HeapRootData::BuiltinFunction(d.unbind())),
+            Self::ECMAScriptFunction(d) => Err(HeapRootData::ECMAScriptFunction(d.unbind())),
+            Self::BuiltinGeneratorFunction => Err(HeapRootData::BuiltinGeneratorFunction),
+            Self::BuiltinConstructorFunction(d) => {
+                Err(HeapRootData::BuiltinConstructorFunction(d.unbind()))
+            }
+            Self::BuiltinPromiseResolvingFunction(d) => {
+                Err(HeapRootData::BuiltinPromiseResolvingFunction(d.unbind()))
+            }
+            Self::BuiltinPromiseCollectorFunction => {
+                Err(HeapRootData::BuiltinPromiseCollectorFunction)
+            }
+            Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinProxyRevokerFunction),
+        }
+    }
+
+    #[inline]
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    #[inline]
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::BoundFunction(bound_function) => {
+                Some(Self::BoundFunction(bound_function))
+            }
+            HeapRootData::BuiltinFunction(builtin_function) => {
+                Some(Self::BuiltinFunction(builtin_function))
+            }
+            HeapRootData::ECMAScriptFunction(ecmascript_function) => {
+                Some(Self::ECMAScriptFunction(ecmascript_function))
+            }
+            HeapRootData::BuiltinGeneratorFunction => Some(Self::BuiltinGeneratorFunction),
+            HeapRootData::BuiltinConstructorFunction(builtin_constructor_function) => Some(
+                Self::BuiltinConstructorFunction(builtin_constructor_function),
+            ),
+            HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+                Some(Self::BuiltinPromiseResolvingFunction(
+                    builtin_promise_resolving_function,
+                ))
+            }
+            HeapRootData::BuiltinPromiseCollectorFunction => {
+                Some(Self::BuiltinPromiseCollectorFunction)
+            }
+            HeapRootData::BuiltinProxyRevokerFunction => Some(Self::BuiltinProxyRevokerFunction),
+            // Note: We use a catch-all here as we expect function variant
+            // additions to be rare.
+            _ => None,
+        }
     }
 }

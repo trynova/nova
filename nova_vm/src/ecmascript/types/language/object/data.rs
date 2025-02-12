@@ -1,10 +1,17 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use super::Object;
-use crate::{ecmascript::types::Value, heap::element_array::ElementsVector, Heap};
+use crate::{
+    ecmascript::{execution::Agent, types::Value},
+    heap::{element_array::ElementsVector, CompactionLists, HeapMarkAndSweep, WorkQueues},
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ObjectHeapData {
     pub extensible: bool,
-    pub prototype: Option<Object>,
+    pub prototype: Option<Object<'static>>,
     pub keys: ElementsVector,
     pub values: ElementsVector,
 }
@@ -36,8 +43,35 @@ impl ObjectHeapData {
         }
     }
 
-    pub fn has(&self, heap: &Heap, key: Value) -> bool {
+    pub fn has(&self, agent: &Agent, key: Value) -> bool {
         debug_assert!(key.is_string() || key.is_number() || key.is_symbol());
-        heap.elements.has(self.keys, key)
+        agent.heap.elements.has(self.keys, key)
+    }
+}
+
+impl HeapMarkAndSweep for ObjectHeapData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            extensible: _,
+            prototype,
+            keys,
+            values,
+        } = self;
+
+        keys.mark_values(queues);
+        values.mark_values(queues);
+        prototype.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            extensible: _,
+            prototype,
+            keys,
+            values,
+        } = self;
+        keys.sweep_values(compactions);
+        values.sweep_values(compactions);
+        prototype.sweep_values(compactions);
     }
 }

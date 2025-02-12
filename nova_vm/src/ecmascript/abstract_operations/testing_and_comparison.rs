@@ -1,11 +1,31 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! ## [7.2 Testing and Comparison Operations](https://tc39.es/ecma262/#sec-testing-and-comparison-operations)
 
-use crate::ecmascript::{
-    execution::{agent::JsError, Agent, JsResult},
-    types::{bigint::BigInt, InternalMethods, Number, Object, Value},
+use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
+use crate::ecmascript::builtins::proxy::abstract_operations::{
+    validate_non_revoked_proxy, NonRevokedProxy,
+};
+use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
+use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
+use crate::heap::WellKnownSymbolIndexes;
+use crate::{
+    ecmascript::{
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{
+            bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value,
+        },
+    },
+    heap::PrimitiveHeapIndexable,
 };
 
-use super::type_conversion::{string_to_big_int, to_number, to_primitive, PreferredType};
+use super::operations_on_objects::get;
+use super::type_conversion::{
+    string_to_big_int, string_to_number, to_boolean, to_primitive, PreferredType,
+};
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)
 ///
@@ -14,9 +34,17 @@ use super::type_conversion::{string_to_big_int, to_number, to_primitive, Preferr
 /// containing an ECMAScript language value or a throw completion. It throws an
 /// error if argument is a value that cannot be converted to an Object using
 /// ToObject. It is defined by [Table 14](https://tc39.es/ecma262/#table-requireobjectcoercible-results):
-pub(crate) fn require_object_coercible(_agent: &mut Agent, argument: Value) -> JsResult<Value> {
+pub(crate) fn require_object_coercible(
+    agent: &mut Agent,
+    argument: Value,
+    gc: NoGcScope,
+) -> JsResult<Value> {
     if argument.is_undefined() || argument.is_null() {
-        Err(JsError {})
+        Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Argument cannot be converted into an object",
+            gc,
+        ))
     } else {
         Ok(argument)
     }
@@ -27,16 +55,29 @@ pub(crate) fn require_object_coercible(_agent: &mut Agent, argument: Value) -> J
 /// The abstract operation IsArray takes argument argument (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
-    // 1. If argument is not an Object, return false.
-    // 2. If argument is an Array exotic object, return true.
-    Ok(matches!(argument, Value::Array(_)))
-    // TODO: Proxy
-    // 3. If argument is a Proxy exotic object, then
-    // a. Perform ? ValidateNonRevokedProxy(argument).
-    // b. Let proxyTarget be argument.[[ProxyTarget]].
-    // c. Return ? IsArray(proxyTarget).
-    // 4. Return false.
+pub(crate) fn is_array(
+    agent: &mut Agent,
+    argument: impl IntoValue,
+    gc: NoGcScope,
+) -> JsResult<bool> {
+    let argument = argument.into_value();
+
+    match argument {
+        // 1. If argument is not an Object, return false.
+        // 2. If argument is an Array exotic object, return true.
+        Value::Array(_) => Ok(true),
+        // 3. If argument is a Proxy exotic object, then
+        Value::Proxy(proxy) => {
+            // a. Perform ? ValidateNonRevokedProxy(argument).
+            // b. Let proxyTarget be argument.[[ProxyTarget]].
+            let NonRevokedProxy { target, handler: _ } =
+                validate_non_revoked_proxy(agent, proxy, gc)?;
+            // c. Return ? IsArray(proxyTarget).
+            is_array(agent, target, gc)
+        }
+        // 4. Return false.
+        _ => Ok(false),
+    }
 }
 
 /// ### [7.2.3 IsCallable ( argument )](https://tc39.es/ecma262/#sec-iscallable)
@@ -44,14 +85,95 @@ pub(crate) fn is_array(_agent: &Agent, argument: Value) -> JsResult<bool> {
 /// The abstract operation IsCallable takes argument argument (an ECMAScript
 /// language value) and returns a Boolean. It determines if argument is a
 /// callable function with a [[Call]] internal method.
-pub(crate) fn is_callable(argument: Value) -> bool {
+///
+/// > #### Note
+/// > Nova breaks with the specification to narrow the types automatically, and
+/// > returns an `Option<Function>`. Eventually this should become
+/// > `Option<Callable>` once callable proxies are supported.
+pub(crate) fn is_callable<'a, 'b>(
+    argument: impl TryInto<Function<'b>>,
+    _: NoGcScope<'a, '_>,
+) -> Option<Function<'a>> {
     // 1. If argument is not an Object, return false.
     // 2. If argument has a [[Call]] internal method, return true.
     // 3. Return false.
-    matches!(
-        argument,
-        Value::BoundFunction(_) | Value::BuiltinFunction(_) | Value::ECMAScriptFunction(_)
-    )
+    if let Ok(f) = argument.try_into() {
+        Some(f.unbind())
+    } else {
+        None
+    }
+}
+
+/// ### [7.2.4 IsConstructor ( argument )](https://tc39.es/ecma262/#sec-isconstructor)
+///
+/// The abstract operation IsConstructor takes argument argument (an ECMAScript
+/// language value) and returns a Boolean. It determines if argument is a
+/// function object with a [[Construct]] internal method.
+///
+/// > #### Note
+/// > Nova breaks with the specification to narrow the types automatically, and
+/// > returns an `Option<Function>`. Eventually this should become
+/// > `Option<Callable>` or `Option<Constructable>` once callable proxies are
+/// > supported.
+pub(crate) fn is_constructor<'a>(
+    agent: &mut Agent,
+    constructor: impl TryInto<Function<'a>>,
+) -> Option<Function<'a>> {
+    // 1. If argument is not an Object, return false.
+    // TODO: Proxy
+    let Ok(constructor) = constructor.try_into() else {
+        return None;
+    };
+    // 2. If argument has a [[Construct]] internal method, return true.
+    if constructor.is_constructor(agent) {
+        Some(constructor)
+    } else {
+        // 3. Return false.
+        None
+    }
+}
+
+/// ### Try [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
+///
+/// The abstract operation IsExtensible takes argument O (an Object) and
+/// returns either a normal completion containing a Boolean or a throw
+/// completion. It is used to determine whether additional properties can be
+/// added to O.
+pub(crate) fn try_is_extensible(agent: &mut Agent, o: Object, gc: NoGcScope) -> TryResult<bool> {
+    // 1. Return ? O.[[IsExtensible]]().
+    o.try_is_extensible(agent, gc)
+}
+
+/// ### [7.2.6 IsRegExp ( argument )](https://tc39.es/ecma262/#sec-isregexp)
+///
+/// The abstract operation IsRegExp takes argument
+/// argument (an ECMAScript language value) and returns either a normal completion containing a Boolean or a throw completion.
+pub(crate) fn is_reg_exp(agent: &mut Agent, argument: Value, gc: GcScope) -> JsResult<bool> {
+    // 1. If argument is not an Object, return false.
+    if !argument.is_object() {
+        return Ok(false);
+    }
+
+    // 2. Let matcher be ? Get(argument, %Symbol.match%).
+    let matcher = get(
+        agent,
+        Object::internal_prototype(Object::try_from(argument).unwrap(), agent).unwrap(),
+        PropertyKey::Symbol(WellKnownSymbolIndexes::Match.into()),
+        gc,
+    )?;
+
+    // 3. If matcher is not undefined, return ToBoolean(matcher).
+    if matcher.is_undefined() {
+        return Ok(to_boolean(agent, matcher));
+    }
+
+    // 4. If argument has a [[RegExpMatcher]] internal slot, return true.
+    if let Value::RegExp(_) = argument {
+        return Ok(true);
+    }
+
+    // 5. Return false.
+    Ok(false)
 }
 
 /// ### [7.2.5 IsExtensible ( O )](https://tc39.es/ecma262/#sec-isextensible-o)
@@ -60,9 +182,9 @@ pub(crate) fn is_callable(argument: Value) -> bool {
 /// returns either a normal completion containing a Boolean or a throw
 /// completion. It is used to determine whether additional properties can be
 /// added to O.
-pub(crate) fn is_extensible(agent: &mut Agent, o: Object) -> JsResult<bool> {
+pub(crate) fn is_extensible(agent: &mut Agent, o: Object, gc: GcScope) -> JsResult<bool> {
     // 1. Return ? O.[[IsExtensible]]().
-    o.is_extensible(agent)
+    o.internal_is_extensible(agent, gc)
 }
 
 pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1, y: V2) -> bool {
@@ -72,11 +194,16 @@ pub(crate) fn is_same_type<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(x: V1
         || (x.into().is_string() && y.into().is_string())
         || (x.into().is_symbol() && y.into().is_symbol())
         || (x.into().is_number() && y.into().is_number())
+        || (x.into().is_bigint() && y.into().is_bigint())
         || (x.into().is_object() && y.into().is_object())
 }
 
 /// ### [7.2.6 IsIntegralNumber ( argument )](https://tc39.es/ecma262/#sec-isintegralnumber)
-pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<Value>) -> bool {
+pub(crate) fn is_integral_number(
+    agent: &mut Agent,
+    argument: impl Copy + Into<Value>,
+    gc: GcScope,
+) -> bool {
     let argument = argument.into();
 
     // OPTIMIZATION: If the number is a small integer, then know that it must be
@@ -99,12 +226,12 @@ pub(crate) fn is_integral_number(agent: &mut Agent, argument: impl Copy + Into<V
     // 4. Return true.
     // NOTE: Checking if the fractional component is 0.0 is the same as the
     // specification's operation.
-    argument.into_value().to_real(agent).unwrap().fract() == 0.0
+    argument.into_value().to_real(agent, gc).unwrap().fract() == 0.0
 }
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)
 pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
-    agent: &mut Agent,
+    agent: &impl PrimitiveHeapIndexable,
     x: V1,
     y: V2,
 ) -> bool {
@@ -133,11 +260,11 @@ pub(crate) fn same_value<V1: Copy + Into<Value>, V2: Copy + Into<Value>>(
 /// the difference between +0𝔽 and -0𝔽). It performs the following steps when
 /// called:
 pub(crate) fn same_value_zero(
-    agent: &mut Agent,
+    agent: &impl PrimitiveHeapIndexable,
     x: impl Copy + Into<Value>,
     y: impl Copy + Into<Value>,
 ) -> bool {
-    let (x, y) = (x.into(), y.into());
+    let (x, y) = (Into::<Value>::into(x), Into::<Value>::into(y));
 
     // 1. If Type(x) is not Type(y), return false.
     if !is_same_type(x, y) {
@@ -147,7 +274,7 @@ pub(crate) fn same_value_zero(
     // 2. If x is a Number, then
     // NOTE: We need to convert both to a number because we use number
     // type-safety.
-    if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
+    if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::sameValueZero(x, y).
         return Number::same_value_zero(agent, x, y);
     }
@@ -157,7 +284,11 @@ pub(crate) fn same_value_zero(
 }
 
 /// ### [7.2.12 SameValueNonNumber ( x, y )](https://tc39.es/ecma262/#sec-samevaluenonnumber)
-pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x: T, y: T) -> bool {
+pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(
+    agent: &impl PrimitiveHeapIndexable,
+    x: T,
+    y: T,
+) -> bool {
     let x: Value = x.into();
     let y: Value = y.into();
 
@@ -170,15 +301,15 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x
     }
 
     // 3. If x is a BigInt, then
-    if x.is_bigint() {
+    if let (Ok(x), Ok(y)) = (BigInt::try_from(x), BigInt::try_from(y)) {
         // a. Return BigInt::equal(x, y).
-        todo!();
+        return BigInt::equal(agent, x, y);
     }
 
     // 4. If x is a String, then
-    if x.is_string() {
+    if let (Ok(x), Ok(y)) = (String::try_from(x), String::try_from(y)) {
         // a. If x and y have the same length and the same code units in the same positions, return true; otherwise, return false.
-        todo!();
+        return String::eq(agent, x, y);
     }
 
     // 5. If x is a Boolean, then
@@ -189,7 +320,7 @@ pub(crate) fn same_value_non_number<T: Copy + Into<Value>>(_agent: &mut Agent, x
 
     // 6. NOTE: All other ECMAScript language values are compared by identity.
     // 7. If x is y, return true; otherwise, return false.
-    todo!()
+    x == y
 }
 
 /// ### [7.2.13 IsLessThan ( x, y, LeftFirst )](https://tc39.es/ecma262/#sec-islessthan)
@@ -210,32 +341,75 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
     agent: &mut Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
+    mut gc: GcScope,
 ) -> JsResult<Option<bool>> {
-    // 1. If LeftFirst is true, then
-    let (px, py) = if LEFT_FIRST {
-        // a. Let px be ? ToPrimitive(x, NUMBER).
-        let px = to_primitive(agent, x.into(), Some(PreferredType::Number))?;
-
-        // b. Let py be ? ToPrimitive(y, NUMBER).
-        let py = to_primitive(agent, y.into(), Some(PreferredType::Number))?;
-
-        (px, py)
-    }
-    // 2. Else,
-    else {
-        // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
-        // b. Let py be ? ToPrimitive(y, NUMBER).
-        let py = to_primitive(agent, y.into(), Some(PreferredType::Number))?;
-
-        // c. Let px be ? ToPrimitive(x, NUMBER).
-        let px = to_primitive(agent, x.into(), Some(PreferredType::Number))?;
-
-        (px, py)
+    let (px, py, gc) = match (Primitive::try_from(x.into()), Primitive::try_from(y.into())) {
+        (Ok(px), Ok(py)) => {
+            let gc = gc.into_nogc();
+            (px.bind(gc), py.bind(gc), gc)
+        }
+        (Ok(px), Err(_)) => {
+            let px = px.scope(agent, gc.nogc());
+            let py =
+                to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())?.unbind();
+            let gc = gc.into_nogc();
+            let px = px.get(agent);
+            (px.bind(gc), py.bind(gc), gc)
+        }
+        (Err(_), Ok(py)) => {
+            let py = py.scope(agent, gc.nogc());
+            let px =
+                to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())?.unbind();
+            let gc = gc.into_nogc();
+            let py = py.get(agent);
+            (px.bind(gc), py.bind(gc), gc)
+        }
+        (Err(_), Err(_)) => {
+            if LEFT_FIRST {
+                // 1. If LeftFirst is true, then
+                // a. Let px be ? ToPrimitive(x, NUMBER).
+                // b. Let py be ? ToPrimitive(y, NUMBER).
+                let y: Value = y.into();
+                let y = y.scope(agent, gc.nogc());
+                let px = to_primitive(agent, x.into(), Some(PreferredType::Number), gc.reborrow())?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                let py = to_primitive(
+                    agent,
+                    y.get(agent),
+                    Some(PreferredType::Number),
+                    gc.reborrow(),
+                )?
+                .unbind();
+                let gc = gc.into_nogc();
+                let px = px.get(agent);
+                (px.bind(gc), py.bind(gc), gc)
+            } else {
+                // 2. Else,
+                // a. NOTE: The order of evaluation needs to be reversed to preserve left to right evaluation.
+                // b. Let py be ? ToPrimitive(y, NUMBER).
+                // c. Let px be ? ToPrimitive(x, NUMBER).
+                let x: Value = x.into();
+                let x = x.scope(agent, gc.nogc());
+                let py = to_primitive(agent, y.into(), Some(PreferredType::Number), gc.reborrow())?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                let px = to_primitive(
+                    agent,
+                    x.get(agent),
+                    Some(PreferredType::Number),
+                    gc.reborrow(),
+                )?
+                .unbind();
+                let gc = gc.into_nogc();
+                let py = py.get(agent);
+                (px.bind(gc), py.bind(gc), gc)
+            }
+        }
     };
 
     // 3. If px is a String and py is a String, then
     if px.is_string() && py.is_string() {
-        todo!("Finish this")
         // a. Let lx be the length of px.
         // b. Let ly be the length of py.
         // c. For each integer i such that 0 ≤ i < min(lx, ly), in ascending order, do
@@ -244,49 +418,70 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         // iii. If cx < cy, return true.
         // iv. If cx > cy, return false.
         // d. If lx < ly, return true. Otherwise, return false.
+        // NOTE: For UTF-8 strings (i.e. strings with no lone surrogates), this
+        // should be equivalent to regular byte-by-byte string comparison.
+        // TODO: WTF-8 strings with lone surrogates will probably need special
+        // handling.
+        let sx = String::try_from(px).unwrap();
+        let sy = String::try_from(py).unwrap();
+        Ok(Some(sx.as_str(agent) < sy.as_str(agent)))
     }
     // 4. Else,
     else {
         // a. If px is a BigInt and py is a String, then
         if px.is_bigint() && py.is_string() {
-            todo!("Finish this")
+            let Ok(px) = BigInt::try_from(px) else {
+                unreachable!()
+            };
+            let Ok(py) = String::try_from(py) else {
+                unreachable!()
+            };
+
             // i. Let ny be StringToBigInt(py).
+            let ny = string_to_big_int(agent, py, gc)?;
             // ii. If ny is undefined, return undefined.
             // iii. Return BigInt::lessThan(px, ny).
+            return Ok(Some(BigInt::less_than(agent, px, ny)));
         }
 
         // b. If px is a String and py is a BigInt, then
         if px.is_string() && py.is_bigint() {
-            todo!("Finish this")
+            let Ok(px) = String::try_from(px) else {
+                unreachable!()
+            };
+            let Ok(py) = BigInt::try_from(py) else {
+                unreachable!()
+            };
+
             // i. Let nx be StringToBigInt(px).
+            let nx = string_to_big_int(agent, px, gc)?;
             // ii. If nx is undefined, return undefined.
             // iii. Return BigInt::lessThan(nx, py).
+            return Ok(Some(BigInt::less_than(agent, nx, py)));
         }
 
         // c. NOTE: Because px and py are primitive values, evaluation order is not important.
         // d. Let nx be ? ToNumeric(px).
-        let nx = px.to_numeric(agent)?;
+        let nx = to_numeric_primitive(agent, px, gc)?;
 
         // e. Let ny be ? ToNumeric(py).
-        let ny = py.to_numeric(agent)?;
+        let ny = to_numeric_primitive(agent, py, gc)?;
 
         // f. If Type(nx) is Type(ny), then
         if is_same_type(nx, ny) {
             // i. If nx is a Number, then
-            if nx.is_number() {
+            if let Ok(nx) = Number::try_from(nx) {
                 // 1. Return Number::lessThan(nx, ny).
-                let nx = nx.to_number(agent)?;
-                let ny = ny.to_number(agent)?;
+                let ny = Number::try_from(ny).unwrap();
                 return Ok(Number::less_than(agent, nx, ny));
             }
             // ii. Else,
             else {
                 // 1. Assert: nx is a BigInt.
-                assert!(nx.is_bigint());
+                let nx = BigInt::try_from(nx).unwrap();
+                let ny = BigInt::try_from(ny).unwrap();
 
                 // 2. Return BigInt::lessThan(nx, ny).
-                let nx = nx.to_bigint(agent)?;
-                let ny = ny.to_bigint(agent)?;
                 return Ok(Some(BigInt::less_than(agent, nx, ny)));
             }
         }
@@ -310,9 +505,33 @@ pub(crate) fn is_less_than<const LEFT_FIRST: bool>(
         }
 
         // k. If ℝ(nx) < ℝ(ny), return true; otherwise return false.
-        let rnx = nx.to_real(agent)?;
-        let rny = nx.to_real(agent)?;
-        Ok(Some(rnx < rny))
+        Ok(Some(match (nx, ny) {
+            (Numeric::Number(x), Numeric::Number(y)) => x != y && agent[x] < agent[y],
+            (Numeric::Number(x), Numeric::Integer(y)) => agent[x] < y.into_i64() as f64,
+            (Numeric::Number(x), Numeric::SmallF64(y)) => agent[x] < y.into_f64(),
+            (Numeric::Integer(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::Integer(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
+            (Numeric::Number(x), Numeric::BigInt(y)) => agent[y].ge(&agent[x]),
+            (Numeric::Number(x), Numeric::SmallBigInt(y)) => agent[x] < y.into_i64() as f64,
+            (Numeric::Integer(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
+            (Numeric::Integer(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::Integer(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
+            (Numeric::SmallF64(x), Numeric::Number(y)) => x.into_f64() < agent[y],
+            (Numeric::SmallF64(x), Numeric::Integer(y)) => x.into_f64() < y.into_i64() as f64,
+            (Numeric::SmallF64(x), Numeric::SmallF64(y)) => x.into_f64() < y.into_f64(),
+            (Numeric::SmallF64(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_f64()),
+            (Numeric::SmallF64(x), Numeric::SmallBigInt(y)) => x.into_f64() < y.into_i64() as f64,
+            (Numeric::BigInt(x), Numeric::Number(y)) => agent[x].le(&agent[y]),
+            (Numeric::BigInt(x), Numeric::Integer(y)) => agent[x].le(&y.into_i64()),
+            (Numeric::BigInt(x), Numeric::SmallF64(y)) => agent[x].le(&y.into_f64()),
+            (Numeric::BigInt(x), Numeric::BigInt(y)) => agent[x].data < agent[y].data,
+            (Numeric::BigInt(x), Numeric::SmallBigInt(y)) => agent[x].le(&y.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::Number(y)) => (x.into_i64() as f64) < agent[y],
+            (Numeric::SmallBigInt(x), Numeric::Integer(y)) => x.into_i64() < y.into_i64(),
+            (Numeric::SmallBigInt(x), Numeric::SmallF64(y)) => (x.into_i64() as f64) < y.into_f64(),
+            (Numeric::SmallBigInt(x), Numeric::BigInt(y)) => agent[y].ge(&x.into_i64()),
+            (Numeric::SmallBigInt(x), Numeric::SmallBigInt(y)) => x.into_i64() < y.into_i64(),
+        }))
     }
 }
 
@@ -326,8 +545,10 @@ pub(crate) fn is_loosely_equal(
     agent: &mut Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
+    mut gc: GcScope,
 ) -> JsResult<bool> {
-    let (x, y) = (x.into(), y.into());
+    let x: Value = x.into();
+    let y: Value = y.into();
 
     // 1. If Type(x) is Type(y), then
     if is_same_type(x, y) {
@@ -347,75 +568,102 @@ pub(crate) fn is_loosely_equal(
     // b. If x is either undefined or null, y is an Object, and y has an [[IsHTMLDDA]] internal slot, return true.
 
     // 5. If x is a Number and y is a String, return ! IsLooselyEqual(x, ! ToNumber(y)).
-    if x.is_number() && y.is_string() {
-        let y = to_number(agent, y).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+    if let (Ok(x), Ok(y)) = (Number::try_from(x), String::try_from(y)) {
+        // Note: We know statically that calling ToNumber on a string calls
+        // StringToNumber, and IsLooselyEqual with two Numbers calls
+        // IsStrictlyEqual, which calls Number::equal.
+        let gc = gc.into_nogc();
+        let y = string_to_number(agent, y, gc);
+        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 6. If x is a String and y is a Number, return ! IsLooselyEqual(! ToNumber(x), y).
-    if x.is_string() && y.is_number() {
-        let x = to_number(agent, x).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+    if let (Ok(x), Ok(y)) = (String::try_from(x), Number::try_from(y)) {
+        // Note: We know statically that calling ToNumber on a string calls
+        // StringToNumber, and IsLooselyEqual with two Numbers calls
+        // IsStrictlyEqual, which calls Number::equal.
+        let gc = gc.into_nogc();
+        let x = string_to_number(agent, x, gc);
+        return Ok(Number::equal(agent, x.bind(gc), y.bind(gc)));
     }
 
     // 7. If x is a BigInt and y is a String, then
-    if x.is_bigint() && y.is_string() {
+    if let (Ok(x), Ok(y)) = (BigInt::try_from(x), String::try_from(y)) {
         // a. Let n be StringToBigInt(y).
         // b. If n is undefined, return false.
-        if let Some(n) = string_to_big_int(agent, y) {
+        let gc = gc.into_nogc();
+        if let Ok(n) = string_to_big_int(agent, y, gc) {
             // c. Return ! IsLooselyEqual(x, n).
-            return Ok(is_loosely_equal(agent, x, n).unwrap());
+            // Note: IsLooselyEqual with two BigInts calls IsStrictlyEqual
+            // which eventually calls BigInt::euqla
+            return Ok(BigInt::equal(agent, x.bind(gc), n.bind(gc)));
         } else {
             return Ok(false);
         }
     }
 
     // 8. If x is a String and y is a BigInt, return ! IsLooselyEqual(y, x).
-    if x.is_string() && y.is_bigint() {
-        return Ok(is_loosely_equal(agent, y, x).unwrap());
+    if let (Ok(x), Ok(y)) = (String::try_from(x), BigInt::try_from(y)) {
+        // Note: This flips the operands and re-enters the call.
+        // We'll skip to the above punch-line with flipped parameters.
+
+        // a. Let n be StringToBigInt(x).
+        // b. If n is undefined, return false.
+        let gc = gc.into_nogc();
+        if let Ok(n) = string_to_big_int(agent, x, gc) {
+            // c. Return ! IsLooselyEqual(x, n).
+            // Note: IsLooselyEqual with two BigInts calls IsStrictlyEqual
+            // which eventually calls BigInt::euqla
+            return Ok(BigInt::equal(agent, y.bind(gc), n.bind(gc)));
+        } else {
+            return Ok(false);
+        }
     }
 
     // 9. If x is a Boolean, return ! IsLooselyEqual(! ToNumber(x), y).
-    if x.is_boolean() {
-        let x = to_number(agent, x).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+    if let Ok(x) = bool::try_from(x) {
+        let x = if x { 1 } else { 0 };
+        return Ok(is_loosely_equal(agent, x, y, gc).unwrap());
     }
 
     // 10. If y is a Boolean, return ! IsLooselyEqual(x, ! ToNumber(y)).
-    if y.is_boolean() {
-        let y = to_number(agent, y).unwrap();
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+    if let Ok(y) = bool::try_from(y) {
+        let y = if y { 1 } else { 0 };
+        return Ok(is_loosely_equal(agent, x, y, gc).unwrap());
     }
 
     // 11. If x is either a String, a Number, a BigInt, or a Symbol and y is an Object, return ! IsLooselyEqual(x, ? ToPrimitive(y)).
     if (x.is_string() || x.is_number() || x.is_bigint() || x.is_symbol()) && y.is_object() {
-        let y = to_primitive(agent, y, None)?;
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        let x = x.scope(agent, gc.nogc());
+        let y = to_primitive(agent, y, None, gc.reborrow())?.unbind();
+        return Ok(is_loosely_equal(agent, x.get(agent), y, gc).unwrap());
     }
 
     // 12. If x is an Object and y is either a String, a Number, a BigInt, or a Symbol, return ! IsLooselyEqual(? ToPrimitive(x), y).
     if x.is_object() && (y.is_string() || y.is_number() || y.is_bigint() || y.is_symbol()) {
-        let x = to_primitive(agent, x, None)?;
-        return Ok(is_loosely_equal(agent, x, y).unwrap());
+        let y = y.scope(agent, gc.nogc());
+        let x = to_primitive(agent, x, None, gc.reborrow())?.unbind();
+        return Ok(is_loosely_equal(agent, x, y.get(agent), gc).unwrap());
     }
 
     // 13. If x is a BigInt and y is a Number, or if x is a Number and y is a BigInt, then
-    if let Some(xy) = if x.is_bigint() {
-        y.to_number(agent).ok()
-    } else if y.is_bigint() {
-        x.to_number(agent).ok()
+    if let Some((a, b)) = if let (Ok(x), Ok(y)) = (BigInt::try_from(x), Number::try_from(y)) {
+        Some((x, y))
+    } else if let (Ok(x), Ok(y)) = (Number::try_from(x), BigInt::try_from(y)) {
+        Some((y, x))
     } else {
         None
     } {
         // a. If x is not finite or y is not finite, return false.
-        if !xy.is_finite(agent) {
+        // Note: BigInt is always finite.
+        if !b.is_finite(agent) {
             return Ok(false);
         }
 
         // b. If ℝ(x) = ℝ(y), return true; otherwise return false.
-        let rx = x.to_real(agent)?;
-        let ry = y.to_real(agent)?;
-        return Ok(rx == ry);
+        let a = a.to_real(agent);
+        let b = b.to_real(agent);
+        return Ok(a == b);
     }
 
     // 14. Return false.
@@ -428,7 +676,7 @@ pub(crate) fn is_loosely_equal(
 /// language value) and y (an ECMAScript language value) and returns a Boolean.
 /// It provides the semantics for the === operator.
 pub(crate) fn is_strictly_equal(
-    agent: &mut Agent,
+    agent: &Agent,
     x: impl Into<Value> + Copy,
     y: impl Into<Value> + Copy,
 ) -> bool {
@@ -442,7 +690,7 @@ pub(crate) fn is_strictly_equal(
     // 2. If x is a Number, then
     // NOTE: We need to convert both to a number because we use number
     // type-safety.
-    if let (Ok(x), Ok(y)) = (x.to_number(agent), y.to_number(agent)) {
+    if let (Ok(x), Ok(y)) = (Number::try_from(x), Number::try_from(y)) {
         // a. Return Number::equal(x, y).
         return Number::equal(agent, x, y);
     }

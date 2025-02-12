@@ -1,13 +1,22 @@
-use crate::ecmascript::{
-    abstract_operations::{operations_on_objects::set, type_conversion::to_object},
-    execution::{
-        agent::{self, ExceptionType},
-        get_global_object, EnvironmentIndex,
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
+use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::TryResult;
+use crate::{
+    ecmascript::{
+        abstract_operations::{operations_on_objects::set, type_conversion::to_object},
+        execution::{
+            agent::{self, ExceptionType},
+            get_global_object, EnvironmentIndex,
+        },
+        types::{InternalMethods, Object, PropertyKey, String, Value},
     },
-    types::{InternalMethods, Object, PropertyKey, Symbol, Value},
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 use agent::{Agent, JsResult};
-use oxc_span::Atom;
 
 /// ### [6.2.5 The Reference Record Specification Type](https://tc39.es/ecma262/#sec-reference-record-specification-type)
 ///
@@ -16,7 +25,7 @@ use oxc_span::Atom;
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
 #[derive(Debug)]
-pub struct Reference {
+pub struct Reference<'a> {
     /// ### \[\[Base]]
     ///
     /// The value or Environment Record which holds the binding. A \[\[Base]]
@@ -27,7 +36,7 @@ pub struct Reference {
     ///
     /// The name of the binding. Always a String if \[\[Base]] value is an
     /// Environment Record.
-    pub(crate) referenced_name: ReferencedName,
+    pub(crate) referenced_name: PropertyKey<'a>,
 
     /// ### \[\[Strict]]
     ///
@@ -43,6 +52,28 @@ pub struct Reference {
     /// that case, the \[\[ThisValue]] field holds the this value at the time
     /// the Reference Record was created.
     pub(crate) this_value: Option<Value>,
+}
+
+impl<'a> Reference<'a> {
+    /// Unbind this Reference from its current lifetime. This is necessary to use
+    /// the Reference as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> Reference<'static> {
+        unsafe { std::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
+    }
+
+    // Bind this Reference to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your References cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let number = number.bind(&gc);
+    // ```
+    // to make sure that the unbound Reference cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Reference<'gc> {
+        unsafe { std::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
+    }
 }
 
 /// ### [6.2.5.1 IsPropertyReference ( V )](https://tc39.es/ecma262/#sec-ispropertyreference)
@@ -82,16 +113,22 @@ pub(crate) fn is_super_reference(reference: &Reference) -> bool {
 ///
 /// The abstract operation IsPrivateReference takes argument V (a Reference
 /// Record) and returns a Boolean.
-pub(crate) fn is_private_reference(reference: &Reference) -> bool {
+pub(crate) fn is_private_reference(_: &Reference) -> bool {
     // 1. If V.[[ReferencedName]] is a Private Name, return true; otherwise return false.
-    matches!(reference.referenced_name, ReferencedName::PrivateName)
+    // matches!(reference.referenced_name, PropertyKey::PrivateName)
+    false
 }
 
 /// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Value> {
+pub(crate) fn get_value(
+    agent: &mut Agent,
+    reference: &Reference,
+    mut gc: GcScope,
+) -> JsResult<Value> {
+    let referenced_name = reference.referenced_name.bind(gc.nogc());
     match reference.base {
         Base::Value(value) => {
             // 3. If IsPropertyReference(V) is true, then
@@ -104,22 +141,74 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // implementation might choose to avoid the actual
             // creation of the object.
             if let Ok(object) = Object::try_from(value) {
-                let referenced_name = match &reference.referenced_name {
-                    ReferencedName::String(atom) => {
-                        PropertyKey::from_str(&mut agent.heap, atom.as_str())
-                    }
-                    ReferencedName::Symbol(_) => todo!(),
-                    ReferencedName::PrivateName => {
-                        // b. If IsPrivateReference(V) is true, then
-                        // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-                        todo!()
-                    }
-                };
                 // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
-                Ok(object.get(agent, referenced_name, get_this_value(reference))?)
+                Ok(object.internal_get(
+                    agent,
+                    referenced_name.unbind(),
+                    get_this_value(reference),
+                    gc.reborrow(),
+                )?)
             } else {
                 // Primitive value. annoying stuff.
-                todo!()
+                match value {
+                    Value::Undefined => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of undefined.",
+                            referenced_name.as_display(agent)
+                        );
+                        Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc.nogc(),
+                        ))
+                    }
+                    Value::Null => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of null.",
+                            referenced_name.as_display(agent)
+                        );
+                        Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc.nogc(),
+                        ))
+                    }
+                    Value::Boolean(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .boolean_prototype()
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                    Value::String(_) | Value::SmallString(_) => {
+                        let string = String::try_from(value).unwrap();
+                        if let Some(prop_desc) =
+                            string.get_property_descriptor(agent, referenced_name)
+                        {
+                            Ok(prop_desc.value.unwrap())
+                        } else {
+                            agent
+                                .current_realm()
+                                .intrinsics()
+                                .string_prototype()
+                                .internal_get(agent, referenced_name.unbind(), value, gc.reborrow())
+                        }
+                    }
+                    Value::Symbol(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .symbol_prototype()
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                    Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .number_prototype()
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                    Value::BigInt(_) | Value::SmallBigInt(_) => agent
+                        .current_realm()
+                        .intrinsics()
+                        .big_int_prototype()
+                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                    _ => unreachable!(),
+                }
             }
         }
         Base::Environment(env) => {
@@ -128,22 +217,19 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
             // b. Assert: base is an Environment Record.
             // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
             let referenced_name = match &reference.referenced_name {
-                ReferencedName::String(atom) => atom,
-                ReferencedName::Symbol(_) => todo!(),
-                ReferencedName::PrivateName => {
-                    // b. If IsPrivateReference(V) is true, then
-                    // i. Return ? PrivateGet(baseObj, V.[[ReferencedName]]).
-                    todo!()
-                }
+                PropertyKey::String(data) => String::String(*data),
+                PropertyKey::SmallString(data) => String::SmallString(*data),
+                _ => unreachable!(),
             };
-            Ok(env.get_binding_value(agent, referenced_name, reference.strict)?)
+            Ok(env.get_binding_value(agent, referenced_name, reference.strict, gc.reborrow())?)
         }
         Base::Unresolvable => {
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
-            Err(agent.throw_exception(
-                ExceptionType::ReferenceError,
-                "Unable to resolve identifier.",
-            ))
+            let error_message = format!(
+                "Cannot access undeclared variable '{}'.",
+                referenced_name.as_display(agent)
+            );
+            Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
         }
     }
 }
@@ -153,25 +239,32 @@ pub(crate) fn get_value(agent: &mut Agent, reference: &Reference) -> JsResult<Va
 /// The abstract operation PutValue takes arguments V (a Reference Record or an
 /// ECMAScript language value) and W (an ECMAScript language value) and returns
 /// either a normal completion containing UNUSED or an abrupt completion.
-pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<()> {
+pub(crate) fn put_value(
+    agent: &mut Agent,
+    v: &Reference,
+    w: Value,
+    mut gc: GcScope,
+) -> JsResult<()> {
     // 1. If V is not a Reference Record, throw a ReferenceError exception.
     // 2. If IsUnresolvableReference(V) is true, then
     if is_unresolvable_reference(v) {
         if v.strict {
             // a. If V.[[Strict]] is true, throw a ReferenceError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Could not resolve reference")
+            let error_message = format!(
+                "Cannot assign to undeclared variable '{}'.",
+                v.referenced_name.as_display(agent)
             );
+            return Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc.nogc(),
+            ));
         }
         // b. Let globalObj be GetGlobalObject().
-        let global_obj = get_global_object(agent);
+        let global_obj = get_global_object(agent, gc.nogc());
         // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
-        let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(&mut agent.heap, atom.as_str()),
-            ReferencedName::Symbol(_) => todo!(),
-            ReferencedName::PrivateName => todo!(),
-        };
-        set(agent, global_obj, referenced_name, w, false)?;
+        let referenced_name = v.referenced_name;
+        set(agent, global_obj.unbind(), referenced_name, w, false, gc)?;
         // d. Return UNUSED.
         Ok(())
     } else if is_property_reference(v) {
@@ -181,7 +274,7 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
             Base::Value(value) => value,
             Base::Environment(_) | Base::Unresolvable => unreachable!(),
         };
-        let base_obj = to_object(agent, base)?;
+        let base_obj = to_object(agent, base, gc.nogc())?;
         // b. If IsPrivateReference(V) is true, then
         if is_private_reference(v) {
             // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
@@ -189,17 +282,24 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         }
         // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
         let this_value = get_this_value(v);
-        let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => PropertyKey::from_str(&mut agent.heap, atom.as_str()),
-            ReferencedName::Symbol(_) => todo!(),
-            ReferencedName::PrivateName => todo!(),
-        };
-        let succeeded = base_obj.set(agent, referenced_name, w, this_value)?;
+        let referenced_name = v.referenced_name;
+        let scoped_base_obj = base_obj.scope(agent, gc.nogc());
+        let succeeded =
+            base_obj
+                .unbind()
+                .internal_set(agent, referenced_name, w, this_value, gc.reborrow())?;
         if !succeeded && v.strict {
             // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
-            return Err(
-                agent.throw_exception(ExceptionType::ReferenceError, "Could not set property")
+            let base_obj_repr = scoped_base_obj
+                .get(agent)
+                .into_value()
+                .string_repr(agent, gc.reborrow());
+            let error_message = format!(
+                "Could not set property '{}' of {}.",
+                referenced_name.as_display(agent),
+                base_obj_repr.as_str(agent)
             );
+            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         }
         // e. Return UNUSED.
         Ok(())
@@ -213,14 +313,159 @@ pub(crate) fn put_value(agent: &mut Agent, v: &Reference, w: Value) -> JsResult<
         };
         // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
         let referenced_name = match &v.referenced_name {
-            ReferencedName::String(atom) => atom,
-            ReferencedName::Symbol(_) => todo!(),
-            ReferencedName::PrivateName => todo!(),
+            PropertyKey::String(data) => String::String(*data),
+            PropertyKey::SmallString(data) => String::SmallString(*data),
+            _ => unreachable!(),
         };
-        base.set_mutable_binding(agent, referenced_name, w, v.strict)
+        base.set_mutable_binding(agent, referenced_name, w, v.strict, gc)
     }
     // NOTE
     // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.
+}
+
+/// ### [6.2.5.6 PutValue ( V, W )](https://tc39.es/ecma262/#sec-putvalue)
+///
+/// The abstract operation PutValue takes arguments V (a Reference Record or an
+/// ECMAScript language value) and W (an ECMAScript language value) and returns
+/// either a normal completion containing UNUSED or an abrupt completion.
+pub(crate) fn try_put_value<'a>(
+    agent: &mut Agent,
+    v: &Reference<'a>,
+    w: Value,
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<()>> {
+    // 1. If V is not a Reference Record, throw a ReferenceError exception.
+    // 2. If IsUnresolvableReference(V) is true, then
+    if is_unresolvable_reference(v) {
+        if v.strict {
+            // a. If V.[[Strict]] is true, throw a ReferenceError exception.
+            let error_message = format!(
+                "Cannot assign to undeclared variable '{}'.",
+                v.referenced_name.as_display(agent)
+            );
+            return TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc,
+            )));
+        }
+        // b. Let globalObj be GetGlobalObject().
+        let global_obj = get_global_object(agent, gc);
+        // c. Perform ? Set(globalObj, V.[[ReferencedName]], W, false).
+        let referenced_name = v.referenced_name;
+        if let Err(err) = try_set(agent, global_obj, referenced_name, w, false, gc)? {
+            return TryResult::Continue(Err(err));
+        };
+        // d. Return UNUSED.
+        TryResult::Continue(Ok(()))
+    } else if is_property_reference(v) {
+        // 3. If IsPropertyReference(V) is true, then
+        // a. Let baseObj be ? ToObject(V.[[Base]]).
+        let base = match v.base {
+            Base::Value(value) => value,
+            Base::Environment(_) | Base::Unresolvable => unreachable!(),
+        };
+        let base_obj = match to_object(agent, base, gc) {
+            Ok(base_obj) => base_obj,
+            Err(err) => return TryResult::Continue(Err(err)),
+        };
+        // b. If IsPrivateReference(V) is true, then
+        if is_private_reference(v) {
+            // i. Return ? PrivateSet(baseObj, V.[[ReferencedName]], W).
+            todo!();
+        }
+        // c. Let succeeded be ? baseObj.[[Set]](V.[[ReferencedName]], W, GetThisValue(V)).
+        let this_value = get_this_value(v);
+        let referenced_name = v.referenced_name;
+        let succeeded = base_obj.try_set(agent, referenced_name, w, this_value, gc)?;
+        if !succeeded && v.strict {
+            // d. If succeeded is false and V.[[Strict]] is true, throw a TypeError exception.
+            let base_obj_repr = base_obj.into_value().try_string_repr(agent, gc);
+            let error_message = format!(
+                "Could not set property '{}' of {}.",
+                referenced_name.as_display(agent),
+                base_obj_repr.as_str(agent)
+            );
+            return TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc,
+            )));
+        }
+        // e. Return UNUSED.
+        TryResult::Continue(Ok(()))
+    } else {
+        // 4. Else,
+        // a. Let base be V.[[Base]].
+        let base = &v.base;
+        // b. Assert: base is an Environment Record.
+        let Base::Environment(base) = base else {
+            unreachable!()
+        };
+        // c. Return ? base.SetMutableBinding(V.[[ReferencedName]], W, V.[[Strict]]) (see 9.1).
+        let referenced_name = match &v.referenced_name {
+            PropertyKey::String(data) => String::String(*data),
+            PropertyKey::SmallString(data) => String::SmallString(*data),
+            _ => unreachable!(),
+        };
+        base.try_set_mutable_binding(agent, referenced_name, w, v.strict, gc)
+    }
+    // NOTE
+    // The object that may be created in step 3.a is not accessible outside of the above abstract operation and the ordinary object [[Set]] internal method. An implementation might choose to avoid the actual creation of that object.
+}
+
+/// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
+/// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
+/// (an ECMAScript language value) and returns either a normal completion containing unused or an
+/// abrupt completion.
+pub(crate) fn initialize_referenced_binding(
+    agent: &mut Agent,
+    v: Reference,
+    w: Value,
+    mut gc: GcScope,
+) -> JsResult<()> {
+    // 1. Assert: IsUnresolvableReference(V) is false.
+    debug_assert!(!is_unresolvable_reference(&v));
+    // 2. Let base be V.[[Base]].
+    let base = v.base;
+    // 3. Assert: base is an Environment Record.
+    let Base::Environment(base) = base else {
+        unreachable!()
+    };
+    let referenced_name = match v.referenced_name {
+        PropertyKey::String(data) => String::String(data),
+        PropertyKey::SmallString(data) => String::SmallString(data),
+        _ => unreachable!(),
+    };
+    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+    base.initialize_binding(agent, referenced_name, w, gc.reborrow())
+}
+
+/// ### {6.2.5.8 InitializeReferencedBinding ( V, W )}(https://tc39.es/ecma262/#sec-initializereferencedbinding)
+/// The abstract operation InitializeReferencedBinding takes arguments V (a Reference Record) and W
+/// (an ECMAScript language value) and returns either a normal completion containing unused or an
+/// abrupt completion.
+pub(crate) fn try_initialize_referenced_binding<'a>(
+    agent: &mut Agent,
+    v: Reference<'a>,
+    w: Value,
+    gc: NoGcScope<'a, '_>,
+) -> TryResult<JsResult<()>> {
+    // 1. Assert: IsUnresolvableReference(V) is false.
+    debug_assert!(!is_unresolvable_reference(&v));
+    // 2. Let base be V.[[Base]].
+    let base = v.base;
+    // 3. Assert: base is an Environment Record.
+    let Base::Environment(base) = base else {
+        unreachable!()
+    };
+    let referenced_name = match v.referenced_name {
+        PropertyKey::String(data) => String::String(data),
+        PropertyKey::SmallString(data) => String::SmallString(data),
+        _ => unreachable!(),
+    };
+    // 4. Return ? base.InitializeBinding(V.[[ReferencedName]], W).
+    base.try_initialize_binding(agent, referenced_name, w, gc)
 }
 
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
@@ -238,17 +483,53 @@ pub(crate) fn get_this_value(reference: &Reference) -> Value {
         })
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Base {
     Value(Value),
     Environment(EnvironmentIndex),
     Unresolvable,
 }
 
-#[derive(Debug)]
-pub enum ReferencedName {
-    String(Atom),
-    Symbol(Symbol),
-    // TODO: implement private names
-    PrivateName,
+impl HeapMarkAndSweep for Reference<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        let Self {
+            base,
+            referenced_name,
+            strict: _,
+            this_value,
+        } = self;
+        base.mark_values(queues);
+        referenced_name.mark_values(queues);
+        this_value.mark_values(queues);
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        let Self {
+            base,
+            referenced_name,
+            strict: _,
+            this_value,
+        } = self;
+        base.sweep_values(compactions);
+        referenced_name.sweep_values(compactions);
+        this_value.sweep_values(compactions);
+    }
+}
+
+impl HeapMarkAndSweep for Base {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Base::Value(value) => value.mark_values(queues),
+            Base::Environment(idx) => idx.mark_values(queues),
+            Base::Unresolvable => {}
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Base::Value(value) => value.sweep_values(compactions),
+            Base::Environment(idx) => idx.sweep_values(compactions),
+            Base::Unresolvable => {}
+        }
+    }
 }

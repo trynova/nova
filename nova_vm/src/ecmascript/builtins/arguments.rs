@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! ### [10.4.4 Arguments Exotic Objects](https://tc39.es/ecma262/#sec-arguments-exotic-objects)
 //!
 //! Most ECMAScript functions make an arguments object available to their code. Depending upon the characteristics of the function definition, its arguments object is either an ordinary object or an arguments exotic object. An arguments exotic object is an exotic object whose array index properties map to the formal parameters bindings of an invocation of its associated ECMAScript function.
@@ -22,18 +26,23 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
+use crate::engine::context::NoGcScope;
+use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
-            create_data_property_or_throw, define_property_or_throw,
+            try_create_data_property_or_throw, try_define_property_or_throw,
         },
         execution::{agent::Agent, ProtoIntrinsics},
-        types::{Number, Object, PropertyDescriptor, PropertyKey, Value},
+        types::{
+            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     heap::WellKnownSymbolIndexes,
 };
 
-use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
+use super::ordinary::ordinary_object_create_with_intrinsics;
 
 // 10.4.4.1 [[GetOwnProperty]] ( P )
 
@@ -113,19 +122,24 @@ use super::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList};
 /// The abstract operation CreateUnmappedArgumentsObject takes argument
 /// argumentsList (a List of ECMAScript language values) and returns an
 /// ordinary object.
-pub(crate) fn create_unmapped_arguments_object(
+pub(crate) fn create_unmapped_arguments_object<'a>(
     agent: &mut Agent,
-    arguments_list: ArgumentsList,
-) -> Object {
+    arguments_list: &[Value],
+    gc: NoGcScope<'a, '_>,
+) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
-    let len = Number::from_f64(agent, len as f64).into_value();
+    let len = Number::from_f64(agent, len as f64, gc).into_value();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
-    let obj = ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object));
+    let obj =
+        ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc);
+    let Object::Object(obj) = obj else {
+        unreachable!()
+    };
     // 3. Set obj.[[ParameterMap]] to undefined.
     // 4. Perform ! DefinePropertyOrThrow(obj, "length", PropertyDescriptor {
-    let key = PropertyKey::from_str(&mut agent.heap, "length");
-    define_property_or_throw(
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.length);
+    unwrap_try(try_define_property_or_throw(
         agent,
         obj,
         key,
@@ -140,30 +154,37 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(true),
             ..Default::default()
         },
-    )
+        gc,
+    ))
     .unwrap();
     // 5. Let index be 0.
     // 6. Repeat, while index < len,
-    for (index, val) in arguments_list.0.iter().enumerate() {
+    for (index, &val) in arguments_list.iter().enumerate() {
         // a. Let val be argumentsList[index].
         // b. Perform ! CreateDataPropertyOrThrow(obj, ! ToString(𝔽(index)), val).
         debug_assert!(index < u32::MAX as usize);
         let index = index as u32;
         let key = PropertyKey::Integer(index.into());
-        create_data_property_or_throw(agent, obj, key, *val).unwrap();
+        unwrap_try(try_create_data_property_or_throw(agent, obj, key, val, gc)).unwrap();
         // c. Set index to index + 1.
     }
     // 7. Perform ! DefinePropertyOrThrow(obj, @@iterator, PropertyDescriptor {
     let key = PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into());
     // TODO: "as if the property was accessed prior to any ECMAScript code being evaluated"
     // let array_prototype_values = agent.current_realm().intrinsics().array_prototype();
-    define_property_or_throw(
+    unwrap_try(try_define_property_or_throw(
         agent,
         obj,
         key,
         PropertyDescriptor {
             // [[Value]]: %Array.prototype.values%,
-            value: Some(Value::Null),
+            value: Some(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .array_prototype_values()
+                    .into_value(),
+            ),
             // [[Writable]]: true,
             writable: Some(true),
             // [[Enumerable]]: false,
@@ -172,30 +193,32 @@ pub(crate) fn create_unmapped_arguments_object(
             configurable: Some(true),
             ..Default::default()
         },
-    )
+        gc,
+    ))
     .unwrap();
     let throw_type_error = agent.current_realm().intrinsics().throw_type_error();
     // 8. Perform ! DefinePropertyOrThrow(obj, "callee", PropertyDescriptor {
-    let key = PropertyKey::from_str(&mut agent.heap, "callee");
-    define_property_or_throw(
+    let key = PropertyKey::from(BUILTIN_STRING_MEMORY.callee);
+    unwrap_try(try_define_property_or_throw(
         agent,
         obj,
         key,
         PropertyDescriptor {
             // [[Get]]: %ThrowTypeError%,
-            get: Some(throw_type_error),
+            get: Some(throw_type_error.into_function()),
             // [[Set]]: %ThrowTypeError%,
-            set: Some(throw_type_error),
+            set: Some(throw_type_error.into_function()),
             // [[Enumerable]]: false,
             enumerable: Some(false),
             // [[Configurable]]: false }).
             configurable: Some(false),
             ..Default::default()
         },
-    )
+        gc,
+    ))
     .unwrap();
     // 9. Return obj.
-    obj
+    Object::Arguments(obj)
 }
 
 // 10.4.4.7 CreateMappedArgumentsObject ( func, formals, argumentsList, env )

@@ -1,226 +1,292 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //! ## [25.1 ArrayBuffer Objects](https://tc39.es/ecma262/#sec-arraybuffer-objects)
 
 mod abstract_operations;
 mod data;
-use super::ordinary::ordinary_set_prototype_of_check_loop;
 use crate::{
     ecmascript::{
-        abstract_operations::testing_and_comparison::same_value_non_number,
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, Object, OrdinaryObject, OrdinaryObjectInternalSlots,
-            PropertyDescriptor, PropertyKey, Value,
+            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    heap::{indexes::ArrayBufferIndex, GetHeapData},
+    engine::{
+        context::NoGcScope,
+        rootable::{HeapRootData, HeapRootRef, Rootable},
+        Scoped,
+    },
+    heap::{
+        indexes::{ArrayBufferIndex, IntoBaseIndex},
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+    },
 };
 
-pub use data::ArrayBufferHeapData;
-use std::ops::Deref;
+use abstract_operations::detach_array_buffer;
+pub(crate) use abstract_operations::{
+    allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
+    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, DetachKey, Ordering,
+};
+pub use data::*;
+use std::ops::{Index, IndexMut};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ArrayBuffer(ArrayBufferIndex);
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct ArrayBuffer<'a>(ArrayBufferIndex<'a>);
 
-impl From<ArrayBufferIndex> for ArrayBuffer {
-    fn from(value: ArrayBufferIndex) -> Self {
+impl<'a> ArrayBuffer<'a> {
+    /// Unbind this ArrayBuffer from its current lifetime. This is necessary to use
+    /// the ArrayBuffer as a parameter in a call that can perform garbage
+    /// collection.
+    pub fn unbind(self) -> ArrayBuffer<'static> {
+        unsafe { std::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'static>>(self) }
+    }
+
+    // Bind this ArrayBuffer to the garbage collection lifetime. This enables Rust's
+    // borrow checker to verify that your ArrayBuffers cannot not be invalidated by
+    // garbage collection being performed.
+    //
+    // This function is best called with the form
+    // ```rs
+    // let array_buffer = array_buffer.bind(&gc);
+    // ```
+    // to make sure that the unbound ArrayBuffer cannot be used after binding.
+    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ArrayBuffer<'gc> {
+        unsafe { std::mem::transmute::<ArrayBuffer<'a>, ArrayBuffer<'gc>>(self) }
+    }
+
+    pub fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, ArrayBuffer<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+
+    #[inline]
+    pub fn is_detached(self, agent: &Agent) -> bool {
+        agent[self].is_detached()
+    }
+
+    #[inline]
+    pub fn is_resizable(self, agent: &Agent) -> bool {
+        agent[self].is_resizable()
+    }
+
+    #[inline]
+    pub fn byte_length(self, agent: &Agent) -> usize {
+        agent[self].byte_length()
+    }
+
+    #[inline]
+    pub fn max_byte_length(self, agent: &Agent) -> usize {
+        agent[self].max_byte_length()
+    }
+
+    #[inline]
+    pub fn get_detach_key(self, agent: &Agent) -> Option<DetachKey> {
+        agent.heap.array_buffer_detach_keys.get(&self).copied()
+    }
+
+    #[inline]
+    pub fn set_detach_key(self, agent: &mut Agent, key: Option<DetachKey>) {
+        if let Some(key) = key {
+            agent
+                .heap
+                .array_buffer_detach_keys
+                .insert(self.unbind(), key);
+        } else {
+            agent.heap.array_buffer_detach_keys.remove(&self.unbind());
+        }
+    }
+
+    pub fn detach(self, agent: &mut Agent, key: Option<DetachKey>, gc: NoGcScope) -> JsResult<()> {
+        detach_array_buffer(agent, self, key, gc)
+    }
+
+    /// Resize a Resizable ArrayBuffer.
+    ///
+    /// `new_byte_length` must be a safe integer.
+    pub(crate) fn resize(self, agent: &mut Agent, new_byte_length: usize) {
+        agent[self].resize(new_byte_length);
+    }
+
+    /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
+    ///
+    /// `self` and `source` must be different ArrayBuffers.
+    pub(crate) fn copy_array_buffer_data(
+        self,
+        agent: &mut Agent,
+        source: ArrayBuffer,
+        first: usize,
+        count: usize,
+    ) {
+        debug_assert_ne!(self, source);
+        let array_buffers = &mut *agent.heap.array_buffers;
+        let (source_data, target_data) = if self.get_index() > source.get_index() {
+            let (before, after) = array_buffers.split_at_mut(self.get_index());
+            (
+                before[source.get_index()].as_ref().unwrap(),
+                after[0].as_mut().unwrap(),
+            )
+        } else {
+            let (before, after) = array_buffers.split_at_mut(source.get_index());
+            (
+                after[0].as_ref().unwrap(),
+                before[self.get_index()].as_mut().unwrap(),
+            )
+        };
+        let source_data = source_data.buffer.get_data_block();
+        let target_data = target_data.buffer.get_data_block_mut();
+        target_data.copy_data_block_bytes(0, source_data, first, count);
+    }
+
+    pub(crate) const fn _def() -> Self {
+        Self(ArrayBufferIndex::from_u32_index(0))
+    }
+
+    pub(crate) const fn get_index(self) -> usize {
+        self.0.into_index()
+    }
+}
+
+impl<'a> IntoObject<'a> for ArrayBuffer<'a> {
+    fn into_object(self) -> Object<'a> {
+        self.into()
+    }
+}
+
+impl IntoValue for ArrayBuffer<'_> {
+    fn into_value(self) -> Value {
+        self.into()
+    }
+}
+
+impl TryFrom<Value> for ArrayBuffer<'_> {
+    type Error = ();
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        match value {
+            Value::ArrayBuffer(base_index) => Ok(base_index),
+            _ => Err(()),
+        }
+    }
+}
+
+impl<'a> From<ArrayBufferIndex<'a>> for ArrayBuffer<'a> {
+    fn from(value: ArrayBufferIndex<'a>) -> Self {
         ArrayBuffer(value)
     }
 }
 
-impl From<ArrayBuffer> for Object {
+impl IntoBaseIndex<'_, ArrayBufferHeapData> for ArrayBuffer<'static> {
+    fn into_base_index(self) -> ArrayBufferIndex<'static> {
+        self.0
+    }
+}
+
+impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
     fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.0)
+        Self::ArrayBuffer(value.unbind())
     }
 }
 
-impl From<ArrayBuffer> for Value {
+impl From<ArrayBuffer<'_>> for Value {
     fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.0)
+        Self::ArrayBuffer(value.unbind())
     }
 }
 
-impl Deref for ArrayBuffer {
-    type Target = ArrayBufferIndex;
+impl Index<ArrayBuffer<'_>> for Agent {
+    type Output = ArrayBufferHeapData;
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    fn index(&self, index: ArrayBuffer) -> &Self::Output {
+        &self.heap.array_buffers[index]
     }
 }
 
-fn create_array_buffer_base_object(agent: &mut Agent, array_buffer: ArrayBuffer) -> OrdinaryObject {
-    // TODO: An issue crops up if multiple realms are in play:
-    // The prototype should not be dependent on the realm we're operating in
-    // but should instead be bound to the realm the object was created in.
-    // We'll have to cross this bridge at a later point, likely be designating
-    // a "default realm" and making non-default realms always initialize ObjectHeapData.
-    let prototype = agent.current_realm().intrinsics().array_buffer_prototype();
-    let object_index = agent.heap.create_object_with_prototype(prototype.into());
-    agent.heap.get_mut(*array_buffer).object_index = Some(object_index);
-    OrdinaryObject::from(object_index)
-}
-
-impl OrdinaryObjectInternalSlots for ArrayBuffer {
-    fn extensible(self, agent: &Agent) -> bool {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).extensible(agent)
-        } else {
-            true
-        }
-    }
-
-    fn set_extensible(self, agent: &mut Agent, value: bool) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_extensible(agent, value)
-        } else {
-            debug_assert!(!value);
-            create_array_buffer_base_object(agent, self).set_extensible(agent, value)
-        }
-    }
-
-    fn prototype(self, agent: &Agent) -> Option<Object> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).prototype(agent)
-        } else {
-            Some(
-                agent
-                    .current_realm()
-                    .intrinsics()
-                    .array_buffer_prototype()
-                    .into(),
-            )
-        }
-    }
-
-    fn set_prototype(self, agent: &mut Agent, prototype: Option<Object>) {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_prototype(agent, prototype)
-        } else {
-            // Create ArrayBuffer base object with custom prototype
-            let object_index = if let Some(prototype) = prototype {
-                debug_assert!(ordinary_set_prototype_of_check_loop(
-                    agent,
-                    prototype,
-                    Some(self.into())
-                ));
-                agent.heap.create_object_with_prototype(prototype)
-            } else {
-                agent.heap.create_null_object(vec![])
-            };
-            agent.heap.get_mut(*self).object_index = Some(object_index);
-        }
+impl IndexMut<ArrayBuffer<'_>> for Agent {
+    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
+        &mut self.heap.array_buffers[index]
     }
 }
 
-impl InternalMethods for ArrayBuffer {
-    fn get_prototype_of(self, agent: &mut Agent) -> JsResult<Option<Object>> {
-        Ok(self.prototype(agent))
+impl Index<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
+    type Output = ArrayBufferHeapData;
+
+    fn index(&self, index: ArrayBuffer) -> &Self::Output {
+        self.get(index.get_index())
+            .expect("ArrayBuffer out of bounds")
+            .as_ref()
+            .expect("ArrayBuffer slot empty")
+    }
+}
+
+impl IndexMut<ArrayBuffer<'_>> for Vec<Option<ArrayBufferHeapData>> {
+    fn index_mut(&mut self, index: ArrayBuffer) -> &mut Self::Output {
+        self.get_mut(index.get_index())
+            .expect("ArrayBuffer out of bounds")
+            .as_mut()
+            .expect("ArrayBuffer slot empty")
+    }
+}
+
+impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::ArrayBuffer;
+
+    #[inline(always)]
+    fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
+        agent[self].object_index
     }
 
-    fn set_prototype_of(self, agent: &mut Agent, prototype: Option<Object>) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).set_prototype_of(agent, prototype)
-        } else {
-            // If we're setting %ArrayBuffer.prototype% then we can still avoid creating the ObjectHeapData.
-            let current = agent.current_realm().intrinsics().array_buffer_prototype();
-            if let Some(v) = prototype {
-                if same_value_non_number(agent, v, current.into()) {
-                    return Ok(true);
-                }
-            };
-            if ordinary_set_prototype_of_check_loop(agent, current.into(), prototype) {
-                // OrdinarySetPrototypeOf 7.b.i: Setting prototype would cause a loop to occur.
-                return Ok(false);
-            }
-            self.set_prototype(agent, prototype);
-            Ok(true)
+    fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
+        assert!(agent[self]
+            .object_index
+            .replace(backing_object.unbind())
+            .is_none());
+    }
+}
+
+impl<'a> InternalMethods<'a> for ArrayBuffer<'a> {}
+
+impl Rootable for ArrayBuffer<'static> {
+    type RootRepr = HeapRootRef;
+
+    fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
+        Err(HeapRootData::ArrayBuffer(value))
+    }
+
+    fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
+        Err(*value)
+    }
+
+    fn from_heap_ref(heap_ref: HeapRootRef) -> Self::RootRepr {
+        heap_ref
+    }
+
+    fn from_heap_data(heap_data: HeapRootData) -> Option<Self> {
+        match heap_data {
+            HeapRootData::ArrayBuffer(object) => Some(object),
+            _ => None,
         }
     }
+}
 
-    fn is_extensible(self, agent: &mut Agent) -> JsResult<bool> {
-        Ok(self.extensible(agent))
+impl HeapMarkAndSweep for ArrayBuffer<'static> {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        queues.array_buffers.push(*self);
     }
 
-    fn prevent_extensions(self, agent: &mut Agent) -> JsResult<bool> {
-        self.set_extensible(agent, false);
-        Ok(true)
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        compactions.array_buffers.shift_index(&mut self.0);
     }
+}
 
-    fn get_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-    ) -> JsResult<Option<PropertyDescriptor>> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).get_own_property(agent, property_key)
-        } else {
-            Ok(None)
-        }
-    }
-
-    fn define_own_property(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        property_descriptor: crate::ecmascript::types::PropertyDescriptor,
-    ) -> JsResult<bool> {
-        create_array_buffer_base_object(agent, self).define_own_property(
-            agent,
-            property_key,
-            property_descriptor,
-        )
-    }
-
-    fn has_property(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).has_property(agent, property_key)
-        } else {
-            agent
-                .current_realm()
-                .intrinsics()
-                .array_buffer_prototype()
-                .has_property(agent, property_key)
-        }
-    }
-
-    fn get(self, agent: &mut Agent, property_key: PropertyKey, receiver: Value) -> JsResult<Value> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).get(agent, property_key, receiver)
-        } else {
-            agent
-                .current_realm()
-                .intrinsics()
-                .array_buffer_prototype()
-                .get(agent, property_key, receiver)
-        }
-    }
-
-    fn set(
-        self,
-        agent: &mut Agent,
-        property_key: PropertyKey,
-        value: Value,
-        receiver: Value,
-    ) -> JsResult<bool> {
-        create_array_buffer_base_object(agent, self).set(agent, property_key, value, receiver)
-    }
-
-    fn delete(self, agent: &mut Agent, property_key: PropertyKey) -> JsResult<bool> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).delete(agent, property_key)
-        } else {
-            // OrdinaryDelete essentially returns "didn't exist or was deleted":
-            // We know properties didn't exist in this branch.
-            Ok(true)
-        }
-    }
-
-    fn own_property_keys(self, agent: &mut Agent) -> JsResult<Vec<PropertyKey>> {
-        if let Some(object_index) = agent.heap.get(*self).object_index {
-            OrdinaryObject::from(object_index).own_property_keys(agent)
-        } else {
-            // OrdinaryDelete essentially returns "didn't exist or was deleted":
-            // We know properties didn't exist in this branch.
-            Ok(vec![])
-        }
+impl CreateHeapData<ArrayBufferHeapData, ArrayBuffer<'static>> for Heap {
+    fn create(&mut self, data: ArrayBufferHeapData) -> ArrayBuffer<'static> {
+        self.array_buffers.push(Some(data));
+        ArrayBuffer::from(ArrayBufferIndex::last(&self.array_buffers))
     }
 }
