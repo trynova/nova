@@ -146,7 +146,7 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion.
 pub fn perform_eval<'gc>(
-    agent: &mut Agent<'gc>,
+    agent: &mut Agent,
     x: Value,
     direct: bool,
     strict_caller: bool,

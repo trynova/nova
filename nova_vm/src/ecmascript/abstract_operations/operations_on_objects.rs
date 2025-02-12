@@ -1138,7 +1138,9 @@ pub(crate) fn create_property_key_list_from_array_like<'a>(
             scoped_object.get(agent).unbind(),
             PropertyKey::Integer(SmallInteger::try_from(index as u64).unwrap()).unbind(),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         match next {
             Value::String(_) | Value::SmallString(_) => {
                 let string_value = String::try_from(next).unwrap();
