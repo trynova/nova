@@ -4,7 +4,7 @@
 
 mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 pub(crate) use data::ErrorHeapData;
 
@@ -34,7 +34,7 @@ impl<'a> Error<'a> {
     /// the Error as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Error<'static> {
-        unsafe { std::mem::transmute::<Error<'a>, Error<'static>>(self) }
+        unsafe { core::mem::transmute::<Error<'a>, Error<'static>>(self) }
     }
 
     // Bind this Error to the garbage collection lifetime. This enables Rust's
@@ -47,7 +47,7 @@ impl<'a> Error<'a> {
     // ```
     // to make sure that the unbound Error cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Error, Self>(self) }
+        unsafe { core::mem::transmute::<Error, Self>(self) }
     }
 
     pub fn scope<'scope>(

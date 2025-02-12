@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -35,7 +35,7 @@ impl<'a> Map<'a> {
     /// the Map as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Map<'static> {
-        unsafe { std::mem::transmute::<Self, Map<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Map<'static>>(self) }
     }
 
     // Bind this Map to the garbage collection lifetime. This enables Rust's
@@ -48,7 +48,7 @@ impl<'a> Map<'a> {
     // ```
     // to make sure that the unbound Map cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Map<'gc> {
-        unsafe { std::mem::transmute::<Self, Map<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, Map<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

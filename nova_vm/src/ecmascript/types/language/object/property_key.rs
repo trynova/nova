@@ -41,7 +41,7 @@ impl<'a> PropertyKey<'a> {
     /// use the PropertyKey as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> PropertyKey<'static> {
-        unsafe { std::mem::transmute::<Self, PropertyKey<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, PropertyKey<'static>>(self) }
     }
 
     // Bind this PropertyKey to the garbage collection lifetime. This enables
@@ -54,7 +54,7 @@ impl<'a> PropertyKey<'a> {
     // ```
     // to make sure that the unbound PropertyKey cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<PropertyKey, Self>(self) }
+        unsafe { core::mem::transmute::<PropertyKey, Self>(self) }
     }
 
     pub fn scope<'scope>(
@@ -215,12 +215,12 @@ impl<'a> PropertyKey<'a> {
 
 #[inline(always)]
 pub fn unbind_property_keys<'a>(vec: Vec<PropertyKey<'a>>) -> Vec<PropertyKey<'static>> {
-    unsafe { std::mem::transmute::<Vec<PropertyKey<'a>>, Vec<PropertyKey<'static>>>(vec) }
+    unsafe { core::mem::transmute::<Vec<PropertyKey<'a>>, Vec<PropertyKey<'static>>>(vec) }
 }
 
 #[inline(always)]
 pub fn bind_property_keys<'a>(vec: Vec<PropertyKey>, _: NoGcScope<'a, '_>) -> Vec<PropertyKey<'a>> {
-    unsafe { std::mem::transmute::<Vec<PropertyKey>, Vec<PropertyKey<'a>>>(vec) }
+    unsafe { core::mem::transmute::<Vec<PropertyKey>, Vec<PropertyKey<'a>>>(vec) }
 }
 
 #[inline]
@@ -240,7 +240,7 @@ pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
 }
 
 impl<'a, 'b, 'c> core::fmt::Display for DisplayablePropertyKey<'a, 'b, 'c> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.key {
             PropertyKey::Integer(data) => data.into_i64().fmt(f),
             PropertyKey::SmallString(data) => data.as_str().fmt(f),

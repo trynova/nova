@@ -10,12 +10,12 @@ use crate::{
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
-use hashbrown::{hash_table::Entry, HashTable};
-use std::{
+use core::{
     cell::RefCell,
     hash::{Hash, Hasher},
     sync::atomic::{AtomicBool, Ordering},
 };
+use hashbrown::{hash_table::Entry, HashTable};
 
 #[derive(Debug, Default)]
 pub struct SetHeapData {

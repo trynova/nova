@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
+use core::{
     ops::{Index, IndexMut},
     ptr::NonNull,
 };
@@ -292,7 +292,7 @@ impl<'a> ECMAScriptFunction<'a> {
     /// the ECMAScriptFunction as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> ECMAScriptFunction<'static> {
-        unsafe { std::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'static>>(self) }
+        unsafe { core::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'static>>(self) }
     }
 
     // Bind this ECMAScriptFunction to the garbage collection lifetime. This enables Rust's
@@ -305,7 +305,7 @@ impl<'a> ECMAScriptFunction<'a> {
     // ```
     // to make sure that the unbound ECMAScriptFunction cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ECMAScriptFunction<'gc> {
-        unsafe { std::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'gc>>(self) }
+        unsafe { core::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
@@ -519,7 +519,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             .unwrap()
             .lexical_environment;
         // 3. Assert: calleeContext is now the running execution context.
-        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+        // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
         if agent[self]
             .ecmascript_function
@@ -601,7 +601,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             panic!("constructorEnv is not a Function Environment Record");
         };
         // 5. Assert: calleeContext is now the running execution context.
-        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+        // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
 
         // 6. If kind is base, then
         if is_base {
@@ -900,14 +900,14 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         // alive until this ECMAScriptFunction gets dropped, hence the 'static
         // lifetime here is justified.
         formal_parameters: NonNull::from(unsafe {
-            std::mem::transmute::<&FormalParameters<'program>, &FormalParameters<'static>>(
+            core::mem::transmute::<&FormalParameters<'program>, &FormalParameters<'static>>(
                 params.parameters_list,
             )
         }),
         // 6. Set F.[[ECMAScriptCode]] to Body.
         // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
         ecmascript_code: NonNull::from(unsafe {
-            std::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
+            core::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
         }),
         is_concise_arrow_function: params.is_concise_arrow_function,
         is_async: params.is_async,

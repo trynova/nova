@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cell::OnceCell, hash::Hash, num::NonZeroUsize};
+use core::{cell::OnceCell, hash::Hash, num::NonZeroUsize};
 
 use wtf8::{Wtf8, Wtf8Buf};
 
@@ -20,7 +20,7 @@ impl PartialEq for StringHeapData {
         if let (&StringBuffer::Static(self_str), &StringBuffer::Static(other_str)) =
             (&self.data, &other.data)
         {
-            if std::ptr::eq(self_str, other_str) {
+            if core::ptr::eq(self_str, other_str) {
                 return true;
             }
         }
@@ -53,7 +53,7 @@ pub(crate) enum StringBuffer {
 }
 
 impl Hash for StringBuffer {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         match self {
             StringBuffer::Owned(wtf8_buf) => wtf8_buf.hash(state),
             StringBuffer::Static(wtf8) => wtf8.hash(state),
@@ -180,9 +180,9 @@ impl StringHeapData {
                             pivot -= 1;
                         }
                         match mapping[pivot].unwrap().get().cmp(&utf8_idx) {
-                            std::cmp::Ordering::Less => pivot..mapping.len(),
-                            std::cmp::Ordering::Equal => return pivot,
-                            std::cmp::Ordering::Greater => 0..pivot,
+                            core::cmp::Ordering::Less => pivot..mapping.len(),
+                            core::cmp::Ordering::Equal => return pivot,
+                            core::cmp::Ordering::Greater => 0..pivot,
                         }
                     };
 
@@ -207,9 +207,9 @@ impl StringHeapData {
                         }
 
                         let new_range = match mapping[pivot].unwrap().get().cmp(&utf8_idx) {
-                            std::cmp::Ordering::Less => pivot..range.end,
-                            std::cmp::Ordering::Equal => return pivot,
-                            std::cmp::Ordering::Greater => range.start..pivot,
+                            core::cmp::Ordering::Less => pivot..range.end,
+                            core::cmp::Ordering::Equal => return pivot,
+                            core::cmp::Ordering::Greater => range.start..pivot,
                         };
                         assert_ne!(range, new_range);
 

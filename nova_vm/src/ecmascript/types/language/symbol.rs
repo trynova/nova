@@ -4,7 +4,7 @@
 
 mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 pub use data::SymbolHeapData;
 
@@ -44,7 +44,7 @@ impl<'a> Symbol<'a> {
     /// the Symbol as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Symbol<'static> {
-        unsafe { std::mem::transmute::<Self, Symbol<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Symbol<'static>>(self) }
     }
 
     // Bind this Symbol to the garbage collection lifetime. This enables Rust's
@@ -57,7 +57,7 @@ impl<'a> Symbol<'a> {
     // ```
     // to make sure that the unbound Symbol cannot be used after binding.
     pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Symbol<'_>, Self>(self) }
+        unsafe { core::mem::transmute::<Symbol<'_>, Self>(self) }
     }
 
     pub fn scope<'scope>(
@@ -200,7 +200,7 @@ impl Rootable for Symbol<'_> {
             Ok(SymbolRootRepr(SymbolRootReprInner::WellKnown(
                 // SAFETY: Value is within the maximum number of well-known symbol indexes.
                 unsafe {
-                    std::mem::transmute::<u32, WellKnownSymbolIndexes>(value.0.into_u32_index())
+                    core::mem::transmute::<u32, WellKnownSymbolIndexes>(value.0.into_u32_index())
                 },
             )))
         } else {

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -31,7 +31,7 @@ impl WeakRef<'_> {
     /// the WeakRef as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> WeakRef<'static> {
-        unsafe { std::mem::transmute::<Self, WeakRef<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, WeakRef<'static>>(self) }
     }
 
     // Bind this WeakRef to the garbage collection lifetime. This enables Rust's
@@ -44,7 +44,7 @@ impl WeakRef<'_> {
     // ```
     // to make sure that the unbound WeakRef cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> WeakRef<'gc> {
-        unsafe { std::mem::transmute::<Self, WeakRef<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, WeakRef<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

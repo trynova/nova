@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -26,7 +26,7 @@ impl ArrayIterator<'_> {
     /// the ArrayIterator as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> ArrayIterator<'static> {
-        unsafe { std::mem::transmute::<Self, ArrayIterator<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, ArrayIterator<'static>>(self) }
     }
 
     // Bind this ArrayIterator to the garbage collection lifetime. This enables Rust's
@@ -39,7 +39,7 @@ impl ArrayIterator<'_> {
     // ```
     // to make sure that the unbound ArrayIterator cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ArrayIterator<'gc> {
-        unsafe { std::mem::transmute::<Self, ArrayIterator<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, ArrayIterator<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

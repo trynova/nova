@@ -188,8 +188,8 @@ mod private {
 pub use global::Global;
 pub use scoped::Scoped;
 
-pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
-    type RootRepr: Sized + Clone + std::fmt::Debug;
+pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
+    type RootRepr: Sized + Clone + core::fmt::Debug;
 
     /// Convert a rootable value to a root representation directly if the value
     /// does not need to be rooted, or return its heap root representation as
@@ -211,7 +211,7 @@ pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
 }
 
 // Blanket impl for Objects
-impl<'a, T: std::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable
+impl<'a, T: core::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable
     for T
 {
     type RootRepr = HeapRootRef;

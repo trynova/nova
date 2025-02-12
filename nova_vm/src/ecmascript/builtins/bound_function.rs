@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
@@ -41,7 +41,7 @@ impl BoundFunction<'_> {
     /// the BoundFunction as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> BoundFunction<'static> {
-        unsafe { std::mem::transmute::<BoundFunction, BoundFunction<'static>>(self) }
+        unsafe { core::mem::transmute::<BoundFunction, BoundFunction<'static>>(self) }
     }
 
     // Bind this BoundFunction to the garbage collection lifetime. This enables Rust's
@@ -54,7 +54,7 @@ impl BoundFunction<'_> {
     // ```
     // to make sure that the unbound BoundFunction cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BoundFunction<'gc> {
-        unsafe { std::mem::transmute::<BoundFunction, BoundFunction<'gc>>(self) }
+        unsafe { core::mem::transmute::<BoundFunction, BoundFunction<'gc>>(self) }
     }
 
     pub fn scope<'scope>(
@@ -143,7 +143,7 @@ pub(crate) fn bound_function_create<'a>(
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
     agent[elements]
-        .copy_from_slice(unsafe { std::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
+        .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
     let data = BoundFunctionHeapData {
         object_index: None,
         length: 0,

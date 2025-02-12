@@ -43,11 +43,11 @@ use crate::{
     engine::context::{GcToken, NoGcScope},
 };
 use core::fmt::Debug;
-use std::{
+use core::{
     hash::{Hash, Hasher},
     ops::{Index, IndexMut},
 };
-use std::{marker::PhantomData, mem::size_of, num::NonZeroU32};
+use core::{marker::PhantomData, mem::size_of, num::NonZeroU32};
 
 /// A struct containing a non-zero index into an array or
 /// vector of `T`s. Due to the non-zero value, the offset
@@ -69,7 +69,7 @@ pub(crate) trait GetBaseIndexMut<'a, T: ?Sized> {
 }
 
 impl<'a, T: ?Sized> Debug for BaseIndex<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         assert!(self.0.get() != 0);
         (&self.0.get() - 1).fmt(f)
     }
@@ -92,13 +92,13 @@ impl<'a, T: ?Sized> PartialEq for BaseIndex<'a, T> {
 impl<'a, T: ?Sized> Eq for BaseIndex<'a, T> {}
 
 impl<'a, T: ?Sized> PartialOrd for BaseIndex<'a, T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl<'a, T: ?Sized> Ord for BaseIndex<'a, T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
@@ -237,7 +237,7 @@ impl TypedArrayIndex<'_> {
     /// the TypedArrayIndex as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> TypedArrayIndex<'static> {
-        unsafe { std::mem::transmute::<Self, TypedArrayIndex<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, TypedArrayIndex<'static>>(self) }
     }
 
     // Bind this TypedArrayIndex to the garbage collection lifetime. This enables Rust's
@@ -250,7 +250,7 @@ impl TypedArrayIndex<'_> {
     // ```
     // to make sure that the unbound TypedArrayIndex cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> TypedArrayIndex<'gc> {
-        unsafe { std::mem::transmute::<Self, TypedArrayIndex<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, TypedArrayIndex<'gc>>(self) }
     }
 }
 

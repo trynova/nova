@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Deref, Index, IndexMut};
+use core::ops::{Deref, Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{GcScope, NoGcScope};
@@ -120,7 +120,7 @@ impl<'a> BuiltinFunction<'a> {
     /// the BuiltinFunction as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> BuiltinFunction<'static> {
-        unsafe { std::mem::transmute::<BuiltinFunction<'a>, BuiltinFunction<'static>>(self) }
+        unsafe { core::mem::transmute::<BuiltinFunction<'a>, BuiltinFunction<'static>>(self) }
     }
 
     // Bind this BuiltinFunction to the garbage collection lifetime. This enables Rust's
@@ -133,7 +133,7 @@ impl<'a> BuiltinFunction<'a> {
     // ```
     // to make sure that the unbound BuiltinFunction cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinFunction<'gc> {
-        unsafe { std::mem::transmute::<BuiltinFunction<'a>, BuiltinFunction<'gc>>(self) }
+        unsafe { core::mem::transmute::<BuiltinFunction<'a>, BuiltinFunction<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

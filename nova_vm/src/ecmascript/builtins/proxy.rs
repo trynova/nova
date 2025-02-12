@@ -2,10 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    collections::VecDeque,
-    ops::{Index, IndexMut},
-};
+use core::ops::{Index, IndexMut};
+use std::collections::VecDeque;
 
 use abstract_operations::{validate_non_revoked_proxy, NonRevokedProxy};
 use data::ProxyHeapData;
@@ -53,7 +51,7 @@ impl Proxy<'_> {
     /// the Proxy as a parameter in a call that can perform garbage
     /// collection.
     pub fn unbind(self) -> Proxy<'static> {
-        unsafe { std::mem::transmute::<Self, Proxy<'static>>(self) }
+        unsafe { core::mem::transmute::<Self, Proxy<'static>>(self) }
     }
 
     // Bind this Proxy to the garbage collection lifetime. This enables Rust's
@@ -66,7 +64,7 @@ impl Proxy<'_> {
     // ```
     // to make sure that the unbound Proxy cannot be used after binding.
     pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Proxy<'gc> {
-        unsafe { std::mem::transmute::<Self, Proxy<'gc>>(self) }
+        unsafe { core::mem::transmute::<Self, Proxy<'gc>>(self) }
     }
 
     pub fn scope<'scope>(

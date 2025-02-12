@@ -208,7 +208,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
-        let body: &[Statement] = unsafe { std::mem::transmute(data.body.statements.as_slice()) };
+        let body: &[Statement] = unsafe { core::mem::transmute(data.body.statements.as_slice()) };
 
         self.compile_statements(body);
     }
@@ -270,7 +270,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
 
     fn _push_instruction(&mut self, instruction: Instruction) {
         self.instructions
-            .push(unsafe { std::mem::transmute::<Instruction, u8>(instruction) });
+            .push(unsafe { core::mem::transmute::<Instruction, u8>(instruction) });
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {
@@ -448,7 +448,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     fn add_jump_index(&mut self) -> JumpIndex {
         self.add_index(0);
         JumpIndex {
-            index: self.instructions.len() - std::mem::size_of::<IndexType>(),
+            index: self.instructions.len() - core::mem::size_of::<IndexType>(),
         }
     }
 
@@ -935,7 +935,7 @@ impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
         let identifier = ctx.name_identifier.take();
         ctx.add_arrow_function_expression(ArrowFunctionExpression {
             expression: SendableRef::new(unsafe {
-                std::mem::transmute::<
+                core::mem::transmute::<
                     &ast::ArrowFunctionExpression<'_>,
                     &'static ast::ArrowFunctionExpression<'static>,
                 >(self)
@@ -953,7 +953,9 @@ impl CompileEvaluation for ast::Function<'_> {
             Instruction::InstantiateOrdinaryFunctionExpression,
             FunctionExpression {
                 expression: SendableRef::new(unsafe {
-                    std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
+                    core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                        self,
+                    )
                 }),
                 identifier,
                 compiled_bytecode: None,
@@ -1089,7 +1091,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 },
                                 FunctionExpression {
                                     expression: SendableRef::new(unsafe {
-                                        std::mem::transmute::<
+                                        core::mem::transmute::<
                                             &ast::Function<'_>,
                                             &'static ast::Function<'static>,
                                         >(

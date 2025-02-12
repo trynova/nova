@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
+use core::{
     num::NonZeroU32,
     ops::{Index, IndexMut},
 };
@@ -56,7 +56,7 @@ impl<T: ?Sized> SendableRef<T> {
     /// The safety conditions for this constructor are the same as for
     /// transmuting `reference` into a static lifetime.
     pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
-        Self::new(unsafe { std::mem::transmute::<&T, &'static T>(reference) })
+        Self::new(unsafe { core::mem::transmute::<&T, &'static T>(reference) })
     }
 
     pub(crate) fn get(&self) -> &'static T {
@@ -121,7 +121,7 @@ impl Executable {
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
-            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
+            unsafe { core::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
         let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);
@@ -197,7 +197,7 @@ impl Executable {
     pub(super) fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
-        unsafe { std::mem::transmute(&agent[self].instructions[..]) }
+        unsafe { core::mem::transmute(&agent[self].instructions[..]) }
     }
 
     #[inline]
@@ -271,7 +271,8 @@ pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Ins
         return None;
     }
     *ip += 1;
-    let kind: Instruction = unsafe { std::mem::transmute::<u8, Instruction>(instructions[cur_ip]) };
+    let kind: Instruction =
+        unsafe { core::mem::transmute::<u8, Instruction>(instructions[cur_ip]) };
 
     let arg_count = kind.argument_count() as usize;
 
