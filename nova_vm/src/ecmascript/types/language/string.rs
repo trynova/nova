@@ -289,6 +289,21 @@ impl<'a> String<'a> {
         Scoped::new(agent, self.unbind(), gc)
     }
 
+    /// Scope a stack-only String. Stack-only Strings do not need to store any
+    /// data on the heap, hence scoping them is effectively a no-op. These
+    /// Strings are also not concerned with the garbage collector.
+    ///
+    /// ## Panics
+    ///
+    /// If the String is not stack-only, this method will panic.
+    pub const fn scope_static(self) -> Scoped<'static, String<'static>> {
+        let key_root_repr = match self {
+            String::SmallString(small_string) => StringRootRepr::SmallString(small_string),
+            _ => panic!("String required rooting"),
+        };
+        Scoped::from_root_repr(key_root_repr)
+    }
+
     pub fn is_empty_string(self) -> bool {
         self == Self::EMPTY_STRING
     }

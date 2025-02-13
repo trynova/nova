@@ -95,7 +95,18 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
         value
     }
 
-    pub fn replace(&mut self, agent: &Agent, value: T) {
+    /// Replace an existing scoped value on the heap with a new value of the
+    /// same type.
+    ///
+    /// ## Safety
+    ///
+    /// If the scoped value has been cloned and is still being used, replacing
+    /// its value will be observable to the other users and they will likely
+    /// find this unexpected.
+    ///
+    /// This method should only ever be called on scoped values that have not
+    /// been shared outside the caller.
+    pub unsafe fn replace(&mut self, agent: &Agent, value: T) {
         let heap_data = match T::to_root_repr(value) {
             Ok(stack_repr) => {
                 // The value doesn't need rooting.
@@ -127,6 +138,62 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
                     handle_bound_check_failure()
                 };
                 *heap_slot = heap_data;
+            }
+        }
+    }
+
+    /// Replace an existing scoped value on the heap with a new value of a
+    /// different type.
+    ///
+    /// ## Safety
+    ///
+    /// If the scoped value has been cloned and is still being used, replacing
+    /// its value will be observable to the other users and they will likely
+    /// find this unexpected and will likely panic from a type mismatch.
+    ///
+    /// This method should only ever be called on scoped values that have not
+    /// been shared outside the caller.
+    pub unsafe fn replace_self<U: 'static + Rootable>(
+        self,
+        agent: &mut Agent,
+        value: U,
+    ) -> Scoped<'scope, U> {
+        let heap_data = match U::to_root_repr(value) {
+            Ok(stack_repr) => {
+                // The value doesn't need rooting.
+                return Scoped {
+                    inner: stack_repr,
+                    _marker: PhantomData,
+                    _scope: PhantomData,
+                };
+            }
+            Err(heap_data) => heap_data,
+        };
+        match T::from_root_repr(&self.inner) {
+            Ok(_) => {
+                // The previous scoped value did not have an heap slot but now
+                // need one.
+                let mut stack_refs = agent.stack_refs.borrow_mut();
+                let next_index = stack_refs.len();
+                stack_refs.push(heap_data);
+                Scoped {
+                    inner: U::from_heap_ref(HeapRootRef::from_index(next_index)),
+                    _marker: PhantomData,
+                    _scope: PhantomData,
+                }
+            }
+            Err(heap_root_ref) => {
+                // Existing slot, we can just replace the data.
+                let mut stack_refs_borrow = agent.stack_refs.borrow_mut();
+                let Some(heap_slot) = stack_refs_borrow.get_mut(heap_root_ref.to_index()) else {
+                    handle_bound_check_failure()
+                };
+                *heap_slot = heap_data;
+                Scoped {
+                    inner: U::from_heap_ref(heap_root_ref),
+                    _marker: PhantomData,
+                    _scope: PhantomData,
+                }
             }
         }
     }

@@ -4,8 +4,6 @@
 
 use core::cmp::Ordering;
 
-use small_string::SmallString;
-
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_create_data_property_or_throw, try_length_of_array_like,
 };
@@ -1540,10 +1538,12 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let separator = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let separator = arguments.get(0).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         if len == 0 {
@@ -1551,16 +1551,15 @@ impl ArrayPrototype {
         }
         let len = len as usize;
         // 3. If separator is undefined, let sep be ",".
-        let separator = if separator.is_undefined() {
-            SmallString::from_str_unchecked(",").into()
+        let separator = if separator.get(agent).is_undefined() {
+            String::from_small_string(",").scope_static()
         } else {
             // 4. Else, let sep be ? ToString(separator).
-            to_string(agent, separator, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc())
+            let sep = to_string(agent, separator.get(agent), gc.reborrow())?.unbind();
+            // SAFETY: separator is not shared.
+            // Note: Separator is likely a small string so this is a very cheap.
+            unsafe { separator.replace_self(agent, sep) }
         };
-        // Note: Separator is likely a small string so this is a very cheap.
-        let separator = separator.scope(agent, gc.nogc());
         // 5. Let R be the empty String.
         let mut r = std::string::String::with_capacity(len * 10);
         // 6. Let k be 0.
@@ -1571,7 +1570,7 @@ impl ArrayPrototype {
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 // i. Let S be ? ToString(element).
-                let s = to_string(agent, element, gc.reborrow())?;
+                let s = to_string(agent, element.unbind(), gc.reborrow())?;
                 // ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             }
@@ -1589,14 +1588,14 @@ impl ArrayPrototype {
             // c. If element is neither undefined nor null, then
             if !element.is_undefined() && !element.is_null() {
                 // i. Let S be ? ToString(element).
-                let s = to_string(agent, element, gc.reborrow())?;
+                let s = to_string(agent, element.unbind(), gc.reborrow())?;
                 // ii. Set R to the string-concatenation of R and S.
                 r.push_str(s.as_str(agent));
             }
             // d. Set k to k + 1.
         }
         // 8. Return R.
-        Ok(Value::from_string(agent, r, gc.nogc()).into_value())
+        Ok(Value::from_string(agent, r, gc.into_nogc()).into_value())
     }
 
     fn keys<'gc>(
@@ -1784,22 +1783,25 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0).scope(agent, gc.nogc());
-        let this_arg = arguments.get(1).scope(agent, gc.nogc());
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).scope(agent, nogc);
+        let this_arg = arguments.get(1).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn is not shared.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
         // 4. Let A be ? ArraySpeciesCreate(O, len).
         let a = array_species_create(agent, o.get(agent), len as usize, gc.reborrow())?
             .unbind()
@@ -1820,9 +1822,9 @@ impl ArrayPrototype {
                 let mapped_value = call_function(
                     agent,
                     callback_fn.get(agent),
-                    this_arg,
+                    this_arg.get(agent),
                     Some(ArgumentsList(&[
-                        k_value,
+                        k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
                     ])),
@@ -1833,7 +1835,7 @@ impl ArrayPrototype {
                     agent,
                     a.get(agent),
                     pk,
-                    mapped_value,
+                    mapped_value.unbind(),
                     gc.reborrow(),
                 )?;
             }
@@ -1861,6 +1863,7 @@ impl ArrayPrototype {
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         if let Value::Array(array) = this_value {
             // Fast path: Trivial (no descriptors) array means mutating
             // elements is direct.
@@ -1923,7 +1926,9 @@ impl ArrayPrototype {
             // c. Let index be ! ToString(newLen).
             let index = PropertyKey::Integer(new_len.try_into().unwrap());
             // d. Let element be ? Get(O, index).
-            let element = get(agent, o.get(agent), index, gc.reborrow())?;
+            let element = get(agent, o.get(agent), index, gc.reborrow())?
+                .unbind()
+                .scope(agent, gc.nogc());
             // e. Perform ? DeletePropertyOrThrow(O, index).
             delete_property_or_throw(agent, o.get(agent), index, gc.reborrow())?;
             // f. Perform ? Set(O, "length", newLen, true).
@@ -1936,7 +1941,7 @@ impl ArrayPrototype {
                 gc.reborrow(),
             )?;
             // g. Return element.
-            Ok(element)
+            Ok(element.get(agent))
         }
     }
 
@@ -2053,27 +2058,30 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).scope(agent, nogc);
         let initial_value = if arguments.len() >= 2 {
-            Some(arguments.get(1))
+            Some(arguments.get(1).scope(agent, nogc))
         } else {
             None
         };
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn is not shared.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
@@ -2089,10 +2097,11 @@ impl ArrayPrototype {
         // 6. Let accumulator be undefined.
         // 7. If initialValue is present,
         // a. Set accumulator to initialValue.
-        let mut accumulator = initial_value.unwrap_or(Value::Undefined);
+        let initial_value_is_none = initial_value.is_none();
+        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static());
 
         // 8. Else,
-        if initial_value.is_none() {
+        if initial_value_is_none {
             // a. Let kPresent be false.
             let mut k_present = false;
 
@@ -2107,7 +2116,9 @@ impl ArrayPrototype {
                 // iii. If kPresent is true, then
                 if k_present {
                     // 1. Set accumulator to ? Get(O, Pk).
-                    accumulator = get(agent, o.get(agent), pk, gc.reborrow())?;
+                    let result = get(agent, o.get(agent), pk, gc.reborrow())?;
+                    // SAFETY: accumulator is not shared.
+                    unsafe { accumulator.replace(agent, result.unbind()) };
                 }
 
                 // iv. Set k to k + 1.
@@ -2139,18 +2150,20 @@ impl ArrayPrototype {
                 let k_value = get(agent, o.get(agent), pk, gc.reborrow())?;
 
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
-                accumulator = call_function(
+                let result = call_function(
                     agent,
                     callback_fn.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList(&[
-                        accumulator,
-                        k_value,
+                        accumulator.get(agent),
+                        k_value.unbind(),
                         Number::from(k_int).into_value(),
                         o.get(agent).into_value(),
                     ])),
                     gc.reborrow(),
                 )?;
+                // SAFETY: accumulator is not shared.
+                unsafe { accumulator.replace(agent, result.unbind()) };
             }
 
             // d. Set k to k + 1.
@@ -2158,7 +2171,7 @@ impl ArrayPrototype {
         }
 
         // 10. Return accumulator.
-        Ok(accumulator)
+        Ok(accumulator.get(agent))
     }
 
     /// ### [23.1.3.25 Array.prototype.reduceRight ( callbackfn \[ , initialValue \] )](https://tc39.es/ecma262/#sec-array.prototype.reduceright)
@@ -2203,28 +2216,31 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).bind(nogc).scope(agent, nogc);
         let initial_value = if arguments.len() >= 2 {
-            Some(arguments.get(1))
+            Some(arguments.get(1).bind(nogc).scope(agent, nogc))
         } else {
             None
         };
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
 
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
 
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn is not shared outside this call.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
 
         // 4. If len = 0 and initialValue is not present, throw a TypeError exception.
         if len == 0 && initial_value.is_none() {
@@ -2240,10 +2256,11 @@ impl ArrayPrototype {
         // 6. Let accumulator be undefined.
         // 7. If initialValue is present, then
         // a. Set accumulator to initialValue.
-        let mut accumulator = initial_value.unwrap_or(Value::Undefined);
+        let no_initial_value = initial_value.is_none();
+        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static());
 
         // 8. Else,
-        if initial_value.is_none() {
+        if no_initial_value {
             // a. Let kPresent be false.
             let mut k_present = false;
 
@@ -2258,7 +2275,9 @@ impl ArrayPrototype {
                 // iii. If kPresent is true, then
                 if k_present {
                     // 1. Set accumulator to ? Get(O, Pk).
-                    accumulator = get(agent, o.get(agent), pk, gc.reborrow())?;
+                    let result = get(agent, o.get(agent), pk, gc.reborrow())?;
+                    // SAFETY: Accumulator is not shared outside this call.
+                    unsafe { accumulator.replace(agent, result.unbind()) };
                 }
 
                 // iv. Set k to k - 1.
@@ -2289,18 +2308,20 @@ impl ArrayPrototype {
                 let k_value = get(agent, o.get(agent), pk, gc.reborrow())?;
 
                 // ii. Set accumulator to ? Call(callbackfn, undefined, « accumulator, kValue, 𝔽(k), O »).
-                accumulator = call_function(
+                let result = call_function(
                     agent,
                     callback_fn.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList(&[
-                        accumulator,
-                        k_value,
+                        accumulator.get(agent),
+                        k_value.unbind(),
                         Number::try_from(k).unwrap().into(),
                         o.get(agent).into_value(),
                     ])),
                     gc.reborrow(),
                 )?;
+                // SAFETY: Accumulator is not shared outside this call.
+                unsafe { accumulator.replace(agent, result.unbind()) };
             }
 
             // d. Set k to k - 1.
@@ -2308,7 +2329,7 @@ impl ArrayPrototype {
         }
 
         // 10. Return accumulator.
-        Ok(accumulator)
+        Ok(accumulator.get(agent))
     }
 
     fn reverse<'gc>(
@@ -2317,12 +2338,13 @@ impl ArrayPrototype {
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         if let Value::Array(array) = this_value {
             // Fast path: Array is dense and contains no descriptors. No JS
             // functions can thus be called by shift.
             if array.is_trivial(agent) && array.is_dense(agent) {
                 array.as_mut_slice(agent).reverse();
-                return Ok(array.into_value());
+                return Ok(array.into_value().unbind());
             }
         }
 
@@ -2336,79 +2358,95 @@ impl ArrayPrototype {
         let mut lower: i64 = 0;
         // 5. Repeat, while lower ≠ middle,
         while lower != middle {
-            //    a. Let upper be len - lower - 1.
+            // a. Let upper be len - lower - 1.
             let upper = len - lower - 1;
-            //    b. Let upperP be ! ToString(𝔽(upper)).
+            // b. Let upperP be ! ToString(𝔽(upper)).
             let upper_p = PropertyKey::Integer(upper.try_into().unwrap());
-            //    c. Let lowerP be ! ToString(𝔽(lower)).
+            // c. Let lowerP be ! ToString(𝔽(lower)).
             let lower_p = PropertyKey::Integer(lower.try_into().unwrap());
-            //    d. Let lowerExists be ? HasProperty(O, lowerP).
-            //    e. If lowerExists is true, then
-            //       i. Let lowerValue be ? Get(O, lowerP).
+            // d. Let lowerExists be ? HasProperty(O, lowerP).
             let lower_exists = has_property(agent, o.get(agent), lower_p, gc.reborrow())?;
-            //    f. Let upperExists be ? HasProperty(O, upperP).
-            //    g. If upperExists is true, then
-            //       i. Let upperValue be ? Get(O, upperP).
+            // e. If lowerExists is true, then
+            let lower_value = if lower_exists {
+                // i. Let lowerValue be ? Get(O, lowerP).
+                Some(
+                    get(agent, o.get(agent), lower_p, gc.reborrow())?
+                        .unbind()
+                        .scope(agent, gc.nogc()),
+                )
+            } else {
+                None
+            };
+            // f. Let upperExists be ? HasProperty(O, upperP).
             let upper_exists = has_property(agent, o.get(agent), upper_p, gc.reborrow())?;
+            // g. If upperExists is true, then
+            let upper_value = if upper_exists {
+                // i. Let upperValue be ? Get(O, upperP).
+                Some(
+                    get(agent, o.get(agent), upper_p, gc.reborrow())?
+                        .unbind()
+                        .bind(gc.nogc()),
+                )
+            } else {
+                None
+            };
 
-            //    h. If lowerExists is true and upperExists is true, then
-            if lower_exists && upper_exists {
-                //       i. Perform ? Set(O, lowerP, upperValue, true).
-                //       ii. Perform ? Set(O, upperP, lowerValue, true).
-                let lower_value = get(agent, o.get(agent), lower_p, gc.reborrow())?;
-                let upper_value = get(agent, o.get(agent), upper_p, gc.reborrow())?;
-                set(
-                    agent,
-                    o.get(agent),
-                    lower_p,
-                    upper_value,
-                    true,
-                    gc.reborrow(),
-                )?;
-                set(
-                    agent,
-                    o.get(agent),
-                    upper_p,
-                    lower_value,
-                    true,
-                    gc.reborrow(),
-                )?;
-            }
-            //    i. Else if lowerExists is false and upperExists is true, then
-            else if !lower_exists && upper_exists {
-                //       i. Perform ? Set(O, lowerP, upperValue, true).
-                //       ii. Perform ? DeletePropertyOrThrow(O, upperP).
-                let upper_value = get(agent, o.get(agent), upper_p, gc.reborrow())?;
-                set(
-                    agent,
-                    o.get(agent),
-                    lower_p,
-                    upper_value,
-                    true,
-                    gc.reborrow(),
-                )?;
-                delete_property_or_throw(agent, o.get(agent), upper_p, gc.reborrow())?;
-            }
-            //    j. Else if lowerExists is true and upperExists is false, then
-            else if lower_exists && !upper_exists {
-                //       i. Perform ? DeletePropertyOrThrow(O, lowerP).
-                //       ii. Perform ? Set(O, upperP, lowerValue, true).
-                let lower_value = get(agent, o.get(agent), lower_p, gc.reborrow())?;
-                delete_property_or_throw(agent, o.get(agent), lower_p, gc.reborrow())?;
-                set(
-                    agent,
-                    o.get(agent),
-                    upper_p,
-                    lower_value,
-                    true,
-                    gc.reborrow(),
-                )?;
-            }
-            //    k. Else,
-            else {
-                //       i. Assert: lowerExists and upperExists are both false.
-                //       ii. NOTE: No action is required.
-                assert!(!(lower_exists && upper_exists));
+            match (lower_value, upper_value) {
+                // h. If lowerExists is true and upperExists is true, then
+                (Some(lower_value), Some(upper_value)) => {
+                    // i. Perform ? Set(O, lowerP, upperValue, true).
+                    set(
+                        agent,
+                        o.get(agent),
+                        lower_p,
+                        upper_value.unbind(),
+                        true,
+                        gc.reborrow(),
+                    )?;
+                    // ii. Perform ? Set(O, upperP, lowerValue, true).
+                    set(
+                        agent,
+                        o.get(agent),
+                        upper_p,
+                        lower_value.get(agent),
+                        true,
+                        gc.reborrow(),
+                    )?;
+                }
+                // i. Else if lowerExists is false and upperExists is true, then
+                (None, Some(upper_value)) => {
+                    // i. Perform ? Set(O, lowerP, upperValue, true).
+                    set(
+                        agent,
+                        o.get(agent),
+                        lower_p,
+                        upper_value.unbind(),
+                        true,
+                        gc.reborrow(),
+                    )?;
+                    // ii. Perform ? DeletePropertyOrThrow(O, upperP).
+                    delete_property_or_throw(agent, o.get(agent), upper_p, gc.reborrow())?;
+                }
+                // j. Else if lowerExists is true and upperExists is false, then
+                (Some(lower_value), None) => {
+                    // i. Perform ? DeletePropertyOrThrow(O, lowerP).
+                    delete_property_or_throw(agent, o.get(agent), lower_p, gc.reborrow())?;
+                    // ii. Perform ? Set(O, upperP, lowerValue, true).
+                    set(
+                        agent,
+                        o.get(agent),
+                        upper_p,
+                        lower_value.get(agent),
+                        true,
+                        gc.reborrow(),
+                    )?;
+                }
+                // k. Else,
+                (None, None) => {
+                    // i. Assert: lowerExists and upperExists are both false.
+                    // ii. NOTE: No action is required.
+                    assert!(!(lower_exists && upper_exists));
+                }
             }
             //    l. Set lower to lower + 1.
             lower += 1;
@@ -2822,14 +2860,15 @@ impl ArrayPrototype {
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn is never shared before this call.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
