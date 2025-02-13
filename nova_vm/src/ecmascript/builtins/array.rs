@@ -178,7 +178,7 @@ impl<'a> Array<'a> {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value>] {
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value<'a>>] {
         let elements = arena[self].elements;
         &arena.as_ref()[elements]
     }
