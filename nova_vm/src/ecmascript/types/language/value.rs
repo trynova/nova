@@ -393,6 +393,27 @@ impl<'a> Value<'a> {
         Scoped::new(agent, self.unbind(), gc)
     }
 
+    /// Scope a stack-only Value. Stack-only Values are primitives that do not
+    /// need to store any data on the heap, hence scoping them is effectively a
+    /// no-op. These Values are also not concerned with the garbage collector.
+    ///
+    /// ## Panics
+    ///
+    /// If the Value is not stack-only, this method will panic.
+    pub const fn scope_static(self) -> Scoped<'static, Value<'static>> {
+        let key_root_repr = match self {
+            Value::Undefined => ValueRootRepr::Undefined,
+            Value::Null => ValueRootRepr::Null,
+            Value::Boolean(bool) => ValueRootRepr::Boolean(bool),
+            Value::SmallString(small_string) => ValueRootRepr::SmallString(small_string),
+            Value::Integer(small_integer) => ValueRootRepr::Integer(small_integer),
+            Value::SmallF64(small_string) => ValueRootRepr::SmallF64(small_string),
+            Value::SmallBigInt(small_string) => ValueRootRepr::SmallBigInt(small_string),
+            _ => panic!("Value required rooting"),
+        };
+        Scoped::from_root_repr(key_root_repr)
+    }
+
     pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Value<'a> {
         String::from_str(agent, str, gc).into_value()
     }
