@@ -1354,7 +1354,9 @@ impl ArrayPrototype {
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
         let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        assert_eq!(from_index.is_undefined(), n.into_i64() == 0);
+        if from_index.is_undefined() {
+            assert_eq!(n.into_i64(), 0);
+        }
         // 6. If n = +∞, return false.
         let n = if n.is_pos_infinity() {
             return Ok(false.into());
@@ -1477,7 +1479,9 @@ impl ArrayPrototype {
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
         let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        assert_eq!(from_index.is_undefined(), n.into_i64() == 0);
+        if from_index.is_undefined() {
+            assert_eq!(n.into_i64(), 0);
+        }
         // 6. If n = +∞, return -1𝔽.
         let n = if n.is_pos_infinity() {
             return Ok((-1).into());
