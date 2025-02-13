@@ -1352,14 +1352,7 @@ impl ArrayPrototype {
             return Ok(false.into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = if let TryResult::Continue(n) =
-            try_to_integer_or_infinity(agent, from_index, gc.nogc())
-        {
-            n?
-        } else {
-            let result = to_integer_or_infinity(agent, from_index, gc.reborrow());
-            result?
-        };
+        let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
         if from_index.is_undefined() {
             assert_eq!(n.into_i64(), 0);
@@ -1484,14 +1477,7 @@ impl ArrayPrototype {
             return Ok((-1).into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = if let TryResult::Continue(n) =
-            try_to_integer_or_infinity(agent, from_index, gc.nogc())
-        {
-            n?
-        } else {
-            let result = to_integer_or_infinity(agent, from_index, gc.reborrow());
-            result?
-        };
+        let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
         if from_index.is_undefined() {
             assert_eq!(n.into_i64(), 0);
