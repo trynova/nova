@@ -21,8 +21,9 @@ use crate::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             BuiltinIntrinsicConstructor,
             array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::{
-                ArrayIterator, CollectionIteratorKind,
+            indexed_collections::array_objects::{
+                array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind},
+                array_prototype::find_via_predicate,
             },
             typed_array::TypedArray,
         },
@@ -596,7 +597,7 @@ impl TypedArrayPrototype {
         )
     }
 
-    // ### [23.2.3.8 %%TypedArray%.prototype.every ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.every)
+    /// ### [23.2.3.8 %%TypedArray%.prototype.every ( callback [ , thisArg ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.every)
     fn every<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -691,13 +692,50 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### 23.2.3.11 %TypedArray%.prototype.find ( predicate [ , thisArg ] )(https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.find)
+    ///
+    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.find as defined in 23.1.3.9.
     fn find<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let predicate = arguments.get(0).scope(agent, gc.nogc());
+        let this_arg = arguments.get(1).scope(agent, gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let o = ta_record.object;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        let o = o.into_object().scope(agent, gc.nogc());
+        // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
+        let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
+        // 5. Return findRec.[[Value]].
+        Ok(find_rec.1)
     }
 
     fn find_index<'gc>(

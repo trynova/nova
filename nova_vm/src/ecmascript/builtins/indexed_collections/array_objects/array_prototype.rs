@@ -3871,7 +3871,7 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
 /// the time that this operation visits them. Elements that are deleted after
 /// traversal begins and before being visited are still visited and are either
 /// looked up from the prototype or are undefined.
-fn find_via_predicate<'gc, 'scope>(
+pub(crate) fn find_via_predicate<'gc, 'scope>(
     agent: &mut Agent,
     o: Scoped<'_, Object<'static>>,
     len: i64,
