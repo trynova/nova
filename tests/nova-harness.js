@@ -18,5 +18,6 @@
 
 globalThis.$262 = {
     global: globalThis,
-    detachArrayBuffer: detachArrayBuffer,
+    detachArrayBuffer: __nova__.detachArrayBuffer,
 };
+delete globalThis.__nova__;
