@@ -6,8 +6,8 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, try_get, try_has_property},
-            testing_and_comparison::{is_array, is_callable, is_strictly_equal, same_value_zero},
+            operations_on_objects::{call_function, try_get},
+            testing_and_comparison::{is_array, is_callable, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
                 try_to_string,
@@ -29,7 +29,7 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            U8Clamped, Value,
+            U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -41,11 +41,10 @@ use crate::{
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
-use super::abstract_operations::is_typed_array_out_of_bounds;
-use super::abstract_operations::make_typed_array_with_buffer_witness_record;
-use super::abstract_operations::typed_array_byte_length;
-use super::abstract_operations::typed_array_length;
-use super::abstract_operations::validate_typed_array;
+use super::abstract_operations::{
+    is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
+    typed_array_byte_length, typed_array_length, validate_typed_array,
+};
 
 pub struct TypedArrayIntrinsicObject;
 
@@ -914,6 +913,7 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         let search_element = arguments.get(0).bind(gc.nogc());
         let from_index = arguments.get(1).bind(gc.nogc());
         // 1. Let O be the this value.
@@ -959,18 +959,17 @@ impl TypedArrayPrototype {
         };
         // 6. Assert: If fromIndex is undefined, then n is 0.
         if from_index.is_undefined() {
-            if matches!(
-                o,
-                TypedArray::BigInt64Array(_) | TypedArray::BigUint64Array(_)
-            ) {
-                if !search_element.is_bigint() {
-                    return Ok((-1).into());
-                }
-            } else {
-                if !search_element.is_number() {
-                    return Ok((-1).into());
-                }
+            assert_eq!(n.into_i64(), 0);
+        }
+        if matches!(
+            o,
+            TypedArray::BigInt64Array(_) | TypedArray::BigUint64Array(_)
+        ) {
+            if !search_element.is_bigint() {
+                return Ok((-1).into());
             }
+        } else if !search_element.is_number() {
+            return Ok((-1).into());
         }
         // 7. If n = +∞, return false.
         let n = if n.is_pos_infinity() {
@@ -982,7 +981,7 @@ impl TypedArrayPrototype {
             n.into_i64()
         };
         // 9. If n ≥ 0, then
-        let mut k = if n >= 0 {
+        let k = if n >= 0 {
             // a. Let k be n.
             n
         } else {
@@ -992,34 +991,47 @@ impl TypedArrayPrototype {
             // b. If k < 0, set k to 0.
             if k < 0 { 0 } else { k }
         };
+
+        let k = k as usize;
+
         // 11. Repeat, while k < len,
-        while k < len {
-            // a. Let kPresent be ! HasProperty(O, ! ToString(𝔽(k))).
-            let k_present = unwrap_try(try_has_property(
-                agent,
-                o.into_object(),
-                PropertyKey::from(SmallInteger::from(k as u32)),
-                gc.nogc(),
-            ));
-            // b. If kPresent is true, then
-            if k_present {
-                //  i. Let elementK be ! Get(O, ! ToString(𝔽(k))).
-                let element_k = unwrap_try(try_get(
-                    agent,
-                    o,
-                    PropertyKey::from(SmallInteger::from(k as u32)),
-                    gc.nogc(),
-                ));
-                //  ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
-                if is_strictly_equal(agent, search_element, element_k) {
-                    return Ok(k.try_into().unwrap());
-                }
+        let result = match o {
+            TypedArray::Int8Array(_) => {
+                search_typed_element::<i8>(agent, o, search_element, k, gc.nogc())
             }
-            // c. Set k to k + 1.
-            k += 1
-        }
-        // 12. Return -1𝔽.
-        Ok((-1).into())
+            TypedArray::Uint8Array(_) => {
+                search_typed_element::<u8>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                search_typed_element::<U8Clamped>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Int16Array(_) => {
+                search_typed_element::<i16>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Uint16Array(_) => {
+                search_typed_element::<u16>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Int32Array(_) => {
+                search_typed_element::<i32>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Uint32Array(_) => {
+                search_typed_element::<u32>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_) => {
+                search_typed_element::<i64>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::BigUint64Array(_) => {
+                search_typed_element::<u64>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Float32Array(_) => {
+                search_typed_element::<f32>(agent, o, search_element, k, gc.nogc())
+            }
+            TypedArray::Float64Array(_) => {
+                search_typed_element::<f64>(agent, o, search_element, k, gc.nogc())
+            }
+        };
+        println!("Result {:?}", result?.map_or(-1, |v| v as i64));
+        Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
     /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
@@ -1758,4 +1770,50 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
             gc,
         )
     })
+}
+
+fn search_typed_element<T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    search_element: Value,
+    k: usize,
+    gc: NoGcScope,
+) -> JsResult<Option<usize>> {
+    let search_element = T::try_from_value(agent, search_element);
+    let Some(search_element) = search_element else {
+        return Ok(None);
+    };
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let data_block = array_buffer.as_slice(agent);
+    if data_block.is_empty() {
+        return Ok(None);
+    }
+    if k >= data_block.len() {
+        return Ok(None);
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        &data_block[byte_offset..byte_offset + byte_length]
+    } else {
+        &data_block[byte_offset..]
+    };
+    // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+    // combinations of T are valid values. Alignment of T's is
+    // guaranteed by align_to itself.
+    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "Please no",
+            gc,
+        ));
+    }
+    if k >= slice.len() {
+        return Ok(None);
+    }
+    Ok(slice[k..]
+        .iter()
+        .position(|&r| r == search_element)
+        .map(|pos| pos + k))
 }
