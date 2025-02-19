@@ -914,7 +914,7 @@ impl TypedArrayPrototype {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let this_value = this_value.bind(gc.nogc());
-        let search_element = arguments.get(0).bind(gc.nogc());
+        let mut search_element = arguments.get(0).bind(gc.nogc());
         let from_index = arguments.get(1).bind(gc.nogc());
         // 1. Let O be the this value.
         let o = this_value;
@@ -947,18 +947,21 @@ impl TypedArrayPrototype {
             return Ok((-1).into());
         };
         // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
+        let from_index_is_undefined = from_index.is_undefined();
         let n = if let TryResult::Continue(n) =
             try_to_integer_or_infinity(agent, from_index, gc.nogc())
         {
             n?
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
-            let result = to_integer_or_infinity(agent, from_index, gc.reborrow());
+            let scoped_search_element = search_element.scope(agent, gc.nogc());
+            let result = to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow());
             o = scoped_o.get(agent).bind(gc.nogc());
+            search_element = scoped_search_element.get(agent).bind(gc.nogc());
             result?
         };
         // 6. Assert: If fromIndex is undefined, then n is 0.
-        if from_index.is_undefined() {
+        if from_index_is_undefined {
             assert_eq!(n.into_i64(), 0);
         }
         if matches!(
@@ -1030,7 +1033,6 @@ impl TypedArrayPrototype {
                 search_typed_element::<f64>(agent, o, search_element, k, gc.nogc())
             }
         };
-        println!("Result {:?}", result?.map_or(-1, |v| v as i64));
         Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
@@ -1805,7 +1807,7 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
     if !head.is_empty() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "Please no",
+            "TypedArray is not properly aligned",
             gc,
         ));
     }

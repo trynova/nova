@@ -272,16 +272,14 @@ impl Viewable for u16 {
         to_uint16_number(agent, value).to_le()
     }
 
-    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
-        let Ok(value) = Number::try_from(value) else {
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0).into()) {
+                return Some(0);
+            }
             return None;
         };
-        let value = value.into_f64(agent);
-        if value as u16 as f64 == value {
-            Some(value as u16)
-        } else {
-            None
-        }
+        u16::try_from(value.into_i64()).ok()
     }
 }
 impl Viewable for i16 {
@@ -310,16 +308,14 @@ impl Viewable for i16 {
         to_int16_number(agent, value).to_le()
     }
 
-    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
-        let Ok(value) = Number::try_from(value) else {
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0).into()) {
+                return Some(0);
+            }
             return None;
         };
-        let value = value.into_f64(agent);
-        if value as i16 as f64 == value {
-            Some(value as i16)
-        } else {
-            None
-        }
+        i16::try_from(value.into_i64()).ok()
     }
 }
 impl Viewable for u32 {
@@ -348,16 +344,14 @@ impl Viewable for u32 {
         to_uint32_number(agent, value).to_le()
     }
 
-    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
-        let Ok(value) = Number::try_from(value) else {
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0).into()) {
+                return Some(0);
+            }
             return None;
         };
-        let value = value.into_f64(agent);
-        if value as u32 as f64 == value {
-            Some(value as u32)
-        } else {
-            None
-        }
+        u32::try_from(value.into_i64()).ok()
     }
 }
 impl Viewable for i32 {
@@ -386,19 +380,14 @@ impl Viewable for i32 {
         to_int32_number(agent, value).to_le()
     }
 
-    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
-        let Ok(value) = Number::try_from(value) else {
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0).into()) {
+                return Some(0);
+            }
             return None;
         };
-        let value = value.into_f64(agent);
-        if value.is_nan() {
-            return None;
-        }
-        if value as i32 as f64 == value {
-            Some(value as i32)
-        } else {
-            None
-        }
+        i32::try_from(value.into_i64()).ok()
     }
 }
 impl Viewable for u64 {
@@ -527,6 +516,21 @@ impl Viewable for f16 {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
+    }
+
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
+        let Ok(value) = Number::try_from(value) else {
+            return None;
+        };
+        let value = value.into_f64(agent);
+        if value.is_nan() {
+            return Some(f16::NAN);
+        }
+        if value as f16 as f64 == value {
+            Some(value as f16)
+        } else {
+            None
+        }
     }
 }
 impl Viewable for f32 {
