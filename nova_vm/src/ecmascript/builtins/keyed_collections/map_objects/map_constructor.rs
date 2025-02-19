@@ -161,8 +161,7 @@ impl MapConstructor {
         // 1. Let groups be ? GroupBy(items, callback, collection).
         let groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
         // 2. Let map be ! Construct(%Map%).
-        let mut map_data = MapHeapData::default();
-        map_data.reserve(groups.len());
+        let map_data = MapHeapData::with_capacity(groups.len());
         let map = agent.heap.create(map_data);
 
         let gc = gc.into_nogc();
