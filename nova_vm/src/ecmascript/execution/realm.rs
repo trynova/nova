@@ -62,6 +62,10 @@ impl RealmIdentifier {
     pub(crate) const fn into_u32_index(self) -> u32 {
         self.0.get() - 1
     }
+
+    pub fn global_object(self, agent: &mut Agent) -> Object {
+        agent[self].global_object
+    }
 }
 
 impl Index<RealmIdentifier> for Agent {
