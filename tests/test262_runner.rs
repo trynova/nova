@@ -185,6 +185,7 @@ impl BaseTest262Runner {
 
             let mut command = Command::new(&self.nova_cli_path);
             command.arg("eval");
+            command.arg("--expose-internals");
             if !strict {
                 command.arg("--no-strict");
             }

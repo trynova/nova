@@ -8,7 +8,9 @@ use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 use clap::{Parser as ClapParser, Subcommand};
 use cliclack::{input, intro, set_theme};
-use helper::{exit_with_parse_errors, initialize_global_object};
+use helper::{
+    exit_with_parse_errors, initialize_global_object, initialize_global_object_with_internals,
+};
 use nova_vm::{
     ecmascript::{
         execution::{
@@ -52,13 +54,19 @@ enum Command {
         #[arg(short, long)]
         no_strict: bool,
 
+        #[arg(long)]
+        expose_internals: bool,
+
         /// The files to evaluate
         #[arg(required = true)]
         paths: Vec<String>,
     },
 
     /// Runs the REPL
-    Repl {},
+    Repl {
+        #[arg(long)]
+        expose_internals: bool,
+    },
 }
 
 #[derive(Default)]
@@ -116,6 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             verbose,
             no_strict,
             nogc,
+            expose_internals,
             paths,
         } => {
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
@@ -133,10 +142,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let create_global_this_value: Option<
                 for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
             > = None;
+            let initialize_global: Option<fn(&mut Agent, Object, GcScope)> = if expose_internals {
+                Some(initialize_global_object_with_internals)
+            } else {
+                Some(initialize_global_object)
+            };
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
-                Some(initialize_global_object),
+                initialize_global,
             );
             let mut is_first = true;
             for path in paths {
@@ -200,7 +214,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             agent.remove_realm(realm);
         }
-        Command::Repl {} => {
+        Command::Repl { expose_internals } => {
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
             let mut agent = GcAgent::new(
                 Options {
@@ -215,10 +229,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let create_global_this_value: Option<
                 for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
             > = None;
+            let initialize_global: Option<fn(&mut Agent, Object, GcScope)> = if expose_internals {
+                Some(initialize_global_object_with_internals)
+            } else {
+                Some(initialize_global_object)
+            };
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
-                Some(initialize_global_object),
+                initialize_global,
             );
 
             set_theme(DefaultTheme);
