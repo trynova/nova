@@ -86,17 +86,16 @@ impl MapHeapData {
         &mut self.map_data
     }
 
-    pub fn reserve(&mut self, new_len: usize) {
-        self.map_data.keys.reserve(new_len);
-        self.map_data.values.reserve(new_len);
-        self.map_data
-            .map_data
-            .borrow_mut()
-            .reserve(new_len, |key_index: &u32| {
-                let mut hasher = AHasher::default();
-                key_index.hash(&mut hasher);
-                hasher.finish()
-            });
+    pub fn with_capacity(new_len: usize) -> Self {
+        Self {
+            map_data: MapData {
+                keys: Vec::with_capacity(new_len),
+                values: Vec::with_capacity(new_len),
+                map_data: RefCell::new(HashTable::with_capacity(new_len)),
+                needs_primitive_rehashing: AtomicBool::new(false),
+            },
+            object_index: None,
+        }
     }
 }
 

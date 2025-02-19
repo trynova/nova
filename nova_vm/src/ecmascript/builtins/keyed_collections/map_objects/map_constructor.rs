@@ -13,8 +13,8 @@ use crate::{
                 get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
             },
             operations_on_objects::{
-                call_function, construct, create_array_from_scoped_list, get, get_method,
-                group_by_property, try_get,
+                call_function, create_array_from_scoped_list, get, get_method, group_by_property,
+                try_get,
             },
             testing_and_comparison::{is_callable, same_value},
         },
@@ -179,11 +179,9 @@ impl MapConstructor {
         // 1. Let groups be ? GroupBy(items, callback, collection).
         let groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
         // 2. Let map be ! Construct(%Map%).
-        let mut map_data = MapHeapData::default();
-        map_data.reserve(groups.len());
-        let map = agent.heap.create(map_data);
-
         let gc = gc.into_nogc();
+        let map_data = MapHeapData::with_capacity(groups.len());
+        let map = agent.heap.create(map_data).bind(gc);
 
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
         let mut keys_and_elements = Vec::with_capacity(groups.len());
@@ -231,15 +229,15 @@ impl MapConstructor {
             match entry {
                 hashbrown::hash_table::Entry::Occupied(occupied) => {
                     let index = *occupied.get();
-                    values[index as usize] = Some(elements.into_value());
+                    values[index as usize] = Some(elements.into_value().unbind());
                 }
                 hashbrown::hash_table::Entry::Vacant(vacant) => {
                     // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
                     // c. Append entry to map.[[MapData]].
                     let index = u32::try_from(values.len()).unwrap();
                     vacant.insert(index);
-                    keys.push(Some(key));
-                    values.push(Some(elements.into_value()));
+                    keys.push(Some(key.unbind()));
+                    values.push(Some(elements.into_value().unbind()));
                 }
             }
         }
