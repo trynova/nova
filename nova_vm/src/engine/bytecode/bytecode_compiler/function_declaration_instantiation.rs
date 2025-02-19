@@ -39,7 +39,7 @@ pub(crate) fn instantiation(
         if parameter_names.contains(&identifier.name) {
             has_duplicates = true;
         } else {
-            parameter_names.insert(identifier.name.clone());
+            parameter_names.insert(identifier.name);
         }
     });
 
@@ -58,7 +58,7 @@ pub(crate) fn instantiation(
         if let VarScopedDeclaration::Function(d) = d {
             // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
             // ii. Let fn be the sole element of the BoundNames of d.
-            let f_name = d.id.as_ref().unwrap().name.clone();
+            let f_name = d.id.as_ref().unwrap().name;
             // iii. If functionNames does not contain fn, then
             //   1. Insert fn as the first element of functionNames.
             //   2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.
@@ -239,7 +239,7 @@ pub(crate) fn instantiation(
                 continue;
             }
             // 1. Append n to instantiatedVarNames.
-            instantiated_var_names.insert(n.clone());
+            instantiated_var_names.insert(n);
             // 3. If parameterBindings does not contain n, or if functionNames contains n, then
             let n_string = String::from_str(ctx.agent, &n, ctx.gc);
             if !parameter_names.contains(&n) || functions.contains_key(&n) {
