@@ -1027,7 +1027,6 @@ impl TypedArrayPrototype {
                 search_typed_element::<f64>(agent, o, search_element, k, gc.nogc())
             }
         };
-        println!("Result {:?}", result?.map_or(-1, |v| v as i64));
         Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
@@ -1810,7 +1809,7 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
     if !head.is_empty() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
-            "Please no",
+            "TypedArray is not properly aligned",
             gc,
         ));
     }
