@@ -654,7 +654,6 @@ impl<'a> Vm {
                 static EMPTY_PARAMETERS: OnceLock<EmptyParametersList> = OnceLock::new();
                 let empty_parameters = EMPTY_PARAMETERS.get_or_init(|| {
                     let allocator: &'static oxc_allocator::Allocator = Box::leak(Box::default());
-                    allocator.set_allocation_limit(Some(0));
                     EmptyParametersList(ast::FormalParameters {
                         span: Default::default(),
                         kind: ast::FormalParameterKind::FormalParameter,
