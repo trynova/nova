@@ -26,13 +26,13 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
 }
 
 impl WeakMapConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

@@ -53,12 +53,12 @@ impl Builtin for PromisePrototypeThen {
 }
 
 impl PromisePrototype {
-    fn catch(
+    fn catch<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
@@ -73,21 +73,21 @@ impl PromisePrototype {
         )
     }
 
-    fn finally(
+    fn finally<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn then(
+    fn then<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
@@ -154,7 +154,7 @@ pub(crate) fn perform_promise_then(
     // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
     // other than browsers, [[HostDefined]] must be EMPTY.
     let on_fulfilled_job_callback = match Function::try_from(on_fulfilled) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
         Err(_) => PromiseReactionHandler::Empty,
     };
     // 5. If IsCallable(onRejected) is false, then
@@ -162,7 +162,7 @@ pub(crate) fn perform_promise_then(
     // 6. Else,
     //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
     let on_rejected_job_callback = match Function::try_from(on_rejected) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
         Err(_) => PromiseReactionHandler::Empty,
     };
 

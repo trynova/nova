@@ -201,7 +201,7 @@ pub type DataViewIndex<'a> = BaseIndex<'a, DataViewHeapData>;
 #[cfg(feature = "date")]
 pub type DateIndex<'a> = BaseIndex<'a, DateHeapData>;
 pub type ECMAScriptFunctionIndex<'a> = BaseIndex<'a, ECMAScriptFunctionHeapData>;
-pub type ElementIndex = BaseIndex<'static, [Option<Value>]>;
+pub type ElementIndex = BaseIndex<'static, [Option<Value<'static>>]>;
 pub type EmbedderObjectIndex<'a> = BaseIndex<'a, EmbedderObjectHeapData>;
 pub type ErrorIndex<'a> = BaseIndex<'a, ErrorHeapData>;
 pub type FinalizationRegistryIndex<'a> = BaseIndex<'a, FinalizationRegistryHeapData>;
@@ -273,8 +273,8 @@ impl ElementIndex {
     }
 }
 
-impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
-    type Output = [Option<Value>; N];
+impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value<'static>>; N]>> {
+    type Output = [Option<Value<'static>>; N];
 
     fn index(&self, index: ElementIndex) -> &Self::Output {
         self.get(index.into_index())
@@ -284,7 +284,7 @@ impl<const N: usize> Index<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
     }
 }
 
-impl<const N: usize> IndexMut<ElementIndex> for Vec<Option<[Option<Value>; N]>> {
+impl<const N: usize> IndexMut<ElementIndex> for Vec<Option<[Option<Value<'static>>; N]>> {
     fn index_mut(&mut self, index: ElementIndex) -> &mut Self::Output {
         self.get_mut(index.into_index())
             .expect("Invalid ElementsVector: No item at index")

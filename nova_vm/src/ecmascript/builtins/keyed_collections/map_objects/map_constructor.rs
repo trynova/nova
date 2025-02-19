@@ -65,13 +65,13 @@ impl Builtin for MapGetSpecies {
 impl BuiltinGetter for MapGetSpecies {}
 
 impl MapConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -144,21 +144,21 @@ impl MapConstructor {
         }
     }
 
-    fn group_by(
+    fn group_by<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

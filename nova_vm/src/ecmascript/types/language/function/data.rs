@@ -29,7 +29,7 @@ pub struct BoundFunctionHeapData {
     ///
     /// The value that is always passed as the **this** value when calling the
     /// wrapped function.
-    pub(crate) bound_this: Value,
+    pub(crate) bound_this: Value<'static>,
     /// ### \[\[BoundArguments\]\]
     ///
     /// A list of values whose elements are used as the first arguments to any

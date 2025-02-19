@@ -172,7 +172,7 @@ pub enum Object<'a> {
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-    AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
+    AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -186,8 +186,8 @@ pub enum Object<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
 
-impl IntoValue for Object<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Object<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Object::Object(data) => Value::Object(data.unbind()),
             Object::BoundFunction(data) => Value::BoundFunction(data.unbind()),
@@ -279,15 +279,15 @@ impl<'a> IntoObject<'a> for OrdinaryObject<'a> {
     }
 }
 
-impl IntoValue for OrdinaryObject<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for OrdinaryObject<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
 impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
-    fn from(value: OrdinaryObject<'_>) -> Self {
-        Self::Object(value.unbind())
+    fn from(value: OrdinaryObject<'a>) -> Self {
+        Self::Object(value)
     }
 }
 
@@ -297,16 +297,16 @@ impl<'a> From<ObjectIndex<'a>> for OrdinaryObject<'a> {
     }
 }
 
-impl From<OrdinaryObject<'_>> for Value {
-    fn from(value: OrdinaryObject<'_>) -> Self {
-        Self::Object(value.unbind())
+impl<'a> From<OrdinaryObject<'a>> for Value<'a> {
+    fn from(value: OrdinaryObject<'a>) -> Self {
+        Self::Object(value)
     }
 }
 
-impl TryFrom<Value> for OrdinaryObject<'_> {
+impl<'a> TryFrom<Value<'a>> for OrdinaryObject<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Object(data) => Ok(data),
             _ => Err(()),
@@ -411,8 +411,8 @@ impl<'a> From<BoundFunction<'a>> for Object<'a> {
     }
 }
 
-impl From<Object<'_>> for Value {
-    fn from(value: Object) -> Self {
+impl<'a> From<Object<'a>> for Value<'a> {
+    fn from(value: Object<'a>) -> Self {
         match value {
             Object::Object(data) => Value::Object(data.unbind()),
             Object::BoundFunction(data) => Value::BoundFunction(data.unbind()),
@@ -491,9 +491,9 @@ impl From<Object<'_>> for Value {
     }
 }
 
-impl TryFrom<Value> for Object<'_> {
+impl<'a> TryFrom<Value<'a>> for Object<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Undefined
             | Value::Null
@@ -608,10 +608,6 @@ impl<'a> Object<'a> {
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Object<'static>> {
         Scoped::new(agent, self.unbind(), gc)
-    }
-
-    pub fn into_value(self) -> Value {
-        self.into()
     }
 
     pub fn property_storage(self) -> PropertyStorage<'a> {
@@ -2678,13 +2674,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         match self {
             Object::Object(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Array(data) => data.try_get(agent, property_key, receiver, gc),
@@ -2786,13 +2782,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             Object::Object(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Array(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -3590,13 +3586,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_value: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             Object::BoundFunction(data) => {
                 data.internal_call(agent, this_value, arguments_list, gc)

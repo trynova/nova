@@ -88,12 +88,12 @@ impl BuiltinIntrinsic for SetPrototypeValues {
 
 impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
-    fn add(
+    fn add<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -150,12 +150,12 @@ impl SetPrototype {
     /// > The existing \[\[SetData]] List is preserved because there may be
     /// > existing Set Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear(
+    fn clear<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -175,12 +175,12 @@ impl SetPrototype {
     /// > The value EMPTY is used as a specification device to indicate that an
     /// > entry has been deleted. Actual implementations may take other actions
     /// > such as physically removing the entry from internal data structures.
-    fn delete(
+    fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -226,12 +226,12 @@ impl SetPrototype {
         }
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, KEY+VALUE).
 
@@ -275,12 +275,12 @@ impl SetPrototype {
     /// > are not visited unless the value is added again before the
     /// > **forEach** call completes. New values added after the call to
     /// > **forEach** begins are visited.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let S be the this value.
@@ -332,12 +332,12 @@ impl SetPrototype {
     }
 
     /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
-    fn has(
+    fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -380,12 +380,12 @@ impl SetPrototype {
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
     /// is undefined.
-    fn get_size(
+    fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let gc = gc.into_nogc();
@@ -396,12 +396,12 @@ impl SetPrototype {
         Ok(Number::from(size).into_value())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, VALUE).
 

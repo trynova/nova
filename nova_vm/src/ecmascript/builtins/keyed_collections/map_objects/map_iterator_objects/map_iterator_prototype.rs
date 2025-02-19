@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -28,17 +29,16 @@ impl Builtin for MapIteratorPrototypeNext {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MapIteratorPrototype::next);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MapIteratorPrototype::next);
 }
 
 impl MapIteratorPrototype {
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.

@@ -23,7 +23,7 @@ use crate::{
         builtins::{
             array::ARRAY_INDEX_RANGE,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
-            ArgumentsList, Builtin,
+            ArgumentsList, Behaviour, Builtin,
         },
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
@@ -41,17 +41,16 @@ impl Builtin for ArrayIteratorPrototypeNext {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ArrayIteratorPrototype::next);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ArrayIteratorPrototype::next);
 }
 
 impl ArrayIteratorPrototype {
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
         let Value::ArrayIterator(iterator) = this_value else {

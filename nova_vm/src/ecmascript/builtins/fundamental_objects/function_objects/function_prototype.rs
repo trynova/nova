@@ -52,8 +52,7 @@ impl Builtin for FunctionPrototypeApply {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::apply);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::apply);
 }
 
 struct FunctionPrototypeBind;
@@ -62,8 +61,7 @@ impl Builtin for FunctionPrototypeBind {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::bind);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::bind);
 }
 
 struct FunctionPrototypeCall;
@@ -72,8 +70,7 @@ impl Builtin for FunctionPrototypeCall {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::call);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::call);
 }
 
 struct FunctionPrototypeToString;
@@ -82,8 +79,7 @@ impl Builtin for FunctionPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::to_string);
 }
 
 struct FunctionPrototypeHasInstance;
@@ -95,25 +91,29 @@ impl Builtin for FunctionPrototypeHasInstance {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(FunctionPrototype::has_instance);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(FunctionPrototype::has_instance);
 
     const WRITABLE: bool = false;
     const CONFIGURABLE: bool = false;
 }
 
 impl FunctionPrototype {
-    fn behaviour(_: &mut Agent, _: Value, _: ArgumentsList, _: GcScope) -> JsResult<Value> {
+    fn behaviour(
+        _: &mut Agent,
+        _: Value,
+        _: ArgumentsList,
+        _: GcScope,
+    ) -> JsResult<Value<'static>> {
         Ok(Value::Undefined)
     }
 
     /// ### [20.2.3.1 Function.prototype.apply ( thisArg, argArray )](https://tc39.es/ecma262/#sec-function.prototype.apply)
-    fn apply(
+    fn apply<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value, gc.nogc()) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
@@ -153,12 +153,12 @@ impl FunctionPrototype {
     /// > If `Target` is either an arrow function or a bound function exotic
     /// > object, then the `thisArg` passed to this method will not be used by
     /// > subsequent calls to `F`.
-    fn bind(
+    fn bind<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let this_arg = args.get(0);
         let args = if args.len() > 1 { &args[1..] } else { &[] };
         // 1. Let Target be the this value.
@@ -294,12 +294,12 @@ impl FunctionPrototype {
         Ok(f.into_value())
     }
 
-    fn call(
+    fn call<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let Some(func) = is_callable(this_value, gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -314,12 +314,12 @@ impl FunctionPrototype {
         call_function(agent, func.unbind(), this_arg, Some(args), gc)
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.
@@ -392,12 +392,12 @@ impl FunctionPrototype {
         // <?:...> is an optional template part.
     }
 
-    fn has_instance(
+    fn has_instance<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let v = args.get(0);
         let f = this_value;
         ordinary_has_instance(agent, f, v, gc).map(|result| result.into())
@@ -460,7 +460,12 @@ impl BuiltinIntrinsic for ThrowTypeError {
 }
 
 impl ThrowTypeError {
-    fn behaviour(agent: &mut Agent, _: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+    fn behaviour<'gc>(
+        agent: &mut Agent,
+        _: Value,
+        _: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Err(agent.throw_exception_with_static_message(ExceptionType::TypeError, "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them", gc.nogc()))
     }
 

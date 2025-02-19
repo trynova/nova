@@ -25,8 +25,8 @@ use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
 use num_bigint::Sign;
 
-impl IntoValue for BigInt<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BigInt<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             BigInt::BigInt(data) => Value::BigInt(data.unbind()),
             BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
@@ -120,8 +120,8 @@ impl<'a> HeapBigInt<'a> {
     }
 }
 
-impl IntoValue for HeapBigInt<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapBigInt<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::BigInt(self.unbind())
     }
 }
@@ -132,10 +132,10 @@ impl<'a> IntoPrimitive<'a> for HeapBigInt<'a> {
     }
 }
 
-impl TryFrom<Value> for HeapBigInt<'_> {
+impl<'a> TryFrom<Value<'a>> for HeapBigInt<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::BigInt(x) = value {
             Ok(x)
         } else {
@@ -204,13 +204,13 @@ impl From<SmallBigInt> for BigInt<'static> {
     }
 }
 
-impl From<HeapBigInt<'_>> for Value {
-    fn from(value: HeapBigInt<'_>) -> Self {
-        Self::BigInt(value.unbind())
+impl<'a> From<HeapBigInt<'a>> for Value<'a> {
+    fn from(value: HeapBigInt<'a>) -> Self {
+        Self::BigInt(value)
     }
 }
 
-impl From<SmallBigInt> for Value {
+impl From<SmallBigInt> for Value<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
     }
@@ -671,9 +671,9 @@ impl From<SmallInteger> for BigInt<'static> {
     }
 }
 
-impl TryFrom<Value> for BigInt<'_> {
+impl<'a> TryFrom<Value<'a>> for BigInt<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::BigInt(x) => Ok(BigInt::BigInt(x)),
             Value::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -704,8 +704,8 @@ impl<'a> TryFrom<Numeric<'a>> for BigInt<'a> {
     }
 }
 
-impl From<BigInt<'_>> for Value {
-    fn from(value: BigInt<'_>) -> Value {
+impl<'a> From<BigInt<'a>> for Value<'a> {
+    fn from(value: BigInt<'a>) -> Self {
         match value {
             BigInt::BigInt(x) => Value::BigInt(x.unbind()),
             BigInt::SmallBigInt(x) => Value::SmallBigInt(x),

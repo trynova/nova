@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::type_conversion::{
     to_property_key_complex, to_property_key_simple,
 };
+use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{bind_property_keys, unbind_property_keys};
 use crate::engine::context::GcScope;
 use crate::engine::TryResult;
@@ -35,8 +36,7 @@ impl Builtin for ReflectObjectApply {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::apply);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::apply);
 }
 
 struct ReflectObjectConstruct;
@@ -45,8 +45,7 @@ impl Builtin for ReflectObjectConstruct {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::construct);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::construct);
 }
 struct ReflectObjectDefineProperty;
 impl Builtin for ReflectObjectDefineProperty {
@@ -54,8 +53,7 @@ impl Builtin for ReflectObjectDefineProperty {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::define_property);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::define_property);
 }
 struct ReflectObjectDeleteProperty;
 impl Builtin for ReflectObjectDeleteProperty {
@@ -63,8 +61,7 @@ impl Builtin for ReflectObjectDeleteProperty {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::delete_property);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::delete_property);
 }
 struct ReflectObjectGet;
 impl Builtin for ReflectObjectGet {
@@ -72,8 +69,7 @@ impl Builtin for ReflectObjectGet {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::get);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::get);
 }
 struct ReflectObjectGetOwnPropertyDescriptor;
 impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
@@ -81,8 +77,7 @@ impl Builtin for ReflectObjectGetOwnPropertyDescriptor {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::get_own_property_descriptor);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::get_own_property_descriptor);
 }
 struct ReflectObjectGetPrototypeOf;
 impl Builtin for ReflectObjectGetPrototypeOf {
@@ -90,8 +85,7 @@ impl Builtin for ReflectObjectGetPrototypeOf {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::get_prototype_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::get_prototype_of);
 }
 
 struct ReflectObjectHas;
@@ -100,8 +94,7 @@ impl Builtin for ReflectObjectHas {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::has);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::has);
 }
 struct ReflectObjectIsExtensible;
 impl Builtin for ReflectObjectIsExtensible {
@@ -109,8 +102,7 @@ impl Builtin for ReflectObjectIsExtensible {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::is_extensible);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::is_extensible);
 }
 struct ReflectObjectOwnKeys;
 impl Builtin for ReflectObjectOwnKeys {
@@ -118,8 +110,7 @@ impl Builtin for ReflectObjectOwnKeys {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::own_keys);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::own_keys);
 }
 struct ReflectObjectPreventExtensions;
 impl Builtin for ReflectObjectPreventExtensions {
@@ -127,8 +118,7 @@ impl Builtin for ReflectObjectPreventExtensions {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::prevent_extensions);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::prevent_extensions);
 }
 struct ReflectObjectSet;
 impl Builtin for ReflectObjectSet {
@@ -136,8 +126,7 @@ impl Builtin for ReflectObjectSet {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::set);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::set);
 }
 struct ReflectObjectSetPrototypeOf;
 impl Builtin for ReflectObjectSetPrototypeOf {
@@ -145,18 +134,17 @@ impl Builtin for ReflectObjectSetPrototypeOf {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ReflectObject::set_prototype_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ReflectObject::set_prototype_of);
 }
 
 impl ReflectObject {
     /// [28.1.1 Reflect.apply ( target, thisArgument, argumentsList )](https://tc39.es/ecma262/#sec-reflect.apply)
-    fn apply(
+    fn apply<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let this_argument = arguments.get(1);
         let arguments_list = arguments.get(2);
@@ -184,12 +172,12 @@ impl ReflectObject {
     }
 
     /// [28.1.2 Reflect.construct ( target, argumentsList \[ , newTarget \] )](https://tc39.es/ecma262/#sec-reflect.construct)
-    fn construct(
+    fn construct<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let arguments_list = arguments.get(1);
 
@@ -232,12 +220,12 @@ impl ReflectObject {
     }
 
     /// [28.1.3 Reflect.defineProperty ( target, propertyKey, attributes )](https://tc39.es/ecma262/#sec-reflect.defineproperty)
-    fn define_property(
+    fn define_property<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut attributes = arguments.get(2);
@@ -298,12 +286,12 @@ impl ReflectObject {
     }
 
     /// [28.1.4 Reflect.deleteProperty ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.deleteproperty)
-    fn delete_property(
+    fn delete_property<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
@@ -336,12 +324,12 @@ impl ReflectObject {
     }
 
     /// [28.1.5 Reflect.get ( target, propertyKey \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.get)
-    fn get(
+    fn get<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut receiver = if arguments.len() > 2 {
@@ -385,12 +373,12 @@ impl ReflectObject {
     }
 
     /// [28.1.6 Reflect.getOwnPropertyDescriptor ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.getownpropertydescriptor)
-    fn get_own_property_descriptor(
+    fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
@@ -429,12 +417,12 @@ impl ReflectObject {
     }
 
     /// [28.1.7 Reflect.getPrototypeOf ( target )](https://tc39.es/ecma262/#sec-reflect.getprototypeof)
-    fn get_prototype_of(
+    fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -454,12 +442,12 @@ impl ReflectObject {
     }
 
     /// [28.1.8 Reflect.has ( target, propertyKey )](https://tc39.es/ecma262/#sec-reflect.has)
-    fn has(
+    fn has<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
 
@@ -494,12 +482,12 @@ impl ReflectObject {
     }
 
     /// [28.1.9 Reflect.isExtensible ( target )](https://tc39.es/ecma262/#sec-reflect.isextensible)
-    fn is_extensible(
+    fn is_extensible<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -517,12 +505,12 @@ impl ReflectObject {
     }
 
     /// [28.1.10 Reflect.ownKeys ( target )](https://tc39.es/ecma262/#sec-reflect.ownkeys)
-    fn own_keys(
+    fn own_keys<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -549,12 +537,12 @@ impl ReflectObject {
     }
 
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
-    fn prevent_extensions(
+    fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
 
         // 1. If target is not an Object, throw a TypeError exception.
@@ -572,12 +560,12 @@ impl ReflectObject {
     }
 
     /// [28.1.12 Reflect.set ( target, propertyKey, V \[ , receiver \] )](https://tc39.es/ecma262/#sec-reflect.set)
-    fn set(
+    fn set<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let property_key = arguments.get(1);
         let mut v = arguments.get(2);
@@ -624,12 +612,12 @@ impl ReflectObject {
     }
 
     /// [28.1.13 Reflect.setPrototypeOf ( target, proto )](https://tc39.es/ecma262/#sec-reflect.setprototypeof)
-    fn set_prototype_of(
+    fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         let proto = arguments.get(1);
 

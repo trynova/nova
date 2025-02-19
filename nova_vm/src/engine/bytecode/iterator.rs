@@ -7,6 +7,7 @@ use std::collections::VecDeque;
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_iterator_from_method;
 use crate::ecmascript::abstract_operations::operations_on_objects::{call, get, get_method};
 use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -25,7 +26,7 @@ pub(super) enum VmIterator {
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
     GenericIterator(IteratorRecord),
-    SliceIterator(SendableRef<[Value]>),
+    SliceIterator(SendableRef<[Value<'static>]>),
 }
 
 impl VmIterator {
@@ -55,21 +56,24 @@ impl VmIterator {
     /// function implements much the same intent. It does the IteratorNext
     /// step, followed by a completion check, and finally extracts the value
     /// if the iterator did not complete yet.
-    pub(super) fn step_value(
+    pub(super) fn step_value<'gc>(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope,
-    ) -> JsResult<Option<Value>> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<Value<'gc>>> {
         match self {
             VmIterator::ObjectProperties(iter) => {
                 let result = iter.next(agent, gc.reborrow())?;
                 if let Some(result) = result {
+                    let result = result.unbind();
+                    let gc = gc.into_nogc();
+                    let result = result.bind(gc);
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
-                            Value::from_string(agent, int.into_i64().to_string(), gc.nogc())
+                            Value::from_string(agent, int.into_i64().to_string(), gc)
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
-                        PropertyKey::String(data) => Value::String(data.unbind()),
+                        PropertyKey::String(data) => Value::String(data),
                         _ => unreachable!(),
                     }))
                 } else {
@@ -92,10 +96,12 @@ impl VmIterator {
                         gc.nogc(),
                     ));
                 };
+                let result = result.unbind().bind(gc.nogc());
+                let scoped_result = result.scope(agent, gc.nogc());
                 // 1. Return ToBoolean(? Get(iterResult, "done")).
                 let done = get(
                     agent,
-                    result,
+                    result.unbind(),
                     BUILTIN_STRING_MEMORY.done.into(),
                     gc.reborrow(),
                 )?;
@@ -106,9 +112,9 @@ impl VmIterator {
                     // 1. Return ? Get(iterResult, "value").
                     let value = get(
                         agent,
-                        result,
+                        scoped_result.get(agent),
                         BUILTIN_STRING_MEMORY.value.into(),
-                        gc.reborrow(),
+                        gc,
                     )?;
                     Ok(Some(value))
                 }
@@ -266,7 +272,11 @@ impl ArrayValuesIterator {
         }
     }
 
-    pub(super) fn next(&mut self, agent: &mut Agent, gc: GcScope) -> JsResult<Option<Value>> {
+    pub(super) fn next<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<Value<'gc>>> {
         // b. Repeat,
         let array = self.array;
         // iv. Let indexNumber be 𝔽(index).
@@ -282,7 +292,7 @@ impl ArrayValuesIterator {
         if let Some(element_value) = array.as_slice(agent)[index as usize] {
             // Fast path: If the element at this index has a Value, then it is
             // not an accessor nor a hole. Yield the result as-is.
-            return Ok(Some(element_value));
+            return Ok(Some(element_value.bind(gc.into_nogc())));
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).

@@ -264,13 +264,13 @@ impl Builtin for ObjectValues {
 
 impl ObjectConstructor {
     /// ### [20.1.1.1 Object ( \[ value \] )](https://tc39.es/ecma262/#sec-object-value)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
         let new_target = new_target.map(|f| f.bind(gc.nogc()));
         // 1. If NewTarget is neither undefined nor the active function object, then
@@ -313,12 +313,12 @@ impl ObjectConstructor {
     ///
     /// This function copies the values of all of the enumerable own properties
     /// from one or more source objects to a target object.
-    fn assign(
+    fn assign<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let target = arguments.get(0);
         // 1. Let to be ? ToObject(target).
         let to = to_object(agent, target, gc.nogc())?;
@@ -378,12 +378,12 @@ impl ObjectConstructor {
         Ok(to.get(agent).into_value())
     }
 
-    fn create(
+    fn create<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let obj: OrdinaryObject = if o == Value::Null {
             agent.heap.create_null_object(&[])
@@ -407,12 +407,12 @@ impl ObjectConstructor {
     ///
     /// This function adds own properties and/or updates the attributes of
     /// existing own properties of an object.
-    fn define_properties(
+    fn define_properties<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let properties = arguments.get(1);
         // 1. If O is not an Object, throw a TypeError exception.
@@ -432,12 +432,12 @@ impl ObjectConstructor {
     ///
     /// This function adds an own property and/or updates the attributes of an
     /// existing own property of an object.
-    fn define_property(
+    fn define_property<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let p = arguments.get(1);
         let attributes = arguments.get(2);
@@ -461,12 +461,12 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc())?;
@@ -479,12 +479,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
-    fn freeze(
+    fn freeze<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
@@ -506,12 +506,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
-    fn from_entries(
+    fn from_entries<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let iterable = arguments.get(0);
         // Fast path: Simple, dense array of N simple, dense arrays.
         if let Value::Array(entries_array) = iterable {
@@ -627,12 +627,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
-    fn get_own_property_descriptor(
+    fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let p = arguments.get(1);
         // 1. Let obj be ? ToObject(O).
@@ -660,12 +660,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
-    fn get_own_property_descriptors(
+    fn get_own_property_descriptors<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let mut obj = to_object(agent, o, gc.nogc())?;
@@ -727,12 +727,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
-    fn get_own_property_names(
+    fn get_own_property_names<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
         let keys = get_own_string_property_keys(agent, o, gc.reborrow())?;
@@ -740,12 +740,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
-    fn get_own_property_symbols(
+    fn get_own_property_symbols<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
         let keys = get_own_symbol_property_keys(agent, o, gc.reborrow())?;
@@ -753,12 +753,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
-    fn get_prototype_of(
+    fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let obj = to_object(agent, arguments.get(0), gc.nogc())?;
         // Note: We do not use try_get_prototype_of here as we don't need to
         // protect any on-stack values from GC. We're perfectly okay with
@@ -769,12 +769,12 @@ impl ObjectConstructor {
     }
 
     // ### [20.1.2.13 Object.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-object.groupby)
-    fn group_by(
+    fn group_by<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let items = arguments.get(0);
         let callback_fn = arguments.get(1);
 
@@ -800,12 +800,12 @@ impl ObjectConstructor {
         Ok(object.into_value())
     }
 
-    fn has_own(
+    fn has_own<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let p = arguments.get(1);
         let mut obj = to_object(agent, arguments.get(0), gc.nogc())?;
         let key = if let TryResult::Continue(key) = to_property_key_simple(agent, p, gc.nogc()) {
@@ -822,21 +822,21 @@ impl ObjectConstructor {
             .map(|result| result.into())
     }
 
-    fn is(
+    fn is<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(same_value(agent, arguments.get(0), arguments.get(1)).into())
     }
 
-    fn is_extensible(
+    fn is_extensible<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
             Ok(o) => o.internal_is_extensible(agent, gc.reborrow())?,
@@ -845,12 +845,12 @@ impl ObjectConstructor {
         Ok(result.into())
     }
 
-    fn is_frozen(
+    fn is_frozen<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
             Ok(o) => test_integrity_level::<Frozen>(agent, o, gc.reborrow())?,
@@ -859,12 +859,12 @@ impl ObjectConstructor {
         Ok(result.into())
     }
 
-    fn is_sealed(
+    fn is_sealed<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let result = match Object::try_from(o) {
             Ok(o) => test_integrity_level::<Sealed>(agent, o, gc.reborrow())?,
@@ -874,12 +874,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc())?;
@@ -894,12 +894,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
-    fn prevent_extensions(
+    fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
@@ -921,12 +921,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
-    fn seal(
+    fn seal<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
@@ -948,12 +948,12 @@ impl ObjectConstructor {
     }
 
     /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
-    fn set_prototype_of(
+    fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         let proto = arguments.get(1);
         // 1. Set O to ? RequireObjectCoercible(O).
@@ -988,12 +988,12 @@ impl ObjectConstructor {
         Ok(o.into_value())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let o = arguments.get(0);
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc())?;
@@ -1242,11 +1242,11 @@ pub fn add_entries_from_iterable_from_entries<'a>(
 /// The abstract operation GetOwnPropertyKeys takes arguments O (an ECMAScript
 /// language value) and type (STRING or SYMBOL) and returns either a normal
 /// completion containing a List of property keys or a throw completion.
-fn get_own_string_property_keys(
+fn get_own_string_property_keys<'gc>(
     agent: &mut Agent,
     o: Value,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o, gc.nogc())?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
@@ -1276,11 +1276,11 @@ fn get_own_string_property_keys(
     Ok(name_list)
 }
 
-fn get_own_symbol_property_keys(
+fn get_own_symbol_property_keys<'gc>(
     agent: &mut Agent,
     o: Value,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o, gc.nogc())?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
@@ -1300,13 +1300,13 @@ fn get_own_symbol_property_keys(
     Ok(name_list)
 }
 
-fn get_own_property_descriptors_slow(
+fn get_own_property_descriptors_slow<'gc>(
     agent: &mut Agent,
     obj: Scoped<'_, Object<'static>>,
     own_keys: Vec<PropertyKey>,
     descriptors: OrdinaryObject,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let descriptors = descriptors.scope(agent, gc.nogc());
     let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
     for key in own_keys {

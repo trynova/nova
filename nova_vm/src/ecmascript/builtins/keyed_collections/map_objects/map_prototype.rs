@@ -101,12 +101,12 @@ impl MapPrototype {
     /// > The existing \[\[MapData]] List is preserved because there may be
     /// > existing Map Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear(
+    fn clear<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -125,12 +125,12 @@ impl MapPrototype {
     /// > The value EMPTY is used as a specification device to indicate that an
     /// > entry has been deleted. Actual implementations may take other actions
     /// > such as physically removing the entry from internal data structures.
-    fn delete(
+    fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -181,12 +181,12 @@ impl MapPrototype {
         }
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY+VALUE).
 
@@ -222,12 +222,12 @@ impl MapPrototype {
     /// > after the call to `forEach` begins and before being visited are not
     /// > visited unless the key is added again before the `forEach` call
     /// > completes.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let callback_fn = arguments.get(0);
         let this_arg = arguments.get(1);
         // 1. Let M be the this value.
@@ -282,12 +282,12 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.6 Map.prototype.get ( key )](https://tc39.es/ecma262/#sec-map.prototype.get)
-    fn get(
+    fn get<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -333,12 +333,12 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.7 Map.prototype.has ( key )](https://tc39.es/ecma262/#sec-map.prototype.has)
-    fn has(
+    fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
         let gc = gc.into_nogc();
@@ -376,12 +376,12 @@ impl MapPrototype {
         Ok(found.into())
     }
 
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY).
 
@@ -393,12 +393,12 @@ impl MapPrototype {
     }
 
     /// ### [24.1.3.9 Map.prototype.set ( key, value )](https://tc39.es/ecma262/#sec-map.prototype.set)
-    fn set(
+    fn set<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(1);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
@@ -462,24 +462,24 @@ impl MapPrototype {
         Ok(m.into_value())
     }
 
-    fn get_size(
+    fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         let count = agent[m].size();
         Ok(count.into())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, VALUE).
 
@@ -551,10 +551,10 @@ fn require_map_data_internal_slot<'a>(
 /// ### [24.5.1 CanonicalizeKeyedCollectionKey ( key )](https://tc39.es/ecma262/#sec-canonicalizekeyedcollectionkey)
 /// The abstract operation CanonicalizeKeyedCollectionKey takes argument key
 /// (an ECMAScript language value) and returns an ECMAScript language value.
-pub(crate) fn canonicalize_keyed_collection_key(
-    agent: &impl Index<HeapNumber<'static>, Output = f64>,
+pub(crate) fn canonicalize_keyed_collection_key<'gc>(
+    agent: &impl Index<HeapNumber<'gc>, Output = f64>,
     key: Value,
-) -> Value {
+) -> Value<'static> {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.

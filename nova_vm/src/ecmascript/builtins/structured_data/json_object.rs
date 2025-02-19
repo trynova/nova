@@ -8,6 +8,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     length_of_array_like, try_create_data_property, try_create_data_property_or_throw,
 };
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
+use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{IntoObject, IntoValue};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::{unwrap_try, Scoped};
@@ -42,8 +43,7 @@ impl Builtin for JSONObjectParse {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(JSONObject::parse);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(JSONObject::parse);
 }
 
 struct JSONObjectStringify;
@@ -52,8 +52,7 @@ impl Builtin for JSONObjectStringify {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(JSONObject::stringify);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(JSONObject::stringify);
 }
 
 impl JSONObject {
@@ -88,12 +87,12 @@ impl JSONObject {
     /// > likewise does not apply during JSON.parse, means that not all texts
     /// > accepted by JSON.parse are valid as a PrimaryExpression, despite
     /// > matching the grammar.
-    fn parse(
+    fn parse<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let text = arguments.get(0);
         let reviver = arguments.get(1);
 
@@ -169,12 +168,12 @@ impl JSONObject {
         Ok(unfiltered)
     }
 
-    fn stringify(
+    fn stringify<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
@@ -214,13 +213,13 @@ impl JSONObject {
 /// > Note 2
 /// > In the case where there are duplicate name Strings within an object,
 /// > lexically preceding values for the same key shall be overwritten.
-fn internalize_json_property<'a>(
+fn internalize_json_property<'gc, 'a>(
     agent: &mut Agent,
     holder: Scoped<'a, Object<'static>>,
     name: Scoped<'a, PropertyKey<'static>>,
     reviver: Scoped<'a, Function<'static>>,
-    mut gc: GcScope<'_, 'a>,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, 'a>,
+) -> JsResult<Value<'gc>> {
     // 1. Let val be ? Get(holder, name).
     let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())?;
     // 2. If val is an Object, then
@@ -320,7 +319,11 @@ fn internalize_json_property<'a>(
     )
 }
 
-pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value, gc: NoGcScope) -> Value {
+pub(crate) fn value_from_json<'gc>(
+    agent: &mut Agent,
+    json: &sonic_rs::Value,
+    gc: NoGcScope<'gc, '_>,
+) -> Value<'gc> {
     match json.get_type() {
         sonic_rs::JsonType::Null => Value::Null,
         sonic_rs::JsonType::Boolean => Value::Boolean(json.is_true()),

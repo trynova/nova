@@ -142,16 +142,16 @@ pub enum StringRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl IntoValue for HeapString<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapString<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::String(self.unbind())
     }
 }
 
-impl TryFrom<Value> for HeapString<'_> {
+impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::String(x) = value {
             Ok(x)
         } else {
@@ -160,8 +160,8 @@ impl TryFrom<Value> for HeapString<'_> {
     }
 }
 
-impl IntoValue for String<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for String<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             String::String(idx) => Value::String(idx.unbind()),
             String::SmallString(data) => Value::SmallString(data),
@@ -197,9 +197,9 @@ impl TryFrom<&str> for String<'static> {
     }
 }
 
-impl TryFrom<Value> for String<'_> {
+impl<'a> TryFrom<Value<'a>> for String<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::String(x) => Ok(String::String(x)),
             Value::SmallString(x) => Ok(String::SmallString(x)),
@@ -219,16 +219,16 @@ impl<'a> TryFrom<Primitive<'a>> for String<'a> {
     }
 }
 
-impl From<String<'_>> for Value {
-    fn from(value: String) -> Self {
+impl<'a> From<String<'a>> for Value<'a> {
+    fn from(value: String<'a>) -> Self {
         match value {
-            String::String(x) => Value::String(x.unbind()),
+            String::String(x) => Value::String(x),
             String::SmallString(x) => Value::SmallString(x),
         }
     }
 }
 
-impl From<SmallString> for Value {
+impl From<SmallString> for Value<'static> {
     fn from(value: SmallString) -> Self {
         Value::SmallString(value)
     }
@@ -240,8 +240,8 @@ impl From<SmallString> for String<'static> {
     }
 }
 
-impl IntoValue for SmallString {
-    fn into_value(self) -> Value {
+impl IntoValue<'static> for SmallString {
+    fn into_value(self) -> Value<'static> {
         self.into()
     }
 }
@@ -289,13 +289,28 @@ impl<'a> String<'a> {
         Scoped::new(agent, self.unbind(), gc)
     }
 
+    /// Scope a stack-only String. Stack-only Strings do not need to store any
+    /// data on the heap, hence scoping them is effectively a no-op. These
+    /// Strings are also not concerned with the garbage collector.
+    ///
+    /// ## Panics
+    ///
+    /// If the String is not stack-only, this method will panic.
+    pub const fn scope_static(self) -> Scoped<'static, String<'static>> {
+        let key_root_repr = match self {
+            String::SmallString(small_string) => StringRootRepr::SmallString(small_string),
+            _ => panic!("String required rooting"),
+        };
+        Scoped::from_root_repr(key_root_repr)
+    }
+
     pub fn is_empty_string(self) -> bool {
         self == Self::EMPTY_STRING
     }
 
     pub const fn to_property_key(self) -> PropertyKey<'a> {
         match self {
-            String::String(data) => PropertyKey::String(data.unbind()),
+            String::String(data) => PropertyKey::String(data),
             String::SmallString(data) => PropertyKey::SmallString(data),
         }
     }
@@ -404,10 +419,6 @@ impl<'a> String<'a> {
             }
             Status::String(string) => agent.heap.create(string.into_string().unwrap()).bind(gc),
         }
-    }
-
-    pub fn into_value(self) -> Value {
-        self.into()
     }
 
     /// Byte length of the string.

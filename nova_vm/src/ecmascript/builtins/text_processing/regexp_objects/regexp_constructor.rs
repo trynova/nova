@@ -44,22 +44,22 @@ impl Builtin for RegExpGetSpecies {
 impl BuiltinGetter for RegExpGetSpecies {}
 
 impl RegExpConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

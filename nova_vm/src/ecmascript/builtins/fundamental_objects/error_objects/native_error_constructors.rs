@@ -95,13 +95,13 @@ impl BuiltinIntrinsicConstructor for URIErrorConstructor {
 pub(crate) struct NativeErrorConstructors;
 impl NativeErrorConstructors {
     #[inline(always)]
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         error_kind: ExceptionType,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let message = arguments.get(0);
         let options = arguments.get(1);
 
@@ -153,33 +153,33 @@ impl NativeErrorConstructors {
         Ok(o.into_value())
     }
 
-    fn eval_error_constructor(
+    fn eval_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::EvalError, arguments, new_target, gc)
     }
 
-    fn range_error_constructor(
+    fn range_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::RangeError, arguments, new_target, gc)
     }
 
-    fn reference_error_constructor(
+    fn reference_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(
             agent,
             ExceptionType::ReferenceError,
@@ -189,33 +189,33 @@ impl NativeErrorConstructors {
         )
     }
 
-    fn syntax_error_constructor(
+    fn syntax_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::SyntaxError, arguments, new_target, gc)
     }
 
-    fn type_error_constructor(
+    fn type_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::TypeError, arguments, new_target, gc)
     }
 
-    fn uri_error_constructor(
+    fn uri_error_constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::constructor(agent, ExceptionType::UriError, arguments, new_target, gc)
     }
 

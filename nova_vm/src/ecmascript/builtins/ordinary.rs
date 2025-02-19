@@ -647,13 +647,13 @@ pub(crate) fn ordinary_has_property_entry<'a>(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_try_get(
+pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    gc: NoGcScope,
-) -> TryResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<Value<'gc>> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
         // 2. If desc is undefined, then
@@ -696,13 +696,13 @@ pub(crate) fn ordinary_try_get(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_get(
+pub(crate) fn ordinary_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.

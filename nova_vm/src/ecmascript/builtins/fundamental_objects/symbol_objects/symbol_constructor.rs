@@ -59,13 +59,13 @@ impl Builtin for SymbolKeyFor {
 }
 
 impl SymbolConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -88,21 +88,21 @@ impl SymbolConstructor {
             .into_value())
     }
 
-    fn r#for(
+    fn r#for<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(arguments.get(0))
     }
 
-    fn key_for(
+    fn key_for<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(arguments.get(0))
     }
 

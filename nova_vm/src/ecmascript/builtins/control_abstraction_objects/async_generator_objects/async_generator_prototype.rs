@@ -52,12 +52,12 @@ impl Builtin for AsyncGeneratorPrototypeThrow {
 
 impl AsyncGeneratorPrototype {
     /// ### [27.6.1.2 %AsyncGeneratorPrototype%.next ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-next)
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
         // 1. Let generator be the this value.
         let generator = this_value;
@@ -104,12 +104,12 @@ impl AsyncGeneratorPrototype {
     }
 
     /// ### [27.6.1.3 %AsyncGeneratorPrototype%.return ( value )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-return)
-    fn r#return(
+    fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());
@@ -156,12 +156,12 @@ impl AsyncGeneratorPrototype {
     }
 
     /// ### [27.6.1.4 %AsyncGeneratorPrototype%.throw ( exception )](https://tc39.es/ecma262/#sec-asyncgenerator-prototype-throw)
-    fn throw(
+    fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let exception = arguments.get(0).bind(gc.nogc());
         // 1. Let generator be the this value.
         let generator = this_value.bind(gc.nogc());

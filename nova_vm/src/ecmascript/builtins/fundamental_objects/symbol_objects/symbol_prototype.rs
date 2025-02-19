@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
@@ -26,8 +27,7 @@ impl Builtin for SymbolPrototypeGetDescription {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::get_description);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::get_description);
 }
 impl BuiltinGetter for SymbolPrototypeGetDescription {}
 
@@ -37,8 +37,7 @@ impl Builtin for SymbolPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::to_string);
 }
 
 struct SymbolPrototypeValueOf;
@@ -47,8 +46,7 @@ impl Builtin for SymbolPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::value_of);
 }
 
 struct SymbolPrototypeToPrimitive;
@@ -60,8 +58,7 @@ impl Builtin for SymbolPrototypeToPrimitive {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SymbolPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SymbolPrototype::value_of);
 
     const WRITABLE: bool = false;
 }
@@ -71,12 +68,12 @@ impl SymbolPrototype {
     ///
     /// Symbol.prototype.description is an accessor property whose set accessor
     /// function is undefined.
-    fn get_description(
+    fn get_description<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let s be the this value.
         // 2. Let sym be ? ThisSymbolValue(s).
         let sym = this_symbol_value(agent, this_value, gc.nogc())?;
@@ -86,22 +83,22 @@ impl SymbolPrototype {
             .map_or_else(|| Ok(Value::Undefined), |desc| Ok(desc.into_value()))
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let symb = this_symbol_value(agent, this_value, gc.nogc())?;
         Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value())
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value())
     }
 

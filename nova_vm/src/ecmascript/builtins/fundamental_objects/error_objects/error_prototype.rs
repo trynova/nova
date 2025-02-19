@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
         types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
@@ -22,18 +22,17 @@ impl Builtin for ErrorPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(ErrorPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(ErrorPrototype::to_string);
 }
 
 impl ErrorPrototype {
     /// ### [20.5.3.4 Error.prototype.toString ( )](https://tc39.es/ecma262/#sec-error.prototype.tostring)
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {

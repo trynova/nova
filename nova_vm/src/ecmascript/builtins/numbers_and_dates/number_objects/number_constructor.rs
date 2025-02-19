@@ -70,13 +70,13 @@ impl Builtin for NumberIsSafeInteger {
 }
 
 impl NumberConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
 
         // 1. If value is present, then
@@ -140,12 +140,12 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn is_finite(
+    fn is_finite<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -159,12 +159,12 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn is_integer(
+    fn is_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
@@ -172,12 +172,12 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
-    fn is_nan(
+    fn is_nan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. If number is not a Number, return false.
@@ -191,12 +191,12 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
-    fn is_safe_integer(
+    fn is_safe_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. If IsIntegralNumber(number) is true, then

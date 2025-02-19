@@ -33,7 +33,7 @@ pub(crate) struct DeclarativeEnvironment {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Binding {
-    pub(crate) value: Option<Value>,
+    pub(crate) value: Option<Value<'static>>,
     // TODO: Pack these into bitfields.
     pub(super) strict: bool,
     pub(super) mutable: bool,
@@ -328,13 +328,13 @@ impl DeclarativeEnvironmentIndex {
     /// throw completion. It returns the value of its bound identifier whose
     /// name is N. If the binding exists but is uninitialized a ReferenceError
     /// is thrown, regardless of the value of S.
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
         env_rec.get_binding_value(name, is_strict).map_or_else(

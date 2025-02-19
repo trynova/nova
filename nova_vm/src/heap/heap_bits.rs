@@ -1015,7 +1015,7 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + core::fmt::Debug>(
 }
 
 pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
     u8s: &[(bool, u8)],
 ) {
@@ -1033,7 +1033,7 @@ pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
     u16s: &[(bool, u16)],
 ) {
@@ -1051,7 +1051,7 @@ pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
     u32s: &[(bool, u32)],
 ) {

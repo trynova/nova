@@ -60,13 +60,13 @@ impl Builtin for BigIntAsUintN {
 }
 
 impl BigIntConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -91,12 +91,12 @@ impl BigIntConstructor {
         }
     }
 
-    fn as_int_n(
+    fn as_int_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
@@ -169,12 +169,12 @@ impl BigIntConstructor {
         }
     }
 
-    fn as_uint_n(
+    fn as_uint_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(

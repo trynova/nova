@@ -25,12 +25,12 @@ impl Builtin for IteratorPrototypeIterator {
 }
 
 impl IteratorPrototype {
-    fn iterator(
+    fn iterator<'gc>(
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 

@@ -74,8 +74,8 @@ impl MapIterator<'_> {
     }
 }
 
-impl IntoValue for MapIterator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for MapIterator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -92,16 +92,16 @@ impl<'a> From<MapIterator<'a>> for Object<'a> {
     }
 }
 
-impl From<MapIterator<'_>> for Value {
-    fn from(value: MapIterator) -> Self {
-        Self::MapIterator(value.unbind())
+impl<'a> From<MapIterator<'a>> for Value<'a> {
+    fn from(value: MapIterator<'a>) -> Self {
+        Self::MapIterator(value)
     }
 }
 
-impl TryFrom<Value> for MapIterator<'_> {
+impl<'a> TryFrom<Value<'a>> for MapIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::MapIterator(data) => Ok(data),
             _ => Err(()),

@@ -64,8 +64,8 @@ impl WeakRef<'_> {
     }
 }
 
-impl IntoValue for WeakRef<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for WeakRef<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -76,15 +76,15 @@ impl<'a> IntoObject<'a> for WeakRef<'a> {
     }
 }
 
-impl From<WeakRef<'_>> for Value {
-    fn from(val: WeakRef) -> Self {
-        Value::WeakRef(val.unbind())
+impl<'a> From<WeakRef<'a>> for Value<'a> {
+    fn from(value: WeakRef<'a>) -> Self {
+        Value::WeakRef(value)
     }
 }
 
 impl<'a> From<WeakRef<'a>> for Object<'a> {
-    fn from(val: WeakRef) -> Self {
-        Object::WeakRef(val.unbind())
+    fn from(value: WeakRef<'a>) -> Self {
+        Object::WeakRef(value)
     }
 }
 

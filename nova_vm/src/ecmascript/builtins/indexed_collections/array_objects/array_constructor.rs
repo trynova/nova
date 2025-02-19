@@ -93,13 +93,13 @@ impl BuiltinGetter for ArrayGetSpecies {}
 /// ### [23.1.1 The Array Constructor](https://tc39.es/ecma262/#sec-array-constructor)
 impl ArrayConstructor {
     /// ### [23.1.1.1 Array ( ...values )](https://tc39.es/ecma262/#sec-array)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
             || agent.running_execution_context().function.unwrap(),
@@ -222,12 +222,12 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.1 Array.from ( items \[ , mapfn \[ , thisArg \] \] )](https://tc39.es/ecma262/#sec-array.from)
-    fn from(
+    fn from<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let items = arguments.get(0);
         let mapfn = arguments.get(1);
         let this_arg = arguments.get(2);
@@ -460,22 +460,22 @@ impl ArrayConstructor {
     }
 
     /// ### [23.1.2.2 Array.isArray ( arg )](https://tc39.es/ecma262/#sec-array.isarray)
-    fn is_array(
+    fn is_array<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         is_array(agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
     }
 
     /// ### [23.1.2.3 Array.of ( ...items )](https://tc39.es/ecma262/#sec-array.of)
-    fn of(
+    fn of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let len be the number of elements in items.
         let len = arguments.len();
 
@@ -536,12 +536,12 @@ impl ArrayConstructor {
         Ok(a.get(agent).into_value())
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(this_value)
     }
 
