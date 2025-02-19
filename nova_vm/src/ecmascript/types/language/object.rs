@@ -398,7 +398,7 @@ impl<'a> OrdinaryObject<'a> {
         self.0.into_index()
     }
 
-    pub fn create(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
+    pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
         let Object::Object(ordinary) =
             ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
         else {

@@ -114,7 +114,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
 
     initialize_global_object(agent, global, gc.reborrow());
 
-    let nova_obj = OrdinaryObject::create(agent, gc.nogc()).scope(agent, gc.nogc());
+    let nova_obj = OrdinaryObject::create_empty_object(agent, gc.nogc()).scope(agent, gc.nogc());
     let property_key = PropertyKey::from_static_str(agent, "__nova__", gc.nogc()).unbind();
     global
         .internal_define_own_property(
