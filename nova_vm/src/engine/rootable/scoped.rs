@@ -63,6 +63,34 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
         }
     }
 
+    /// Returns the scoped value from the heap. If the scoped value was at the
+    /// top of the scope stack, then this will drop the value from the stack.
+    ///
+    /// ## Safety
+    ///
+    /// The scoped value should not be shared with any other piece of code that
+    /// is still going to reuse it.
+    ///
+    /// ## Panics
+    ///
+    /// If the scoped value has been taken by another caller already, the
+    /// method panics.
+    pub unsafe fn take(self, agent: &Agent) -> T {
+        match T::from_root_repr(&self.inner) {
+            Ok(value) => value,
+            Err(heap_root_ref) => {
+                let Some(&heap_data) = agent.stack_refs.borrow().get(heap_root_ref.to_index())
+                else {
+                    handle_bound_check_failure()
+                };
+                let Some(value) = T::from_heap_data(heap_data) else {
+                    handle_invalid_scoped_conversion()
+                };
+                value
+            }
+        }
+    }
+
     pub fn get(&self, agent: &Agent) -> T {
         match T::from_root_repr(&self.inner) {
             Ok(value) => value,
@@ -72,7 +100,7 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
                     handle_bound_check_failure()
                 };
                 let Some(value) = T::from_heap_data(heap_data) else {
-                    handle_invalid_local_conversion()
+                    handle_invalid_scoped_conversion()
                 };
                 value
             }
@@ -236,18 +264,18 @@ impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
 
 #[cold]
 #[inline(never)]
-fn handle_invalid_local_conversion() -> ! {
-    panic!("Attempted to convert mismatched Local");
+fn handle_invalid_scoped_conversion() -> ! {
+    panic!("Attempted to convert mismatched Scoped");
 }
 
 #[cold]
 #[inline(never)]
 fn handle_index_overflow() -> ! {
-    panic!("Locals stack overflowed");
+    panic!("Scoped stack overflowed");
 }
 
 #[cold]
 #[inline(never)]
 fn handle_bound_check_failure() -> ! {
-    panic!("Attempted to access dropped Local")
+    panic!("Attempted to access dropped Scoped")
 }

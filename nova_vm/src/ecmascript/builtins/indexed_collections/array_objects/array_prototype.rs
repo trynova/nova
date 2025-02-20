@@ -292,7 +292,9 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let index = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let mut index = arguments.get(0).bind(nogc);
 
         // 1. Let O be ? ToObject(this value).
         let mut o = to_object(agent, this_value, gc.nogc())?;
@@ -302,20 +304,23 @@ impl ArrayPrototype {
             len?
         } else {
             scoped_o = Some(o.scope(agent, gc.nogc()));
+            let scoped_index = index.scope(agent, gc.nogc());
             let result = length_of_array_like(agent, o.unbind(), gc.reborrow())?;
             o = scoped_o.as_ref().unwrap().get(agent).bind(gc.nogc());
+            index = scoped_index.get(agent).bind(gc.nogc());
             result
         };
         // 3. Let relativeIndex be ? ToIntegerOrInfinity(index).
-        let relative_index =
-            if let TryResult::Continue(len) = try_to_integer_or_infinity(agent, index, gc.nogc()) {
-                len?.into_i64()
-            } else {
-                scoped_o = Some(scoped_o.unwrap_or_else(|| o.scope(agent, gc.nogc())));
-                let result = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
-                o = scoped_o.unwrap().get(agent).bind(gc.nogc());
-                result
-            };
+        let relative_index = if let TryResult::Continue(len) =
+            try_to_integer_or_infinity(agent, index, gc.nogc())
+        {
+            len?.into_i64()
+        } else {
+            scoped_o = Some(scoped_o.unwrap_or_else(|| o.scope(agent, gc.nogc())));
+            let result = to_integer_or_infinity(agent, index.unbind(), gc.reborrow())?.into_i64();
+            o = scoped_o.unwrap().get(agent).bind(gc.nogc());
+            result
+        };
         // 4. If relativeIndex ≥ 0, then
         let k = if relative_index >= 0 {
             // a. Let k be relativeIndex.
@@ -334,7 +339,7 @@ impl ArrayPrototype {
                 agent,
                 o.unbind(),
                 PropertyKey::Integer(k.try_into().unwrap()),
-                gc.reborrow(),
+                gc,
             )
         }
     }
@@ -358,23 +363,52 @@ impl ArrayPrototype {
         items: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let mut items = items
+            .0
+            .iter()
+            .map(|i| i.scope(agent, gc.nogc()))
+            .collect::<Vec<_>>();
+
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?;
         let scoped_o = o.scope(agent, gc.nogc());
         // 2. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o.unbind(), 0, gc.reborrow())?
             .unbind()
-            .bind(gc.nogc())
-            .scope(agent, gc.nogc());
+            .bind(gc.nogc());
+
+        // Optimisation: Reserve space for all Arrays being concatenated.
+        if let Object::Array(a) = a {
+            let mut total_len = 0u32;
+            if let Object::Array(this_value) = scoped_o.get(agent) {
+                total_len.saturating_add(this_value.len(agent));
+            }
+            items.iter().for_each(|item| {
+                if let Value::Array(item) = item.get(agent) {
+                    total_len = item.len(agent);
+                }
+            });
+            let Heap {
+                arrays, elements, ..
+            } = &mut agent.heap;
+            arrays[a].elements.reserve(elements, total_len);
+        }
+
+        let a = a.scope(agent, gc.nogc());
         // 3. Let n be 0.
         let mut n = 0;
         // 4. Prepend O to items.
-        let mut items = items
-            .0
-            .iter()
-            .map(|i| i.scope(agent, gc.nogc()))
-            .collect::<Vec<_>>();
-        items.insert(0, scoped_o.get(agent).into_value().scope(agent, gc.nogc()));
+        // SAFETY: We're replacing the stored Object value with itself as a
+        // Value; their heap root data is the same in either case so on the
+        // heap this is a no-op.
+        let o_as_value = unsafe {
+            scoped_o
+                .clone()
+                .replace_self(agent, scoped_o.get(agent).into_value())
+        };
+        items.insert(0, o_as_value);
         // 5. For each element E of items, do
         for e in items {
             // a. Let spreadable be ? IsConcatSpreadable(E).
@@ -491,10 +525,12 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let target = arguments.get(0);
-        let start = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let target = arguments.get(0).bind(nogc);
+        let start = arguments.get(1).bind(nogc);
         let end = if arguments.len() >= 3 {
-            Some(arguments.get(2))
+            Some(arguments.get(2).bind(nogc))
         } else {
             None
         };
@@ -540,16 +576,25 @@ impl ArrayPrototype {
                 let data = array.as_mut_slice(agent);
                 data.copy_within((from as usize)..((from + count) as usize), to as usize);
 
-                return Ok(array.into_value());
+                return Ok(array.into_value().unbind());
             }
         }
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+
+        let end = end.map(|e| e.scope(agent, nogc));
+        // Note: Start is second to last to be scoped.
+        let start = start.scope(agent, nogc);
+        // Note: Target is last to be scoped.
+        let target = target.scope(agent, nogc);
+
         // 2. Let len be ? LengthOfArrayLike(O).
         let len: i64 = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
 
         // 3. Let relativeTarget be ? ToIntegerOrInfinity(target).
-        let relative_target = to_integer_or_infinity(agent, target, gc.reborrow())?;
+        // SAFETY: target has not been shared.
+        let relative_target =
+            to_integer_or_infinity(agent, unsafe { target.take(agent) }, gc.reborrow())?;
 
         let to = if relative_target.is_neg_infinity() {
             // 4. If relativeTarget = -∞, let to be 0.
@@ -563,7 +608,9 @@ impl ArrayPrototype {
         };
 
         // 7. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
+        // SAFETY: start has not been shared.
+        let relative_start =
+            to_integer_or_infinity(agent, unsafe { start.take(agent) }, gc.reborrow())?;
 
         let from = if relative_start.is_neg_infinity() {
             // 8. If relativeStart = -∞, let from be 0.
@@ -577,10 +624,12 @@ impl ArrayPrototype {
         };
 
         // 11. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
+        // SAFETY: end has not been shared.
+        let end = end.map(|e| unsafe { e.take(agent) }.bind(gc.nogc()));
         let final_end = if end.is_none() || end.unwrap().is_undefined() {
             len
         } else {
-            let relative_end = to_integer_or_infinity(agent, end.unwrap(), gc.reborrow())?;
+            let relative_end = to_integer_or_infinity(agent, end.unwrap().unbind(), gc.reborrow())?;
             // 12. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity() {
                 0
@@ -621,7 +670,14 @@ impl ArrayPrototype {
                 // i. Let fromValue be ? Get(O, fromKey).
                 let from_value = get(agent, o.get(agent), from_key, gc.reborrow())?;
                 // ii. Perform ? Set(O, toKey, fromValue, true).
-                set(agent, o.get(agent), to_key, from_value, true, gc.reborrow())?;
+                set(
+                    agent,
+                    o.get(agent),
+                    to_key,
+                    from_value.unbind(),
+                    true,
+                    gc.reborrow(),
+                )?;
             } else {
                 // e. Else,
                 // i. Assert: fromPresent is false.
@@ -699,21 +755,25 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).scope(agent, nogc);
+        let this_arg = arguments.get(1).scope(agent, nogc);
+
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not a function",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn never escapes this call.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
@@ -731,8 +791,8 @@ impl ArrayPrototype {
                 let test_result = call_function(
                     agent,
                     callback_fn.get(agent),
-                    this_arg,
-                    Some(ArgumentsList(&[k_value, f_k])),
+                    this_arg.get(agent),
+                    Some(ArgumentsList(&[k_value.unbind(), f_k])),
                     gc.reborrow(),
                 )?;
                 let test_result = to_boolean(agent, test_result);
@@ -774,9 +834,11 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let value = arguments.get(0);
-        let start = arguments.get(1);
-        let end = arguments.get(2);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let value = arguments.get(0).bind(nogc);
+        let start = arguments.get(1).bind(nogc);
+        let end = arguments.get(2).bind(nogc);
         if let (
             Value::Array(array),
             Value::Undefined | Value::Integer(_),
@@ -813,16 +875,19 @@ impl ArrayPrototype {
                 };
 
                 let data = array.as_mut_slice(agent);
-                data[k..final_end].fill(Some(value));
-                return Ok(value.into_value());
+                data[k..final_end].fill(Some(value.unbind()));
+                return Ok(value.into_value().unbind());
             }
         };
+        let value = value.scope(agent, nogc);
+        let start = start.scope(agent, nogc);
+        let end = end.scope(agent, nogc);
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
+        let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())?;
 
         // 4. If relativeStart = -∞, let k be 0.
         let mut k = if relative_start.is_neg_infinity() {
@@ -836,10 +901,10 @@ impl ArrayPrototype {
         };
 
         // 7. If end is undefined, let relativeEnd be len; else let relativeEnd be ? ToIntegerOrInfinity(end).
-        let final_end = if end.is_undefined() {
+        let final_end = if end.get(agent).is_undefined() {
             len
         } else {
-            let relative_end = to_integer_or_infinity(agent, end, gc.reborrow())?;
+            let relative_end = to_integer_or_infinity(agent, end.get(agent), gc.reborrow())?;
             // 8. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity() {
                 0
@@ -857,7 +922,14 @@ impl ArrayPrototype {
             // a. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             // b. Perform ? Set(O, Pk, value, true).
-            set(agent, o.get(agent), pk, value, true, gc.reborrow())?;
+            set(
+                agent,
+                o.get(agent).unbind(),
+                pk,
+                value.get(agent).unbind(),
+                true,
+                gc.reborrow(),
+            )?;
             // c. Set k to k + 1.
             k += 1;
         }
@@ -905,22 +977,25 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).bind(nogc).scope(agent, nogc);
+        let this_arg = arguments.get(1).bind(nogc).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not callable",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn never escapes this call.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o.get(agent), 0, gc.reborrow())?
             .unbind()
@@ -929,6 +1004,7 @@ impl ArrayPrototype {
         let mut k = 0;
         // 6. Let to be 0.
         let mut to: u32 = 0;
+        let mut scoped_k_value: Scoped<'_, Value<'static>> = Value::Undefined.scope_static();
         // 7. Repeat, while k < len,
         while k < len {
             // a. Let Pk be ! ToString(𝔽(k)).
@@ -939,13 +1015,15 @@ impl ArrayPrototype {
             if k_present {
                 // i. Let kValue be ? Get(O, Pk).
                 let k_value = get(agent, o.get(agent), pk, gc.reborrow())?;
+                // SAFETY: scoped_k_value never escapes this call
+                unsafe { scoped_k_value.replace(agent, k_value.unbind()) };
                 // ii. Let selected be ToBoolean(? Call(callbackfn, thisArg, « kValue, 𝔽(k), O »)).
                 let result = call_function(
                     agent,
                     callback_fn.get(agent),
-                    this_arg,
+                    this_arg.get(agent),
                     Some(ArgumentsList(&[
-                        k_value,
+                        k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
                     ])),
@@ -959,7 +1037,7 @@ impl ArrayPrototype {
                         agent,
                         a.get(agent),
                         to.into(),
-                        k_value,
+                        scoped_k_value.get(agent),
                         gc.reborrow(),
                     )?;
                     // 2. Set to to to + 1.
@@ -996,8 +1074,10 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let predicate = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let predicate = arguments.get(0).bind(nogc).scope(agent, nogc);
+        let this_arg = arguments.get(1).bind(nogc).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
@@ -1006,7 +1086,7 @@ impl ArrayPrototype {
         // 3. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc.reborrow())?;
         // 4. Return findRec.[[Value]].
-        Ok(find_rec.1)
+        Ok(find_rec.1.unbind())
     }
 
     /// ### [23.1.3.10 Array.prototype.findIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findindex)
@@ -1032,8 +1112,10 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let predicate = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let predicate = arguments.get(0).bind(nogc).scope(agent, nogc);
+        let this_arg = arguments.get(1).bind(nogc).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
@@ -1052,8 +1134,10 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let predicate = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let predicate = arguments.get(0).bind(nogc).scope(agent, nogc);
+        let this_arg = arguments.get(1).bind(nogc).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
@@ -1063,7 +1147,7 @@ impl ArrayPrototype {
         let find_rec =
             find_via_predicate(agent, o, len, false, predicate, this_arg, gc.reborrow())?;
         // 4. Return findRec.[[Value]].
-        Ok(find_rec.1)
+        Ok(find_rec.1.unbind())
     }
 
     /// ### [23.1.3.12 Array.prototype.findLastIndex ( predicate \[ , thisArg \] )](https://tc39.es/ecma262/#sec-array.prototype.findlastindex)
@@ -1073,11 +1157,13 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let predicate = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let predicate = arguments.get(0).bind(nogc).scope(agent, nogc);
+        let this_arg = arguments.get(1).bind(nogc).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
@@ -1094,17 +1180,19 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let depth = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let depth = arguments.get(0).scope(agent, nogc);
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, o.get(agent), gc.reborrow())? as usize;
         // 3. Let depthNum be 1.
         let mut depth_num = 1;
         // 4. If depth is not undefined, then
-        if !depth.is_undefined() {
+        if !depth.get(agent).is_undefined() {
             // a. Set depthNum to ? ToIntegerOrInfinity(depth).
-            depth_num = to_integer_or_infinity(agent, depth, gc.reborrow())?.into_i64();
+            depth_num = to_integer_or_infinity(agent, depth.get(agent), gc.reborrow())?.into_i64();
         }
         // b. If depthNum < 0, set depthNum to 0.
         if depth_num < 0 {
@@ -1137,22 +1225,27 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let mapper_function = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let mapper_function = arguments.get(0).scope(agent, nogc);
+        let this_arg = arguments.get(1).scope(agent, nogc);
 
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let sourceLen be ? LengthOfArrayLike(O).
         let source_len = length_of_array_like(agent, o.get(agent), gc.reborrow())? as usize;
         // 3. If IsCallable(mapperFunction) is false, throw a TypeError exception.
-        let Some(mapper_function) = is_callable(mapper_function, gc.nogc()) else {
+        let Some(stack_mapper_function) = is_callable(mapper_function.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Mapper function is not callable",
                 gc.nogc(),
             ));
         };
-        let mapper_function = mapper_function.scope(agent, gc.nogc());
+        // SAFETY: callback_fn is not shared.
+        let mapper_function =
+            unsafe { mapper_function.replace_self(agent, stack_mapper_function.unbind()) };
+
         // 4. Let A be ? ArraySpeciesCreate(O, 0).
         let a = array_species_create(agent, o.get(agent), 0, gc.reborrow())?
             .unbind()
@@ -1213,24 +1306,27 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).scope(agent, nogc);
+        let this_arg = arguments.get(1).scope(agent, nogc);
+
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
 
-        let callback_fn = arguments.get(0);
-
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(stack_callback_fn) = is_callable(callback_fn.get(agent), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
                 gc.nogc(),
             ));
         };
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
+        // SAFETY: callback_fn is not shared.
+        let callback_fn = unsafe { callback_fn.replace_self(agent, stack_callback_fn.unbind()) };
 
-        let this_arg = arguments.get(0);
         // 4. Let k be 0.
         let mut k = 0;
         // 5. Repeat, while k < len,
@@ -1247,9 +1343,9 @@ impl ArrayPrototype {
                 call_function(
                     agent,
                     callback_fn.get(agent),
-                    this_arg,
+                    this_arg.get(agent),
                     Some(ArgumentsList(&[
-                        k_value,
+                        k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
                     ])),
@@ -1298,8 +1394,10 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let search_element = arguments.get(0);
-        let from_index = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_element = arguments.get(0).bind(nogc);
+        let from_index = arguments.get(1).bind(nogc);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
             (this_value, from_index)
         {
@@ -1341,6 +1439,9 @@ impl ArrayPrototype {
                 return Ok(false.into());
             }
         };
+        let from_index_is_undefined = from_index.is_undefined();
+        let from_index = from_index.scope(agent, nogc);
+        let search_element = search_element.scope(agent, nogc);
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -1350,9 +1451,9 @@ impl ArrayPrototype {
             return Ok(false.into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
+        let n = to_integer_or_infinity(agent, from_index.get(agent), gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        if from_index.is_undefined() {
+        if from_index_is_undefined {
             assert_eq!(n.into_i64(), 0);
         }
         // 6. If n = +∞, return false.
@@ -1386,7 +1487,7 @@ impl ArrayPrototype {
             let pk = PropertyKey::Integer(k.try_into().unwrap());
             let element_k = get(agent, o.get(agent), pk, gc.reborrow())?;
             // b. If SameValueZero(searchElement, elementK) is true, return true.
-            if same_value_zero(agent, search_element, element_k) {
+            if same_value_zero(agent, search_element.get(agent), element_k) {
                 return Ok(true.into());
             }
             // c. Set k to k + 1.
@@ -1423,8 +1524,10 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let search_element = arguments.get(0);
-        let from_index = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_element = arguments.get(0).bind(nogc);
+        let from_index = arguments.get(1).bind(nogc);
         if let (Value::Array(array), Value::Undefined | Value::Integer(_)) =
             (this_value, from_index)
         {
@@ -1466,6 +1569,9 @@ impl ArrayPrototype {
                 return Ok((-1).into());
             }
         };
+        let from_index_is_undefined = from_index.is_undefined();
+        let from_index = from_index.scope(agent, nogc);
+        let search_element = search_element.scope(agent, nogc);
         // 1. Let O be ? ToObject(this value).
         let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
         // 2. Let len be ? LengthOfArrayLike(O).
@@ -1475,9 +1581,9 @@ impl ArrayPrototype {
             return Ok((-1).into());
         }
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
+        let n = to_integer_or_infinity(agent, from_index.get(agent), gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        if from_index.is_undefined() {
+        if from_index_is_undefined {
             assert_eq!(n.into_i64(), 0);
         }
         // 6. If n = +∞, return -1𝔽.
@@ -1516,7 +1622,7 @@ impl ArrayPrototype {
                 // i. Let elementK be ? Get(O, Pk).
                 let element_k = get(agent, o.get(agent), pk, gc.reborrow())?;
                 // ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
-                if is_strictly_equal(agent, search_element, element_k) {
+                if is_strictly_equal(agent, search_element.get(agent), element_k) {
                     return Ok(k.try_into().unwrap());
                 }
             }
@@ -1643,9 +1749,11 @@ impl ArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let search_element = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_element = arguments.get(0).bind(nogc);
         let from_index = if arguments.len() > 1 {
-            Some(arguments.get(1))
+            Some(arguments.get(1).bind(nogc))
         } else {
             None
         };
@@ -1693,8 +1801,10 @@ impl ArrayPrototype {
                 return Ok((-1).into());
             }
         };
+        let from_index = from_index.map(|i| i.scope(agent, nogc));
+        let search_element = search_element.scope(agent, nogc);
         // 1. Let O be ? ToObject(this value).
-        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let o = to_object(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let len be ? LengthOfArrayLike(O).
         let len = length_of_array_like(agent, o.get(agent), gc.reborrow())?;
         // 3. If len = 0, return -1𝔽.
@@ -1703,7 +1813,7 @@ impl ArrayPrototype {
         }
         // 4. If fromIndex is present, let n be ? ToIntegerOrInfinity(fromIndex); else let n be len - 1.
         let mut k = if let Some(from_index) = from_index {
-            let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
+            let n = to_integer_or_infinity(agent, from_index.get(agent), gc.reborrow())?;
             // 5. If n = -∞, return -1𝔽.
             if n.is_neg_infinity() {
                 return Ok((-1).into());
@@ -1733,7 +1843,7 @@ impl ArrayPrototype {
                 // i. Let elementK be ? Get(O, Pk).
                 let element_k = get(agent, o.get(agent), pk, gc.reborrow())?;
                 // ii. If IsStrictlyEqual(searchElement, elementK) is true, return 𝔽(k).
-                if is_strictly_equal(agent, search_element, element_k) {
+                if is_strictly_equal(agent, search_element.get(agent), element_k) {
                     return Ok(k.try_into().unwrap());
                 }
             }
@@ -3788,30 +3898,32 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
 /// the time that this operation visits them. Elements that are deleted after
 /// traversal begins and before being visited are still visited and are either
 /// looked up from the prototype or are undefined.
-fn find_via_predicate<'gc>(
+fn find_via_predicate<'gc, 'scope>(
     agent: &mut Agent,
     o: Scoped<'_, Object<'static>>,
     len: i64,
     ascending: bool,
-    predicate: Value,
-    this_arg: Value,
-    mut gc: GcScope<'gc, '_>,
+    predicate: Scoped<'scope, Value<'static>>,
+    this_arg: Scoped<'scope, Value<'static>>,
+    mut gc: GcScope<'gc, 'scope>,
 ) -> JsResult<(i64, Value<'gc>)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
-    let Some(predicate) = is_callable(predicate, gc.nogc()) else {
+    let Some(stack_predicate) = is_callable(predicate.get(agent), gc.nogc()) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Predicate is not a function",
             gc.nogc(),
         ));
     };
-    let predicate = predicate.scope(agent, gc.nogc());
+    // SAFETY: We're only ever called in a way that gives ownership of
+    // predicate to us. TODO: Make this fn unsafe.
+    let predicate = unsafe { predicate.replace_self(agent, stack_predicate.unbind()) };
     // 4. For each integer k of indices, do
     fn check<'gc>(
         agent: &mut Agent,
         o: Scoped<'_, Object<'static>>,
         predicate: Scoped<'_, Function<'static>>,
-        this_arg: Value,
+        this_arg: Scoped<'_, Value<'static>>,
         k: i64,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Option<(i64, Value<'gc>)>> {
@@ -3828,7 +3940,7 @@ fn find_via_predicate<'gc>(
         let test_result = call_function(
             agent,
             predicate.get(agent),
-            this_arg,
+            this_arg.get(agent),
             Some(ArgumentsList(&[
                 Number::try_from(k).unwrap().into_value(),
                 o.get(agent).into_value(),
@@ -3851,7 +3963,7 @@ fn find_via_predicate<'gc>(
                 agent,
                 o.clone(),
                 predicate.clone(),
-                this_arg,
+                this_arg.clone(),
                 k,
                 gc.reborrow(),
             )? {
@@ -3866,7 +3978,7 @@ fn find_via_predicate<'gc>(
                 agent,
                 o.clone(),
                 predicate.clone(),
-                this_arg,
+                this_arg.clone(),
                 k,
                 gc.reborrow(),
             )? {
@@ -3894,7 +4006,7 @@ fn flatten_into_array(
     start: usize,
     depth: Option<usize>,
     mapper_function: Option<Scoped<'_, Function<'static>>>,
-    this_arg: Option<Value>,
+    this_arg: Option<Scoped<'_, Value<'static>>>,
     mut gc: GcScope,
 ) -> JsResult<usize> {
     // 1. Assert: If mapperFunction is present, then IsCallable(mapperFunction) is true, thisArg is present, and depth is 1.
@@ -3926,7 +4038,7 @@ fn flatten_into_array(
             call_function(
                 agent,
                 mapper_function.get(agent),
-                this_arg.unwrap(),
+                this_arg.as_ref().unwrap().get(agent),
                 Some(ArgumentsList(&[
                     element.unbind(),
                     source_index_number.into_value(),
