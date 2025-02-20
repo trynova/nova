@@ -66,6 +66,12 @@ enum Command {
     Repl {
         #[arg(long)]
         expose_internals: bool,
+
+        #[arg(long)]
+        print_internals: bool,
+
+        #[arg(long)]
+        disable_gc: bool,
     },
 }
 
@@ -214,12 +220,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             agent.remove_realm(realm);
         }
-        Command::Repl { expose_internals } => {
+        Command::Repl {
+            expose_internals,
+            print_internals,
+            disable_gc,
+        } => {
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
             let mut agent = GcAgent::new(
                 Options {
-                    disable_gc: false,
-                    print_internals: true,
+                    disable_gc,
+                    print_internals,
                 },
                 host_hooks,
             );
@@ -241,15 +251,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             set_theme(DefaultTheme);
-            println!("\n\n");
+            println!("\n");
             let mut placeholder = "Enter a line of Javascript".to_string();
 
             // Register a signal handler for Ctrl+C
             let _ = ctrlc::set_handler(|| {
-                let _ = console::Term::stderr().show_cursor();
+                std::process::exit(0);
             });
             loop {
-                intro("Nova Repl (type exit or ctrl+c to exit)")?;
+                intro("Nova Repl")?;
                 let input: String = input("").placeholder(&placeholder).interact()?;
 
                 if input.matches("exit").count() == 1 {
