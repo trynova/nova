@@ -111,7 +111,7 @@ impl DeclarativeEnvironment {
         // 2. Set the bound value for N in envRec to V.
         // 3. Record that the binding for N in envRec has been initialized.
         // Note: Initialization status of N is determined by the Some/None.
-        binding.value = Some(value);
+        binding.value = Some(value.unbind());
 
         // 4. Return UNUSED.
     }
@@ -299,7 +299,7 @@ impl DeclarativeEnvironmentIndex {
         // 4. Else if the binding for N in envRec is a mutable binding, then
         if binding.mutable {
             // a. Change its bound value to V.
-            binding.value = Some(value);
+            binding.value = Some(value.unbind());
         }
         // 5. Else,
         else {
@@ -337,15 +337,15 @@ impl DeclarativeEnvironmentIndex {
     ) -> JsResult<Value<'gc>> {
         let env_rec = &agent[self];
         // Delegate to heap data record method.
-        env_rec.get_binding_value(name, is_strict).map_or_else(
-            || {
+        match env_rec.get_binding_value(name, is_strict) {
+            Some(res) => Ok(res.bind(gc)),
+            None => {
                 // 2. If the binding for N in envRec is an uninitialized binding, throw
                 // a ReferenceError exception.
                 let error_message = format!("Identifier '{}' does not exist.", name.as_str(agent));
                 Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc))
-            },
-            Ok,
-        )
+            }
+        }
     }
 
     /// ### [9.1.1.1.7 DeleteBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-deletebinding-n)
