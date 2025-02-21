@@ -163,7 +163,7 @@ impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
 impl<'a> IntoValue<'a> for String<'a> {
     fn into_value(self) -> Value<'a> {
         match self {
-            String::String(idx) => Value::String(idx.unbind()),
+            String::String(idx) => Value::String(idx),
             String::SmallString(data) => Value::SmallString(data),
         }
     }
@@ -172,7 +172,7 @@ impl<'a> IntoValue<'a> for String<'a> {
 impl<'a> IntoPrimitive<'a> for String<'a> {
     fn into_primitive(self) -> Primitive<'a> {
         match self {
-            String::String(idx) => Primitive::String(idx.unbind()),
+            String::String(idx) => Primitive::String(idx),
             String::SmallString(data) => Primitive::SmallString(data),
         }
     }
