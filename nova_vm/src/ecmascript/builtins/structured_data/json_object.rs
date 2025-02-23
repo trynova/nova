@@ -97,7 +97,7 @@ impl JSONObject {
         let reviver = arguments.get(1);
 
         // 1. Let jsonString be ? ToString(text).
-        let json_string = to_string(agent, text, gc.reborrow())?;
+        let json_string = to_string(agent, text, gc.reborrow())?.unbind();
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
         let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
@@ -145,7 +145,10 @@ impl JSONObject {
             };
 
             // b. Let rootName be the empty String.
-            let root_name = String::EMPTY_STRING.to_property_key().scope_static();
+            let root_name = String::EMPTY_STRING
+                .to_property_key()
+                .unbind()
+                .scope_static();
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
             unwrap_try(try_create_data_property_or_throw(
@@ -158,14 +161,14 @@ impl JSONObject {
             .unwrap();
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
-            let root = root.into_object().scope(agent, gc.nogc());
-            let reviver = reviver.scope(agent, gc.nogc());
-            return internalize_json_property(agent, root, root_name, reviver, gc.reborrow());
+            let root = root.unbind().into_object().scope(agent, gc.nogc());
+            let reviver = reviver.unbind().scope(agent, gc.nogc());
+            return internalize_json_property(agent, root, root_name, reviver, gc);
         }
 
         // 12. Else,
         // a. Return unfiltered.
-        Ok(unfiltered)
+        Ok(unfiltered.unbind())
     }
 
     fn stringify<'gc>(
@@ -221,7 +224,7 @@ fn internalize_json_property<'gc, 'a>(
     mut gc: GcScope<'gc, 'a>,
 ) -> JsResult<Value<'gc>> {
     // 1. Let val be ? Get(holder, name).
-    let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())?;
+    let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())?.unbind();
     // 2. If val is an Object, then
     if let Ok(val) = Object::try_from(val) {
         // a. Let isArray be ? IsArray(val).
@@ -245,7 +248,8 @@ fn internalize_json_property<'gc, 'a>(
                     prop.clone(),
                     reviver.clone(),
                     gc.reborrow(),
-                )?;
+                )?
+                .unbind();
 
                 // 3. If newElement is undefined, then
                 if new_element.is_undefined() {
@@ -283,7 +287,8 @@ fn internalize_json_property<'gc, 'a>(
                     p.clone(),
                     reviver.clone(),
                     gc.reborrow(),
-                )?;
+                )?
+                .unbind();
 
                 // 2. If newElement is undefined, then
                 if new_element.is_undefined() {
@@ -309,13 +314,13 @@ fn internalize_json_property<'gc, 'a>(
     // 3. Return ? Call(reviver, holder, « name, val »).
     // Note: Because this call gets holder as `this`, it can do dirty things to
     // it, such as `holder[other_key] = new Proxy()`.
-    let name = name.get(agent).convert_to_value(agent, gc.nogc());
+    let name = name.get(agent).convert_to_value(agent, gc.nogc()).unbind();
     call_function(
         agent,
         reviver.get(agent),
         holder.get(agent).into_value(),
         Some(ArgumentsList(&[name, val])),
-        gc.reborrow(),
+        gc,
     )
 }
 
