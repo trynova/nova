@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
+use crate::ecmascript::abstract_operations::type_conversion::to_uint16_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
 use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
@@ -22,6 +23,7 @@ use crate::ecmascript::execution::RealmIdentifier;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
@@ -60,6 +62,7 @@ impl Builtin for StringRaw {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
+    /// ### [22.1.1.1 String ( value )](https://tc39.es/ecma262/#sec-string-constructor-string-value)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -67,33 +70,44 @@ impl StringConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let value = arguments.get(0).bind(nogc);
+        let new_target = new_target.map(|n| n.bind(nogc));
+
         // 1. If value is not present, then
-        let s = if arguments.is_empty() {
+        let (s, new_target) = if arguments.is_empty() {
             // a. Let s be the empty String.
-            String::EMPTY_STRING
+            (String::EMPTY_STRING, new_target)
         } else {
             // 2. Else,
-            let value = arguments.get(0);
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
             if new_target.is_none() {
                 if let Value::Symbol(value) = value {
-                    return Ok(value.descriptive_string(agent, gc.nogc()).into_value());
+                    return Ok(value
+                        .unbind()
+                        .descriptive_string(agent, gc.into_nogc())
+                        .into_value());
                 }
             }
             // b. Let s be ? ToString(value).
-            to_string(agent, value, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc())
+            if let Ok(s) = String::try_from(value) {
+                (s, new_target)
+            } else {
+                let new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
+                let s = to_string(agent, value.unbind(), gc.reborrow())?.unbind();
+                let nogc = gc.nogc();
+                (s.bind(nogc), new_target.map(|n| n.get(agent).bind(nogc)))
+            }
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
-            return Ok(s.into_value());
+            return Ok(s.into_value().unbind());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
         let value = s.scope(agent, gc.nogc());
         let prototype = get_prototype_from_constructor(
             agent,
-            Function::try_from(new_target).unwrap(),
+            Function::try_from(new_target.unbind()).unwrap(),
             ProtoIntrinsics::String,
             gc.reborrow(),
         )?
@@ -122,7 +136,7 @@ impl StringConstructor {
         // 7. Let length be the length of value.
         // 8. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }).
         // 9. Return S.
-        Ok(s.into_value())
+        Ok(s.into_value().unbind())
     }
 
     /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
@@ -153,15 +167,28 @@ impl StringConstructor {
             }
         }
 
-        let mut buf = Vec::with_capacity(code_units.len());
+        let buf = if code_units.iter().all(|cu| cu.is_number()) {
+            code_units
+                .iter()
+                .map(|&cu| to_uint16_number(agent, Number::try_from(cu).unwrap()))
+                .collect::<Vec<_>>()
+        } else {
+            let scoped_code_units = code_units
+                .iter()
+                .map(|cu| cu.scope(agent, gc.nogc()))
+                .collect::<Vec<_>>();
+            scoped_code_units
+                .iter()
+                .map(|cu| {
+                    let next = cu.get(agent);
+                    next.to_uint16(agent, gc.reborrow())
+                })
+                .collect::<JsResult<Vec<_>>>()?
+        };
 
-        for next in code_units.iter() {
-            let code_unit = next.to_uint16(agent, gc.reborrow())?;
-            buf.push(code_unit);
-        }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        Ok(String::from_string(agent, result, gc.nogc()).into())
+        Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.fromcodepoint)
