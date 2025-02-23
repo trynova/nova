@@ -564,7 +564,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
@@ -611,7 +611,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 }
             }
         } else {
-            self.internal_get_backing(agent, property_key.unbind(), receiver, gc.reborrow())
+            self.internal_get_backing(agent, property_key.unbind(), receiver, gc)
         }
     }
 

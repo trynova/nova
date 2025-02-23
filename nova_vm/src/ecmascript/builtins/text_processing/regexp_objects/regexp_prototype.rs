@@ -325,7 +325,7 @@ impl RegExpPrototype {
 
         // 20. Return the String value whose code units are the elements of the List codeUnits. If codeUnits has no elements, the empty String is returned.
         let res = unsafe { core::str::from_utf8_unchecked(&code_units[0..i]) };
-        Ok(Value::from_string(agent, res.to_string(), gc.nogc()))
+        Ok(Value::from_string(agent, res.to_string(), gc.nogc()).unbind())
     }
 
     fn get_global<'gc>(
