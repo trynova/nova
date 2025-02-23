@@ -198,7 +198,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
-        )?;
+        )?.unbind();
 
         // 8. If handlerProto is not an Object and handlerProto is not null, throw a TypeError exception.
         let handler_proto = if handler_proto.is_null() {
@@ -1636,7 +1636,7 @@ pub(crate) fn proxy_create<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<Proxy<'a>> {
     // 1. If target is not an Object, throw a TypeError exception.
-    let Ok(target) = Object::try_from(target) else {
+    let Ok(target) = Object::try_from(target.unbind()) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Proxy target must be an object",
@@ -1644,7 +1644,7 @@ pub(crate) fn proxy_create<'a>(
         ));
     };
     // 2. If handler is not an Object, throw a TypeError exception.
-    let Ok(handler) = Object::try_from(handler) else {
+    let Ok(handler) = Object::try_from(handler.unbind()) else {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Proxy handler must be an object",
