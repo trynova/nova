@@ -618,7 +618,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         if result_desc.configurable == Some(false) {
             // a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
             if target_desc
-                .as_ref().is_none_or(|d| d.configurable == Some(true))
+                .as_ref()
+                .is_none_or(|d| d.configurable == Some(true))
             {
                 // i. Throw a TypeError exception.
                 return Err(agent.throw_exception(

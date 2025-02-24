@@ -280,9 +280,7 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
     }
 }
 
-impl<T: IntoObject<'static>>
-    OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties>
-{
+impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
@@ -338,9 +336,7 @@ impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
     }
 }
 
-impl<T: IntoObject<'static>>
-    OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties>
-{
+impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {

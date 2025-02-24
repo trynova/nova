@@ -617,9 +617,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
-                TryResult::Continue(self.get_backing_object(agent).is_none_or(|object| {
-                    ordinary_delete(agent, object, property_key, gc)
-                }))
+                TryResult::Continue(
+                    self.get_backing_object(agent)
+                        .is_none_or(|object| ordinary_delete(agent, object, property_key, gc)),
+                )
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 let p = match property_key {
