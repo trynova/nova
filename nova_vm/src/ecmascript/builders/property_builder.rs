@@ -80,7 +80,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
-            definition: CreatorValue(value),
+            definition: CreatorValue(value.unbind()),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -93,7 +93,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
-            definition: CreatorReadOnlyValue(value),
+            definition: CreatorReadOnlyValue(value.unbind()),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -103,7 +103,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         self,
         creator: impl FnOnce(&mut Agent) -> Value,
     ) -> PropertyBuilder<'agent, K, CreatorValue> {
-        let value = creator(self.agent);
+        let value = creator(self.agent).unbind();
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
@@ -117,7 +117,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
         self,
         creator: impl FnOnce(&mut Agent) -> Value,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
-        let value = creator(self.agent);
+        let value = creator(self.agent).unbind();
         PropertyBuilder {
             agent: self.agent,
             key: self.key,

@@ -63,7 +63,7 @@ impl PromisePrototype {
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
         // `this.then` is this realm's creation-time `Promise.prototype.then`.
-        let on_rejected = args.get(0);
+        let on_rejected = args.get(0).unbind();
         invoke(
             agent,
             this_value,

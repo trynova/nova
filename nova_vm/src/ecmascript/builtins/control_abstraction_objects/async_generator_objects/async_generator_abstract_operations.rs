@@ -83,7 +83,7 @@ pub(super) fn async_generator_validate<'a>(
     // 4. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
     // 5. Return unused.
     if let Value::AsyncGenerator(generator) = generator {
-        Ok(generator)
+        Ok(generator.unbind())
     } else {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,

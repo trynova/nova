@@ -97,7 +97,7 @@ impl PromiseCapability {
         // 5. Set promise.[[PromiseRejectReactions]] to undefined.
         // 6. Set promise.[[PromiseState]] to FULFILLED.
         *promise_state = PromiseState::Fulfilled {
-            promise_result: value,
+            promise_result: value.unbind(),
         };
         // 7. Perform TriggerPromiseReactions(reactions, value)
         if let Some(reactions) = reactions {
@@ -123,7 +123,7 @@ impl PromiseCapability {
         // NOTE: [[PromiseIsHandled]] for pending promises corresponds to
         // whether [[PromiseRejectReactions]] is not empty.
         *promise_state = PromiseState::Rejected {
-            promise_result: reason,
+            promise_result: reason.unbind(),
             is_handled: reactions.is_some(),
         };
 
@@ -162,7 +162,7 @@ impl PromiseCapability {
                 ExceptionType::TypeError,
                 "Tried to resolve a promise with itself.",
                 gc.nogc(),
-            );
+            ).unbind();
             self.internal_reject(agent, exception);
             // c. Return undefined.
             return;
@@ -237,7 +237,7 @@ impl PromiseCapability {
                 ExceptionType::TypeError,
                 "Tried to resolve a promise with itself.",
                 gc,
-            );
+            ).unbind();
             self.internal_reject(agent, exception);
             // c. Return undefined.
             return TryResult::Continue(());

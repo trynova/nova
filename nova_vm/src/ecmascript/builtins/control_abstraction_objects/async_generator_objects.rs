@@ -362,7 +362,7 @@ impl<'a> TryFrom<Object<'a>> for AsyncGenerator<'a> {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         if let Object::AsyncGenerator(value) = value {
-            Ok(value)
+            Ok(value.unbind())
         } else {
             Err(())
         }

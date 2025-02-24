@@ -118,7 +118,7 @@ impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
         let Self { reaction, argument } = self;
         let reaction = reaction.take(agent);
-        let argument = argument.take(agent).bind(gc.nogc());
+        let argument = argument.take(agent).bind(gc.nogc()).unbind();
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[reaction].handler {
             PromiseReactionHandler::Empty => match agent[reaction].reaction_type {
@@ -174,7 +174,7 @@ impl PromiseReactionJob {
             // i. Else,
             Ok(value) => {
                 // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.resolve(agent, value, gc)
+                promise_capability.resolve(agent, value.unbind(), gc)
             }
         };
         Ok(())
@@ -215,7 +215,7 @@ pub(crate) fn new_promise_reaction_job(
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
     let reaction = Global::new(agent, reaction);
-    let argument = Global::new(agent, argument);
+    let argument = Global::new(agent, argument.unbind());
     Job {
         realm: handler_realm,
         inner: InnerJob::PromiseReaction(PromiseReactionJob { reaction, argument }),
