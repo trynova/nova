@@ -74,7 +74,7 @@ impl<'a> Promise<'a> {
             // a. Let xConstructor be ? Get(x, "constructor").
             // b. If SameValue(xConstructor, C) is true, return x.
             // NOTE: Ignoring subclasses.
-            promise
+            promise.unbind()
         } else {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
             let promise_capability = PromiseCapability::new(agent);

@@ -230,7 +230,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.try_get(agent, property_key, self.into_value(), gc)?;
+                    let value = self.try_get(agent, property_key, self.into_value(), gc)?.unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     TryResult::Continue(Some(PropertyDescriptor {
                         value: Some(value),
@@ -274,7 +274,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
                     let value =
-                        self.internal_get(agent, property_key.unbind(), self.into_value(), gc)?;
+                        self.internal_get(agent, property_key.unbind(), self.into_value(), gc)?.unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
                         value: Some(value),
@@ -537,7 +537,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         receiver,
                         gc.reborrow(),
                     )
-                    .unwrap(),
+                    .unwrap().unbind(),
                     None => Value::Undefined,
                 })
             }

@@ -380,7 +380,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
         )?;
@@ -449,7 +449,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
         )?;
@@ -541,7 +541,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             agent,
             trap.unbind(),
             handler.into_value(),
-            Some(ArgumentsList(&[target.into(), p])),
+            Some(ArgumentsList(&[target.unbind().into(), p.unbind()])),
             gc.reborrow(),
         )?;
         // 8. If trapResultObj is not an Object and trapResultObj is not undefined, throw a TypeError exception.
@@ -576,7 +576,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 return Ok(None);
             }
             // c. Let extensibleTarget be ? IsExtensible(target).
-            let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
+            let extensible_target = is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
             // d. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
                 return Err(agent.throw_exception(
@@ -592,10 +592,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return Ok(None);
         };
         // 11. Let extensibleTarget be ? IsExtensible(target).
-        let extensible_target = is_extensible(agent, scoped_target.get(agent), gc.reborrow())?;
+        let extensible_target = is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
         // 12. Let resultDesc be ? ToPropertyDescriptor(trapResultObj).
         let mut result_desc =
-            PropertyDescriptor::to_property_descriptor(agent, trap_result_obj, gc.reborrow())?;
+            PropertyDescriptor::to_property_descriptor(agent, trap_result_obj.unbind(), gc.reborrow())?;
         // 13. Perform CompletePropertyDescriptor(resultDesc).
         result_desc.complete_property_descriptor()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
