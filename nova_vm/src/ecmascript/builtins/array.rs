@@ -880,7 +880,8 @@ fn ordinary_define_own_property_for_array(
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
         if descriptor
-            .enumerable.is_some_and(|enumerable| enumerable != current_enumerable)
+            .enumerable
+            .is_some_and(|enumerable| enumerable != current_enumerable)
         {
             return false;
         }
@@ -898,7 +899,7 @@ fn ordinary_define_own_property_for_array(
             // i. If Desc has a [[Get]] field and SameValue(Desc.[[Get]], current.[[Get]]) is false,
             //    return false.
             if let Some(desc_get) = descriptor.get {
-                if current_getter.map_or(true, |current_getter| desc_get != current_getter) {
+                if current_getter != Some(desc_get) {
                     return false;
                 }
             }
@@ -906,7 +907,7 @@ fn ordinary_define_own_property_for_array(
             // ii. If Desc has a [[Set]] field and SameValue(Desc.[[Set]], current.[[Set]]) is
             //     false, return false.
             if let Some(desc_set) = descriptor.set {
-                if current_setter.map_or(true, |current_setter| desc_set != current_setter) {
+                if current_setter != Some(desc_set) {
                     return false;
                 }
             }
