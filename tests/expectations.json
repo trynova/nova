@@ -21930,7 +21930,6 @@
   "staging/sm/String/split-GetMethod.js": "FAIL",
   "staging/sm/String/split-xregexp.js": "FAIL",
   "staging/sm/String/split.js": "CRASH",
-  "staging/sm/String/string-code-point-upper-lower-mapping.js": "CRASH",
   "staging/sm/String/string-upper-lower-mapping.js": "CRASH",
   "staging/sm/String/thisv-error.js": "CRASH",
   "staging/sm/String/unicode-braced.js": "CRASH",
