@@ -3872,14 +3872,14 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
 /// the time that this operation visits them. Elements that are deleted after
 /// traversal begins and before being visited are still visited and are either
 /// looked up from the prototype or are undefined.
-pub(crate) fn find_via_predicate<'gc, 'scope, T: 'static + Rootable + InternalMethods<'static>>(
+pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'static>>(
     agent: &mut Agent,
     o: Scoped<'_, T>,
     len: i64,
     ascending: bool,
-    predicate: Scoped<'scope, Value<'static>>,
-    this_arg: Scoped<'scope, Value<'static>>,
-    mut gc: GcScope<'gc, 'scope>,
+    predicate: Scoped<'_, Value<'static>>,
+    this_arg: Scoped<'_, Value<'static>>,
+    mut gc: GcScope<'gc, '_>,
 ) -> JsResult<(i64, Value<'gc>)> {
     // 1. If IsCallable(predicate) is false, throw a TypeError exception.
     let Some(stack_predicate) = is_callable(predicate.get(agent), gc.nogc()) else {
