@@ -129,7 +129,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
 impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
     #[must_use]
     pub fn with_data_property(mut self, key: PropertyKey<'static>, value: Value) -> Self {
-        self.properties.0.push((key, None, Some(value)));
+        self.properties.0.push((key, None, Some(value.unbind())));
         OrdinaryObjectBuilder {
             agent: self.agent,
             this: self.this,

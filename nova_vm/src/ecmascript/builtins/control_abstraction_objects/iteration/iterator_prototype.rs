@@ -31,7 +31,7 @@ impl IteratorPrototype {
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Ok(this_value)
+        Ok(this_value.unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
