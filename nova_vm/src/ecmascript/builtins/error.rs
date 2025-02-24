@@ -352,10 +352,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
                     && value.is_string()
                 {
-                    agent[self].message = Some(String::try_from(value).unwrap());
+                    agent[self].message = Some(String::try_from(value.unbind()).unwrap());
                     TryResult::Continue(true)
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = Some(value);
+                    agent[self].cause = Some(value.unbind());
                     TryResult::Continue(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);
@@ -382,10 +382,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
                     && value.is_string()
                 {
-                    agent[self].message = Some(String::try_from(value).unwrap());
+                    agent[self].message = Some(String::try_from(value.unbind()).unwrap());
                     Ok(true)
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = Some(value);
+                    agent[self].cause = Some(value.unbind());
                     Ok(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);

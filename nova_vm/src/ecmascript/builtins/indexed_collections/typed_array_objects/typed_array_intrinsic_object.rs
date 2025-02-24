@@ -125,7 +125,7 @@ impl TypedArrayIntrinsicObject {
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Ok(this_value)
+        Ok(this_value.unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -435,10 +435,10 @@ impl TypedArrayPrototype {
         // 8. Return ! Get(O, ! ToString(𝔽(k))).
         Ok(unwrap_try(try_get(
             agent,
-            o,
+            o.unbind(),
             PropertyKey::Integer(k.try_into().unwrap()),
             gc.nogc(),
-        )))
+        )).unbind())
     }
 
     /// ### [23.2.3.2 get %TypedArray%.prototype.buffer](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.buffer)
@@ -789,7 +789,7 @@ impl TypedArrayPrototype {
                 agent,
                 callback.get(agent),
                 this_arg,
-                Some(ArgumentsList(&[k_value, fk, o.into_value()])),
+                Some(ArgumentsList(&[k_value.unbind(), fk.unbind(), o.into_value().unbind()])),
                 gc.reborrow(),
             )?;
             // d. Set k to k + 1.
@@ -1224,7 +1224,7 @@ impl TypedArrayPrototype {
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_string(agent, r, gc.nogc()).into_value())
+        Ok(String::from_string(agent, r, gc.nogc()).into_value().unbind())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
@@ -1438,9 +1438,9 @@ impl TypedArrayPrototype {
                 callback.get(agent),
                 this_arg,
                 Some(ArgumentsList(&[
-                    k_value,
-                    Number::try_from(k).unwrap().into_value(),
-                    o.into_value(),
+                    k_value.unbind(),
+                    Number::try_from(k).unwrap().into_value().unbind(),
+                    o.into_value().unbind(),
                 ])),
                 gc.reborrow(),
             )?;
@@ -1647,7 +1647,7 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
     // 1. Perform ? RequireInternalSlot(O, [[TypedArrayName]]).
-    TypedArray::try_from(o).map_err(|_| {
+    TypedArray::try_from(o.unbind()).map_err(|_| {
         agent.throw_exception_with_static_message(
             crate::ecmascript::execution::agent::ExceptionType::TypeError,
             "Expected this to be TypedArray",

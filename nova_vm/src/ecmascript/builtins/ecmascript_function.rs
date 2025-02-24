@@ -636,7 +636,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
         if let Ok(value) = Object::try_from(value) {
-            Ok(value)
+            Ok(value.unbind())
         } else
         //   b. If kind is base, return thisArgument.
         if is_base {
@@ -646,7 +646,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         if !value.is_undefined() {
             let message = format!(
                 "derived class constructor returned invalid value {}",
-                value.string_repr(agent, gc.reborrow()).as_str(agent)
+                value.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
@@ -660,7 +660,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             };
 
             // 14. Return thisBinding.
-            Ok(this_binding)
+            Ok(this_binding.unbind())
         }
     }
 }
