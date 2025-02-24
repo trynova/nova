@@ -121,7 +121,7 @@ impl DateConstructor {
         // 7. Set O.[[DateValue]] to dv.
         agent[Date::try_from(o).unwrap()].date = Some(dv);
         // 8. Return O.
-        Ok(o.into_value())
+        Ok(o.unbind().into_value())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)

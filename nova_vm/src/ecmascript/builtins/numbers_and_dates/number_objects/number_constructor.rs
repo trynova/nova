@@ -113,7 +113,7 @@ impl NumberConstructor {
 
         // 3. If NewTarget is undefined, return n.
         let Some(new_target) = new_target else {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         };
 
         let n = n.scope(agent, gc.nogc());
@@ -136,7 +136,7 @@ impl NumberConstructor {
             Number::SmallF64(d) => PrimitiveObjectData::Float(d),
         };
         // 6. Return O.
-        Ok(o.into_value())
+        Ok(o.unbind().into_value())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)

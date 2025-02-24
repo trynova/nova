@@ -749,7 +749,7 @@ pub(crate) fn ordinary_get<'gc>(
         // c. Return ? parent.[[Get]](P, Receiver).
         return parent
             .unbind()
-            .internal_get(agent, property_key.unbind(), receiver, gc.reborrow());
+            .internal_get(agent, property_key.unbind(), receiver, gc);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -896,7 +896,7 @@ fn ordinary_try_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 ..Default::default()
             };
 
@@ -1010,7 +1010,7 @@ fn ordinary_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 ..Default::default()
             };
 
@@ -1051,7 +1051,7 @@ fn ordinary_set_with_own_descriptor(
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
-    call_function(agent, setter, receiver, Some(ArgumentsList(&[value])), gc)?;
+    call_function(agent, setter, receiver, Some(ArgumentsList(&[value.unbind()])), gc)?;
 
     // 7. Return true.
     Ok(true)

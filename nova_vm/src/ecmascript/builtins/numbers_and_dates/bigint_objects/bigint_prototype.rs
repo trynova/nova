@@ -75,7 +75,7 @@ impl BigIntPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value())
+        this_big_int_value(agent, this_value, gc.nogc()).map(|result| result.into_value().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -115,7 +115,7 @@ fn this_big_int_value<'a>(
 ) -> JsResult<BigInt<'a>> {
     match value {
         // 1. If value is a BigInt, return value.
-        Value::BigInt(value) => Ok(value.into()),
+        Value::BigInt(value) => Ok(value.unbind().into()),
         Value::SmallBigInt(value) => Ok(value.into()),
         // 2. If value is an Object and value has a [[BigIntData]] internal slot, then
         Value::PrimitiveObject(value) if value.is_bigint_object(agent) => {
