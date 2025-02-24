@@ -30,7 +30,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct FinalizationRegistry<'a>(pub(crate) FinalizationRegistryIndex<'a>);
 
-impl<'a> FinalizationRegistry<'a> {
+impl FinalizationRegistry<'_> {
     /// Unbind this FinalizationRegistry from its current lifetime. This is necessary to use
     /// the FinalizationRegistry as a parameter in a call that can perform garbage
     /// collection.

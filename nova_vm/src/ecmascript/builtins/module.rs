@@ -300,7 +300,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                TryResult::Continue(self.get_backing_object(agent).map_or(false, |object| {
+                TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
                     ordinary_define_own_property(
                         agent,
                         object,
@@ -428,7 +428,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
-                TryResult::Continue(self.get_backing_object(agent).map_or(false, |object| {
+                TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
                     unwrap_try(ordinary_try_has_property(agent, object, property_key, gc))
                 }))
             }
@@ -617,7 +617,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
-                TryResult::Continue(self.get_backing_object(agent).map_or(true, |object| {
+                TryResult::Continue(self.get_backing_object(agent).is_none_or(|object| {
                     ordinary_delete(agent, object, property_key, gc)
                 }))
             }

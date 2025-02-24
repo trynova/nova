@@ -42,7 +42,7 @@ use super::ArgumentsList;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
 
-impl<'a> BuiltinConstructorFunction<'a> {
+impl BuiltinConstructorFunction<'_> {
     /// Unbind this BuiltinConstructorFunction from its current lifetime. This is necessary to use
     /// the BuiltinConstructorFunction as a parameter in a call that can perform garbage
     /// collection.

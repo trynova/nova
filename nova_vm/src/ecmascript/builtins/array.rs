@@ -862,11 +862,11 @@ fn ordinary_define_own_property_for_array(
     // If current descriptor doesn't exist, then its a default data descriptor
     // with WEC all true.
     let current_writable = current_descriptor.map_or(Some(true), |c| c.is_writable());
-    let current_enumerable = current_descriptor.map_or(true, |c| c.is_enumerable());
-    let current_configurable = current_descriptor.map_or(true, |c| c.is_configurable());
-    let current_is_data_descriptor = current_descriptor.map_or(false, |c| c.is_data_descriptor());
+    let current_enumerable = current_descriptor.is_none_or(|c| c.is_enumerable());
+    let current_configurable = current_descriptor.is_none_or(|c| c.is_configurable());
+    let current_is_data_descriptor = current_descriptor.is_some_and(|c| c.is_data_descriptor());
     let current_is_accessor_descriptor =
-        current_descriptor.map_or(false, |c| c.is_accessor_descriptor());
+        current_descriptor.is_some_and(|c| c.is_accessor_descriptor());
     let current_getter = current_descriptor.and_then(|c| c.getter_function(gc));
     let current_setter = current_descriptor.and_then(|c| c.setter_function(gc));
 
@@ -880,8 +880,7 @@ fn ordinary_define_own_property_for_array(
         // b. If Desc has an [[Enumerable]] field and SameValue(Desc.[[Enumerable]], current.[[Enumerable]])
         //    is false, return false.
         if descriptor
-            .enumerable
-            .map_or(false, |enumerable| enumerable != current_enumerable)
+            .enumerable.is_some_and(|enumerable| enumerable != current_enumerable)
         {
             return false;
         }
@@ -1070,5 +1069,5 @@ pub(crate) trait ArrayHeapIndexable<'a>:
     Index<Array<'a>, Output = ArrayHeapData> + AsRef<ElementArrays>
 {
 }
-impl<'a, 'b> ArrayHeapIndexable<'a> for ArrayHeap<'b> {}
-impl<'a> ArrayHeapIndexable<'a> for Agent {}
+impl ArrayHeapIndexable<'_> for ArrayHeap<'_> {}
+impl ArrayHeapIndexable<'_> for Agent {}

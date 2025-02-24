@@ -287,7 +287,7 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>
     }
 }
 
-impl<'a> ECMAScriptFunction<'a> {
+impl ECMAScriptFunction<'_> {
     /// Unbind this ECMAScriptFunction from its current lifetime. This is necessary to use
     /// the ECMAScriptFunction as a parameter in a call that can perform garbage
     /// collection.

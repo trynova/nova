@@ -280,7 +280,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
     }
 }
 
-impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
+impl<P, L, B, Pr> BuiltinFunctionBuilder<'_, P, L, CreatorName, B, Pr> {
     pub(crate) fn get_name(&self) -> String<'static> {
         self.name.0
     }
@@ -528,9 +528,9 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     }
 }
 
-impl<'agent>
+impl
     BuiltinFunctionBuilder<
-        'agent,
+        '_,
         NoPrototype,
         CreatorLength,
         CreatorName,
@@ -559,9 +559,9 @@ impl<'agent>
     }
 }
 
-impl<'agent>
+impl
     BuiltinFunctionBuilder<
-        'agent,
+        '_,
         NoPrototype,
         CreatorLength,
         CreatorName,
@@ -635,9 +635,9 @@ impl<'agent>
     }
 }
 
-impl<'agent>
+impl
     BuiltinFunctionBuilder<
-        'agent,
+        '_,
         CreatorPrototype,
         CreatorLength,
         CreatorName,

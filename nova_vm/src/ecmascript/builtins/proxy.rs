@@ -618,8 +618,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         if result_desc.configurable == Some(false) {
             // a. If targetDesc is undefined or targetDesc.[[Configurable]] is true, then
             if target_desc
-                .as_ref()
-                .map_or(true, |d| d.configurable == Some(true))
+                .as_ref().is_none_or(|d| d.configurable == Some(true))
             {
                 // i. Throw a TypeError exception.
                 return Err(agent.throw_exception(
@@ -1382,7 +1381,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 gc.reborrow(),
             )?;
             //  b. If desc is not undefined and desc.[[Configurable]] is false, then
-            if desc.map_or(false, |d| d.configurable == Some(false)) {
+            if desc.is_some_and(|d| d.configurable == Some(false)) {
                 // i. Append key to targetNonconfigurableKeys.
                 target_nonconfigurable_keys.push(key);
             } else {
@@ -1526,7 +1525,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 7. Let argArray be CreateArrayFromList(argumentsList).
         let arg_array = create_array_from_list(agent, &[arguments_list], gc.nogc());
         // 8. Return ? Call(trap, handler, « target, thisArgument, argArray »).
-        return call_function(
+        call_function(
             agent,
             trap.unbind(),
             handler.into_value(),
@@ -1536,7 +1535,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 arg_array.into_value(),
             ])),
             gc,
-        );
+        )
     }
 
     fn internal_construct<'gc>(

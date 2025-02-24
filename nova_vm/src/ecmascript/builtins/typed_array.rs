@@ -734,7 +734,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             TryResult::Continue(numeric_index.is_none())
         } else {
             // 2. Return ! OrdinaryDelete(O, P).
-            TryResult::Continue(self.get_backing_object(agent).map_or(true, |object| {
+            TryResult::Continue(self.get_backing_object(agent).is_none_or(|object| {
                 ordinary_delete(agent, object, property_key, gc)
             }))
         }

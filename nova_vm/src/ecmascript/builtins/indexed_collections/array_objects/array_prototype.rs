@@ -3837,7 +3837,7 @@ fn flatten_into_array(
         // iii. Let shouldFlatten be false.
         let mut should_flatten = false;
         // iv. If depth > 0, then
-        if depth.map_or(true, |depth| depth > 0) {
+        if depth.is_none_or(|depth| depth > 0) {
             // 1. Set shouldFlatten to ? IsArray(element).
             should_flatten = is_array(agent, element, gc.nogc())?;
         }
