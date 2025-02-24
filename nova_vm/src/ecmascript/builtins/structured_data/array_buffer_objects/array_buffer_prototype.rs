@@ -426,7 +426,7 @@ pub(crate) fn require_internal_slot_array_buffer<'a>(
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        Value::ArrayBuffer(array_buffer) => Ok(array_buffer),
+        Value::ArrayBuffer(array_buffer) => Ok(array_buffer.unbind()),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be ArrayBuffer",

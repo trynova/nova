@@ -87,7 +87,7 @@ impl BigIntConstructor {
 
             Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into_value())
         } else {
-            to_big_int(agent, value, gc.reborrow()).map(|result| result.into_value())
+            to_big_int(agent, value, gc.reborrow()).map(|result| result.into_value().unbind())
         }
     }
 
@@ -162,7 +162,7 @@ impl BigIntConstructor {
                     BigInt::SmallBigInt(_) => {
                         // Probably safe: The divisor is bigger than i64 but
                         // value is i54.
-                        Ok(bigint.into_value())
+                        Ok(bigint.into_value().unbind())
                     }
                 }
             }

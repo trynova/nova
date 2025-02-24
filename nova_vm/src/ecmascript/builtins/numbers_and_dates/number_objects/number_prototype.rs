@@ -197,7 +197,7 @@ impl NumberPrototype {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x, gc.nogc()).into_value());
+            return Ok(Number::to_string_radix_10(agent, x, gc.nogc()).unbind().into_value());
         }
 
         let x = x.scope(agent, gc.nogc());
@@ -434,7 +434,7 @@ impl NumberPrototype {
         let x = this_number_value(agent, this_value, gc.nogc())?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Ok(Number::to_string_radix_10(agent, x, gc.nogc()).into_value())
+            Ok(Number::to_string_radix_10(agent, x, gc.nogc()).unbind().into_value())
         } else {
             todo!();
         }
@@ -446,7 +446,7 @@ impl NumberPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        this_number_value(agent, this_value, gc.nogc()).map(|result| result.into_value())
+        this_number_value(agent, this_value, gc.nogc()).map(|result| result.unbind().into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -515,7 +515,7 @@ fn this_number_value<'gc>(
 ) -> JsResult<Number<'gc>> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
-        return Ok(value);
+        return Ok(value.unbind());
     }
     // 2. If value is an Object and value has a [[NumberData]] internal slot, then
     if let Ok(value) = PrimitiveObject::try_from(value) {
