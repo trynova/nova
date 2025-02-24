@@ -148,7 +148,7 @@ pub(crate) fn bound_function_create<'a>(
         object_index: None,
         length: 0,
         bound_target_function: target_function.unbind(),
-        bound_this,
+        bound_this: bound_this.unbind(),
         bound_arguments: elements,
         name: None,
     };

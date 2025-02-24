@@ -291,7 +291,7 @@ impl ObjectConstructor {
                 ProtoIntrinsics::Object,
                 gc.reborrow(),
             )
-            .map(|value| value.into_value())
+            .map(|value| value.into_value().unbind())
         } else if value == Value::Undefined || value == Value::Null {
             // 2. If value is either undefined or null, return OrdinaryObjectCreate(%Object.prototype%).
             Ok(ordinary_object_create_with_intrinsics(
@@ -324,7 +324,7 @@ impl ObjectConstructor {
         let to = to_object(agent, target, gc.nogc())?;
         // 2. If only one argument was passed, return to.
         if arguments.len() <= 1 {
-            return Ok(to.into_value());
+            return Ok(to.into_value().unbind());
         }
         let to = to.scope(agent, gc.nogc());
         let sources = &arguments[1..];
@@ -425,7 +425,7 @@ impl ObjectConstructor {
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
         let result = object_define_properties(agent, o, properties, gc.reborrow())?;
-        Ok(result.into_value())
+        Ok(result.into_value().unbind())
     }
 
     /// ### [20.1.2.4 Object.defineProperty ( O, P, Attributes )](https://tc39.es/ecma262/#sec-object.defineproperty)
@@ -458,7 +458,7 @@ impl ObjectConstructor {
         // 4. Perform ? DefinePropertyOrThrow(O, key, desc).
         define_property_or_throw(agent, o, key.get(agent), desc, gc.reborrow())?;
         // 5. Return O.
-        Ok(o.into_value())
+        Ok(o.into_value().unbind())
     }
 
     fn entries<'gc>(
@@ -475,7 +475,7 @@ impl ObjectConstructor {
             enumerable_properties_kind::EnumerateKeysAndValues,
         >(agent, obj.unbind(), gc.reborrow())?;
         // 3. Return CreateArrayFromList(entryList).
-        Ok(create_array_from_list(agent, &entry_list, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &entry_list, gc.nogc()).into_value().unbind())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
@@ -488,7 +488,7 @@ impl ObjectConstructor {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 2. Let status be ? SetIntegrityLevel(O, FROZEN).
         let status = set_integrity_level::<Frozen>(agent, o, gc.reborrow())?;
@@ -501,7 +501,7 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(o.into_value())
+            Ok(o.into_value().unbind())
         }
     }
 
@@ -655,7 +655,7 @@ impl ObjectConstructor {
         // 4. Return FromPropertyDescriptor(desc).
         Ok(
             PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc())
-                .map_or(Value::Undefined, |obj| obj.into_value()),
+                .map_or(Value::Undefined, |obj| obj.into_value().unbind()),
         )
     }
 
@@ -722,7 +722,7 @@ impl ObjectConstructor {
             get_own_property_descriptors_slow(agent, obj, own_keys, descriptors.unbind(), gc)
         } else {
             // 5. Return descriptors.
-            Ok(descriptors.into_value())
+            Ok(descriptors.into_value().unbind())
         }
     }
 
@@ -736,7 +736,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
         let keys = get_own_string_property_keys(agent, o, gc.reborrow())?;
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value().unbind())
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
@@ -749,7 +749,7 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
         let keys = get_own_symbol_property_keys(agent, o, gc.reborrow())?;
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value().unbind())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
@@ -890,7 +890,7 @@ impl ObjectConstructor {
             gc.reborrow(),
         )?;
         // 3. Return CreateArrayFromList(keyList).
-        Ok(create_array_from_list(agent, &key_list, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &key_list, gc.nogc()).into_value().unbind())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -903,7 +903,7 @@ impl ObjectConstructor {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 2. Let status be ? O.[[PreventExtensions]]().
         let status = o.internal_prevent_extensions(agent, gc.reborrow())?;
@@ -916,7 +916,7 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(o.into_value())
+            Ok(o.into_value().unbind())
         }
     }
 
@@ -930,7 +930,7 @@ impl ObjectConstructor {
         // 1. If O is not an Object, return O.
         let o = arguments.get(0);
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 2. Let status be ? SetIntegrityLevel(O, SEALED).
         let status = set_integrity_level::<Sealed>(agent, o, gc.reborrow())?;
@@ -943,7 +943,7 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(o.into_value())
+            Ok(o.into_value().unbind())
         }
     }
 
@@ -972,7 +972,7 @@ impl ObjectConstructor {
         };
         // 3. If O is not an Object, return O.
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 4. Let status be ? O.[[SetPrototypeOf]](proto).
         let status = o.internal_set_prototype_of(agent, proto, gc.reborrow())?;
@@ -985,7 +985,7 @@ impl ObjectConstructor {
             ));
         }
         // 6. Return O.
-        Ok(o.into_value())
+        Ok(o.into_value().unbind())
     }
 
     fn values<'gc>(
@@ -1004,7 +1004,7 @@ impl ObjectConstructor {
             gc.reborrow(),
         )?;
         // 3. Return CreateArrayFromList(valueList).
-        Ok(create_array_from_list(agent, &value_list, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &value_list, gc.nogc()).into_value().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -1084,7 +1084,7 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
         // i. Let descObj be ? Get(props, nextKey).
         let desc_obj = get(agent, props.get(agent), next_key.get(agent), gc.reborrow())?;
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
-        let desc = PropertyDescriptor::to_property_descriptor(agent, desc_obj, gc.reborrow())?
+        let desc = PropertyDescriptor::to_property_descriptor(agent, desc_obj.unbind(), gc.reborrow())?
             .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
         descriptors.push((next_key, desc));
@@ -1200,7 +1200,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error_message = format!(
                 "Invalid iterator next return value: {} is not an object",
-                next.string_repr(agent, gc.reborrow()).as_str(agent)
+                next.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).
@@ -1293,7 +1293,7 @@ fn get_own_symbol_property_keys<'gc>(
     for next_key in keys {
         // a. If nextKey is a Symbol and type is SYMBOL then
         if let PropertyKey::Symbol(next_key) = next_key {
-            name_list.push(next_key.into_value())
+            name_list.push(next_key.into_value().unbind())
         }
     }
     // 5. Return nameList.

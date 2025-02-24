@@ -217,13 +217,13 @@ impl FunctionPrototype {
                 }
                 let result = get(
                     agent,
-                    target,
-                    BUILTIN_STRING_MEMORY.length.into(),
+                    target.unbind(),
+                    BUILTIN_STRING_MEMORY.length.unbind().into(),
                     gc.reborrow(),
-                )?;
+                )?.unbind();
                 f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
                 target = scoped_target.get(agent);
-                result
+                result.unbind()
             };
             // b. If targetLen is a Number, then
             if let Ok(target_len) = Number::try_from(target_len) {
@@ -272,10 +272,10 @@ impl FunctionPrototype {
             }
             let result = get(
                 agent,
-                target,
-                BUILTIN_STRING_MEMORY.name.into(),
+                target.unbind(),
+                BUILTIN_STRING_MEMORY.name.unbind().into(),
                 gc.reborrow(),
-            )?;
+            )?.unbind();
             f = scoped_f.unwrap().get(agent).bind(gc.nogc());
             result
         };
@@ -291,7 +291,7 @@ impl FunctionPrototype {
         );
         // 11. Return F.
 
-        Ok(f.into_value())
+        Ok(f.into_value().unbind())
     }
 
     fn call<'gc>(
@@ -341,7 +341,7 @@ impl FunctionPrototype {
                 let source_text = data.source_code.get_source_text(agent)
                     [(span.start as usize)..(span.end as usize)]
                     .to_string();
-                Ok(Value::from_string(agent, source_text, gc.nogc()))
+                Ok(Value::from_string(agent, source_text, gc.nogc()).unbind())
             }
             // 4. If func is an Object and IsCallable(func) is true, return an
             // implementation-defined String source code representation of func.
@@ -367,21 +367,21 @@ impl FunctionPrototype {
                         }
                     },
                 );
-                Ok(Value::from_string(agent, initial_name, gc.nogc()))
+                Ok(Value::from_string(agent, initial_name, gc.nogc()).unbind())
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(_) => Ok(Value::from_static_str(
                 agent,
                 "class { [ native code ] }",
                 gc.nogc(),
-            )),
+            ).unbind()),
             Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
                 Ok(Value::from_static_str(
                     agent,
                     "function () { [ native code ] }",
                     gc.nogc(),
-                ))
+                ).unbind())
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

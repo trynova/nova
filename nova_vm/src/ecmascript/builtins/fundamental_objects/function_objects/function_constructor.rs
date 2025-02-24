@@ -77,7 +77,7 @@ impl FunctionConstructor {
         //   a. Perform MakeConstructor(F).
         make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
-        Ok(f.into_value())
+        Ok(f.into_value().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

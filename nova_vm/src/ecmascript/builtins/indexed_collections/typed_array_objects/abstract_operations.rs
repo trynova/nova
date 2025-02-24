@@ -500,7 +500,7 @@ pub(crate) fn typed_array_set_element<O: Viewable>(
             v.into_numeric()
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
-            let v = to_big_int(agent, value, gc.reborrow())?
+            let v = to_big_int(agent, value.unbind(), gc.reborrow())?
                 .into_numeric()
                 .unbind()
                 .bind(gc.nogc());
@@ -513,7 +513,7 @@ pub(crate) fn typed_array_set_element<O: Viewable>(
             v.into_numeric()
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
-            let v = to_number(agent, value, gc.reborrow())?
+            let v = to_number(agent, value.unbind(), gc.reborrow())?
                 .into_numeric()
                 .unbind()
                 .bind(gc.nogc());
@@ -1090,7 +1090,7 @@ pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
             agent,
             o.get(agent).into_object(),
             pk,
-            k_value,
+            k_value.unbind(),
             true,
             gc.reborrow(),
         )?;

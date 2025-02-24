@@ -90,7 +90,7 @@ impl SymbolPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let symb = this_symbol_value(agent, this_value, gc.nogc())?;
-        Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value())
+        Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value().unbind())
     }
 
     fn value_of<'gc>(
@@ -99,7 +99,7 @@ impl SymbolPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value())
+        this_symbol_value(agent, this_value, gc.nogc()).map(|res| res.into_value().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -179,7 +179,7 @@ fn this_symbol_value<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<Symbol<'a>> {
     match value {
-        Value::Symbol(symbol) => Ok(symbol),
+        Value::Symbol(symbol) => Ok(symbol.unbind()),
         Value::PrimitiveObject(object) if object.is_symbol_object(agent) => {
             let s: Symbol = agent[object].data.try_into().unwrap();
             Ok(s)

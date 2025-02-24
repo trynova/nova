@@ -94,7 +94,7 @@ impl SymbolConstructor {
         arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Ok(arguments.get(0))
+        Ok(arguments.get(0).unbind())
     }
 
     fn key_for<'gc>(
@@ -103,7 +103,7 @@ impl SymbolConstructor {
         arguments: ArgumentsList,
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Ok(arguments.get(0))
+        Ok(arguments.get(0).unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
