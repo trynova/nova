@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
-        run: rustup update nightly
+        uses: dtolnay/rust-toolchain@nightly
       - name: Install Dylint
         run: cargo install cargo-dylint dylint-link
       - name: Spell check
@@ -43,7 +43,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
-        run: rustup update stable
+        uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build
       - name: Test
