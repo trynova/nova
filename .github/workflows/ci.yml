@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy, llvm-tools-preview, rustc-dev
       - name: Install Dylint
         run: cargo install cargo-dylint dylint-link
       - name: Spell check
