@@ -238,8 +238,8 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
 /// The default implementation of HostResizeArrayBuffer is to return
 /// NormalCompletion(UNHANDLED).
 pub(crate) fn host_resize_array_buffer(
-    _buffer: ArrayBuffer,
     _agent: &mut Agent,
+    _buffer: ArrayBuffer,
     _new_byte_length: u64,
 ) -> bool {
     false

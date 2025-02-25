@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["nova_cli", "nova_vm", "small_string", "tests"]
+exclude = ["nova_lint"]
 
 [workspace.package]
 edition = "2021"
@@ -45,6 +46,9 @@ sonic-rs = "0.3.17"
 unicode-normalization = "0.1.24"
 wtf8 = "0.1"
 fast_float = "0.2.0"
+
+[workspace.metadata.dylint]
+libraries = [{ path = "nova_lint" }]
 
 [profile.release]
 lto = true

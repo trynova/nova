@@ -1,0 +1,28 @@
+[package]
+name = "nova_lint"
+repository = "https://github.com/trynova/nova/tree/main/nova_lint"
+description = "A collection of custom lints to ease the development and maintenance of the Nova project."
+edition = "2021"
+version = "0.1.0"
+license = "MPL-2.0"
+homepage = "https://trynova.dev"
+authors = ["The Nova Team"]
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[[example]]
+name = "agent_comes_first"
+path = "ui/agent_comes_first.rs"
+
+[dependencies]
+clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "ff4a26d442bead94a4c96fb1de967374bc4fbd8e" }
+dylint_linting = "4.0.0"
+
+[dev-dependencies]
+dylint_testing = "4.0.0"
+nova_vm = { path = "../nova_vm" }
+
+[package.metadata.rust-analyzer]
+rustc_private = true
