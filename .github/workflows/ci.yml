@@ -27,7 +27,7 @@ jobs:
         run: cargo fmt --check
       - name: Clippy
         run: >
-          cargo clippy --all-targets --all-features
+          cargo +nightly clippy --all-targets --all-features
           -- -D warnings
       - name: Dylint tests
         working-directory: nova_lint
