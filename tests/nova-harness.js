@@ -16,8 +16,22 @@
 // to `$262.global` (needed for old tests, since `globalThis` was only added in
 // ES2020).
 
-globalThis.$262 = {
-    global: globalThis,
-    detachArrayBuffer: __nova__.detachArrayBuffer,
-};
-delete globalThis.__nova__;
+// This function must be completely independent of the current realm, and it
+// should do everything through the `global` argument. This makes sure that
+// everything works correctly in realms created from `$262.createRealm()`.
+// It's also declared with let to make sure it doesn't pollute the global.
+let buildHarness = (global) => {
+    const novaObj = global.__nova__;
+    delete global.__nova__;
+
+    global.$262 = global.Object();
+    global.$262.global = global;
+    global.$262.detachArrayBuffer = novaObj.detachArrayBuffer;
+    global.$262.createRealm = () => {
+        return buildHarness(novaObj.createRealm());
+    };
+    global.$262.evalScript = global.eval;
+    return global.$262;
+}
+
+buildHarness(globalThis);
