@@ -825,6 +825,10 @@ impl TypedArrayPrototype {
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
                 typed_array_length::<u16>(agent, &ta_record, gc.nogc())
             }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                typed_array_length::<f16>(agent, &ta_record, gc.nogc())
+            }
             TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_)
             | TypedArray::Float32Array(_) => {
