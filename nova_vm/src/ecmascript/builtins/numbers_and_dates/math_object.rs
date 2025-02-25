@@ -973,11 +973,11 @@ impl MathObject {
         }
 
         // 7. Return an implementation-approximated Number value representing the square root of the sum of squares of the mathematical values of the elements of coerced.
-        return Ok(Value::from_f64(
+        Ok(Value::from_f64(
             agent,
             sum_of_squares.sqrt(),
             gc.into_nogc(),
-        ));
+        ))
     }
 
     fn imul(

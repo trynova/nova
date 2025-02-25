@@ -136,7 +136,7 @@ impl TryFrom<Value> for HeapPrimitive {
     }
 }
 
-impl<'a> IntoValue for Primitive<'a> {
+impl IntoValue for Primitive<'_> {
     fn into_value(self) -> super::Value {
         match self {
             Primitive::Undefined => Value::Undefined,

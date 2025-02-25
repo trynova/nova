@@ -78,7 +78,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     }
 }
 
-impl<'agent, P, Pr> OrdinaryObjectBuilder<'agent, P, Pr> {
+impl<P, Pr> OrdinaryObjectBuilder<'_, P, Pr> {
     #[must_use]
     pub fn with_extensible(self, extensible: bool) -> Self {
         Self {
@@ -126,7 +126,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
     }
 }
 
-impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
+impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
     #[must_use]
     pub fn with_data_property(mut self, key: PropertyKey<'static>, value: Value) -> Self {
         self.properties.0.push((key, None, Some(value)));
@@ -260,7 +260,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, CreatorProperties> {
     }
 }
 
-impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
+impl OrdinaryObjectBuilder<'_, NoPrototype, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
@@ -280,9 +280,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, NoProperties> {
     }
 }
 
-impl<'agent, T: IntoObject<'static>>
-    OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, NoProperties>
-{
+impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, NoProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         let (keys, values) = self.agent.heap.elements.create_with_stuff(vec![]);
         let slot = self
@@ -302,7 +300,7 @@ impl<'agent, T: IntoObject<'static>>
     }
 }
 
-impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
+impl OrdinaryObjectBuilder<'_, NoPrototype, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {
@@ -338,9 +336,7 @@ impl<'agent> OrdinaryObjectBuilder<'agent, NoPrototype, CreatorProperties> {
     }
 }
 
-impl<'agent, T: IntoObject<'static>>
-    OrdinaryObjectBuilder<'agent, CreatorPrototype<T>, CreatorProperties>
-{
+impl<T: IntoObject<'static>> OrdinaryObjectBuilder<'_, CreatorPrototype<T>, CreatorProperties> {
     pub fn build(self) -> OrdinaryObject<'static> {
         assert_eq!(self.properties.0.len(), self.properties.0.capacity());
         {

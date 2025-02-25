@@ -30,7 +30,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Map<'a>(pub(crate) MapIndex<'a>);
 
-impl<'a> Map<'a> {
+impl Map<'_> {
     /// Unbind this Map from its current lifetime. This is necessary to use
     /// the Map as a parameter in a call that can perform garbage
     /// collection.
