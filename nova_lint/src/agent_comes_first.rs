@@ -84,13 +84,12 @@ fn is_param_ty(ty: &Ty) -> bool {
 }
 
 fn is_agent_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
-    match ty.kind() {
+    match ty.peel_refs().kind() {
         TyKind::Adt(def, _) => match_def_path(
             cx,
             def.did(),
             &["nova_vm", "ecmascript", "execution", "agent", "Agent"],
         ),
-        TyKind::Ref(_, ty, _) => is_agent_ty(cx, ty),
         _ => false,
     }
 }

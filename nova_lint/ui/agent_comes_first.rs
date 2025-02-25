@@ -78,6 +78,17 @@ impl Test {
   fn test_self_and_generic_can_come_before_agent<T>(&self, foo: T, agent: Agent) {
     unimplemented!()
   }
+
+  // TODO: Support `Self` as a leading parameter before `Agent`
+  // fn test_uppercase_self(me: Self, agent: Agent) {
+  //   unimplemented!()
+  // }
+  // fn test_optional_uppercase_self(me: Option<Self>, agent: Agent) {
+  //   unimplemented!()
+  // }
+  // fn test_optional_borrowed_uppercase_self(me: Option<&Self>, agent: Agent) {
+  //   unimplemented!()
+  // }
 }
 
 fn main() {
