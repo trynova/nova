@@ -20,6 +20,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
+          toolchain: nightly-2024-11-28
           components: rustfmt, clippy, llvm-tools-preview, rustc-dev
       - name: Install Dylint
         run: cargo install cargo-dylint dylint-link
