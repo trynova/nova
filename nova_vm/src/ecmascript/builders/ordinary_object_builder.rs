@@ -148,7 +148,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'static>>,
         ),
     ) -> Self {
         let builder = PropertyBuilder::new(self.agent);

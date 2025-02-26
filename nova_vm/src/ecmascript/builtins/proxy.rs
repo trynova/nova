@@ -260,6 +260,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         prototype: Option<Object>,
         mut gc: GcScope,
     ) -> JsResult<bool> {
+        let nogc = gc.nogc();
+        let mut prototype = prototype.map(|p| p.bind(nogc));
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -267,18 +269,20 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
-        let scoped_target = target.scope(agent, gc.nogc());
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
+        let scoped_target = target.scope(agent, nogc);
+        let mut scoped_prototype = None;
         // 5. Let trap be ? GetMethod(handler, "setPrototypeOf").
         let trap = if let TryResult::Continue(trap) = try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.setPrototypeOf.into(),
-            gc.nogc(),
+            nogc,
         ) {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
+            scoped_prototype = prototype.map(|p| p.scope(agent, nogc));
+            let scoped_handler = handler.scope(agent, nogc);
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -290,21 +294,32 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             let trap = trap.map(|t| t.bind(gc));
             target = scoped_target.get(agent).bind(gc);
             handler = scoped_handler.get(agent).bind(gc);
+            prototype = scoped_prototype.as_ref().map(|p| p.get(agent).bind(gc));
             trap
         };
         // 6. If trap is undefined, then
         let Some(trap) = trap else {
             // a. Return ? target.[[SetPrototypeOf]](V).
-            return target
-                .unbind()
-                .internal_set_prototype_of(agent, prototype, gc);
+            return target.unbind().internal_set_prototype_of(
+                agent,
+                prototype.map(|p| p.unbind()),
+                gc,
+            );
+        };
+        let scoped_prototype = if scoped_prototype.is_none() && prototype.is_some() {
+            prototype.map(|p| p.scope(agent, gc.nogc()))
+        } else {
+            scoped_prototype
         };
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, V »)).
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
-            Some(ArgumentsList(&[target.into(), prototype.into()])),
+            handler.into_value().unbind(),
+            Some(ArgumentsList(&[
+                target.into_value().unbind(),
+                prototype.map_or(Value::Null, |p| p.into_value().unbind()),
+            ])),
             gc.reborrow(),
         )?;
         let boolean_trap_result = to_boolean(agent, argument);
@@ -323,7 +338,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .get(agent)
             .internal_get_prototype_of(agent, gc.reborrow())?;
         // 12. If SameValue(V, targetProto) is false, throw a TypeError exception.
-        if prototype != target_proto {
+        if scoped_prototype.map(|p| p.get(agent)) != target_proto {
             return  Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "'setPrototypeOf' on proxy: trap returned truish for setting a new prototype on the non-extensible proxy target",
@@ -496,6 +511,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         property_key: PropertyKey,
         mut gc: GcScope,
     ) -> JsResult<Option<PropertyDescriptor>> {
+        let nogc = gc.nogc();
+        let mut property_key = property_key.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -503,18 +520,20 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
-        let scoped_target = target.scope(agent, gc.nogc());
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
+        let scoped_target = target.scope(agent, nogc);
+        let mut scoped_property_key = None;
         // 5. Let trap be ? GetMethod(handler, "getOwnPropertyDescriptor").
         let trap = if let TryResult::Continue(trap) = try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.getOwnPropertyDescriptor.into(),
-            gc.nogc(),
+            nogc,
         ) {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, nogc);
+            scoped_property_key = Some(property_key.scope(agent, nogc));
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -526,6 +545,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             let trap = trap.map(|f| f.bind(gc));
             handler = scoped_handler.get(agent).bind(gc);
             target = scoped_target.get(agent).bind(gc);
+            property_key = scoped_property_key.as_ref().unwrap().get(agent).bind(gc);
             trap
         };
         // 6. If trap is undefined, then
@@ -536,30 +556,33 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 .internal_get_own_property(agent, property_key.unbind(), gc);
         };
         // 7. Let trapResultObj be ? Call(trap, handler, « target, P »).
-
+        let scoped_property_key =
+            scoped_property_key.unwrap_or_else(|| property_key.scope(agent, gc.nogc()));
         let p = property_key.convert_to_value(agent, gc.nogc());
         let trap_result_obj = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
-            Some(ArgumentsList(&[target.unbind().into(), p.unbind()])),
+            handler.into_value().unbind(),
+            Some(ArgumentsList(&[target.unbind().into_value(), p.unbind()])),
             gc.reborrow(),
         )?;
         // 8. If trapResultObj is not an Object and trapResultObj is not undefined, throw a TypeError exception.
-        if !trap_result_obj.is_object() && !trap_result_obj.is_undefined() {
+        let trap_result_obj_is_undefined = trap_result_obj.is_undefined();
+        if !trap_result_obj.is_object() && !trap_result_obj_is_undefined {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "proxy [[GetOwnProperty]] must return an object or undefined",
                 gc.nogc(),
             ));
         };
+        let trap_result_obj = trap_result_obj.unbind().scope(agent, gc.nogc());
         // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
         let target_desc = scoped_target
             .get(agent)
             .unbind()
-            .internal_get_own_property(agent, property_key.unbind(), gc.reborrow())?;
+            .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())?;
         // 10. If trapResultObj is undefined, then
-        if trap_result_obj.is_undefined() {
+        if trap_result_obj_is_undefined {
             if let Some(target_desc) = target_desc {
                 // b. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
                 if target_desc.configurable == Some(false) {
@@ -567,7 +590,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                         ExceptionType::TypeError,
                         format!(
                             "proxy can't report a non-configurable own property '{}' as non-existent.",
-                            property_key.as_display(agent)
+                            scoped_property_key.get(agent).as_display(agent)
                         ),
                         gc.nogc(),
                     ));
@@ -585,7 +608,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     ExceptionType::TypeError,
                     format!(
                         "proxy can't report a extensibleTarget own property '{}' as non-existent.",
-                        property_key.as_display(agent)
+                        scoped_property_key.get(agent).as_display(agent)
                     ),
                     gc.nogc(),
                 ));
@@ -599,7 +622,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 12. Let resultDesc be ? ToPropertyDescriptor(trapResultObj).
         let mut result_desc = PropertyDescriptor::to_property_descriptor(
             agent,
-            trap_result_obj.unbind(),
+            trap_result_obj.get(agent),
             gc.reborrow(),
         )?;
         // 13. Perform CompletePropertyDescriptor(resultDesc).
@@ -632,7 +655,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     ExceptionType::TypeError,
                     format!(
                         "proxy can't report a non-existent property '{}' as non-configurable",
-                        property_key.as_display(agent)
+                        scoped_property_key.get(agent).as_display(agent)
                     ),
                     gc.nogc(),
                 ));
@@ -648,7 +671,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                         ExceptionType::TypeError,
                         format!(
                             "proxy can't report existing writable property '{}' as non-writable",
-                            property_key.as_display(agent)
+                            scoped_property_key.get(agent).as_display(agent)
                         ),
                         gc.nogc(),
                     ));
@@ -676,50 +699,33 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         property_descriptor: PropertyDescriptor,
         mut gc: GcScope,
     ) -> JsResult<bool> {
+        let nogc = gc.nogc();
+        let property_key = property_key.bind(nogc).scope(agent, nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
         // 4. Assert: handler is an Object.
-        let NonRevokedProxy {
-            mut target,
-            mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
-        let mut scoped_target = None;
+        let NonRevokedProxy { target, handler } = validate_non_revoked_proxy(agent, self, nogc)?;
+        let scoped_target = target.scope(agent, nogc);
+        let scoped_handler = handler.scope(agent, nogc);
         // 5. Let trap be ? GetMethod(handler, "defineProperty").
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
+        let trap = get_object_method(
             agent,
-            handler,
+            handler.unbind(),
             BUILTIN_STRING_MEMORY.defineProperty.into(),
-            gc.nogc(),
-        ) {
-            trap?
-        } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
-            scoped_target = Some(target.scope(agent, gc.nogc()));
-            let trap = get_object_method(
-                agent,
-                handler.unbind(),
-                BUILTIN_STRING_MEMORY.defineProperty.into(),
-                gc.reborrow(),
-            )?
-            .map(Function::unbind);
-            let gc = gc.nogc();
-            let trap = trap.map(|f| f.bind(gc));
-            handler = scoped_handler.get(agent).bind(gc);
-            target = scoped_target.as_ref().unwrap().get(agent).bind(gc);
-            trap
-        };
+            gc.reborrow(),
+        )?;
         // 6. If trap is undefined, then
         let Some(trap) = trap else {
             // a. Return ? target.[[DefineOwnProperty]](P, Desc).
-            return target.unbind().internal_define_own_property(
+            return scoped_target.get(agent).internal_define_own_property(
                 agent,
-                property_key.unbind(),
+                property_key.get(agent),
                 property_descriptor,
                 gc,
             );
         };
-        let scoped_target = scoped_target.unwrap_or_else(|| target.scope(agent, gc.nogc()));
+        let trap = trap.unbind().bind(gc.nogc());
         // 7. Let descObj be FromPropertyDescriptor(Desc).
         let desc_obj = PropertyDescriptor::from_property_descriptor(
             property_descriptor.clone().into(),
@@ -727,12 +733,16 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             gc.nogc(),
         );
         // 8. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, descObj »)).
-        let p = property_key.convert_to_value(agent, gc.nogc());
+        let p = property_key.get(agent).convert_to_value(agent, gc.nogc());
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
-            Some(ArgumentsList(&[target.into_value(), p, desc_obj.into()])),
+            scoped_handler.get(agent).into_value(),
+            Some(ArgumentsList(&[
+                scoped_target.get(agent).into_value(),
+                p.unbind(),
+                desc_obj.map_or(Value::Null, |d| d.into_value().unbind()),
+            ])),
             gc.reborrow(),
         )?;
         let boolean_trap_result = to_boolean(agent, argument);
@@ -743,7 +753,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 10. Let targetDesc be ? target.[[GetOwnProperty]](P).
         let target_desc = scoped_target.get(agent).internal_get_own_property(
             agent,
-            property_key.unbind(),
+            property_key.get(agent),
             gc.reborrow(),
         )?;
         // 11. Let extensibleTarget be ? IsExtensible(target).
@@ -759,7 +769,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     ExceptionType::TypeError,
                     format!(
                         "proxy can't define a new property '{}' on a non-extensible object",
-                        property_key.as_display(agent)
+                        property_key.get(agent).as_display(agent)
                     ),
                     gc,
                 ));
@@ -770,7 +780,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     ExceptionType::TypeError,
                     format!(
                         "proxy can't define a non-existent '{}' property as non-configurable",
-                        property_key.as_display(agent)
+                        property_key.get(agent).as_display(agent)
                     ),
                     gc,
                 ));
@@ -789,7 +799,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     ExceptionType::TypeError,
                     format!(
                         "proxy can't define an incompatible property descriptor ('{}', proxy can't report an existing non-configurable property as configurable)",
-                        property_key.as_display(agent)
+                        property_key.get(agent).as_display(agent)
                     ),
                     gc,
                 ));
@@ -802,7 +812,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                             ExceptionType::TypeError,
                             format!(
                                 "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing configurable property as non-configurable)",
-                                property_key.as_display(agent)
+                                property_key.get(agent).as_display(agent)
                             ),
                             gc,
                         ));
@@ -822,7 +832,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                                 ExceptionType::TypeError,
                                 format!(
                                     "proxy can't define an incompatible property descriptor ('{}', proxy can't define an existing non-configurable writable property as non-writable)",
-                                    property_key.as_display(agent)
+                                    property_key.get(agent).as_display(agent)
                                 ),
                                 gc,
                             ));
@@ -845,7 +855,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         property_key: PropertyKey,
         mut gc: GcScope,
     ) -> JsResult<bool> {
-        let mut property_key = property_key.bind(gc.nogc());
+        let nogc = gc.nogc();
+        let mut property_key = property_key.bind(nogc);
 
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -854,17 +865,17 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
 
         // 5. Let trap be ? GetMethod(handler, "has").
-        let scoped_target = target.scope(agent, gc.nogc());
-        let scoped_property_key = property_key.scope(agent, gc.nogc());
+        let scoped_target = target.scope(agent, nogc);
+        let scoped_property_key = property_key.scope(agent, nogc);
         let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.has.into(), gc.nogc())
+            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.has.into(), nogc)
         {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, nogc);
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -892,8 +903,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
-            Some(ArgumentsList(&[target.into_value(), p])),
+            handler.into_value().unbind(),
+            Some(ArgumentsList(&[target.into_value().unbind(), p.unbind()])),
             gc.reborrow(),
         )?;
         let boolean_trap_result = to_boolean(agent, argument);
@@ -901,13 +912,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 8. If booleanTrapResult is false, then
         if !boolean_trap_result {
             // a. Let targetDesc be ? target.[[GetOwnProperty]](P).
-            let target = scoped_target.get(agent).bind(gc.nogc());
-            let property_key = scoped_property_key.get(agent).bind(gc.nogc());
-            let target_desc = target.unbind().internal_get_own_property(
-                agent,
-                property_key.unbind(),
-                gc.reborrow(),
-            )?;
+            let target_desc = scoped_target
+                .get(agent)
+                .unbind()
+                .internal_get_own_property(agent, scoped_property_key.get(agent), gc.reborrow())?;
             //    b. If targetDesc is not undefined, then
             if let Some(target_desc) = target_desc {
                 //  i. If targetDesc.[[Configurable]] is false, throw a TypeError exception.
@@ -968,10 +976,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
-        mut receiver: Value,
+        receiver: Value,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let mut property_key = property_key.bind(gc.nogc());
+        let nogc = gc.nogc();
+        let mut property_key = property_key.bind(nogc);
+        let mut receiver = receiver.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -979,17 +989,17 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
         // 5. Let trap be ? GetMethod(handler, "get").
-        let scoped_target = target.scope(agent, gc.nogc());
-        let scoped_property_key = property_key.scope(agent, gc.nogc());
+        let scoped_target = target.scope(agent, nogc);
+        let scoped_property_key = property_key.scope(agent, nogc);
         let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.get.into(), gc.nogc())
+            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.get.into(), nogc)
         {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
-            let scoped_receiver = receiver.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, nogc);
+            let scoped_receiver = receiver.scope(agent, nogc);
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -1008,23 +1018,28 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 6. If trap is undefined, then
         let Some(trap) = trap else {
             // a. Return ? target.[[Get]](P, Receiver).
-            return target
-                .unbind()
-                .internal_get(agent, property_key.unbind(), receiver, gc);
+            return target.unbind().internal_get(
+                agent,
+                property_key.unbind(),
+                receiver.unbind(),
+                gc,
+            );
         };
         // 7. Let trapResult be ? Call(trap, handler, « target, P, Receiver »).
         let p = property_key.convert_to_value(agent, gc.nogc());
         let trap_result = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[
                 target.into_value().unbind(),
                 p.unbind(),
                 receiver.unbind(),
             ])),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .scope(agent, gc.nogc());
         // 8. Let targetDesc be ? target.[[GetOwnProperty]](P).
         let target = scoped_target.get(agent).bind(gc.nogc());
         let property_key = scoped_property_key.get(agent).bind(gc.nogc());
@@ -1033,6 +1048,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             property_key.unbind(),
             gc.reborrow(),
         )?;
+        let trap_result = trap_result.get(agent).bind(gc.nogc());
         // 9. If targetDesc is not undefined and targetDesc.[[Configurable]] is false, then
         if let Some(target_desc) = target_desc {
             if target_desc.configurable == Some(false) {
@@ -1088,10 +1104,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         agent: &mut Agent,
         property_key: PropertyKey,
         value: Value,
-        mut receiver: Value,
+        receiver: Value,
         mut gc: GcScope,
     ) -> JsResult<bool> {
-        let mut property_key = property_key.bind(gc.nogc());
+        let nogc = gc.nogc();
+        let mut property_key = property_key.bind(nogc);
+        let mut value = value.bind(nogc);
+        let mut receiver = receiver.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -1099,17 +1118,18 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
         // 5. Let trap be ? GetMethod(handler, "set").
-        let scoped_target = target.scope(agent, gc.nogc());
-        let scoped_property_key = property_key.scope(agent, gc.nogc());
+        let scoped_target = target.scope(agent, nogc);
+        let scoped_property_key = property_key.scope(agent, nogc);
         let trap = if let TryResult::Continue(trap) =
-            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.set.into(), gc.nogc())
+            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.set.into(), nogc)
         {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
-            let scoped_receiver = receiver.scope(agent, gc.nogc());
+            let scoped_value = value.scope(agent, nogc);
+            let scoped_handler = handler.scope(agent, nogc);
+            let scoped_receiver = receiver.scope(agent, nogc);
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -1119,6 +1139,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .map(Function::unbind);
             let gc = gc.nogc();
             let trap = trap.map(|f| f.bind(gc));
+            value = scoped_value.get(agent).bind(gc);
             handler = scoped_handler.get(agent).bind(gc);
             receiver = scoped_receiver.get(agent).bind(gc);
             target = scoped_target.get(agent).bind(gc);
@@ -1128,16 +1149,21 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 6. If trap is undefined, then
         let Some(trap) = trap else {
             // a. Return ? target.[[Set]](P, V, Receiver).
-            return target
-                .unbind()
-                .internal_set(agent, property_key.unbind(), value, receiver, gc);
+            return target.unbind().internal_set(
+                agent,
+                property_key.unbind(),
+                value.unbind(),
+                receiver.unbind(),
+                gc,
+            );
         };
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P, V, Receiver »)).
+        let scoped_value = value.scope(agent, gc.nogc());
         let p = property_key.convert_to_value(agent, gc.nogc());
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[
                 target.into_value().unbind(),
                 p.unbind(),
@@ -1174,7 +1200,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 //    throw a TypeError exception.
                 if target_desc.is_data_descriptor()
                     && target_desc.writable == Some(false)
-                    && !same_value(agent, value, target_desc.value.unwrap_or(Value::Undefined))
+                    && !same_value(
+                        agent,
+                        scoped_value.get(agent),
+                        target_desc.value.unwrap_or(Value::Undefined),
+                    )
                     || target_desc.is_accessor_descriptor() && target_desc.set.is_none()
                 {
                     return Err(agent.throw_exception_with_static_message(
@@ -1196,9 +1226,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     fn internal_delete(
         self,
         agent: &mut Agent,
-        mut property_key: PropertyKey,
+        property_key: PropertyKey,
         mut gc: GcScope,
     ) -> JsResult<bool> {
+        let nogc = gc.nogc();
+        let mut property_key = property_key.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -1206,20 +1238,21 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
         let mut scoped_target = None;
+        let mut scoped_property_key = None;
         // 5. Let trap be ? GetMethod(handler, "deleteProperty").
         let trap = if let TryResult::Continue(trap) = try_get_object_method(
             agent,
             handler,
             BUILTIN_STRING_MEMORY.deleteProperty.into(),
-            gc.nogc(),
+            nogc,
         ) {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
-            scoped_target = Some(target.scope(agent, gc.nogc()));
-            let scoped_property_key = property_key.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, nogc);
+            scoped_target = Some(target.scope(agent, nogc));
+            scoped_property_key = Some(property_key.scope(agent, nogc));
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -1231,7 +1264,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             let trap = trap.map(|f| f.bind(gc));
             handler = scoped_handler.get(agent).bind(gc);
             target = scoped_target.as_ref().unwrap().get(agent).bind(gc);
-            property_key = scoped_property_key.get(agent);
+            property_key = scoped_property_key.as_ref().unwrap().get(agent).bind(gc);
             trap
         };
         // 6. If trap is undefined, then
@@ -1243,6 +1276,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         };
         let scoped_target = scoped_target.unwrap_or_else(|| target.scope(agent, gc.nogc()));
         // 7. Let booleanTrapResult be ToBoolean(? Call(trap, handler, « target, P »)).
+        let scoped_property_key =
+            scoped_property_key.unwrap_or_else(|| property_key.scope(agent, gc.nogc()));
         let p = property_key.convert_to_value(agent, gc.nogc());
         let argument = call_function(
             agent,
@@ -1259,7 +1294,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         // 9. Let targetDesc be ? target.[[GetOwnProperty]](P).
         let target_desc = scoped_target.get(agent).internal_get_own_property(
             agent,
-            property_key.unbind(),
+            scoped_property_key.get(agent),
             gc.reborrow(),
         )?;
         // 10. If targetDesc is undefined, return true.
@@ -1272,7 +1307,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 ExceptionType::TypeError,
                 format!(
                     "property '{}' is non-configurable and can't be deleted",
-                    property_key.as_display(agent)
+                    scoped_property_key.get(agent).as_display(agent)
                 ),
                 gc.into_nogc(),
             ));
@@ -1285,7 +1320,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 ExceptionType::TypeError,
                 format!(
                     "proxy can't delete property '{}' on a non-extensible object",
-                    property_key.as_display(agent)
+                    scoped_property_key.get(agent).as_display(agent)
                 ),
                 gc.into_nogc(),
             ));
@@ -1499,8 +1534,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let this_argument = arguments.get(1);
-        let arguments_list = arguments.get(2);
+        let nogc = gc.nogc();
+        let mut this_argument = arguments.get(1).bind(nogc);
+        let mut arguments_list = arguments.get(2).bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -1508,18 +1544,17 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             mut target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
         // 5. Let trap be ? GetMethod(handler, "apply").
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
-            agent,
-            handler,
-            BUILTIN_STRING_MEMORY.apply.into(),
-            gc.nogc(),
-        ) {
+        let trap = if let TryResult::Continue(trap) =
+            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.apply.into(), nogc)
+        {
             trap?
         } else {
-            let scoped_handler = handler.scope(agent, gc.nogc());
-            let scoped_target = target.scope(agent, gc.nogc());
+            let scoped_handler = handler.scope(agent, nogc);
+            let scoped_target = target.scope(agent, nogc);
+            let scoped_this_argument = this_argument.scope(agent, nogc);
+            let scoped_arguments_list = arguments_list.scope(agent, nogc);
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -1531,6 +1566,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             let trap = trap.map(|f| f.bind(gc));
             handler = scoped_handler.get(agent).bind(gc);
             target = scoped_target.get(agent).bind(gc);
+            this_argument = scoped_this_argument.get(agent).bind(gc);
+            arguments_list = scoped_arguments_list.get(agent).bind(gc);
             trap
         };
         // 6. If trap is undefined, then
@@ -1539,7 +1576,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return call(
                 agent,
                 target.into_value().unbind(),
-                this_argument,
+                this_argument.unbind(),
                 Some(ArgumentsList(&[arguments_list.unbind()])),
                 gc,
             );
@@ -1567,6 +1604,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         new_target: Function,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Object<'gc>> {
+        let nogc = gc.nogc();
+        let mut new_target = new_target.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 4. Let handler be O.[[ProxyHandler]].
@@ -1574,20 +1613,18 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let NonRevokedProxy {
             target,
             mut handler,
-        } = validate_non_revoked_proxy(agent, self, gc.nogc())?;
+        } = validate_non_revoked_proxy(agent, self, nogc)?;
         // 3. Assert: IsConstructor(target) is true.
         let mut target = is_constructor(agent, target).unwrap();
         // 6. Let trap be ? GetMethod(handler, "construct").
-        let trap = if let TryResult::Continue(trap) = try_get_object_method(
-            agent,
-            handler,
-            BUILTIN_STRING_MEMORY.construct.into(),
-            gc.nogc(),
-        ) {
+        let trap = if let TryResult::Continue(trap) =
+            try_get_object_method(agent, handler, BUILTIN_STRING_MEMORY.construct.into(), nogc)
+        {
             trap?
         } else {
-            let scoped_target = target.scope(agent, gc.nogc());
-            let scoped_handler = handler.scope(agent, gc.nogc());
+            let scoped_new_target = new_target.scope(agent, nogc);
+            let scoped_target = target.scope(agent, nogc);
+            let scoped_handler = handler.scope(agent, nogc);
             let trap = get_object_method(
                 agent,
                 handler.unbind(),
@@ -1597,6 +1634,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             .map(Function::unbind);
             let gc = gc.nogc();
             let trap = trap.map(|f| f.bind(gc));
+            new_target = scoped_new_target.get(agent).bind(gc);
             target = scoped_target.get(agent).bind(gc);
             handler = scoped_handler.get(agent).bind(gc);
             trap
@@ -1608,12 +1646,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 agent,
                 target.unbind(),
                 Some(arguments_list),
-                Some(new_target),
+                Some(new_target.unbind()),
                 gc,
             );
         };
         // 8. Let argArray be CreateArrayFromList(argumentsList).
-        let arg_array = create_array_from_list(agent, arguments_list.0, gc.nogc());
+        let arg_array = create_array_from_list(agent, &arguments_list, gc.nogc());
         // 9. Let newObj be ? Call(trap, handler, « target, argArray, newTarget »).
         let new_obj = call_function(
             agent,

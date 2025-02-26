@@ -324,7 +324,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     pub fn with_data_property(
         self,
         key: PropertyKey<'static>,
-        value: Value,
+        value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
@@ -364,7 +364,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
@@ -407,7 +407,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     pub fn with_data_property(
         mut self,
         key: PropertyKey<'static>,
-        value: Value,
+        value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         self.properties.0.push((key, None, Some(value.unbind())));
         BuiltinFunctionBuilder {
@@ -431,7 +431,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         let builder = PropertyBuilder::new(self.agent);
