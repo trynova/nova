@@ -33,7 +33,7 @@ pub(crate) fn script_lexically_declared_names<'a, 'b: 'a>(
     script
         .body
         .top_level_lexically_declared_names(&mut |identifier| {
-            lexically_declared_names.push(identifier.name.clone());
+            lexically_declared_names.push(identifier.name);
         });
     // NOTE 1
     // At the top level of a Script, function declarations are treated like var declarations rather than like lexical declarations.
@@ -52,7 +52,7 @@ pub(crate) fn module_lexically_declared_names<'a>(script: &'a Program<'a>) -> Ve
     // ModuleItem : StatementListItem
     // 1. Return LexicallyDeclaredNames of StatementListItem.
     script.body.lexically_declared_names(&mut |identifier| {
-        lexically_declared_names.push(identifier.name.clone());
+        lexically_declared_names.push(identifier.name);
     });
 
     // NOTE 3
@@ -74,7 +74,7 @@ pub(crate) fn function_body_lexically_declared_names<'a>(
     // 1. Return the TopLevelLexicallyDeclaredNames of StatementList.
     body.statements
         .top_level_lexically_declared_names(&mut |identifier| {
-            lexically_declared_names.push(identifier.name.clone());
+            lexically_declared_names.push(identifier.name);
         });
     lexically_declared_names
 }
@@ -497,7 +497,7 @@ pub(crate) fn script_var_declared_names<'a>(script: &'a Program<'a>) -> Vec<Atom
     // ScriptBody : StatementList
     // 1. Return TopLevelVarDeclaredNames of StatementList.
     script.body.top_level_var_declared_names(&mut |identifier| {
-        var_declared_names.push(identifier.name.clone());
+        var_declared_names.push(identifier.name);
     });
     // NOTE 1
     // At the top level of a Script, function declarations are treated like var declarations rather than like lexical declarations.
@@ -511,7 +511,7 @@ pub(crate) fn module_var_declared_names<'a>(module: &Program<'a>) -> Vec<Atom<'a
     // 2. Let names2 be VarDeclaredNames of ModuleItem.
     // 3. Return the list-concatenation of names1 and names2.
     module.body.var_declared_names(&mut |identifier| {
-        var_declared_names.push(identifier.name.clone());
+        var_declared_names.push(identifier.name);
     });
     var_declared_names
 }
@@ -530,7 +530,7 @@ pub(crate) fn function_body_var_declared_names<'a>(
     function
         .statements
         .top_level_var_declared_names(&mut |identifier| {
-            var_declared_names.push(identifier.name.clone());
+            var_declared_names.push(identifier.name);
         });
     var_declared_names
 }
@@ -546,7 +546,7 @@ pub(crate) fn class_static_block_var_declared_names<'a>(
     static_block
         .body
         .top_level_var_declared_names(&mut |identifier| {
-            var_declared_names.push(identifier.name.clone());
+            var_declared_names.push(identifier.name);
         });
     var_declared_names
 }

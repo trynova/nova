@@ -675,7 +675,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             if let VarScopedDeclaration::Function(d) = d {
                 // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
                 // ii. Let fn be the sole element of the BoundNames of d.
-                let f_name = d.id.as_ref().unwrap().name.clone();
+                let f_name = d.id.as_ref().unwrap().name;
                 // iii. If functionNames does not contain fn, then
                 //   1. Insert fn as the first element of functionNames.
                 //   2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.

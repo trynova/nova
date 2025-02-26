@@ -239,7 +239,7 @@ pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
     agent: &'c Agent,
 }
 
-impl<'a, 'b, 'c> core::fmt::Display for DisplayablePropertyKey<'a, 'b, 'c> {
+impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.key {
             PropertyKey::Integer(data) => data.into_i64().fmt(f),

@@ -567,7 +567,7 @@ pub(crate) enum PrimitiveObjectData {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl<'a> TryFrom<PrimitiveObjectData> for BigInt<'a> {
+impl TryFrom<PrimitiveObjectData> for BigInt<'_> {
     type Error = ();
 
     fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {

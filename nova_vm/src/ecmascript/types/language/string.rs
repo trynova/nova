@@ -302,8 +302,7 @@ impl<'a> String<'a> {
 
     pub const fn from_small_string(message: &'static str) -> String<'static> {
         assert!(
-            message.len() < 8
-                && (message.is_empty() || message.as_bytes()[message.as_bytes().len() - 1] != 0)
+            message.len() < 8 && (message.is_empty() || message.as_bytes()[message.len() - 1] != 0)
         );
         String::SmallString(SmallString::from_str_unchecked(message))
     }

@@ -242,7 +242,7 @@ impl<'agent, K, D> PropertyBuilder<'agent, K, D> {
     }
 }
 
-impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorValue> {
+impl PropertyBuilder<'_, CreatorKey, CreatorValue> {
     pub fn build(
         self,
     ) -> (
@@ -258,7 +258,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorValue> {
     }
 }
 
-impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorReadOnlyValue> {
+impl PropertyBuilder<'_, CreatorKey, CreatorReadOnlyValue> {
     pub fn build(
         self,
     ) -> (
@@ -274,7 +274,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorReadOnlyValue> {
     }
 }
 
-impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetAccessor> {
+impl PropertyBuilder<'_, CreatorKey, CreatorGetAccessor> {
     pub fn build(
         self,
     ) -> (
@@ -294,7 +294,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetAccessor> {
     }
 }
 
-impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorSetAccess> {
+impl PropertyBuilder<'_, CreatorKey, CreatorSetAccess> {
     pub fn build(
         self,
     ) -> (
@@ -314,7 +314,7 @@ impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorSetAccess> {
     }
 }
 
-impl<'agent> PropertyBuilder<'agent, CreatorKey, CreatorGetSetAccessor> {
+impl PropertyBuilder<'_, CreatorKey, CreatorGetSetAccessor> {
     pub fn build(
         self,
     ) -> (

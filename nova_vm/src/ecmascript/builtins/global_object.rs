@@ -487,11 +487,11 @@ pub fn eval_declaration_instantiation(
             let mut function_name = None;
             d.bound_names(&mut |identifier| {
                 assert!(function_name.is_none());
-                function_name = Some(identifier.name.clone());
+                function_name = Some(identifier.name);
             });
             let function_name = function_name.unwrap();
             // iv. If declaredFunctionNames does not contain fn, then
-            if declared_function_names.insert(function_name.clone()) {
+            if declared_function_names.insert(function_name) {
                 // 1. If varEnv is a Global Environment Record, then
                 if let EnvironmentIndex::Global(var_env) = var_env {
                     // a. Let fnDefinable be ? varEnv.CanDeclareGlobalFunction(fn).
@@ -534,7 +534,7 @@ pub fn eval_declaration_instantiation(
             // i. For each String vn of the BoundNames of d, do
             let mut bound_names = vec![];
             d.id.bound_names(&mut |identifier| {
-                bound_names.push(identifier.name.clone());
+                bound_names.push(identifier.name);
             });
             for vn_string in bound_names {
                 // 1. If declaredFunctionNames does not contain vn, then
@@ -625,7 +625,7 @@ pub fn eval_declaration_instantiation(
         let mut function_name = None;
         f.bound_names(&mut |identifier| {
             assert!(function_name.is_none());
-            function_name = Some(identifier.name.clone());
+            function_name = Some(identifier.name);
         });
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.

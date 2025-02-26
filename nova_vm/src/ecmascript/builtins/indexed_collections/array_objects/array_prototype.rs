@@ -1354,7 +1354,9 @@ impl ArrayPrototype {
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
         let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        assert_eq!(from_index.is_undefined(), n.into_i64() == 0);
+        if from_index.is_undefined() {
+            assert_eq!(n.into_i64(), 0);
+        }
         // 6. If n = +∞, return false.
         let n = if n.is_pos_infinity() {
             return Ok(false.into());
@@ -1477,7 +1479,9 @@ impl ArrayPrototype {
         // 4. Let n be ? ToIntegerOrInfinity(fromIndex).
         let n = to_integer_or_infinity(agent, from_index, gc.reborrow())?;
         // 5. Assert: If fromIndex is undefined, then n is 0.
-        assert_eq!(from_index.is_undefined(), n.into_i64() == 0);
+        if from_index.is_undefined() {
+            assert_eq!(n.into_i64(), 0);
+        }
         // 6. If n = +∞, return -1𝔽.
         let n = if n.is_pos_infinity() {
             return Ok((-1).into());
@@ -3621,7 +3625,6 @@ impl ArrayPrototype {
 /// The abstract operation IsConcatSpreadable takes argument O (an ECMAScript
 /// language value) and returns either a normal completion containing a Boolean
 /// or a throw completion.
-
 fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResult<bool> {
     // 1. If O is not an Object, return false.
     let Ok(o) = Object::try_from(o) else {
@@ -3833,7 +3836,7 @@ fn flatten_into_array(
         // iii. Let shouldFlatten be false.
         let mut should_flatten = false;
         // iv. If depth > 0, then
-        if depth.map_or(true, |depth| depth > 0) {
+        if depth.is_none_or(|depth| depth > 0) {
             // 1. Set shouldFlatten to ? IsArray(element).
             should_flatten = is_array(agent, element, gc.nogc())?;
         }

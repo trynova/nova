@@ -135,7 +135,7 @@ impl ElementsVector {
     /// An elements vector is simple if it contains no accessor descriptors.
     pub(crate) fn is_simple(&self, arena: &impl AsRef<ElementArrays>) -> bool {
         let backing_store = arena.as_ref().get_descriptors_and_slice(*self);
-        backing_store.0.map_or(true, |hashmap| {
+        backing_store.0.is_none_or(|hashmap| {
             !hashmap
                 .iter()
                 .any(|desc| desc.1.has_getter() || desc.1.has_setter())

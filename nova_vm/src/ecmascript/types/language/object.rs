@@ -81,12 +81,13 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
+            ordinary::ordinary_object_create_with_intrinsics,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
             ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
     },
     engine::{context::GcScope, rootable::HeapRootData, TryResult},
@@ -395,6 +396,15 @@ impl<'a> OrdinaryObject<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
+        let Object::Object(ordinary) =
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
+        else {
+            unreachable!()
+        };
+        ordinary
     }
 }
 

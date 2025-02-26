@@ -68,48 +68,48 @@ pub(crate) trait GetBaseIndexMut<'a, T: ?Sized> {
     fn get_base_index_mut(&mut self) -> &mut BaseIndex<'a, T>;
 }
 
-impl<'a, T: ?Sized> Debug for BaseIndex<'a, T> {
+impl<T: ?Sized> Debug for BaseIndex<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         assert!(self.0.get() != 0);
         (&self.0.get() - 1).fmt(f)
     }
 }
 
-impl<'a, T: ?Sized> Clone for BaseIndex<'a, T> {
+impl<T: ?Sized> Clone for BaseIndex<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'a, T: ?Sized> Copy for BaseIndex<'a, T> {}
+impl<T: ?Sized> Copy for BaseIndex<'_, T> {}
 
-impl<'a, T: ?Sized> PartialEq for BaseIndex<'a, T> {
+impl<T: ?Sized> PartialEq for BaseIndex<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl<'a, T: ?Sized> Eq for BaseIndex<'a, T> {}
+impl<T: ?Sized> Eq for BaseIndex<'_, T> {}
 
-impl<'a, T: ?Sized> PartialOrd for BaseIndex<'a, T> {
+impl<T: ?Sized> PartialOrd for BaseIndex<'_, T> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a, T: ?Sized> Ord for BaseIndex<'a, T> {
+impl<T: ?Sized> Ord for BaseIndex<'_, T> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.0.cmp(&other.0)
     }
 }
 
-impl<'a, T: ?Sized> Hash for BaseIndex<'a, T> {
+impl<T: ?Sized> Hash for BaseIndex<'_, T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.hash(state);
     }
 }
 
-impl<'a, T: ?Sized> BaseIndex<'a, T> {
+impl<T: ?Sized> BaseIndex<'_, T> {
     pub const fn into_index(self) -> usize {
         self.0.get() as usize - 1
     }
@@ -181,7 +181,7 @@ impl<'a, T: ?Sized> BaseIndex<'a, T> {
     }
 }
 
-impl<'a, T> Default for BaseIndex<'a, T> {
+impl<T> Default for BaseIndex<'_, T> {
     fn default() -> Self {
         Self::from_u32_index(0)
     }

@@ -29,7 +29,7 @@ use self::data::DateHeapData;
 #[repr(transparent)]
 pub struct Date<'a>(pub(crate) DateIndex<'a>);
 
-impl<'a> Date<'a> {
+impl Date<'_> {
     /// Unbind this Date from its current lifetime. This is necessary to use
     /// the Date as a parameter in a call that can perform garbage
     /// collection.
