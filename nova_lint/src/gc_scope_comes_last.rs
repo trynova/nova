@@ -15,16 +15,16 @@ dylint_linting::declare_late_lint! {
     /// The gc scope parameter should be passed as the last parameter of a
     /// function because it invalidates all values which refer to it, take
     /// for example the following code:
-    /// 
+    ///
     /// ```rust
     /// let data = data.bind(gc.nogc());
     /// call(agent, gc.reborrow(), data.unbind());
     /// ```
-    /// 
-    /// This wouldn't work beause `gc.reborrow()` invalidates data immediately,
-    /// meaning that when `data.unbind()` is being called the data is already
+    ///
+    /// This wouldn't work beause `gc.reborrow()` invalidates `data` immediately,
+    /// meaning that when `data.unbind()` is being called the `data` is already
     /// invalidated and illegal to use, leading to a borrow checker error.
-    /// 
+    ///
     /// ### Example
     ///
     /// ```rust

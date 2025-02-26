@@ -22,9 +22,10 @@ extern crate rustc_span;
 extern crate rustc_target;
 extern crate rustc_trait_selection;
 
-mod utils;
 mod agent_comes_first;
 mod gc_scope_comes_last;
+mod gc_scope_is_only_passed_by_value;
+mod utils;
 
 pub(crate) use utils::*;
 
@@ -32,6 +33,7 @@ pub(crate) use utils::*;
 pub fn register_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     agent_comes_first::register_lints(sess, lint_store);
     gc_scope_comes_last::register_lints(sess, lint_store);
+    gc_scope_is_only_passed_by_value::register_lints(sess, lint_store);
 }
 
 #[test]

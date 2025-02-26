@@ -1,0 +1,67 @@
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:22:52
+   |
+LL | fn test_borrowed_qualified_gc_scope_only(gc_scope: &nova_vm::engine::context::GcScope<'_, '_>) {
+   |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+   = note: `#[deny(gc_scope_is_only_passed_by_value)]` on by default
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:26:42
+   |
+LL | fn test_borrowed_gc_scope_only(gc_scope: &GcScope<'_, '_>) {
+   |                                          ^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:31:15
+   |
+LL |     gc_scope: &nova_vm::engine::context::NoGcScope<'_, '_>,
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:36:45
+   |
+LL | fn test_borrowed_no_gc_scope_only(gc_scope: &NoGcScope<'_, '_>) {
+   |                                             ^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:41:15
+   |
+LL |     gc_scope: &mut nova_vm::engine::context::GcScope<'_, '_>,
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:46:46
+   |
+LL | fn test_mut_borrowed_gc_scope_only(gc_scope: &mut GcScope<'_, '_>) {
+   |                                              ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:51:15
+   |
+LL |     gc_scope: &mut nova_vm::engine::context::NoGcScope<'_, '_>,
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: gc scope should only be passed by value
+  --> $DIR/gc_scope_is_only_passed_by_value.rs:56:49
+   |
+LL | fn test_mut_borrowed_no_gc_scope_only(gc_scope: &mut NoGcScope<'_, '_>) {
+   |                                                 ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove the reference
+
+error: aborting due to 8 previous errors
+

@@ -20,6 +20,10 @@ path = "ui/agent_comes_first.rs"
 name = "gc_scope_comes_last"
 path = "ui/gc_scope_comes_last.rs"
 
+[[example]]
+name = "gc_scope_is_only_passed_by_value"
+path = "ui/gc_scope_is_only_passed_by_value.rs"
+
 [dependencies]
 clippy_utils = { git = "https://github.com/rust-lang/rust-clippy", rev = "ff4a26d442bead94a4c96fb1de967374bc4fbd8e" }
 dylint_linting = { version = "4.0.0", features = ["constituent"] }
