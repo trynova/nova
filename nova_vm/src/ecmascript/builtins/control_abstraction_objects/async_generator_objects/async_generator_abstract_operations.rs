@@ -20,7 +20,7 @@ use crate::{
             agent::{ExceptionType, JsError},
             Agent, JsResult, RealmIdentifier,
         },
-        types::Value,
+        types::{IntoValue, Value},
     },
     engine::{
         context::{GcScope, NoGcScope},
@@ -210,7 +210,7 @@ pub(super) fn async_generator_resume(
             let AsyncGeneratorRequestCompletion::Ok(value) = completion else {
                 unreachable!()
             };
-            vm.resume(agent, executable, value, gc.reborrow())
+            vm.resume(agent, executable, value.unbind(), gc.reborrow())
         }
     };
     // 8. Assert: result is never an abrupt completion.
