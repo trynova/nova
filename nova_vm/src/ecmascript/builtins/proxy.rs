@@ -198,7 +198,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             handler.into_value().unbind(),
             Some(ArgumentsList(&[target.get(agent).into()])),
             gc.reborrow(),
-        )?.unbind();
+        )?
+        .unbind();
 
         // 8. If handlerProto is not an Object and handlerProto is not null, throw a TypeError exception.
         let handler_proto = if handler_proto.is_null() {
@@ -576,7 +577,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 return Ok(None);
             }
             // c. Let extensibleTarget be ? IsExtensible(target).
-            let extensible_target = is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
+            let extensible_target =
+                is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
             // d. If extensibleTarget is false, throw a TypeError exception.
             if !extensible_target {
                 return Err(agent.throw_exception(
@@ -592,10 +594,14 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return Ok(None);
         };
         // 11. Let extensibleTarget be ? IsExtensible(target).
-        let extensible_target = is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
+        let extensible_target =
+            is_extensible(agent, scoped_target.get(agent).unbind(), gc.reborrow())?;
         // 12. Let resultDesc be ? ToPropertyDescriptor(trapResultObj).
-        let mut result_desc =
-            PropertyDescriptor::to_property_descriptor(agent, trap_result_obj.unbind(), gc.reborrow())?;
+        let mut result_desc = PropertyDescriptor::to_property_descriptor(
+            agent,
+            trap_result_obj.unbind(),
+            gc.reborrow(),
+        )?;
         // 13. Perform CompletePropertyDescriptor(resultDesc).
         result_desc.complete_property_descriptor()?;
         // 14. Let valid be IsCompatiblePropertyDescriptor(extensibleTarget, resultDesc, targetDesc).
@@ -1012,7 +1018,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             agent,
             trap.unbind(),
             handler.into_value(),
-            Some(ArgumentsList(&[target.into_value(), p, receiver])),
+            Some(ArgumentsList(&[
+                target.into_value().unbind(),
+                p.unbind(),
+                receiver.unbind(),
+            ])),
             gc.reborrow(),
         )?;
         // 8. Let targetDesc be ? target.[[GetOwnProperty]](P).
@@ -1053,7 +1063,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             }
         }
         // 10. Return trapResult.
-        Ok(trap_result)
+        Ok(trap_result.unbind())
     }
 
     fn try_set(
@@ -1128,7 +1138,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             agent,
             trap.unbind(),
             handler.into_value(),
-            Some(ArgumentsList(&[target.into_value(), p, value, receiver])),
+            Some(ArgumentsList(&[
+                target.into_value().unbind(),
+                p.unbind(),
+                value.unbind(),
+                receiver.unbind(),
+            ])),
             gc.reborrow(),
         )?;
         let boolean_trap_result = to_boolean(agent, argument);
@@ -1232,8 +1247,8 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let argument = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
-            Some(ArgumentsList(&[target.into_value(), p])),
+            handler.into_value().unbind(),
+            Some(ArgumentsList(&[target.into_value().unbind(), p.unbind()])),
             gc.reborrow(),
         )?;
         let boolean_trap_result = to_boolean(agent, argument);
@@ -1523,9 +1538,9 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             // a. Return ? Call(target, thisArgument, argumentsList).
             return call(
                 agent,
-                target.into_value(),
+                target.into_value().unbind(),
                 this_argument,
-                Some(ArgumentsList(&[arguments_list])),
+                Some(ArgumentsList(&[arguments_list.unbind()])),
                 gc,
             );
         };
@@ -1535,11 +1550,11 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[
-                target.into_value(),
-                this_argument,
-                arg_array.into_value(),
+                target.into_value().unbind(),
+                this_argument.unbind(),
+                arg_array.into_value().unbind(),
             ])),
             gc,
         )
@@ -1603,16 +1618,17 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let new_obj = call_function(
             agent,
             trap.unbind(),
-            handler.into_value(),
+            handler.into_value().unbind(),
             Some(ArgumentsList(&[
-                target.into_value(),
-                arg_array.into_value(),
-                new_target.into_value(),
+                target.into_value().unbind(),
+                arg_array.into_value().unbind(),
+                new_target.into_value().unbind(),
             ])),
             gc.reborrow(),
         )?;
         // 11. Return newObj.
         new_obj
+            .unbind()
             .try_into()
             // 10. If newObj is not an Object, throw a TypeError exception.
             .or(Err(agent.throw_exception_with_static_message(

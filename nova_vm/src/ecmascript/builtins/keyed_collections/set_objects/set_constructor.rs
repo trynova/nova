@@ -86,7 +86,7 @@ impl SetConstructor {
         // 3. Set set.[[SetData]] to a new empty List.
         // 4. If iterable is either undefined or null, return set.
         if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.into_value());
+            return Ok(set.into_value().unbind());
         }
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
@@ -96,7 +96,7 @@ impl SetConstructor {
             gc.reborrow(),
         )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
-        let Some(adder) = is_callable(adder, gc.nogc()) else {
+        let Some(adder) = is_callable(adder.unbind(), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid adder function",
@@ -177,11 +177,11 @@ impl SetConstructor {
                         }
                     }
                 });
-                return Ok(set.into_value());
+                return Ok(set.into_value().unbind());
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
+        let mut iterator_record = get_iterator(agent, iterable.unbind(), false, gc.reborrow())?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -195,11 +195,11 @@ impl SetConstructor {
                 agent,
                 adder.get(agent),
                 scoped_set.get(agent).into_value(),
-                Some(ArgumentsList(&[next])),
+                Some(ArgumentsList(&[next.unbind()])),
                 gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, status, &iterator_record, gc.reborrow())?;
+            let _ = if_abrupt_close_iterator(agent, status.map(|v| v.unbind()), &iterator_record, gc.reborrow())?;
         }
     }
 
@@ -209,7 +209,7 @@ impl SetConstructor {
         _: ArgumentsList,
         _gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Ok(this_value)
+        Ok(this_value.unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
