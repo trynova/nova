@@ -158,11 +158,13 @@ impl PromiseCapability {
         if resolution == self.promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
-            let exception = agent.create_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Tried to resolve a promise with itself.",
-                gc.nogc(),
-            ).unbind();
+            let exception = agent
+                .create_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Tried to resolve a promise with itself.",
+                    gc.nogc(),
+                )
+                .unbind();
             self.internal_reject(agent, exception);
             // c. Return undefined.
             return;
@@ -233,11 +235,13 @@ impl PromiseCapability {
         if resolution == self.promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
-            let exception = agent.create_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Tried to resolve a promise with itself.",
-                gc,
-            ).unbind();
+            let exception = agent
+                .create_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Tried to resolve a promise with itself.",
+                    gc,
+                )
+                .unbind();
             self.internal_reject(agent, exception);
             // c. Return undefined.
             return TryResult::Continue(());

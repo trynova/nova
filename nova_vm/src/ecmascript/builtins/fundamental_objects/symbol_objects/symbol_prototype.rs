@@ -90,7 +90,9 @@ impl SymbolPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let symb = this_symbol_value(agent, this_value, gc.nogc())?;
-        Ok(symbol_descriptive_string(agent, symb, gc.nogc()).into_value().unbind())
+        Ok(symbol_descriptive_string(agent, symb, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     fn value_of<'gc>(

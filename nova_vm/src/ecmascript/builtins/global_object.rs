@@ -629,8 +629,9 @@ pub fn eval_declaration_instantiation(
         });
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
-        let fo =
-            instantiate_function_object(agent, f, lex_env, private_env, gc.nogc()).into_value().unbind();
+        let fo = instantiate_function_object(agent, f, lex_env, private_env, gc.nogc())
+            .into_value()
+            .unbind();
 
         // c. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
@@ -658,7 +659,12 @@ pub fn eval_declaration_instantiation(
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
                 var_env
-                    .create_mutable_binding(agent, function_name.get(agent).unbind(), true, gc.reborrow())
+                    .create_mutable_binding(
+                        agent,
+                        function_name.get(agent).unbind(),
+                        true,
+                        gc.reborrow(),
+                    )
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 var_env
@@ -668,7 +674,13 @@ pub fn eval_declaration_instantiation(
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
                 var_env
-                    .set_mutable_binding(agent, function_name.get(agent).unbind(), fo, false, gc.reborrow())
+                    .set_mutable_binding(
+                        agent,
+                        function_name.get(agent).unbind(),
+                        fo,
+                        false,
+                        gc.reborrow(),
+                    )
                     .unwrap();
             }
         }

@@ -533,7 +533,9 @@ impl ReflectObject {
         .map(|key| key.convert_to_value(agent, gc.nogc()))
         .collect();
         // 3. Return CreateArrayFromList(keys).
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value().unbind())
+        Ok(create_array_from_list(agent, &keys, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)

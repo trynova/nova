@@ -199,7 +199,12 @@ impl SetConstructor {
                 gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, status.map(|v| v.unbind()), &iterator_record, gc.reborrow())?;
+            let _ = if_abrupt_close_iterator(
+                agent,
+                status.map(|v| v.unbind()),
+                &iterator_record,
+                gc.reborrow(),
+            )?;
         }
     }
 

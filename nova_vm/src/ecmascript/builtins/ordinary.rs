@@ -1051,7 +1051,13 @@ fn ordinary_set_with_own_descriptor(
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
-    call_function(agent, setter, receiver, Some(ArgumentsList(&[value.unbind()])), gc)?;
+    call_function(
+        agent,
+        setter,
+        receiver,
+        Some(ArgumentsList(&[value.unbind()])),
+        gc,
+    )?;
 
     // 7. Return true.
     Ok(true)
