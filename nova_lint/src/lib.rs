@@ -22,8 +22,11 @@ extern crate rustc_span;
 extern crate rustc_target;
 extern crate rustc_trait_selection;
 
+mod utils;
 mod agent_comes_first;
 mod gc_scope_comes_last;
+
+pub(crate) use utils::*;
 
 #[no_mangle]
 pub fn register_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {

@@ -19,14 +19,6 @@ fn test_owned_gc_scope_only(gc_scope: GcScope<'_, '_>) {
     unimplemented!()
 }
 
-fn test_borrowed_gc_scope_only(gc_scope: &GcScope<'_, '_>) {
-    unimplemented!()
-}
-
-fn test_mut_gc_scope_only(gc_scope: &mut GcScope<'_, '_>) {
-    unimplemented!()
-}
-
 fn test_multiple_gc_scopes(gc_scope1: GcScope<'_, '_>, gc_scope2: GcScope<'_, '_>) {
     unimplemented!()
 }
@@ -66,11 +58,11 @@ impl Test {
         unimplemented!()
     }
 
-    fn test_self_and_something_after_gc_scope(&self, gc_scope: &GcScope<'_, '_>, foo: ()) {
+    fn test_self_and_something_after_gc_scope(&self, gc_scope: GcScope<'_, '_>, foo: ()) {
         unimplemented!()
     }
 
-    fn test_something_after_gc_scope(gc_scope: &GcScope<'_, '_>, foo: ()) {
+    fn test_something_after_gc_scope(gc_scope: GcScope<'_, '_>, foo: ()) {
         unimplemented!()
     }
 }

@@ -1,8 +1,9 @@
-use clippy_utils::{diagnostics::span_lint_and_help, is_self, match_def_path};
+use clippy_utils::{diagnostics::span_lint_and_help, is_self};
 use rustc_hir::{def_id::LocalDefId, intravisit::FnKind, Body, FnDecl};
 use rustc_lint::{LateContext, LateLintPass};
-use rustc_middle::ty::{Ty, TyKind};
 use rustc_span::Span;
+
+use crate::{is_agent_ty, is_param_ty};
 
 dylint_linting::declare_late_lint! {
     /// ### What it does
@@ -73,20 +74,5 @@ impl<'tcx> LateLintPass<'tcx> for AgentComesFirst {
                 );
             }
         }
-    }
-}
-
-fn is_param_ty(ty: &Ty) -> bool {
-    matches!(ty.kind(), TyKind::Param(_))
-}
-
-fn is_agent_ty(cx: &LateContext<'_>, ty: &Ty) -> bool {
-    match ty.peel_refs().kind() {
-        TyKind::Adt(def, _) => match_def_path(
-            cx,
-            def.did(),
-            &["nova_vm", "ecmascript", "execution", "agent", "Agent"],
-        ),
-        _ => false,
     }
 }
