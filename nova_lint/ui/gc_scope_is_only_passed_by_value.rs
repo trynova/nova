@@ -57,6 +57,22 @@ fn test_mut_borrowed_no_gc_scope_only(gc_scope: &mut NoGcScope<'_, '_>) {
     unimplemented!()
 }
 
+trait TestTrait {
+    fn test_trait_fn(self);
+}
+
+impl TestTrait for GcScope<'_, '_> {
+    fn test_trait_fn(self) {
+        unimplemented!()
+    }
+}
+
+impl TestTrait for NoGcScope<'_, '_> {
+    fn test_trait_fn(self) {
+        unimplemented!()
+    }
+}
+
 fn main() {
     unimplemented!()
 }

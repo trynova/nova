@@ -1,4 +1,4 @@
-use clippy_utils::diagnostics::span_lint_and_help;
+use clippy_utils::{diagnostics::span_lint_and_help, is_self};
 use rustc_hir::{def_id::LocalDefId, intravisit::FnKind, Body, FnDecl};
 use rustc_lint::{LateContext, LateLintPass};
 use rustc_middle::ty::TyKind;
@@ -61,6 +61,10 @@ impl<'tcx> LateLintPass<'tcx> for GcScopeIsOnlyPassedByValue {
         }
 
         for param in body.params {
+            if is_self(param) {
+                continue;
+            }
+
             let ty = cx.typeck_results().pat_ty(param.pat);
             if let TyKind::Ref(_, ty, _) = ty.kind() {
                 ty.peel_refs();
