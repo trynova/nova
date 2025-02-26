@@ -1180,11 +1180,11 @@ impl MathObject {
 
             let slow_nan = max_slow_path(
                 agent,
-                gc.reborrow(),
                 &mut only_ints,
                 &mut highest_i64,
                 &mut highest_f64,
                 &arguments[i..],
+                gc.reborrow(),
             )?;
             if slow_nan {
                 contained_nan = true;
@@ -1281,11 +1281,11 @@ impl MathObject {
 
             let slow_nan = min_slow_path(
                 agent,
-                gc.reborrow(),
                 &mut only_ints,
                 &mut lowest_i64,
                 &mut lowest_f64,
                 &arguments[i..],
+                gc.reborrow(),
             )?;
             if slow_nan {
                 contained_nan = true;
@@ -1898,11 +1898,11 @@ impl MathObject {
 #[inline(never)]
 fn max_slow_path(
     agent: &mut Agent,
-    mut gc: GcScope,
     only_ints: &mut bool,
     highest_i64: &mut i64,
     highest_f64: &mut f64,
     arguments: &[Value],
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     // First gather remaining arguments into Vec and scope each one to
     // make them safe from GC.
@@ -1942,11 +1942,11 @@ fn max_slow_path(
 #[inline(never)]
 fn min_slow_path(
     agent: &mut Agent,
-    mut gc: GcScope,
     only_ints: &mut bool,
     lowest_i64: &mut i64,
     lowest_f64: &mut f64,
     arguments: &[Value],
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     // First gather remaining arguments into Vec and scope each one to
     // make them safe from GC.

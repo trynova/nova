@@ -153,6 +153,7 @@ impl<'a, 'b> GcScope<'a, 'b> {
 }
 
 impl<'a, 'b> NoGcScope<'a, 'b> {
+    #[allow(unknown_lints, gc_scope_is_only_passed_by_value)]
     #[inline]
     pub(crate) fn from_gc(_: &GcScope<'a, 'b>) -> Self {
         Self {

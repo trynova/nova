@@ -142,6 +142,7 @@ impl PropertyDescriptor {
     ///
     /// The abstract operation FromPropertyDescriptor takes argument Desc (a
     /// Property Descriptor or undefined) and returns an Object or undefined.
+    #[allow(unknown_lints, agent_comes_first)]
     pub fn from_property_descriptor<'a>(
         desc: Option<Self>,
         agent: &mut Agent,

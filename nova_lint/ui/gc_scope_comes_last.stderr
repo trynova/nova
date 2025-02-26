@@ -1,0 +1,43 @@
+warning: the gc scope should be the last parameter of any function using it
+  --> $DIR/gc_scope_comes_last.rs:26:39
+   |
+LL | fn test_something_else_after_gc_scope(gc_scope: GcScope<'_, '_>, foo: ()) {
+   |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider moving the gc scope to the last parameter
+   = note: `#[warn(gc_scope_comes_last)]` on by default
+
+warning: the gc scope should be the last parameter of any function using it
+  --> $DIR/gc_scope_comes_last.rs:31:5
+   |
+LL |     gc_scope1: GcScope<'_, '_>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider moving the gc scope to the last parameter
+
+warning: the gc scope should be the last parameter of any function using it
+  --> $DIR/gc_scope_comes_last.rs:39:5
+   |
+LL |     gc_scope1: NoGcScope<'_, '_>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider moving the gc scope to the last parameter
+
+warning: the gc scope should be the last parameter of any function using it
+  --> $DIR/gc_scope_comes_last.rs:61:54
+   |
+LL |     fn test_self_and_something_after_gc_scope(&self, gc_scope: GcScope<'_, '_>, foo: ()) {
+   |                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider moving the gc scope to the last parameter
+
+warning: the gc scope should be the last parameter of any function using it
+  --> $DIR/gc_scope_comes_last.rs:65:38
+   |
+LL |     fn test_something_after_gc_scope(gc_scope: GcScope<'_, '_>, foo: ()) {
+   |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: consider moving the gc scope to the last parameter
+
+warning: 5 warnings emitted
+
