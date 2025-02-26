@@ -210,13 +210,14 @@ impl BigIntConstructor {
 fn number_to_big_int<'a>(
     agent: &mut Agent,
     value: Number<'a>,
-    mut gc: GcScope<'a, '_>,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<BigInt<'a>> {
-    if !is_integral_number(agent, value, gc.reborrow()) {
+    let gc = gc.into_nogc();
+    if !is_integral_number(agent, value) {
         Err(agent.throw_exception_with_static_message(
             ExceptionType::RangeError,
             "Not an integer",
-            gc.nogc(),
+            gc,
         ))
     } else {
         match value {

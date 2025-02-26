@@ -205,7 +205,6 @@ pub(crate) fn is_same_type<'a, V1: Copy + Into<Value<'a>>, V2: Copy + Into<Value
 pub(crate) fn is_integral_number<'a>(
     agent: &mut Agent,
     argument: impl Copy + Into<Value<'a>>,
-    gc: GcScope,
 ) -> bool {
     let argument = argument.into();
 
@@ -229,7 +228,7 @@ pub(crate) fn is_integral_number<'a>(
     // 4. Return true.
     // NOTE: Checking if the fractional component is 0.0 is the same as the
     // specification's operation.
-    argument.into_value().to_real(agent, gc).unwrap().fract() == 0.0
+    argument.to_real(agent).fract() == 0.0
 }
 
 /// ### [7.2.10 SameValue ( x, y )](https://tc39.es/ecma262/#sec-samevalue)

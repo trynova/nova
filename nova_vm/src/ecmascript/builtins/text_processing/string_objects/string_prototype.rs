@@ -17,7 +17,6 @@ use crate::ecmascript::abstract_operations::type_conversion::{
 use crate::ecmascript::types::Primitive;
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
-use crate::SmallInteger;
 use crate::{
     ecmascript::{
         abstract_operations::{
