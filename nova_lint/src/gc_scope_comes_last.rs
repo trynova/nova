@@ -21,7 +21,7 @@ dylint_linting::declare_late_lint! {
     /// call(agent, gc.reborrow(), data.unbind());
     /// ```
     ///
-    /// This wouldn't work beause `gc.reborrow()` invalidates `data` immediately,
+    /// This wouldn't work because `gc.reborrow()` invalidates `data` immediately,
     /// meaning that when `data.unbind()` is being called the `data` is already
     /// invalidated and illegal to use, leading to a borrow checker error.
     ///
