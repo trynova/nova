@@ -220,7 +220,8 @@ impl FunctionPrototype {
                     target.unbind(),
                     BUILTIN_STRING_MEMORY.length.unbind().into(),
                     gc.reborrow(),
-                )?.unbind();
+                )?
+                .unbind();
                 f = scoped_f.as_ref().unwrap().get(agent).bind(gc.nogc());
                 target = scoped_target.get(agent);
                 result.unbind()
@@ -275,7 +276,8 @@ impl FunctionPrototype {
                 target.unbind(),
                 BUILTIN_STRING_MEMORY.name.unbind().into(),
                 gc.reborrow(),
-            )?.unbind();
+            )?
+            .unbind();
             f = scoped_f.unwrap().get(agent).bind(gc.nogc());
             result
         };
@@ -370,18 +372,15 @@ impl FunctionPrototype {
                 Ok(Value::from_string(agent, initial_name, gc.nogc()).unbind())
             }
             Function::BuiltinGeneratorFunction => todo!(),
-            Function::BuiltinConstructorFunction(_) => Ok(Value::from_static_str(
-                agent,
-                "class { [ native code ] }",
-                gc.nogc(),
-            ).unbind()),
+            Function::BuiltinConstructorFunction(_) => {
+                Ok(Value::from_static_str(agent, "class { [ native code ] }", gc.nogc()).unbind())
+            }
             Function::BuiltinPromiseResolvingFunction(_) => {
                 // Promise resolving functions have no initial name.
-                Ok(Value::from_static_str(
-                    agent,
-                    "function () { [ native code ] }",
-                    gc.nogc(),
-                ).unbind())
+                Ok(
+                    Value::from_static_str(agent, "function () { [ native code ] }", gc.nogc())
+                        .unbind(),
+                )
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

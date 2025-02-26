@@ -475,7 +475,9 @@ impl ObjectConstructor {
             enumerable_properties_kind::EnumerateKeysAndValues,
         >(agent, obj.unbind(), gc.reborrow())?;
         // 3. Return CreateArrayFromList(entryList).
-        Ok(create_array_from_list(agent, &entry_list, gc.nogc()).into_value().unbind())
+        Ok(create_array_from_list(agent, &entry_list, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
@@ -736,7 +738,9 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
         let keys = get_own_string_property_keys(agent, o, gc.reborrow())?;
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value().unbind())
+        Ok(create_array_from_list(agent, &keys, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
@@ -749,7 +753,9 @@ impl ObjectConstructor {
         let o = arguments.get(0);
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
         let keys = get_own_symbol_property_keys(agent, o, gc.reborrow())?;
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value().unbind())
+        Ok(create_array_from_list(agent, &keys, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
@@ -890,7 +896,9 @@ impl ObjectConstructor {
             gc.reborrow(),
         )?;
         // 3. Return CreateArrayFromList(keyList).
-        Ok(create_array_from_list(agent, &key_list, gc.nogc()).into_value().unbind())
+        Ok(create_array_from_list(agent, &key_list, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
@@ -1004,7 +1012,9 @@ impl ObjectConstructor {
             gc.reborrow(),
         )?;
         // 3. Return CreateArrayFromList(valueList).
-        Ok(create_array_from_list(agent, &value_list, gc.nogc()).into_value().unbind())
+        Ok(create_array_from_list(agent, &value_list, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -1084,8 +1094,9 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
         // i. Let descObj be ? Get(props, nextKey).
         let desc_obj = get(agent, props.get(agent), next_key.get(agent), gc.reborrow())?;
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
-        let desc = PropertyDescriptor::to_property_descriptor(agent, desc_obj.unbind(), gc.reborrow())?
-            .scope(agent, gc.nogc());
+        let desc =
+            PropertyDescriptor::to_property_descriptor(agent, desc_obj.unbind(), gc.reborrow())?
+                .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
         descriptors.push((next_key, desc));
     }
@@ -1200,7 +1211,9 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error_message = format!(
                 "Invalid iterator next return value: {} is not an object",
-                next.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
+                next.unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .as_str(agent)
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).

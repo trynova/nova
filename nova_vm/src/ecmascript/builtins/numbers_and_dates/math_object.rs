@@ -1276,7 +1276,9 @@ impl MathObject {
                     lowest_f64 = lowest_f64.min(lowest_i64 as f64);
                 }
             }
-            Ok(Number::from_f64(agent, lowest_f64, gc.nogc()).into_value().unbind())
+            Ok(Number::from_f64(agent, lowest_f64, gc.nogc())
+                .into_value()
+                .unbind())
         }
     }
 
@@ -1320,11 +1322,9 @@ impl MathObject {
                 } else if let Some(result) = (base as i128).checked_pow(exponent) {
                     return Ok(Value::from_f64(agent, result as f64, gc).unbind());
                 } else {
-                    return Ok(Value::from_f64(
-                        agent,
-                        (base as f64).powf(exponent as f64),
-                        gc,
-                    ).unbind());
+                    return Ok(
+                        Value::from_f64(agent, (base as f64).powf(exponent as f64), gc).unbind(),
+                    );
                 }
             } else if let Ok(exponent) = i32::try_from(exponent) {
                 let result = (base as f64).powi(exponent);
@@ -1334,7 +1334,9 @@ impl MathObject {
                 return Ok(Value::from_f64(agent, result, gc).unbind());
             }
         }
-        Ok(Number::exponentiate(agent, base, exponent).into_value().unbind())
+        Ok(Number::exponentiate(agent, base, exponent)
+            .into_value()
+            .unbind())
     }
 
     fn random<'gc>(
@@ -1736,7 +1738,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN10.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_10, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::LN_10, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1746,7 +1750,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_2, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::LN_2, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1756,7 +1762,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG10E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG10_E, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::LOG10_E, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1766,7 +1774,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG2E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG2_E, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::LOG2_E, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1776,7 +1786,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.PI.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::PI, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::PI, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1786,7 +1798,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT1_2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::FRAC_1_SQRT_2, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::FRAC_1_SQRT_2, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1796,7 +1810,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::SQRT_2, gc).into_value().unbind()
+                        Number::from_f64(agent, consts::SQRT_2, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)

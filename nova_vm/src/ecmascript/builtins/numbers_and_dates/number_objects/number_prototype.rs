@@ -197,7 +197,9 @@ impl NumberPrototype {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x, gc.nogc()).unbind().into_value());
+            return Ok(Number::to_string_radix_10(agent, x, gc.nogc())
+                .unbind()
+                .into_value());
         }
 
         let x = x.scope(agent, gc.nogc());
@@ -434,7 +436,9 @@ impl NumberPrototype {
         let x = this_number_value(agent, this_value, gc.nogc())?;
         let radix = arguments.get(0);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Ok(Number::to_string_radix_10(agent, x, gc.nogc()).unbind().into_value())
+            Ok(Number::to_string_radix_10(agent, x, gc.nogc())
+                .unbind()
+                .into_value())
         } else {
             todo!();
         }

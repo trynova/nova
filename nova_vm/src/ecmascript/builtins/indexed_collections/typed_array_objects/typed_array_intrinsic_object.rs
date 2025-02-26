@@ -438,7 +438,8 @@ impl TypedArrayPrototype {
             o.unbind(),
             PropertyKey::Integer(k.try_into().unwrap()),
             gc.nogc(),
-        )).unbind())
+        ))
+        .unbind())
     }
 
     /// ### [23.2.3.2 get %TypedArray%.prototype.buffer](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype.buffer)
@@ -789,7 +790,11 @@ impl TypedArrayPrototype {
                 agent,
                 callback.get(agent),
                 this_arg,
-                Some(ArgumentsList(&[k_value.unbind(), fk.unbind(), o.into_value().unbind()])),
+                Some(ArgumentsList(&[
+                    k_value.unbind(),
+                    fk.unbind(),
+                    o.into_value().unbind(),
+                ])),
                 gc.reborrow(),
             )?;
             // d. Set k to k + 1.
@@ -1224,7 +1229,9 @@ impl TypedArrayPrototype {
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_string(agent, r, gc.nogc()).into_value().unbind())
+        Ok(String::from_string(agent, r, gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)

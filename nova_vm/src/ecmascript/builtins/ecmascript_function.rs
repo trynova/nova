@@ -646,7 +646,10 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         if !value.is_undefined() {
             let message = format!(
                 "derived class constructor returned invalid value {}",
-                value.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
+                value
+                    .unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .as_str(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
