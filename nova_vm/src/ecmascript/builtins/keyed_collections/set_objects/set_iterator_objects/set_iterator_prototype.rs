@@ -77,7 +77,7 @@ impl SetIteratorPrototype {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, &[e, e], gc).into_value()
+                    create_array_from_list(agent, &[e.unbind(), e.unbind()], gc).into_value()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,
@@ -87,7 +87,7 @@ impl SetIteratorPrototype {
                 }
             };
 
-            return Ok(create_iter_result_object(agent, result, false, gc).into_value());
+            return Ok(create_iter_result_object(agent, result.unbind(), false, gc).into_value());
         }
 
         debug_assert_eq!(agent[iterator].next_index, agent[set].values().len());

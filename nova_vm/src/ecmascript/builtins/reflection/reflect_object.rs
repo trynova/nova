@@ -411,7 +411,7 @@ impl ReflectObject {
             .internal_get_own_property(agent, key.unbind(), gc.reborrow())?;
         // 4. Return FromPropertyDescriptor(desc).
         match PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc()) {
-            Some(ret) => Ok(ret.into_value()),
+            Some(ret) => Ok(ret.into_value().unbind()),
             None => Ok(Value::Undefined),
         }
     }
@@ -533,7 +533,7 @@ impl ReflectObject {
         .map(|key| key.convert_to_value(agent, gc.nogc()))
         .collect();
         // 3. Return CreateArrayFromList(keys).
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value().unbind())
     }
 
     /// [28.1.11 Reflect.preventExtensions ( target )](https://tc39.es/ecma262/#sec-reflect.preventextensions)
