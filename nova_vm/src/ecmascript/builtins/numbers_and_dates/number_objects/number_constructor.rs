@@ -3,6 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
+use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
+use crate::ecmascript::abstract_operations::type_conversion::try_to_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
@@ -24,6 +26,7 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Numeric;
 use crate::ecmascript::types::Object;
 
+use crate::ecmascript::types::Primitive;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
 use crate::engine::context::GcScope;
@@ -77,15 +80,25 @@ impl NumberConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let value = arguments.get(0);
+        let nogc = gc.nogc();
+        let value = arguments.get(0).bind(nogc);
+        let mut new_target = new_target.map(|n| n.bind(nogc));
 
         // 1. If value is present, then
         let n = if !value.is_undefined() {
             // a. Let prim be ? ToNumeric(value).
-            let prim = value
-                .to_numeric(agent, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc());
+            let prim = if let Ok(prim) = Primitive::try_from(value) {
+                to_numeric_primitive(agent, prim, nogc)?
+            } else {
+                let scoped_new_target = new_target.map(|n| n.scope(agent, nogc));
+                let prim = value
+                    .unbind()
+                    .to_numeric(agent, gc.reborrow())?
+                    .unbind()
+                    .bind(gc.nogc());
+                new_target = scoped_new_target.map(|n| n.get(agent));
+                prim
+            };
 
             // b. If prim is a BigInt, let n be 𝔽(ℝ(prim)).
             match prim {
@@ -123,7 +136,7 @@ impl NumberConstructor {
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::Number,
             gc.reborrow(),
         )?)
@@ -144,9 +157,10 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let maybe_number = arguments.get(0);
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. If number is not a Number, return false.
         let Ok(number) = Number::try_from(maybe_number) else {
@@ -163,9 +177,10 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let maybe_number = arguments.get(0);
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. Return IsIntegralNumber(number).
         Ok(is_integral_number(agent, maybe_number).into())
@@ -176,9 +191,10 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let maybe_number = arguments.get(0);
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. If number is not a Number, return false.
         let Ok(number) = Number::try_from(maybe_number) else {
@@ -195,9 +211,10 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let maybe_number = arguments.get(0);
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. If IsIntegralNumber(number) is true, then
         //    a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.

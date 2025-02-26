@@ -81,18 +81,19 @@ impl NumberPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let fraction_digits = arguments.get(0);
+        let nogc = gc.nogc();
+        let fraction_digits = arguments.get(0).bind(nogc);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())?;
-        let x = x.scope(agent, gc.nogc());
+        let fraction_digits_is_undefined = fraction_digits.is_undefined();
+        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
-        let f = to_integer_or_infinity(agent, fraction_digits, gc.reborrow())?;
+        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow())?;
         // No GC can happen after this point.
         let gc = gc.into_nogc();
         let x = x.get(agent).bind(gc);
 
         // 3. Assert: If fractionDigits is undefined, then f is 0.
-        debug_assert!(!fraction_digits.is_undefined() || f.into_i64() == 0);
+        debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
             return Ok(Number::to_string_radix_10(agent, x, gc).into_value());
@@ -127,17 +128,18 @@ impl NumberPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let fraction_digits = arguments.get(0);
+        let nogc = gc.nogc();
+        let fraction_digits = arguments.get(0).bind(nogc);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())?;
-        let x = x.scope(agent, gc.nogc());
+        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
-        let f = to_integer_or_infinity(agent, fraction_digits, gc.reborrow())?;
+        let fraction_digits_is_undefined = fraction_digits.is_undefined();
+        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow())?;
         // No GC is possible after this point.
         let gc = gc.into_nogc();
         let x = x.get(agent).bind(gc);
         // 3. Assert: If fractionDigits is undefined, then f is 0.
-        debug_assert!(!fraction_digits.is_undefined() || f.into_i64() == 0);
+        debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If f is not finite, throw a RangeError exception.
         if !f.is_finite() {
             return Err(agent.throw_exception_with_static_message(
@@ -185,27 +187,26 @@ impl NumberPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let precision = arguments.get(0);
+        let nogc = gc.nogc();
+        let precision = arguments.get(0).bind(nogc);
 
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())?
-            .unbind()
-            .bind(gc.nogc());
+        let x = this_number_value(agent, this_value, nogc)?;
 
         // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x, gc.nogc())
+            return Ok(Number::to_string_radix_10(agent, x, nogc)
                 .unbind()
                 .into_value());
         }
 
-        let x = x.scope(agent, gc.nogc());
+        let x = x.scope(agent, nogc);
 
         // 3. Let p be ? ToIntegerOrInfinity(precision).
-        let p = to_integer_or_infinity(agent, precision, gc.reborrow())?;
+        let p = to_integer_or_infinity(agent, precision.unbind(), gc.reborrow())?;
         // No GC can occur after this point.
         let gc = gc.into_nogc();
 
@@ -433,10 +434,11 @@ impl NumberPrototype {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let x = this_number_value(agent, this_value, gc.nogc())?;
-        let radix = arguments.get(0);
+        let nogc = gc.into_nogc();
+        let x = this_number_value(agent, this_value, nogc)?;
+        let radix = arguments.get(0).bind(nogc);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Ok(Number::to_string_radix_10(agent, x, gc.nogc())
+            Ok(Number::to_string_radix_10(agent, x, nogc)
                 .unbind()
                 .into_value())
         } else {
