@@ -4,7 +4,6 @@
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
-use crate::ecmascript::abstract_operations::type_conversion::try_to_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
