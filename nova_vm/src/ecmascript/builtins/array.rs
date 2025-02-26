@@ -792,7 +792,7 @@ fn ordinary_define_own_property_for_array(
 
     // 2. If current is undefined, then
     if current_descriptor.is_none() && current_value.is_none() {
-        // Hole
+        // Holegc
 
         // a. If extensible is false, return false.
         if !elements.writable() {

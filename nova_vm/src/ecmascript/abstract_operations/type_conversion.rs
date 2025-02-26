@@ -1329,19 +1329,24 @@ pub(crate) fn canonical_numeric_index_string<'gc>(
     None
 }
 
+/// 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a
+///    RangeError exception.
+pub(crate) fn validate_index(agent: &mut Agent, value: i64, gc: NoGcScope) -> JsResult<u64> {
+    if !(0..=(SmallInteger::MAX_NUMBER)).contains(&value) {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::RangeError,
+            "Index is out of range",
+            gc,
+        ));
+    }
+    return Ok(value as u64);
+}
+
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
 pub(crate) fn to_index(agent: &mut Agent, argument: Value, mut gc: GcScope) -> JsResult<i64> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
-        let integer = integer.into_i64();
-        if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Index is out of range",
-                gc.nogc(),
-            ));
-        }
-        return Ok(integer);
+        return validate_index(agent, integer.into_i64(), gc.into_nogc()).map(|i| i as i64);
     }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
@@ -1349,16 +1354,8 @@ pub(crate) fn to_index(agent: &mut Agent, argument: Value, mut gc: GcScope) -> J
     let integer = to_integer_or_infinity(agent, argument, gc.reborrow())?.into_i64();
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
-    if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Index is out of range",
-            gc.nogc(),
-        ));
-    }
-
     // 3. Return integer.
-    Ok(integer)
+    validate_index(agent, integer, gc.into_nogc()).map(|i| i as i64)
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)
@@ -1369,15 +1366,9 @@ pub(crate) fn try_to_index(
 ) -> TryResult<JsResult<i64>> {
     // Fast path: A safe integer is already an integer.
     if let Value::Integer(integer) = argument {
-        let integer = integer.into_i64();
-        if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
-            return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-                ExceptionType::RangeError,
-                "Index is out of range",
-                gc,
-            )));
-        }
-        return TryResult::Continue(Ok(integer));
+        return TryResult::Continue(
+            validate_index(agent, integer.into_i64(), gc).map(|i| i as i64),
+        );
     }
     // TODO: This can be heavily optimized by inlining `to_integer_or_infinity`.
 
@@ -1388,16 +1379,8 @@ pub(crate) fn try_to_index(
     };
 
     // 2. If integer is not in the inclusive interval from 0 to 2**53 - 1, throw a RangeError exception.
-    if !(0..=(SmallInteger::MAX_NUMBER)).contains(&integer) {
-        return TryResult::Continue(Err(agent.throw_exception_with_static_message(
-            ExceptionType::RangeError,
-            "Index is out of range",
-            gc,
-        )));
-    }
-
     // 3. Return integer.
-    TryResult::Continue(Ok(integer))
+    TryResult::Continue(validate_index(agent, integer, gc).map(|i| i as i64))
 }
 
 /// Helper function to check if a `char` is trimmable.

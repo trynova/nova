@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::type_conversion::validate_index;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
@@ -63,33 +64,54 @@ impl ArrayBufferConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Constructor ArrayBuffer requires 'new'",
-                gc.nogc(),
+                nogc,
             ));
         };
-        let length = arguments.get(0).bind(gc.nogc());
+        let new_target = new_target.bind(nogc);
+        let length = arguments.get(0).bind(nogc);
         let options = if arguments.len() > 1 {
-            Some(arguments.get(1).bind(gc.nogc()))
+            Some(arguments.get(1).bind(nogc))
         } else {
             None
         };
-        let new_target = new_target.bind(gc.nogc());
-        // 2. Let byteLength be ? ToIndex(length).
-        let byte_length = to_index(agent, length, gc.reborrow())? as u64;
-        // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
-        let requested_max_byte_length = if let Some(options) = options {
-            get_array_buffer_max_byte_length_option(agent, options, gc.reborrow())?
-        } else {
-            None
-        };
+        let (byte_length, new_target, requested_max_byte_length) =
+            if let (Value::Integer(integer), true) = (length, options.is_none()) {
+                (
+                    validate_index(agent, integer.into_i64(), nogc)?,
+                    new_target,
+                    None,
+                )
+            } else {
+                let options = options.map(|o| o.scope(agent, nogc));
+                let new_target = new_target.scope(agent, nogc);
+                // 2. Let byteLength be ? ToIndex(length).
+                let byte_length = to_index(agent, length.unbind(), gc.reborrow())? as u64;
+                // 3. Let requestedMaxByteLength be ? GetArrayBufferMaxByteLengthOption(options).
+                let requested_max_byte_length = if let Some(options) = options {
+                    get_array_buffer_max_byte_length_option(
+                        agent,
+                        options.get(agent),
+                        gc.reborrow(),
+                    )?
+                } else {
+                    None
+                };
+                (
+                    byte_length,
+                    new_target.get(agent).bind(gc.nogc()),
+                    requested_max_byte_length,
+                )
+            };
         // 4. Return ? AllocateArrayBuffer(NewTarget, byteLength, requestedMaxByteLength).
         allocate_array_buffer(
             agent,
-            Function::try_from(new_target).unwrap(),
+            Function::try_from(new_target).unwrap().unbind(),
             byte_length,
             requested_max_byte_length,
             gc.into_nogc(),

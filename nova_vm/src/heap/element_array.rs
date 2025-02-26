@@ -2028,7 +2028,10 @@ impl ElementArrays {
     pub fn get_descriptors_and_slice(
         &self,
         vector: ElementsVector,
-    ) -> (Option<&AHashMap<u32, ElementDescriptor>>, &[Option<Value>]) {
+    ) -> (
+        Option<&AHashMap<u32, ElementDescriptor>>,
+        &[Option<Value<'static>>],
+    ) {
         let usize_index = vector.elements_index.into_index();
         match vector.cap {
             ElementArrayKey::Empty => (None, &[]),
