@@ -163,12 +163,12 @@ impl NumberConstructor {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope<'gc, '_>,
+        _gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let maybe_number = arguments.get(0);
 
         // 1. Return IsIntegralNumber(number).
-        Ok(is_integral_number(agent, maybe_number, gc.reborrow()).into())
+        Ok(is_integral_number(agent, maybe_number).into())
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
