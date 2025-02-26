@@ -13,12 +13,27 @@ dylint_linting::declare_late_lint! {
     ///
     /// ### Why is this bad?
     ///
-    ///
+    /// Passing the gc scope by reference is not necessary and should be avoided.
+    /// This is because a immutable reference `&GcScope` would be equivalent to
+    /// simply using `NoGcScope` while using `&mut GcScope` would technically
+    /// work but be less efficient.
     ///
     /// ### Example
     ///
     /// ```rust
     /// fn bar(gc: &GcScope<'_, '_>) {}
+    /// ```
+    ///
+    /// Use instead:
+    ///
+    /// ```rust
+    /// fn bar(gc: NoGcScope<'_, '_>) {}
+    /// ```
+    ///
+    /// ### Example
+    ///
+    /// ```rust
+    /// fn bar(gc: &mut GcScope<'_, '_>) {}
     /// ```
     ///
     /// Use instead:
