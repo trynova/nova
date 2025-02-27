@@ -14,7 +14,10 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
         types::{Function, InternalMethods, Object},
     },
-    engine::{context::GcScope, unwrap_try},
+    engine::{
+        context::{Bindable, GcScope},
+        unwrap_try,
+    },
 };
 
 pub(crate) fn base_class_default_constructor<'a>(

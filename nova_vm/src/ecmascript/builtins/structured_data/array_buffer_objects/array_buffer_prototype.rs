@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{

@@ -8,7 +8,7 @@ use crate::{
         scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         types::*,
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

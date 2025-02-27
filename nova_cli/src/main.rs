@@ -20,7 +20,7 @@ use nova_vm::{
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{Object, String as JsString},
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope},
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};

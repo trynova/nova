@@ -45,6 +45,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::engine::unwrap_try;
 use crate::heap::IntrinsicConstructorIndexes;
@@ -429,7 +430,7 @@ impl ArrayConstructor {
                     agent,
                     mapping.get(agent),
                     this_arg,
-                    Some(ArgumentsList(&[k_value, fk])),
+                    Some(ArgumentsList(&[k_value.unbind(), fk])),
                     gc.reborrow(),
                 )?
             } else {
@@ -540,9 +541,9 @@ impl ArrayConstructor {
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        Ok(this_value)
+        Ok(this_value.bind(gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

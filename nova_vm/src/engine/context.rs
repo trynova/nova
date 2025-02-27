@@ -182,14 +182,36 @@ impl<'a, 'b> NoGcScope<'a, 'b> {
 /// will not check their usage for use-after-free. To make the borrow checker
 /// check them, the values must be bound using the `bind` function.
 ///
-/// ## Implementation
+/// ## Safety
 ///
 /// The implementations for both functions must be equivalent to a `memcpy` or,
 /// for collections of bindable values, a new collection of bindable values
-/// recursively mapped. The end result should be effectively equal to a
-/// transmute from one value to another. If all transmute requirements are
-/// upheld, the implementation of the functions is allowed to be a transmute.
-pub trait Bindable {
+/// recursively mapped. The end result should be entirely equal to a lifetime
+/// transmute on performed on Self. The implementation of the functions
+/// themselves are also allowed to be a plain transmute.
+///
+/// ```rust
+/// let result = unsafe { core::mem::transmute::<Value<'a>, Value<'b>(value) };
+/// ```
+pub unsafe trait Bindable: Sized {
+    /// Bound representation of self. This must always be effectively equal to
+    /// `Self<'a>`. Note that we cannot write `Self<'a>` directly because
+    /// `Self` cannot have lifetime parameters attached to it.
+    ///
+    /// ## Safety
+    ///
+    /// This type is the most important part of this trait. It _must be_
+    /// correctly set to be effectively equal to `Self<'a>`.
+    ///
+    /// ## Examples
+    ///
+    /// This is the only correct way to define the type:
+    ///
+    /// ```rust
+    /// unsafe impl Bindable for MyType<'_> {
+    ///   type Of<'a> = MyType<'a>;
+    /// }
+    /// ```
     type Of<'a>;
 
     /// Unbind this value from the garbage collector lifetime. This is
@@ -308,45 +330,106 @@ pub trait Bindable {
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a>;
 }
 
-impl<T: Bindable> Bindable for Option<T> {
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<T: Bindable> Bindable for Option<T> {
     type Of<'a> = Option<T::Of<'a>>;
 
     // Note: Option is simple enough to always inline the code.
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
         self.map(T::unbind)
     }
 
     #[inline(always)]
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
         self.map(|t| t.bind(gc))
     }
 }
 
-impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<T: Bindable, E: Bindable> Bindable for Result<T, E> {
     type Of<'a> = Result<T::Of<'a>, E::Of<'a>>;
 
     fn unbind(self) -> Self::Of<'static> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
         self.map(T::unbind).map_err(E::unbind)
     }
 
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
         self.map(|t| t.bind(gc)).map_err(|e| e.bind(gc))
     }
 }
 
-impl<T: Bindable> Bindable for Vec<T> {
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<T: Bindable> Bindable for Vec<T> {
     type Of<'a> = Vec<T::Of<'a>>;
 
-    // Note: Vec isn't simple enough to always inline the code. This should
-    // optimise down to nothing in release builds but in debug builds it would
-    // probably leave behind actual Vec clones everywhere, leading to a lot of
-    // code bloat.
     fn unbind(self) -> Self::Of<'static> {
-        self.into_iter().map(T::unbind).collect()
+        const {
+            // Note: These checks do not guarantee that the Vec transmute is
+            // truly safe: Vec is free to rearrange its fields if its type
+            // parameter changes. These checks will only catch flagrant misuse.
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        // SAFETY: We assume that T properly implements Bindable. In that case
+        // we can safely transmute the lifetime out of the T's in the Vec.
+        unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'static>>>(self) }
     }
 
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        self.into_iter().map(|t| t.bind(gc)).collect()
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            // Note: These checks do not guarantee that the Vec transmute is
+            // truly safe: Vec is free to rearrange its fields if its type
+            // parameter changes. These checks will only catch flagrant misuse.
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        // SAFETY: We assume that T properly implements Bindable. In that case
+        // we can safely transmute the lifetime out of the T's in the Vec.
+        unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'a>>>(self) }
+    }
+}
+
+// SAFETY: The blanket impls are safe if the implementors are.
+unsafe impl<'b, T: Bindable> Bindable for &'b [T]
+where
+    for<'a> <T as Bindable>::Of<'a>: 'b,
+{
+    type Of<'a> = &'b [T::Of<'a>];
+
+    fn unbind(self) -> Self::Of<'static> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        // SAFETY: We assume that T properly implements Bindable. In that case
+        // we can safely transmute the lifetime out of the T's in the slice.
+        unsafe { core::mem::transmute::<&'b [T], &'b [T::Of<'static>]>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        const {
+            assert!(core::mem::size_of::<T>() == core::mem::size_of::<T::Of<'_>>());
+            assert!(core::mem::align_of::<T>() == core::mem::align_of::<T::Of<'_>>());
+        }
+        // SAFETY: We assume that T properly implements Bindable. In that case
+        // we can safely transmute the lifetime into the T's in the slice.
+        unsafe { core::mem::transmute::<&'b [T], &'b [T::Of<'a>]>(self) }
     }
 }

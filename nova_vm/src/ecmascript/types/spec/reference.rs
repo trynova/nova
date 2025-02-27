@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{

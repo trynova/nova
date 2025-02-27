@@ -271,7 +271,7 @@ impl<'a> IntoValue<'a> for Object<'a> {
     }
 }
 
-impl Bindable for Object<'_> {
+unsafe impl Bindable for Object<'_> {
     type Of<'a> = Object<'a>;
 
     fn unbind(self) -> Self::Of<'static> {
@@ -283,7 +283,7 @@ impl Bindable for Object<'_> {
     }
 }
 
-impl Bindable for OrdinaryObject<'_> {
+unsafe impl Bindable for OrdinaryObject<'_> {
     type Of<'a> = OrdinaryObject<'a>;
 
     fn unbind(self) -> Self::Of<'static> {

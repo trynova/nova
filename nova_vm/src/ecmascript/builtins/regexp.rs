@@ -16,7 +16,7 @@ use crate::{
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
         unwrap_try, Scoped, TryResult,
     },

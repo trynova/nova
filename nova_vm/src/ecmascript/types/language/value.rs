@@ -1126,7 +1126,7 @@ pub fn bind_values<'a>(vec: Vec<Value>, _: NoGcScope<'a, '_>) -> Vec<Value<'a>> 
     unsafe { std::mem::transmute::<Vec<Value>, Vec<Value<'a>>>(vec) }
 }
 
-impl Bindable for Value<'_> {
+unsafe impl Bindable for Value<'_> {
     type Of<'a> = Value<'a>;
 
     fn unbind(self) -> Self::Of<'static> {

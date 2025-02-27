@@ -48,7 +48,7 @@ impl JsError {
     }
 }
 
-impl Bindable for JsError {
+unsafe impl Bindable for JsError {
     type Of<'a> = JsError;
 
     fn unbind(self) -> Self::Of<'static> {
