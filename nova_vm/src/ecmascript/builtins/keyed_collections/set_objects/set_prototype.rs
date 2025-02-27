@@ -95,6 +95,8 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -109,7 +111,7 @@ impl SetPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(numbers, value);
 
         let SetData {
             values, set_data, ..
@@ -137,7 +139,7 @@ impl SetPrototype {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
             entry.insert(index);
-            values.push(Some(value));
+            values.push(Some(value.unbind()));
         }
         // i. Return S.
         // 6. Return S.
@@ -157,6 +159,7 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -182,6 +185,8 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -196,7 +201,7 @@ impl SetPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(numbers, value);
         let mut hasher = AHasher::default();
         let value_hash = {
             value.hash(&primitive_heap, &mut hasher);
@@ -233,6 +238,7 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, KEY+VALUE).
 
@@ -282,6 +288,7 @@ impl SetPrototype {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
         let callback_fn = arguments.get(0).bind(nogc);
         let this_arg = arguments.get(1).bind(nogc);
         // 1. Let S be the this value.
@@ -299,7 +306,7 @@ impl SetPrototype {
         // 5. Let numEntries be the number of elements in entries.
         // Note: We must use the values vector length, not the size. The size
         // does not contain empty slots.
-        let mut num_entries = agent[s].values().len() as u32;
+        let mut num_entries = agent[s].values(gc.nogc()).len() as u32;
 
         let callback_fn = callback_fn.scope(agent, nogc);
         let scoped_s = s.scope(agent, nogc);
@@ -310,7 +317,7 @@ impl SetPrototype {
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let e = agent[s].values()[index as usize];
+            let e = agent[s].values(gc.nogc())[index as usize];
             // b. Set index to index + 1.
             index += 1;
             // c. If e is not EMPTY, then
@@ -330,7 +337,7 @@ impl SetPrototype {
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 s = scoped_s.get(agent).bind(gc.nogc());
-                num_entries = agent[s].values().len() as u32;
+                num_entries = agent[s].values(gc.nogc()).len() as u32;
             }
         }
         // 8. Return undefined.
@@ -345,6 +352,8 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -363,7 +372,7 @@ impl SetPrototype {
         let set_data = set_data.borrow();
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(&primitive_heap, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(&primitive_heap, value);
         let mut hasher = AHasher::default();
         let value_hash = {
             value.hash(&primitive_heap, &mut hasher);
@@ -393,6 +402,7 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
@@ -409,6 +419,7 @@ impl SetPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, VALUE).
 

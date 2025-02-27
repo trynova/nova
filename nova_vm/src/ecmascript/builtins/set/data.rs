@@ -7,7 +7,7 @@ use crate::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value, BIGINT_DISCRIMINANT,
         NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
     },
-    engine::context::Bindable,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
@@ -41,7 +41,7 @@ impl SetHeapData {
         self.set_data.set_data.borrow().len() as u32
     }
 
-    pub fn values(&self) -> &[Option<Value>] {
+    pub fn values<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.set_data.values
     }
 

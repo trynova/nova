@@ -406,12 +406,20 @@ unsafe impl<T: Bindable> Bindable for Vec<T> {
     }
 }
 
+unsafe trait BindableBorrow<'borrow> {
+    type Of<'gc>
+    where
+        Self: 'borrow;
+
+    fn unbind_ref(&'borrow self) -> &'borrow Self::Of<'static>;
+}
+
 // SAFETY: The blanket impls are safe if the implementors are.
-unsafe impl<'b, T: Bindable> Bindable for &'b [T]
+unsafe impl<'slice, T: Bindable> Bindable for &'slice [T]
 where
-    for<'a> <T as Bindable>::Of<'a>: 'b,
+    for<'gc> <T as Bindable>::Of<'gc>: 'slice,
 {
-    type Of<'a> = &'b [T::Of<'a>];
+    type Of<'gc> = &'slice [T::Of<'gc>];
 
     fn unbind(self) -> Self::Of<'static> {
         const {
@@ -420,7 +428,7 @@ where
         }
         // SAFETY: We assume that T properly implements Bindable. In that case
         // we can safely transmute the lifetime out of the T's in the slice.
-        unsafe { core::mem::transmute::<&'b [T], &'b [T::Of<'static>]>(self) }
+        unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'static>]>(self) }
     }
 
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
@@ -430,6 +438,6 @@ where
         }
         // SAFETY: We assume that T properly implements Bindable. In that case
         // we can safely transmute the lifetime into the T's in the slice.
-        unsafe { core::mem::transmute::<&'b [T], &'b [T::Of<'a>]>(self) }
+        unsafe { core::mem::transmute::<&'slice [T], &'slice [T::Of<'a>]>(self) }
     }
 }
