@@ -188,6 +188,8 @@ mod private {
 pub use global::Global;
 pub use scoped::Scoped;
 
+use super::context::Bindable;
+
 pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
     type RootRepr: Sized + Clone + core::fmt::Debug;
 

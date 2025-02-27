@@ -63,7 +63,7 @@ use crate::{
             Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
             NamedEvaluationParameter,
         },
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         unwrap_try, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -94,6 +94,42 @@ impl<'a> ExecutionResult<'a> {
             ExecutionResult::Return(value) => Ok(value),
             ExecutionResult::Throw(err) => Err(err),
             _ => panic!("Unexpected yield or await"),
+        }
+    }
+}
+
+impl Bindable for ExecutionResult<'_> {
+    type Of<'a> = ExecutionResult<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        match self {
+            Self::Return(value) => ExecutionResult::Return(value.unbind()),
+            Self::Throw(js_error) => ExecutionResult::Throw(js_error),
+            Self::Await { vm, awaited_value } => ExecutionResult::Await {
+                vm,
+                awaited_value: awaited_value.unbind(),
+            },
+            Self::Yield { vm, yielded_value } => ExecutionResult::Yield {
+                vm,
+                yielded_value: yielded_value.unbind(),
+            },
+        }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        match self {
+            Self::Return(value) => ExecutionResult::Return(value.bind(gc)),
+            Self::Throw(js_error) => ExecutionResult::Throw(js_error),
+            Self::Await { vm, awaited_value } => ExecutionResult::Await {
+                vm,
+                awaited_value: awaited_value.bind(gc),
+            },
+            Self::Yield { vm, yielded_value } => ExecutionResult::Yield {
+                vm,
+                yielded_value: yielded_value.bind(gc),
+            },
         }
     }
 }

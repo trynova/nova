@@ -10,7 +10,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_integer_or_infinity, try_to_string,
 };
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{

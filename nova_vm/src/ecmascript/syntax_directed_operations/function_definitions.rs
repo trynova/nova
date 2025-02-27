@@ -7,7 +7,7 @@ use std::collections::VecDeque;
 use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
 use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
 use crate::ecmascript::builtins::generator_objects::SuspendedGeneratorState;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{

@@ -18,7 +18,7 @@ use crate::{
         bind_property_keys, bind_values, scope_property_keys, unbind_property_keys, unbind_values,
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::Rootable,
         unwrap_try, Scoped, TryResult,
     },

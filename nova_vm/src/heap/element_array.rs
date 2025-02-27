@@ -15,7 +15,7 @@ use crate::{
         execution::Agent,
         types::{Function, PropertyDescriptor, PropertyKey, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
 };
 use core::{
     mem::MaybeUninit,

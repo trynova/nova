@@ -7,7 +7,7 @@ use core::{
     ops::{Index, IndexMut},
 };
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builtins::{

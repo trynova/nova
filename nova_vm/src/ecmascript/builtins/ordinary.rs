@@ -8,7 +8,7 @@ use std::vec;
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         unwrap_try, Scoped, TryResult,
     },
 };

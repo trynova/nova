@@ -26,7 +26,7 @@ use crate::{
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Executable, ExecutionResult, Scoped, SuspendedVm,
     },
@@ -521,6 +521,26 @@ pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
     Ok(Value<'a>),
     Err(JsError),
     Return(Value<'a>),
+}
+
+impl Bindable for AsyncGeneratorRequestCompletion<'_> {
+    type Of<'a> = AsyncGeneratorRequestCompletion<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        match self {
+            Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.unbind()),
+            Self::Err(js_error) => AsyncGeneratorRequestCompletion::Err(js_error),
+            Self::Return(value) => AsyncGeneratorRequestCompletion::Return(value.unbind()),
+        }
+    }
+
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        match self {
+            Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.bind(gc)),
+            Self::Err(js_error) => AsyncGeneratorRequestCompletion::Err(js_error),
+            Self::Return(value) => AsyncGeneratorRequestCompletion::Return(value.bind(gc)),
+        }
+    }
 }
 
 impl Rootable for AsyncGenerator<'_> {

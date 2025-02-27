@@ -14,6 +14,7 @@ use crate::{
             OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
+    engine::context::Bindable,
     heap::{
         element_array::ElementDescriptor,
         indexes::{BuiltinFunctionIndex, ObjectIndex},

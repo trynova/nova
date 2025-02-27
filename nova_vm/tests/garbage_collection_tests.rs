@@ -9,7 +9,7 @@ use nova_vm::{
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{Object, String, Value},
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope},
 };
 
 fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {

@@ -17,7 +17,7 @@ use crate::{
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_ast::ast::{self, Program, Statement};

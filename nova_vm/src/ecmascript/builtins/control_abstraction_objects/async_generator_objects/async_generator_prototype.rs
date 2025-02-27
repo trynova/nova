@@ -6,7 +6,7 @@ use crate::ecmascript::abstract_operations::operations_on_iterator_objects::crea
 use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
 use crate::ecmascript::builtins::promise_objects::promise_abstract_operations::promise_capability_records::{if_abrupt_reject_promise, PromiseCapability};
 use crate::ecmascript::execution::agent::JsError;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,

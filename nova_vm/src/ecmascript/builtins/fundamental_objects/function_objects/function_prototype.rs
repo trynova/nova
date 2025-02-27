@@ -6,7 +6,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_get, try_has_own_property,
 };
 use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity_number;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{

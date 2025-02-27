@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::is_prototype_of_loop;
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{

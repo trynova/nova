@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::{context::{GcScope, NoGcScope}, Scoped, TryResult};
+use crate::engine::{context::{ GcScope, NoGcScope}, Scoped, TryResult};
 use crate::{
     ecmascript::{
         builtins::{

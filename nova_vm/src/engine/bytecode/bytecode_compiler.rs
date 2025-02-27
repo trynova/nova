@@ -22,7 +22,7 @@ use crate::{
         },
         types::{BigInt, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::CreateHeapData,
 };
 use num_traits::Num;
