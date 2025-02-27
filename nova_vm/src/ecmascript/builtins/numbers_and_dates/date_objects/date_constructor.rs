@@ -23,6 +23,7 @@ use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::SmallInteger;

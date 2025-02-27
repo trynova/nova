@@ -75,9 +75,20 @@ impl SetConstructor {
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
         let new_target = Function::try_from(new_target).unwrap();
+        // 4. If iterable is either undefined or null, return set.
+        if iterable.is_undefined() || iterable.is_null() {
+            return ordinary_create_from_constructor(
+                agent,
+                new_target.unbind(),
+                ProtoIntrinsics::Set,
+                gc,
+            )
+            .map(|o| o.into_value());
+        }
+        let scoped_iterable = iterable.scope(agent, nogc);
         let set = Set::try_from(ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::Set,
             gc.reborrow(),
         )?)
@@ -86,10 +97,7 @@ impl SetConstructor {
         .bind(gc.nogc());
         let scoped_set = set.scope(agent, gc.nogc());
         // 3. Set set.[[SetData]] to a new empty List.
-        // 4. If iterable is either undefined or null, return set.
-        if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.into_value().unbind());
-        }
+
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
             agent,
@@ -106,9 +114,8 @@ impl SetConstructor {
             ));
         };
         let adder = adder.scope(agent, gc.nogc());
-        if let Value::Array(iterable) = iterable {
+        if let Value::Array(iterable) = scoped_iterable.get(agent) {
             let iterable = iterable.bind(gc.nogc());
-            let scoped_iterable = iterable.scope(agent, gc.nogc());
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)
                 && get_method(
@@ -127,7 +134,9 @@ impl SetConstructor {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
                 let set = scoped_set.get(agent).bind(gc.nogc());
-                let iterable = scoped_iterable.get(agent).bind(gc.nogc());
+                let Value::Array(iterable) = scoped_iterable.get(agent).bind(gc.nogc()) else {
+                    unreachable!()
+                };
                 let Heap {
                     elements,
                     arrays,
@@ -183,7 +192,8 @@ impl SetConstructor {
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, iterable.unbind(), false, gc.reborrow())?;
+        let mut iterator_record =
+            get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).

@@ -19,7 +19,7 @@ use crate::{
         types::{Function, PropertyDescriptor, Value},
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         unwrap_try, TryResult,
     },
 };

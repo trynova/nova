@@ -11,7 +11,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+        Scoped,
+    },
     heap::{
         indexes::SharedArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,

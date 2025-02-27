@@ -6,7 +6,7 @@ use core::{hash::Hasher, ops::Index};
 
 use ahash::AHasher;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -107,9 +107,9 @@ impl MapPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. Set p.[[Key]] to EMPTY.
@@ -131,9 +131,10 @@ impl MapPrototype {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -146,7 +147,7 @@ impl MapPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(numbers, key);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
@@ -187,12 +188,12 @@ impl MapPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY+VALUE).
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::KeyAndValue).into_value())
     }
@@ -228,17 +229,19 @@ impl MapPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback_fn = arguments.get(0);
-        let this_arg = arguments.get(1);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).bind(nogc);
+        let this_arg = arguments.get(1).bind(nogc);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let mut m = require_map_data_internal_slot(agent, this_value, gc.nogc())?;
+        let mut m = require_map_data_internal_slot(agent, this_value, nogc)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(callback_fn) = is_callable(callback_fn, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function parameter is not callable",
-                gc.nogc(),
+                nogc,
             ));
         };
 
@@ -246,8 +249,9 @@ impl MapPrototype {
         // 5. Let numEntries be the number of elements in entries.
         let mut num_entries = agent[m].values().len();
 
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
-        let scoped_m = m.scope(agent, gc.nogc());
+        let this_arg = this_arg.scope(agent, nogc);
+        let callback_fn = callback_fn.scope(agent, nogc);
+        let scoped_m = m.scope(agent, nogc);
 
         // 6. Let index be 0.
         let mut index = 0;
@@ -266,8 +270,12 @@ impl MapPrototype {
                 call_function(
                     agent,
                     callback_fn.get(agent),
-                    this_arg,
-                    Some(ArgumentsList(&[v, k, m.into_value()])),
+                    this_arg.get(agent),
+                    Some(ArgumentsList(&[
+                        v.unbind(),
+                        k.unbind(),
+                        m.into_value().unbind(),
+                    ])),
                     gc.reborrow(),
                 )?;
                 // ii. NOTE: The number of elements in entries may have
@@ -288,9 +296,10 @@ impl MapPrototype {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -303,7 +312,7 @@ impl MapPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(agent, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(agent, key);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(agent, &mut hasher);
@@ -339,9 +348,10 @@ impl MapPrototype {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -354,7 +364,7 @@ impl MapPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(numbers, key);
         let key_hash = {
             let mut hasher = AHasher::default();
             key.hash(&primitive_heap, &mut hasher);
@@ -382,12 +392,12 @@ impl MapPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, KEY).
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Key).into_value())
     }
@@ -399,10 +409,11 @@ impl MapPrototype {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let value = arguments.get(1);
+        let gc = gc.into_nogc();
+        let key = arguments.get(0).bind(gc);
+        let value = arguments.get(1).bind(gc);
         // 1. Let M be the this value.
         // 2. Perform ? RequireInternalSlot(M, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -429,7 +440,7 @@ impl MapPrototype {
         };
 
         // 3. Set key to CanonicalizeKeyedCollectionKey(key).
-        let key = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let key = canonicalize_keyed_collection_key(numbers, key);
         let key_hash = hasher(key);
         // 4. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
         // a. If p.[[Key]] is not EMPTY and SameValue(p.[[Key]], key) is true, then
@@ -446,7 +457,7 @@ impl MapPrototype {
             hashbrown::hash_table::Entry::Occupied(occupied) => {
                 let index = *occupied.get();
                 // i. Set p.[[Value]] to value.
-                values[index as usize] = Some(value);
+                values[index as usize] = Some(value.unbind());
                 // ii. Return M.
             }
             hashbrown::hash_table::Entry::Vacant(vacant) => {
@@ -454,8 +465,8 @@ impl MapPrototype {
                 // 6. Append p to M.[[MapData]].
                 let index = u32::try_from(values.len()).unwrap();
                 vacant.insert(index);
-                keys.push(Some(key));
-                values.push(Some(value));
+                keys.push(Some(key.unbind()));
+                values.push(Some(value.unbind()));
             }
         }
         // 7. Return M.
@@ -480,12 +491,12 @@ impl MapPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let M be the this value.
         // 2. Return ? CreateMapIterator(M, VALUE).
 
         // 24.1.5.1 CreateMapIterator ( map, kind )
         // 1. Perform ? RequireInternalSlot(map, [[MapData]]).
-        let gc = gc.into_nogc();
         let m = require_map_data_internal_slot(agent, this_value, gc)?;
         Ok(MapIterator::from_map(agent, m, CollectionIteratorKind::Value).into_value())
     }
@@ -538,7 +549,7 @@ fn require_map_data_internal_slot<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<Map<'a>> {
     match value {
-        Value::Map(map) => Ok(map),
+        Value::Map(map) => Ok(map.bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Object is not a Map",
@@ -553,8 +564,8 @@ fn require_map_data_internal_slot<'a>(
 /// (an ECMAScript language value) and returns an ECMAScript language value.
 pub(crate) fn canonicalize_keyed_collection_key<'gc>(
     agent: &impl Index<HeapNumber<'gc>, Output = f64>,
-    key: Value,
-) -> Value<'static> {
+    key: Value<'gc>,
+) -> Value<'gc> {
     // 1. If key is -0𝔽, return +0𝔽.
     if let Value::SmallF64(key) = key {
         // Note: Only f32 should hold -0.

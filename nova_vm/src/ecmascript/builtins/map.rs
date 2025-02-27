@@ -12,7 +12,7 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
     },

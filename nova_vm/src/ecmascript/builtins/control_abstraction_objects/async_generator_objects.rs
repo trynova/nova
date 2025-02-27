@@ -523,7 +523,7 @@ pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
     Return(Value<'a>),
 }
 
-impl Bindable for AsyncGeneratorRequestCompletion<'_> {
+unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
     type Of<'a> = AsyncGeneratorRequestCompletion<'a>;
 
     fn unbind(self) -> Self::Of<'static> {

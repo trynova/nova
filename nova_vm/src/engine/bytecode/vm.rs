@@ -98,7 +98,7 @@ impl<'a> ExecutionResult<'a> {
     }
 }
 
-impl Bindable for ExecutionResult<'_> {
+unsafe impl Bindable for ExecutionResult<'_> {
     type Of<'a> = ExecutionResult<'a>;
 
     #[inline(always)]

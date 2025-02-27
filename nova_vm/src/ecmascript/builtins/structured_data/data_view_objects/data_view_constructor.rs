@@ -6,7 +6,7 @@ use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
 use crate::ecmascript::builtins::array_buffer::{
     ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
 };
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{
