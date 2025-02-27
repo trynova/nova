@@ -90,7 +90,11 @@ use crate::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
     },
-    engine::{context::GcScope, rootable::HeapRootData, TryResult},
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::HeapRootData,
+        TryResult,
+    },
     heap::{
         indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
@@ -267,6 +271,30 @@ impl<'a> IntoValue<'a> for Object<'a> {
     }
 }
 
+impl Bindable for Object<'_> {
+    type Of<'a> = Object<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl Bindable for OrdinaryObject<'_> {
+    type Of<'a> = OrdinaryObject<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> IntoObject<'a> for Object<'a> {
     #[inline(always)]
     fn into_object(self) -> Object<'a> {
@@ -359,26 +387,6 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
 }
 
 impl<'a> OrdinaryObject<'a> {
-    /// Unbind this OrdinaryObject from its current lifetime. This is necessary to use
-    /// the OrdinaryObject as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> OrdinaryObject<'static> {
-        unsafe { core::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'static>>(self) }
-    }
-
-    // Bind this OrdinaryObject to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your OrdinaryObjects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound OrdinaryObject cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> OrdinaryObject<'gc> {
-        unsafe { core::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -592,26 +600,6 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
 }
 
 impl<'a> Object<'a> {
-    /// Unbind this Object from its current lifetime. This is necessary to use
-    /// the Object as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Object<'static> {
-        unsafe { core::mem::transmute::<Self, Object<'static>>(self) }
-    }
-
-    // Bind this Object to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Objects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let object = object.bind(&gc);
-    // ```
-    // to make sure that the unbound Object cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Object<'gc> {
-        unsafe { core::mem::transmute::<Self, Object<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

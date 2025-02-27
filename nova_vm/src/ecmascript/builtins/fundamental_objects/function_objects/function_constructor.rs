@@ -23,7 +23,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 

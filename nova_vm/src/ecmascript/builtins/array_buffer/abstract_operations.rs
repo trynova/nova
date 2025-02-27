@@ -5,7 +5,7 @@
 use super::{ArrayBuffer, ArrayBufferHeapData};
 use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::types::{Numeric, Viewable};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,

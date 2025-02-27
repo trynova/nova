@@ -5,7 +5,7 @@
 //! ## [27.2.1.1 PromiseCapability Records]()
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{

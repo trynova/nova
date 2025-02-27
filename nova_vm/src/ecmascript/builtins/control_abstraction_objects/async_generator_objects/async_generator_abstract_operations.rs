@@ -23,7 +23,7 @@ use crate::{
         types::{IntoValue, Value},
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         unwrap_try, ExecutionResult, Scoped, SuspendedVm, Vm,
     },
 };
@@ -43,6 +43,7 @@ pub(crate) fn async_generator_start_result(
     mut gc: GcScope,
 ) {
     let generator = generator.bind(gc.nogc());
+    let result = result.bind(gc.nogc());
     let scoped_generator = generator.scope(agent, gc.nogc());
     // f. Remove acGenContext from the execution context stack and restore the
     //    execution context that is at the top of the execution context stack
@@ -106,7 +107,7 @@ pub(super) fn async_generator_enqueue(
 ) {
     // 1. Let request be AsyncGeneratorRequest { [[Completion]]: completion, [[Capability]]: promiseCapability }.
     let request = AsyncGeneratorRequest {
-        completion,
+        completion: completion.unbind(),
         capability: promise_capability,
     };
     // 2. Append request to generator.[[AsyncGeneratorQueue]].
@@ -184,7 +185,9 @@ pub(super) fn async_generator_resume(
     completion: AsyncGeneratorRequestCompletion,
     mut gc: GcScope,
 ) {
-    let generator = generator.bind(gc.nogc());
+    let nogc = gc.nogc();
+    let generator = generator.bind(nogc);
+    let completion = completion.bind(nogc);
     // 1. Assert: generator.[[AsyncGeneratorState]] is either suspended-start or suspended-yield.
     // 2. Let genContext be generator.[[AsyncGeneratorContext]].
     // 5. Set generator.[[AsyncGeneratorState]] to executing.
@@ -197,7 +200,7 @@ pub(super) fn async_generator_resume(
     //    the running execution context.
     agent.execution_context_stack.push(gen_context);
 
-    let scoped_generator = generator.scope(agent, gc.nogc());
+    let scoped_generator = generator.scope(agent, nogc);
 
     // 7. Resume the suspended evaluation of genContext using completion as the
     //    result of the operation that suspended it. Let result be the
@@ -217,7 +220,7 @@ pub(super) fn async_generator_resume(
     // 9. Assert: When we return here, genContext has already been removed from
     //    the execution context stack and callerContext is the currently
     //    running execution context.
-    resume_handle_result(agent, execution_result, scoped_generator, gc);
+    resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
     // 10. Return unused.
 }
 

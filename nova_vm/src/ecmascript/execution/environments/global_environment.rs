@@ -24,7 +24,7 @@ use crate::{
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

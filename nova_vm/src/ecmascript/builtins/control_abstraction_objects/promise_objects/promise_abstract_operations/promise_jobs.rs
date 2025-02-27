@@ -4,7 +4,7 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::Global;
 use crate::{
     ecmascript::{

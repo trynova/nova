@@ -6,7 +6,7 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -62,7 +62,9 @@ impl SetConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let iterable = arguments.get(0);
+        let nogc = gc.nogc();
+        let iterable = arguments.get(0).bind(nogc);
+        let new_target = new_target.bind(nogc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -169,11 +171,11 @@ impl SetConstructor {
                             // We have duplicates in the array. Latter
                             // ones overwrite earlier ones.
                             let index = *occupied.get();
-                            values[index as usize] = Some(value);
+                            values[index as usize] = Some(value.unbind());
                         }
                         hashbrown::hash_table::Entry::Vacant(vacant) => {
                             vacant.insert(next_index);
-                            values.push(Some(value));
+                            values.push(Some(value.unbind()));
                         }
                     }
                 });

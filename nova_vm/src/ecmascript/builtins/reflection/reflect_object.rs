@@ -7,7 +7,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
 };
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{bind_property_keys, unbind_property_keys};
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{

@@ -17,7 +17,7 @@ use crate::{
             try_create_data_property_or_throw, EnvironmentIndex, Executable, Instruction, Vm,
             VmIterator,
         },
-        context::GcScope,
+        context::{Bindable, GcScope},
         unwrap_try,
     },
 };

@@ -7,6 +7,7 @@ use crate::{
         bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value, BIGINT_DISCRIMINANT,
         NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
     },
+    engine::context::Bindable,
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;

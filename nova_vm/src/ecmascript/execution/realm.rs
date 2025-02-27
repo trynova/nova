@@ -7,7 +7,7 @@ mod intrinsics;
 use super::{
     environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
 };
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
@@ -1157,7 +1157,7 @@ pub(crate) fn initialize_default_realm(agent: &mut Agent, gc: GcScope) {
 mod test {
     #[allow(unused_imports)]
     use crate::{
-        engine::context::GcScope,
+        engine::context::{Bindable, GcScope},
         heap::{
             IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
             LAST_INTRINSIC_CONSTRUCTOR_INDEX, LAST_INTRINSIC_FUNCTION_INDEX,

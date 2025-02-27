@@ -9,6 +9,7 @@ use crate::{
         execution::{Agent, Realm},
         types::{IntoValue, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::context::Bindable,
     heap::element_array::ElementDescriptor,
     Heap,
 };

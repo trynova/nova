@@ -11,7 +11,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,

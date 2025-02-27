@@ -5,6 +5,7 @@
 use super::Object;
 use crate::{
     ecmascript::{execution::Agent, types::Value},
+    engine::context::Bindable,
     heap::{element_array::ElementsVector, CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

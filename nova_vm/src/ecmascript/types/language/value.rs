@@ -57,7 +57,7 @@ use crate::{
         types::BUILTIN_STRING_MEMORY,
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
         Scoped, TryResult,
@@ -366,25 +366,6 @@ pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
 impl<'a> Value<'a> {
-    /// Unbind this Value from its current lifetime. This is necessary to use
-    /// the Value as a parameter in a call that can perform garbage collection.
-    pub fn unbind(self) -> Value<'static> {
-        unsafe { std::mem::transmute::<Self, Value<'static>>(self) }
-    }
-
-    // Bind this Value to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Values cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let value = value.bind(&gc);
-    // ```
-    // to make sure that the unbound Value cannot be used after binding.
-    pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> Value<'gc> {
-        unsafe { std::mem::transmute::<Self, Value<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -1143,6 +1124,18 @@ pub fn unbind_values<'a>(vec: Vec<Value<'a>>) -> Vec<Value<'static>> {
 #[inline(always)]
 pub fn bind_values<'a>(vec: Vec<Value>, _: NoGcScope<'a, '_>) -> Vec<Value<'a>> {
     unsafe { std::mem::transmute::<Vec<Value>, Vec<Value<'a>>>(vec) }
+}
+
+impl Bindable for Value<'_> {
+    type Of<'a> = Value<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 impl<'a, T> From<Option<T>> for Value<'a>

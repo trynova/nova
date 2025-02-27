@@ -9,7 +9,7 @@ use crate::ecmascript::builtins::proxy::abstract_operations::{
     validate_non_revoked_proxy, NonRevokedProxy,
 };
 use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::heap::WellKnownSymbolIndexes;
 use crate::{

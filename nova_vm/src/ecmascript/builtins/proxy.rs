@@ -27,7 +27,7 @@ use crate::{
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
         Scoped, TryResult,
     },

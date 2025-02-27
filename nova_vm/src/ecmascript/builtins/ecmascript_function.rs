@@ -49,7 +49,7 @@ use crate::{
         types::{function_try_get, function_try_has_property, function_try_set},
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped, TryResult,
     },

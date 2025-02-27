@@ -6,7 +6,7 @@ use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
 use crate::ecmascript::types::OrdinaryObject;
-use crate::engine::context::NoGcScope;
+use crate::engine::context::{Bindable, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{

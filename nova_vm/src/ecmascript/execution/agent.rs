@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -45,6 +45,18 @@ impl JsError {
 
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         to_string(agent, self.0, gc).unwrap()
+    }
+}
+
+impl Bindable for JsError {
+    type Of<'a> = JsError;
+
+    fn unbind(self) -> Self::Of<'static> {
+        self
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        self
     }
 }
 

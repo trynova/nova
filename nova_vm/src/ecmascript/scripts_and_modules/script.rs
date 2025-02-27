@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{
@@ -576,7 +576,7 @@ pub(crate) fn global_declaration_instantiation(
 #[cfg(test)]
 mod test {
     use crate::ecmascript::builtins::Array;
-    use crate::engine::context::GcScope;
+    use crate::engine::context::{Bindable, GcScope};
     use crate::engine::unwrap_try;
     use crate::{
         ecmascript::{

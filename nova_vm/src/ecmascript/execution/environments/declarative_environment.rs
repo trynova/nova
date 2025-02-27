@@ -10,7 +10,7 @@ use crate::{
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{Object, String, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

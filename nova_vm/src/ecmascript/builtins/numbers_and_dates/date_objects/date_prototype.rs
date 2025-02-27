@@ -4,7 +4,7 @@
 
 use std::time::SystemTime;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{ordinary_to_primitive, PreferredType},

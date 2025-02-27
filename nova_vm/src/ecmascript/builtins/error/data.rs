@@ -23,7 +23,7 @@ impl ErrorHeapData {
     pub(crate) fn new(
         kind: ExceptionType,
         message: Option<String<'static>>,
-        cause: Option<Value>,
+        cause: Option<Value<'static>>,
     ) -> Self {
         Self {
             object_index: None,

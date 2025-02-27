@@ -10,7 +10,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{IntoObject, IntoValue};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::{unwrap_try, Scoped};
 use crate::{
     ecmascript::{

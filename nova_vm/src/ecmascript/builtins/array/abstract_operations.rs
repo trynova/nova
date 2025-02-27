@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{

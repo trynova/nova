@@ -7,7 +7,7 @@ use core::hash::Hasher;
 use ahash::AHasher;
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{
@@ -95,7 +95,7 @@ impl MapConstructor {
         let iterable = arguments.get(0);
         // 4. If iterable is either undefined or null, return map.
         if iterable.is_undefined() || iterable.is_null() {
-            Ok(map.into_value())
+            Ok(map.into_value().unbind())
         } else {
             // Note
             // If the parameter iterable is present, it is expected to be an

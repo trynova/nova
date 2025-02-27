@@ -15,7 +15,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{
