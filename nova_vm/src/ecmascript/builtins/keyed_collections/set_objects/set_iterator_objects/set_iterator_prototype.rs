@@ -60,14 +60,14 @@ impl SetIteratorPrototype {
         // b. Let entries be set.[[SetData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while agent[iterator].next_index < agent[set].values().len() {
+        while agent[iterator].next_index < agent[set].values(gc).len() {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
             let index = agent[iterator].next_index;
             agent[iterator].next_index += 1;
 
             // iii. if e is not EMPTY, then
-            let Some(e) = agent[set].values()[index] else {
+            let Some(e) = agent[set].values(gc)[index] else {
                 continue;
             };
 
@@ -90,7 +90,7 @@ impl SetIteratorPrototype {
             return Ok(create_iter_result_object(agent, result.unbind(), false, gc).into_value());
         }
 
-        debug_assert_eq!(agent[iterator].next_index, agent[set].values().len());
+        debug_assert_eq!(agent[iterator].next_index, agent[set].values(gc).len());
 
         // e. Return undefined.
         agent[iterator].set = None;

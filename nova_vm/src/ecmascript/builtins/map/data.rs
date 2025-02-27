@@ -7,7 +7,7 @@ use crate::{
         bigint::HeapBigInt, HeapNumber, HeapPrimitive, HeapString, OrdinaryObject, Value,
         BIGINT_DISCRIMINANT, NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
     },
-    engine::context::Bindable,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
@@ -59,11 +59,11 @@ impl MapHeapData {
         self.map_data.map_data.borrow().len() as u32
     }
 
-    pub fn keys(&self) -> &[Option<Value>] {
+    pub fn keys<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.map_data.keys
     }
 
-    pub fn values(&self) -> &[Option<Value>] {
+    pub fn values<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.map_data.values
     }
 

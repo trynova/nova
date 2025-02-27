@@ -247,7 +247,7 @@ impl MapPrototype {
 
         // 4. Let entries be M.[[MapData]].
         // 5. Let numEntries be the number of elements in entries.
-        let mut num_entries = agent[m].values().len();
+        let mut num_entries = agent[m].values(gc.nogc()).len();
 
         let this_arg = this_arg.scope(agent, nogc);
         let callback_fn = callback_fn.scope(agent, nogc);
@@ -262,10 +262,10 @@ impl MapPrototype {
             let entry_index = index;
             // b. Set index to index + 1.
             index += 1;
-            let k = data.keys()[entry_index];
+            let k = data.keys(gc.nogc())[entry_index];
             // c. If e.[[Key]] is not EMPTY, then
             if let Some(k) = k {
-                let v = data.values()[entry_index].unwrap();
+                let v = data.values(gc.nogc())[entry_index].unwrap();
                 // i. Perform ? Call(callbackfn, thisArg, « e.[[Value]], e.[[Key]], M »).
                 call_function(
                     agent,
@@ -282,7 +282,7 @@ impl MapPrototype {
                 //     increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 m = scoped_m.get(agent).bind(gc.nogc());
-                num_entries = agent[m].values().len();
+                num_entries = agent[m].values(gc.nogc()).len();
             }
         }
         // 8. Return undefined.
