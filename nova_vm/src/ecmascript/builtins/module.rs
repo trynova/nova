@@ -4,7 +4,7 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::HeapRootData;
 use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
@@ -45,8 +45,8 @@ impl<'a> From<ModuleIdentifier<'a>> for Module<'a> {
     }
 }
 
-impl IntoValue for Module<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Module<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -57,15 +57,15 @@ impl<'a> IntoObject<'a> for Module<'a> {
     }
 }
 
-impl From<Module<'_>> for Value {
-    fn from(val: Module) -> Self {
-        Value::Module(val.unbind())
+impl<'a> From<Module<'a>> for Value<'a> {
+    fn from(value: Module<'a>) -> Self {
+        Value::Module(value)
     }
 }
 
 impl<'a> From<Module<'a>> for Object<'a> {
-    fn from(val: Module) -> Self {
-        Object::Module(val.unbind())
+    fn from(value: Module<'a>) -> Self {
+        Object::Module(value)
     }
 }
 
@@ -230,7 +230,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.try_get(agent, property_key, self.into_value(), gc)?;
+                    let value = self
+                        .try_get(agent, property_key, self.into_value(), gc)?
+                        .unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     TryResult::Continue(Some(PropertyDescriptor {
                         value: Some(value),
@@ -273,8 +275,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value =
-                        self.internal_get(agent, property_key.unbind(), self.into_value(), gc)?;
+                    let value = self
+                        .internal_get(agent, property_key.unbind(), self.into_value(), gc)?
+                        .unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
                         value: Some(value),
@@ -436,13 +439,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
         // it must return the same result. An implementation might choose to
@@ -510,13 +513,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
 
         // NOTE: ResolveExport is side-effect free. Each time this operation
@@ -537,7 +540,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         receiver,
                         gc.reborrow(),
                     )
-                    .unwrap(),
+                    .unwrap()
+                    .unbind(),
                     None => Value::Undefined,
                 })
             }

@@ -6,7 +6,7 @@ use oxc_ast::ast::RegExpFlags;
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{set, try_set};
 use crate::ecmascript::types::IntoObject;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builtins::ordinary::ordinary_create_from_constructor,

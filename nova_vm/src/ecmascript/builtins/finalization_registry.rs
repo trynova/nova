@@ -68,8 +68,8 @@ impl FinalizationRegistry<'_> {
     }
 }
 
-impl IntoValue for FinalizationRegistry<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for FinalizationRegistry<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -80,15 +80,15 @@ impl<'a> IntoObject<'a> for FinalizationRegistry<'a> {
     }
 }
 
-impl From<FinalizationRegistry<'_>> for Value {
-    fn from(val: FinalizationRegistry) -> Self {
-        Value::FinalizationRegistry(val.unbind())
+impl<'a> From<FinalizationRegistry<'a>> for Value<'a> {
+    fn from(value: FinalizationRegistry<'a>) -> Self {
+        Value::FinalizationRegistry(value)
     }
 }
 
 impl<'a> From<FinalizationRegistry<'a>> for Object<'a> {
-    fn from(val: FinalizationRegistry) -> Self {
-        Object::FinalizationRegistry(val.unbind())
+    fn from(value: FinalizationRegistry<'a>) -> Self {
+        Object::FinalizationRegistry(value)
     }
 }
 
@@ -101,10 +101,7 @@ impl<'a> InternalSlots<'a> for FinalizationRegistry<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 

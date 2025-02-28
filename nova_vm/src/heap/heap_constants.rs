@@ -384,7 +384,7 @@ impl From<WellKnownSymbolIndexes> for Symbol<'static> {
     }
 }
 
-impl From<WellKnownSymbolIndexes> for Value {
+impl From<WellKnownSymbolIndexes> for Value<'static> {
     fn from(value: WellKnownSymbolIndexes) -> Self {
         Value::Symbol(value.into())
     }

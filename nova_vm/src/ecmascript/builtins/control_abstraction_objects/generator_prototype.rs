@@ -48,12 +48,12 @@ impl Builtin for GeneratorPrototypeThrow {
 }
 
 impl GeneratorPrototype {
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
@@ -67,12 +67,12 @@ impl GeneratorPrototype {
         Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
     }
 
-    fn r#return(
+    fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
@@ -124,12 +124,12 @@ impl GeneratorPrototype {
         Ok(create_iter_result_object(agent, arguments.get(0), true, gc).into_value())
     }
 
-    fn throw(
+    fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(

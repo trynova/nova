@@ -4,7 +4,7 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
@@ -73,6 +73,7 @@ impl Generator<'_> {
         value: Value,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<Object<'a>> {
+        let value = value.bind(gc.nogc());
         let generator = self.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[generator].generator_state.as_ref().unwrap() {
@@ -125,10 +126,13 @@ impl Generator<'_> {
             VmOrArguments::Arguments(args) => {
                 Vm::execute(agent, executable, Some(&args), gc.reborrow())
             }
-            VmOrArguments::Vm(vm) => vm.resume(agent, executable, value, gc.reborrow()),
+            VmOrArguments::Vm(vm) => vm.resume(agent, executable, value.unbind(), gc.reborrow()),
         };
 
-        let generator = saved.get(agent).bind(gc.nogc());
+        let execution_result = execution_result.unbind();
+        let gc = gc.into_nogc();
+        let generator = saved.get(agent).bind(gc);
+        let execution_result = execution_result.bind(gc);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -153,12 +157,7 @@ impl Generator<'_> {
                 // j. Else if result is a return completion, then
                 //    i. Let resultValue be result.[[Value]].
                 // l. Return CreateIterResultObject(resultValue, true).
-                Ok(create_iter_result_object(
-                    agent,
-                    result_value,
-                    true,
-                    gc.into_nogc(),
-                ))
+                Ok(create_iter_result_object(agent, result_value, true, gc))
             }
             ExecutionResult::Throw(err) => {
                 // GeneratorStart step 4:
@@ -185,12 +184,7 @@ impl Generator<'_> {
                     }));
                 // 8. Resume callerContext passing NormalCompletion(iterNextObj). ...
                 // NOTE: `callerContext` here is the `GeneratorResume` execution context.
-                Ok(create_iter_result_object(
-                    agent,
-                    yielded_value,
-                    false,
-                    gc.into_nogc(),
-                ))
+                Ok(create_iter_result_object(agent, yielded_value, false, gc))
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
@@ -204,6 +198,7 @@ impl Generator<'_> {
         value: Value,
         mut gc: GcScope<'a, '_>,
     ) -> JsResult<Object<'a>> {
+        let value = value.bind(gc.nogc());
         // 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         match agent[self].generator_state.as_ref().unwrap() {
             GeneratorState::Suspended(SuspendedGeneratorState {
@@ -220,7 +215,7 @@ impl Generator<'_> {
 
                 // 3. If state is completed, then
                 // b. Return ? abruptCompletion.
-                return Err(JsError::new(value));
+                return Err(JsError::new(value.unbind()));
             }
             GeneratorState::Suspended { .. } => {
                 // 4. Assert: state is suspended-yield.
@@ -229,13 +224,13 @@ impl Generator<'_> {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "The generator is currently running",
-                    gc.nogc(),
+                    gc.into_nogc(),
                 ));
             }
             GeneratorState::Completed => {
                 // 3. If state is completed, then
                 //    b. Return ? abruptCompletion.
-                return Err(JsError::new(value));
+                return Err(JsError::new(value.unbind()));
             }
         };
 
@@ -261,7 +256,11 @@ impl Generator<'_> {
         // 10. Resume the suspended evaluation of genContext using NormalCompletion(value) as the
         // result of the operation that suspended it. Let result be the value returned by the
         // resumed computation.
-        let execution_result = vm.resume_throw(agent, executable, value, gc.reborrow());
+        let execution_result = vm
+            .resume_throw(agent, executable, value.unbind(), gc.reborrow())
+            .unbind();
+        let gc = gc.into_nogc();
+        let execution_result = execution_result.bind(gc);
 
         // GeneratorStart: 4.f. Remove acGenContext from the execution context stack and restore the
         // execution context that is at the top of the execution context stack as the running
@@ -276,12 +275,7 @@ impl Generator<'_> {
         match execution_result {
             ExecutionResult::Return(result) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
-                Ok(create_iter_result_object(
-                    agent,
-                    result,
-                    true,
-                    gc.into_nogc(),
-                ))
+                Ok(create_iter_result_object(agent, result, true, gc))
             }
             ExecutionResult::Throw(err) => {
                 agent[self].generator_state = Some(GeneratorState::Completed);
@@ -294,20 +288,15 @@ impl Generator<'_> {
                         executable,
                         execution_context,
                     }));
-                Ok(create_iter_result_object(
-                    agent,
-                    yielded_value,
-                    false,
-                    gc.into_nogc(),
-                ))
+                Ok(create_iter_result_object(agent, yielded_value, false, gc))
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
     }
 }
 
-impl IntoValue for Generator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Generator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -318,9 +307,9 @@ impl<'a> IntoObject<'a> for Generator<'a> {
     }
 }
 
-impl From<Generator<'_>> for Value {
-    fn from(val: Generator) -> Self {
-        Value::Generator(val.unbind())
+impl<'a> From<Generator<'a>> for Value<'a> {
+    fn from(value: Generator<'a>) -> Self {
+        Value::Generator(value)
     }
 }
 
@@ -330,10 +319,10 @@ impl<'a> From<Generator<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for Generator<'_> {
+impl<'a> TryFrom<Value<'a>> for Generator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::Generator(value) = value {
             Ok(value)
         } else {
@@ -350,10 +339,7 @@ impl<'a> InternalSlots<'a> for Generator<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 
@@ -432,7 +418,7 @@ pub struct GeneratorHeapData {
 #[derive(Debug)]
 pub(crate) enum VmOrArguments {
     Vm(SuspendedVm),
-    Arguments(Box<[Value]>),
+    Arguments(Box<[Value<'static>]>),
 }
 
 #[derive(Debug)]

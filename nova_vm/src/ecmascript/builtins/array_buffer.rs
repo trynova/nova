@@ -14,7 +14,7 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
     },
@@ -158,16 +158,16 @@ impl<'a> IntoObject<'a> for ArrayBuffer<'a> {
     }
 }
 
-impl IntoValue for ArrayBuffer<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for ArrayBuffer<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
-impl TryFrom<Value> for ArrayBuffer<'_> {
+impl<'a> TryFrom<Value<'a>> for ArrayBuffer<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::ArrayBuffer(base_index) => Ok(base_index),
             _ => Err(()),
@@ -193,9 +193,9 @@ impl<'a> From<ArrayBuffer<'a>> for Object<'a> {
     }
 }
 
-impl From<ArrayBuffer<'_>> for Value {
-    fn from(value: ArrayBuffer) -> Self {
-        Self::ArrayBuffer(value.unbind())
+impl<'a> From<ArrayBuffer<'a>> for Value<'a> {
+    fn from(value: ArrayBuffer<'a>) -> Self {
+        Self::ArrayBuffer(value)
     }
 }
 

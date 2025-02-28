@@ -67,15 +67,15 @@ impl Date<'_> {
     }
 }
 
-impl IntoValue for Date<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Date<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
-impl From<Date<'_>> for Value {
-    fn from(value: Date) -> Self {
-        Value::Date(value.unbind())
+impl<'a> From<Date<'a>> for Value<'a> {
+    fn from(value: Date<'a>) -> Self {
+        Value::Date(value)
     }
 }
 
@@ -91,10 +91,10 @@ impl<'a> From<Date<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for Date<'_> {
+impl<'a> TryFrom<Value<'a>> for Date<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Date(idx) => Ok(idx),
             _ => Err(()),
@@ -122,10 +122,7 @@ impl<'a> InternalSlots<'a> for Date<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 

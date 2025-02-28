@@ -4,7 +4,7 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::Scoped;
 use crate::{
@@ -74,7 +74,7 @@ impl<'a> Promise<'a> {
             // a. Let xConstructor be ? Get(x, "constructor").
             // b. If SameValue(xConstructor, C) is true, return x.
             // NOTE: Ignoring subclasses.
-            promise
+            promise.unbind()
         } else {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
             let promise_capability = PromiseCapability::new(agent);
@@ -86,8 +86,8 @@ impl<'a> Promise<'a> {
     }
 }
 
-impl IntoValue for Promise<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Promise<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -98,15 +98,15 @@ impl<'a> IntoObject<'a> for Promise<'a> {
     }
 }
 
-impl From<Promise<'_>> for Value {
-    fn from(val: Promise) -> Self {
-        Value::Promise(val.unbind())
+impl<'a> From<Promise<'a>> for Value<'a> {
+    fn from(value: Promise<'a>) -> Self {
+        Value::Promise(value)
     }
 }
 
 impl<'a> From<Promise<'a>> for Object<'a> {
-    fn from(val: Promise) -> Self {
-        Object::Promise(val.unbind())
+    fn from(value: Promise<'a>) -> Self {
+        Object::Promise(value)
     }
 }
 

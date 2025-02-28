@@ -42,7 +42,7 @@ pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
@@ -487,13 +487,13 @@ impl EnvironmentIndex {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn try_get_binding_value(
+    pub(crate) fn try_get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<Value>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<JsResult<Value<'gc>>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
                 TryResult::Continue(idx.get_binding_value(agent, name, is_strict, gc))
@@ -515,19 +515,19 @@ impl EnvironmentIndex {
     /// does not exist throw a ReferenceError exception. If the binding exists
     /// but is uninitialized a ReferenceError is thrown, regardless of the
     /// value of S.
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             EnvironmentIndex::Declarative(idx) => {
-                idx.get_binding_value(agent, name, is_strict, gc.nogc())
+                idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
             EnvironmentIndex::Function(idx) => {
-                idx.get_binding_value(agent, name, is_strict, gc.nogc())
+                idx.get_binding_value(agent, name, is_strict, gc.into_nogc())
             }
             EnvironmentIndex::Global(idx) => idx.get_binding_value(agent, name, is_strict, gc),
             EnvironmentIndex::Object(idx) => idx.get_binding_value(agent, name, is_strict, gc),

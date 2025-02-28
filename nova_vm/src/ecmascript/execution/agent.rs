@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -32,19 +32,34 @@ pub type JsResult<T> = core::result::Result<T, JsError>;
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct JsError(Value);
+pub struct JsError(Value<'static>);
 
 impl JsError {
-    pub(crate) fn new(value: Value) -> Self {
+    pub(crate) fn new(value: Value<'static>) -> Self {
         Self(value)
     }
 
-    pub fn value(self) -> Value {
+    pub fn value(self) -> Value<'static> {
         self.0
     }
 
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         to_string(agent, self.0, gc).unwrap()
+    }
+}
+
+// SAFETY: Property implemented as a recursive bind.
+unsafe impl Bindable for JsError {
+    type Of<'a> = JsError;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        self
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        self
     }
 }
 

@@ -25,6 +25,7 @@ use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 
@@ -43,29 +44,48 @@ impl BuiltinIntrinsicConstructor for ErrorConstructor {
 
 impl ErrorConstructor {
     /// ### [20.5.1.1 Error ( message \[ , options \] )](https://tc39.es/ecma262/#sec-error-message)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let message = arguments.get(0);
-        let options = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let message = arguments.get(0).bind(gc.nogc());
+        let mut options = arguments.get(1).bind(gc.nogc());
+        let mut new_target = new_target.bind(gc.nogc());
 
         // 3. If message is not undefined, then
-        let message = if !message.is_undefined() {
+        let message = if let Ok(message) = String::try_from(message) {
+            Some(message.scope(agent, gc.nogc()))
+        } else if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
-            Some(
-                to_string(agent, message, gc.reborrow())?
-                    .unbind()
-                    .scope(agent, gc.nogc()),
-            )
+            let scoped_options = options.scope(agent, gc.nogc());
+            let scoped_new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
+            let message = to_string(agent, message.unbind(), gc.reborrow())?
+                .unbind()
+                .scope(agent, gc.nogc());
+            // SAFETY: Never shared.
+            unsafe {
+                new_target = scoped_new_target.map(|n| n.take(agent)).bind(gc.nogc());
+                options = scoped_options.take(agent).bind(gc.nogc());
+            }
+            Some(message)
         } else {
             None
         };
         // 4. Perform ? InstallErrorCause(O, options).
-        let cause = get_error_cause(agent, options, gc.reborrow())?;
+        let cause = if !options.is_object() {
+            None
+        } else {
+            let scoped_new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
+            let cause = get_error_cause(agent, options.unbind(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            // SAFETY: Never shared.
+            new_target = unsafe { scoped_new_target.map(|n| n.take(agent)).bind(gc.nogc()) };
+            cause.map(|c| c.scope(agent, gc.nogc()))
+        };
 
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
@@ -75,13 +95,16 @@ impl ErrorConstructor {
         // 2. Let O be ? OrdinaryCreateFromConstructor(newTarget, "%Error.prototype%", « [[ErrorData]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::Error,
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.into_nogc());
         let o = Error::try_from(o).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
         let message = message.map(|message| message.get(agent));
+        let cause = cause.map(|c| c.get(agent));
         let heap_data = &mut agent[o];
         heap_data.kind = ExceptionType::Error;
         heap_data.message = message;
@@ -101,11 +124,11 @@ impl ErrorConstructor {
     }
 }
 
-pub(super) fn get_error_cause(
+pub(super) fn get_error_cause<'gc>(
     agent: &mut Agent,
     options: Value,
-    mut gc: GcScope,
-) -> JsResult<Option<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Option<Value<'gc>>> {
     let Ok(options) = Object::try_from(options) else {
         return Ok(None);
     };

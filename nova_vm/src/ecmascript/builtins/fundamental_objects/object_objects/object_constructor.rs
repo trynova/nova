@@ -26,13 +26,12 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
-            bind_property_keys, scope_property_keys, unbind_property_keys, InternalMethods,
-            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            scope_property_keys, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         unwrap_try, Scoped, TryResult,
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
@@ -264,15 +263,15 @@ impl Builtin for ObjectValues {
 
 impl ObjectConstructor {
     /// ### [20.1.1.1 Object ( \[ value \] )](https://tc39.es/ecma262/#sec-object-value)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let value = arguments.get(0);
-        let new_target = new_target.map(|f| f.bind(gc.nogc()));
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let value = arguments.get(0).bind(gc.nogc());
+        let new_target = new_target.bind(gc.nogc());
         // 1. If NewTarget is neither undefined nor the active function object, then
         if new_target.is_some()
             && new_target
@@ -291,7 +290,7 @@ impl ObjectConstructor {
                 ProtoIntrinsics::Object,
                 gc.reborrow(),
             )
-            .map(|value| value.into_value())
+            .map(|value| value.into_value().unbind())
         } else if value == Value::Undefined || value == Value::Null {
             // 2. If value is either undefined or null, return OrdinaryObjectCreate(%Object.prototype%).
             Ok(ordinary_object_create_with_intrinsics(
@@ -303,7 +302,7 @@ impl ObjectConstructor {
             .into_value())
         } else {
             // 3. Return ! ToObject(value).
-            Ok(to_object(agent, value, gc.into_nogc())
+            Ok(to_object(agent, value.unbind(), gc.into_nogc())
                 .unwrap()
                 .into_value())
         }
@@ -313,43 +312,56 @@ impl ObjectConstructor {
     ///
     /// This function copies the values of all of the enumerable own properties
     /// from one or more source objects to a target object.
-    fn assign(
+    fn assign<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let target = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let target = arguments.get(0).bind(nogc);
         // 1. Let to be ? ToObject(target).
-        let to = to_object(agent, target, gc.nogc())?;
+        let to = to_object(agent, target, nogc)?;
         // 2. If only one argument was passed, return to.
         if arguments.len() <= 1 {
-            return Ok(to.into_value());
+            return Ok(to.into_value().unbind());
         }
-        let to = to.scope(agent, gc.nogc());
-        let sources = &arguments[1..];
+        let sources = arguments[1..]
+            .iter()
+            .map(|a| a.scope(agent, nogc))
+            .collect::<Vec<_>>();
+        // Note: We scope to twice: First for the from object and then for
+        // itself. The scoped_from's heap data will be replaced on every loop
+        // and thus cannot be used for storing the to object. We must not
+        // use "clone" to duplicate scoped_from into to as that would reuse the
+        // heap data slot.
+        let mut scoped_from = to.scope(agent, nogc);
+        let to = to.scope(agent, nogc);
         // 3. For each element nextSource of sources, do
-        for next_source in sources {
+        for scoped_next_source in sources {
+            let next_source = scoped_next_source.get(agent).bind(gc.nogc());
             // a. If nextSource is neither undefined nor null, then
             if next_source.is_undefined() || next_source.is_null() {
                 continue;
             }
             // i. Let from be ! ToObject(nextSource).
-            let from = to_object(agent, *next_source, gc.nogc())?.scope(agent, gc.nogc());
+            let from = to_object(agent, next_source, gc.nogc()).unwrap();
+            // SAFETY: scoped_from does not share its heap slot with anyone as
+            // it is created separately (not a clone itself) and never cloned.
+            unsafe { scoped_from.replace(agent, from.unbind()) };
             // ii. Let keys be ? from.[[OwnPropertyKeys]]().
-            let keys = unbind_property_keys(
-                from.get(agent)
-                    .internal_own_property_keys(agent, gc.reborrow())?,
-            );
-            let keys = scope_property_keys(agent, keys, gc.nogc());
+            let keys = from
+                .unbind()
+                .internal_own_property_keys(agent, gc.reborrow())?;
+            let keys = scope_property_keys(agent, keys.unbind(), gc.nogc());
             // iii. For each element nextKey of keys, do
             for next_key in keys {
                 // 1. Let desc be ? from.[[GetOwnProperty]](nextKey).
-                let desc = {
-                    let next_key = next_key.get(agent);
-                    from.get(agent)
-                        .internal_get_own_property(agent, next_key, gc.reborrow())?
-                };
+                let desc = scoped_from.get(agent).internal_get_own_property(
+                    agent,
+                    next_key.get(agent),
+                    gc.reborrow(),
+                )?;
                 // 2. If desc is not undefined and desc.[[Enumerable]] is true, then
                 let Some(desc) = desc else {
                     continue;
@@ -358,17 +370,18 @@ impl ObjectConstructor {
                     continue;
                 }
                 // a. Let propValue be ? Get(from, nextKey).
-                let prop_value = {
-                    let next_key = next_key.get(agent);
-                    get(agent, from.get(agent), next_key, gc.reborrow())?
-                };
+                let prop_value = get(
+                    agent,
+                    scoped_from.get(agent),
+                    next_key.get(agent),
+                    gc.reborrow(),
+                )?;
                 // b. Perform ? Set(to, nextKey, propValue, true).
-                let next_key = next_key.get(agent);
                 set(
                     agent,
                     to.get(agent),
-                    next_key,
-                    prop_value,
+                    next_key.get(agent),
+                    prop_value.unbind(),
                     true,
                     gc.reborrow(),
                 )?;
@@ -378,53 +391,58 @@ impl ObjectConstructor {
         Ok(to.get(agent).into_value())
     }
 
-    fn create(
+    fn create<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let o = arguments.get(0).bind(nogc);
+        let properties = arguments.get(1).bind(nogc);
         let obj: OrdinaryObject = if o == Value::Null {
-            agent.heap.create_null_object(&[])
+            agent.heap.create_null_object(&[]).bind(nogc)
         } else if let Ok(o) = Object::try_from(o) {
-            agent.heap.create_object_with_prototype(o, &[])
+            agent.heap.create_object_with_prototype(o, &[]).bind(nogc)
         } else {
             let error_message = format!(
                 "{} is not an object or null",
-                o.string_repr(agent, gc.reborrow()).as_str(agent)
+                o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
-        let properties = arguments.get(1);
         if properties != Value::Undefined {
-            object_define_properties(agent, obj, properties, gc.reborrow())?;
+            let scoped_obj = obj.scope(agent, gc.nogc());
+            object_define_properties(agent, obj.unbind(), properties.unbind(), gc.reborrow())?;
+            Ok(scoped_obj.get(agent).into_value())
+        } else {
+            Ok(obj.into_value().unbind())
         }
-        Ok(obj.into_value())
     }
 
     /// ### [20.1.2.3 Object.defineProperties ( O, Properties )](https://tc39.es/ecma262/#sec-object.defineproperties)
     ///
     /// This function adds own properties and/or updates the attributes of
     /// existing own properties of an object.
-    fn define_properties(
+    fn define_properties<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
-        let properties = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let o = arguments.get(0).bind(nogc);
+        let properties = arguments.get(1).bind(nogc);
         // 1. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.string_repr(agent, gc.reborrow()).as_str(agent)
+                o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };
         // 2. Return ? ObjectDefineProperties(O, Properties).
-        let result = object_define_properties(agent, o, properties, gc.reborrow())?;
+        let result = object_define_properties(agent, o.unbind(), properties.unbind(), gc)?;
         Ok(result.into_value())
     }
 
@@ -432,42 +450,67 @@ impl ObjectConstructor {
     ///
     /// This function adds an own property and/or updates the attributes of an
     /// existing own property of an object.
-    fn define_property(
+    fn define_property<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
-        let p = arguments.get(1);
-        let attributes = arguments.get(2);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let o = arguments.get(0).bind(nogc);
+        let p = arguments.get(1).bind(nogc);
+        let mut attributes = arguments.get(2).bind(nogc);
         // 1. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(o) else {
             let error_message = format!(
                 "{} is not an object",
-                o.string_repr(agent, gc.reborrow()).as_str(agent)
+                o.unbind().string_repr(agent, gc.reborrow()).as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         };
+        let o = o.scope(agent, gc.nogc());
         // 2. Let key be ? ToPropertyKey(P).
-        let key = to_property_key(agent, p, gc.reborrow())?
-            .unbind()
-            .scope(agent, gc.nogc());
+        let mut key = if let TryResult::Continue(key) = to_property_key_simple(agent, p, nogc) {
+            key
+        } else {
+            let scoped_attributes = attributes.scope(agent, nogc);
+            let key = to_property_key(agent, p.unbind(), gc.reborrow())?.unbind();
+            let gc = gc.nogc();
+            attributes = scoped_attributes.get(agent).bind(gc);
+            key.bind(gc)
+        };
         // 3. Let desc be ? ToPropertyDescriptor(Attributes).
-        let desc = PropertyDescriptor::to_property_descriptor(agent, attributes, gc.reborrow())?;
+        let desc = if let TryResult::Continue(desc) =
+            PropertyDescriptor::try_to_property_descriptor(agent, attributes, gc.nogc())
+        {
+            desc?
+        } else {
+            let scoped_key = key.scope(agent, gc.nogc());
+            let desc = PropertyDescriptor::to_property_descriptor(
+                agent,
+                attributes.unbind(),
+                gc.reborrow(),
+            )?;
+            key = scoped_key.get(agent).bind(gc.nogc());
+            desc
+        };
         // 4. Perform ? DefinePropertyOrThrow(O, key, desc).
-        define_property_or_throw(agent, o, key.get(agent), desc, gc.reborrow())?;
+        define_property_or_throw(agent, o.get(agent), key.unbind(), desc, gc.reborrow())?;
         // 5. Return O.
-        Ok(o.into_value())
+        Ok(o.get(agent).into_value())
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc())?;
         // 2. Let entryList be ? EnumerableOwnProperties(obj, KEY+VALUE).
@@ -475,23 +518,24 @@ impl ObjectConstructor {
             enumerable_properties_kind::EnumerateKeysAndValues,
         >(agent, obj.unbind(), gc.reborrow())?;
         // 3. Return CreateArrayFromList(entryList).
-        Ok(create_array_from_list(agent, &entry_list, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &entry_list.unbind(), gc.into_nogc()).into_value())
     }
 
     /// ### [20.1.2.6 Object.freeze ( O )](https://tc39.es/ecma262/#sec-object.freeze)
-    fn freeze(
+    fn freeze<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If O is not an Object, return O.
-        let o = arguments.get(0);
+        let o = arguments.get(0).bind(gc.nogc());
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 2. Let status be ? SetIntegrityLevel(O, FROZEN).
-        let status = set_integrity_level::<Frozen>(agent, o, gc.reborrow())?;
+        let scoped_o = o.scope(agent, gc.nogc());
+        let status = set_integrity_level::<Frozen>(agent, o.unbind(), gc.reborrow())?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
             Err(agent.throw_exception_with_static_message(
@@ -501,20 +545,20 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(o.into_value())
+            Ok(scoped_o.get(agent).into_value())
         }
     }
 
     /// ### [20.1.2.7 Object.fromEntries ( iterable )](https://tc39.es/ecma262/#sec-object.fromentries)
-    fn from_entries(
+    fn from_entries<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let iterable = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let mut iterable = arguments.get(0).bind(gc.nogc());
         // Fast path: Simple, dense array of N simple, dense arrays.
-        if let Value::Array(entries_array) = iterable {
+        if matches!(iterable, Value::Array(_)) {
             let array_prototype = agent.current_realm().intrinsics().array_prototype();
             let intrinsic_array_iterator = agent
                 .current_realm()
@@ -522,12 +566,20 @@ impl ObjectConstructor {
                 .array_prototype_values()
                 .into_function()
                 .unbind();
+            let scoped_iterable = iterable.scope(agent, gc.nogc());
             let array_iterator = get_method(
                 agent,
                 array_prototype.into_value(),
                 WellKnownSymbolIndexes::Iterator.into(),
                 gc.reborrow(),
-            )?;
+            )?
+            .unbind()
+            .bind(gc.nogc());
+            // SAFETY: Not shared.
+            iterable = unsafe { scoped_iterable.take(agent).bind(gc.nogc()) };
+            let Value::Array(entries_array) = iterable else {
+                unreachable!()
+            };
             // SAFETY: If the iterator of the array is the intrinsic array
             // values iterator and the array is simple and dense, then we know
             // the behaviour of the iterator (access elements one by one) and
@@ -622,19 +674,19 @@ impl ObjectConstructor {
         //    called:
         // 5. Let adder be CreateBuiltinFunction(closure, 2, "", « »).
         // 6. Return ? AddEntriesFromIterable(obj, iterable, adder).
-        add_entries_from_iterable_from_entries(agent, obj.unbind(), iterable, gc)
+        add_entries_from_iterable_from_entries(agent, obj.unbind(), iterable.unbind(), gc)
             .map(|obj| obj.into_value())
     }
 
     /// ### [20.1.2.8 Object.getOwnPropertyDescriptor ( O, P )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptor)
-    fn get_own_property_descriptor(
+    fn get_own_property_descriptor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
-        let p = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
+        let p = arguments.get(1).bind(gc.nogc());
         // 1. Let obj be ? ToObject(O).
         let mut obj = to_object(agent, o, gc.nogc())?;
         // 2. Let key be ? ToPropertyKey(P).
@@ -642,7 +694,7 @@ impl ObjectConstructor {
             key
         } else {
             let scoped_obj = obj.scope(agent, gc.nogc());
-            let key = to_property_key(agent, p, gc.reborrow())?
+            let key = to_property_key(agent, p.unbind(), gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             obj = scoped_obj.get(agent).bind(gc.nogc());
@@ -655,18 +707,18 @@ impl ObjectConstructor {
         // 4. Return FromPropertyDescriptor(desc).
         Ok(
             PropertyDescriptor::from_property_descriptor(desc, agent, gc.nogc())
-                .map_or(Value::Undefined, |obj| obj.into_value()),
+                .map_or(Value::Undefined, |obj| obj.into_value().unbind()),
         )
     }
 
     /// ### [20.1.2.9 Object.getOwnPropertyDescriptors ( O )](https://tc39.es/ecma262/#sec-object.getownpropertydescriptors)
-    fn get_own_property_descriptors(
+    fn get_own_property_descriptors<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         // 1. Let obj be ? ToObject(O).
         let mut obj = to_object(agent, o, gc.nogc())?;
         let mut scoped_obj = None;
@@ -676,13 +728,11 @@ impl ObjectConstructor {
                 own_keys
             } else {
                 scoped_obj = Some(obj.scope(agent, gc.nogc()));
-                let own_keys = bind_property_keys(
-                    unbind_property_keys(
-                        obj.unbind()
-                            .internal_own_property_keys(agent, gc.reborrow())?,
-                    ),
-                    gc.nogc(),
-                );
+                let own_keys = obj
+                    .unbind()
+                    .internal_own_property_keys(agent, gc.reborrow())?
+                    .unbind()
+                    .bind(gc.nogc());
                 obj = scoped_obj.as_ref().unwrap().get(agent).bind(gc.nogc());
                 own_keys
             };
@@ -717,48 +767,57 @@ impl ObjectConstructor {
             .bind(gc.nogc());
         if i < own_keys.len() {
             let _ = own_keys.drain(..i);
-            let own_keys = unbind_property_keys(own_keys);
             let obj = scoped_obj.unwrap_or_else(|| obj.scope(agent, gc.nogc()));
-            get_own_property_descriptors_slow(agent, obj, own_keys, descriptors.unbind(), gc)
+            get_own_property_descriptors_slow(
+                agent,
+                obj,
+                own_keys.unbind(),
+                descriptors.unbind(),
+                gc,
+            )
         } else {
             // 5. Return descriptors.
-            Ok(descriptors.into_value())
+            Ok(descriptors.into_value().unbind())
         }
     }
 
     /// ### [20.1.2.10 Object.getOwnPropertyNames ( O )](https://tc39.es/ecma262/#sec-object.getownpropertynames)
-    fn get_own_property_names(
+    fn get_own_property_names<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, STRING)).
-        let keys = get_own_string_property_keys(agent, o, gc.reborrow())?;
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
+        let keys = get_own_string_property_keys(agent, o.unbind(), gc.reborrow())?;
+        Ok(create_array_from_list(agent, &keys.unbind(), gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.11 Object.getOwnPropertySymbols ( O )](https://tc39.es/ecma262/#sec-object.getownpropertysymbols)
-    fn get_own_property_symbols(
+    fn get_own_property_symbols<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         // 1. Return CreateArrayFromList(? GetOwnPropertyKeys(O, SYMBOL)).
-        let keys = get_own_symbol_property_keys(agent, o, gc.reborrow())?;
-        Ok(create_array_from_list(agent, &keys, gc.nogc()).into_value())
+        let keys = get_own_symbol_property_keys(agent, o.unbind(), gc.reborrow())?;
+        Ok(create_array_from_list(agent, &keys.unbind(), gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.12 Object.getPrototypeOf ( O )](https://tc39.es/ecma262/#sec-object.getprototypeof)
-    fn get_prototype_of(
+    fn get_prototype_of<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let obj = to_object(agent, arguments.get(0), gc.nogc())?;
         // Note: We do not use try_get_prototype_of here as we don't need to
         // protect any on-stack values from GC. We're perfectly okay with
@@ -769,17 +828,17 @@ impl ObjectConstructor {
     }
 
     // ### [20.1.2.13 Object.groupBy ( items, callback )](https://tc39.es/ecma262/#sec-object.groupby)
-    fn group_by(
+    fn group_by<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let items = arguments.get(0);
-        let callback_fn = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let items = arguments.get(0).bind(gc.nogc());
+        let callback_fn = arguments.get(1).bind(gc.nogc());
 
         // 1. Let groups be ? GroupBy(items, callback, property).
-        let groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
+        let groups = group_by_property(agent, items.unbind(), callback_fn.unbind(), gc.reborrow())?;
 
         // 2. Let obj be OrdinaryObjectCreate(null).
         // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
@@ -800,19 +859,19 @@ impl ObjectConstructor {
         Ok(object.into_value())
     }
 
-    fn has_own(
+    fn has_own<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let p = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let p = arguments.get(1).bind(gc.nogc());
         let mut obj = to_object(agent, arguments.get(0), gc.nogc())?;
         let key = if let TryResult::Continue(key) = to_property_key_simple(agent, p, gc.nogc()) {
             key
         } else {
             let scoped_obj = obj.scope(agent, gc.nogc());
-            let key = to_property_key(agent, p, gc.reborrow())?
+            let key = to_property_key(agent, p.unbind(), gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
             obj = scoped_obj.get(agent).bind(gc.nogc());
@@ -822,65 +881,65 @@ impl ObjectConstructor {
             .map(|result| result.into())
     }
 
-    fn is(
+    fn is<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(same_value(agent, arguments.get(0), arguments.get(1)).into())
     }
 
-    fn is_extensible(
+    fn is_extensible<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         let result = match Object::try_from(o) {
-            Ok(o) => o.internal_is_extensible(agent, gc.reborrow())?,
+            Ok(o) => o.unbind().internal_is_extensible(agent, gc.reborrow())?,
             Err(_) => false,
         };
         Ok(result.into())
     }
 
-    fn is_frozen(
+    fn is_frozen<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         let result = match Object::try_from(o) {
-            Ok(o) => test_integrity_level::<Frozen>(agent, o, gc.reborrow())?,
+            Ok(o) => test_integrity_level::<Frozen>(agent, o.unbind(), gc.reborrow())?,
             Err(_) => true,
         };
         Ok(result.into())
     }
 
-    fn is_sealed(
+    fn is_sealed<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         let result = match Object::try_from(o) {
-            Ok(o) => test_integrity_level::<Sealed>(agent, o, gc.reborrow())?,
+            Ok(o) => test_integrity_level::<Sealed>(agent, o.unbind(), gc.reborrow())?,
             Err(_) => true,
         };
         Ok(result.into())
     }
 
     /// ### [20.1.2.19 Object.keys ( O )](https://tc39.es/ecma262/#sec-object.keys)
-    fn keys(
+    fn keys<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc())?;
         // 2. Let keyList be ? EnumerableOwnProperties(obj, KEY).
@@ -890,23 +949,28 @@ impl ObjectConstructor {
             gc.reborrow(),
         )?;
         // 3. Return CreateArrayFromList(keyList).
-        Ok(create_array_from_list(agent, &key_list, gc.nogc()).into_value())
+        Ok(create_array_from_list(agent, &key_list.unbind(), gc.nogc())
+            .into_value()
+            .unbind())
     }
 
     /// ### [20.1.2.20 Object.preventExtensions ( O )](https://tc39.es/ecma262/#sec-object.preventextensions)
-    fn prevent_extensions(
+    fn prevent_extensions<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If O is not an Object, return O.
-        let o = arguments.get(0);
+        let o = arguments.get(0).bind(gc.nogc());
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
+        let scoped_o = o.scope(agent, gc.nogc());
         // 2. Let status be ? O.[[PreventExtensions]]().
-        let status = o.internal_prevent_extensions(agent, gc.reborrow())?;
+        let status = o
+            .unbind()
+            .internal_prevent_extensions(agent, gc.reborrow())?;
         // 3. If status is false, throw a TypeError exception.
         if !status {
             Err(agent.throw_exception_with_static_message(
@@ -916,24 +980,25 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(o.into_value())
+            Ok(scoped_o.get(agent).into_value())
         }
     }
 
     /// ### [20.1.2.22 Object.seal ( O )](https://tc39.es/ecma262/#sec-object.seal)
-    fn seal(
+    fn seal<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If O is not an Object, return O.
-        let o = arguments.get(0);
+        let o = arguments.get(0).bind(gc.nogc());
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 2. Let status be ? SetIntegrityLevel(O, SEALED).
-        let status = set_integrity_level::<Sealed>(agent, o, gc.reborrow())?;
+        let scoped_o = o.scope(agent, gc.nogc());
+        let status = set_integrity_level::<Sealed>(agent, o.unbind(), gc.reborrow())?;
         if !status {
             // 3. If status is false, throw a TypeError exception.
             Err(agent.throw_exception_with_static_message(
@@ -943,19 +1008,19 @@ impl ObjectConstructor {
             ))
         } else {
             // 4. Return O.
-            Ok(o.into_value())
+            Ok(scoped_o.get(agent).into_value())
         }
     }
 
     /// ### [20.1.2.23 Object.setPrototypeOf ( O, proto )](https://tc39.es/ecma262/#sec-object.setprototypeof)
-    fn set_prototype_of(
+    fn set_prototype_of<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
-        let proto = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
+        let proto = arguments.get(1).bind(gc.nogc());
         // 1. Set O to ? RequireObjectCoercible(O).
         let o = require_object_coercible(agent, o, gc.nogc())?;
         // 2. If proto is not an Object and proto is not null, throw a TypeError exception.
@@ -966,16 +1031,26 @@ impl ObjectConstructor {
         } else {
             let error_message = format!(
                 "{} is not an object or null",
-                proto.string_repr(agent, gc.reborrow()).as_str(agent)
+                proto
+                    .unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .as_str(agent)
             );
-            return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
+            return Err(agent.throw_exception(
+                ExceptionType::TypeError,
+                error_message,
+                gc.into_nogc(),
+            ));
         };
         // 3. If O is not an Object, return O.
         let Ok(o) = Object::try_from(o) else {
-            return Ok(o);
+            return Ok(o.unbind());
         };
         // 4. Let status be ? O.[[SetPrototypeOf]](proto).
-        let status = o.internal_set_prototype_of(agent, proto, gc.reborrow())?;
+        let scoped_o = o.scope(agent, gc.nogc());
+        let status = o
+            .unbind()
+            .internal_set_prototype_of(agent, proto.unbind(), gc.reborrow())?;
         // 5. If status is false, throw a TypeError exception.
         if !status {
             return Err(agent.throw_exception_with_static_message(
@@ -985,16 +1060,16 @@ impl ObjectConstructor {
             ));
         }
         // 6. Return O.
-        Ok(o.into_value())
+        Ok(scoped_o.get(agent).into_value())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let o = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let o = arguments.get(0).bind(gc.nogc());
         // 1. Let obj be ? ToObject(O).
         let obj = to_object(agent, o, gc.nogc())?;
         // 2. Let valueList be ? EnumerableOwnProperties(obj, VALUE).
@@ -1004,7 +1079,11 @@ impl ObjectConstructor {
             gc.reborrow(),
         )?;
         // 3. Return CreateArrayFromList(valueList).
-        Ok(create_array_from_list(agent, &value_list, gc.nogc()).into_value())
+        Ok(
+            create_array_from_list(agent, &value_list.unbind(), gc.nogc())
+                .into_value()
+                .unbind(),
+        )
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -1055,14 +1134,11 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
     // 1. Let props be ? ToObject(Properties).
     let props = to_object(agent, properties, gc.nogc())?.scope(agent, gc.nogc());
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
-    let keys = bind_property_keys(
-        unbind_property_keys(
-            props
-                .get(agent)
-                .internal_own_property_keys(agent, gc.reborrow())?,
-        ),
-        gc.nogc(),
-    );
+    let keys = props
+        .get(agent)
+        .internal_own_property_keys(agent, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
     let keys = scope_property_keys(agent, keys, gc.nogc());
     // 3. Let descriptors be a new empty List.
     let mut descriptors = Vec::with_capacity(keys.len());
@@ -1084,8 +1160,9 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
         // i. Let descObj be ? Get(props, nextKey).
         let desc_obj = get(agent, props.get(agent), next_key.get(agent), gc.reborrow())?;
         // ii. Let desc be ? ToPropertyDescriptor(descObj).
-        let desc = PropertyDescriptor::to_property_descriptor(agent, desc_obj, gc.reborrow())?
-            .scope(agent, gc.nogc());
+        let desc =
+            PropertyDescriptor::to_property_descriptor(agent, desc_obj.unbind(), gc.reborrow())?
+                .scope(agent, gc.nogc());
         // iii. Append the Record { [[Key]]: nextKey, [[Descriptor]]: desc } to descriptors.
         descriptors.push((next_key, desc));
     }
@@ -1183,11 +1260,19 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     iterable: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<OrdinaryObject<'a>> {
-    let target = target.bind(gc.nogc()).scope(agent, gc.nogc());
+    // Note: scoped_next is a slot for next value scoping that originally holds
+    // the target but will later be reused for each repeat of the loop. We
+    // cannot reuse the scoped target below for this, as the value held in the
+    // scoped_next will change on each loop.
+    let mut scoped_next = target.into_object().scope(agent, gc.nogc());
+    let target = target.scope(agent, gc.nogc());
+    let iterable = iterable.scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
+    let mut iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow())?;
 
     // 2. Repeat,
+    let mut scoped_k = Value::Undefined.scope_static();
+    let mut scoped_v = Value::Undefined.scope_static();
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
         let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
@@ -1200,38 +1285,43 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             // i. Let error be ThrowCompletion(a newly created TypeError object).
             let error_message = format!(
                 "Invalid iterator next return value: {} is not an object",
-                next.string_repr(agent, gc.reborrow()).as_str(agent)
+                next.unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .as_str(agent)
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).
             iterator_close(agent, &iterator_record, Err(error), gc.reborrow())?;
             return Ok(target.get(agent).bind(gc.into_nogc()));
         };
+        // SAFETY: scoped_next is its own Scoped value, not a clone from target
+        // or anything else. Hence we can change its held value freely.
+        unsafe { scoped_next.replace(agent, next.unbind()) };
         // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next, 0.into(), gc.reborrow());
+        let k = get(agent, next.unbind(), 0.into(), gc.reborrow());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
-        let k = if_abrupt_close_iterator(agent, k, &iterator_record, gc.reborrow())?;
+        let k = if_abrupt_close_iterator!(agent, k, iterator_record, gc);
+        // SAFETY: scoped_k is never shared.
+        unsafe { scoped_k.replace(agent, k.unbind()) };
         // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, next, 1.into(), gc.reborrow());
+        let v = get(agent, scoped_next.get(agent), 1.into(), gc.reborrow());
         // g. IfAbruptCloseIterator(v, iteratorRecord).
-        let v = if_abrupt_close_iterator(agent, v, &iterator_record, gc.reborrow())?;
+        let v = if_abrupt_close_iterator!(agent, v, iterator_record, gc);
+        // SAFETY: scoped_v is never shared.
+        unsafe { scoped_v.replace(agent, v.unbind()) };
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         {
             // a. Let propertyKey be ? ToPropertyKey(key).
-            let property_key = to_property_key(agent, k, gc.reborrow()).map(|pk| pk.unbind());
+            let property_key = to_property_key(agent, scoped_k.get(agent), gc.reborrow());
             // i. IfAbruptCloseIterator(status, iteratorRecord).
-            let property_key =
-                if_abrupt_close_iterator(agent, property_key, &iterator_record, gc.reborrow())?;
+            let property_key = if_abrupt_close_iterator!(agent, property_key, iterator_record, gc);
             // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
-            target
-                .get(agent)
-                .internal_define_own_property(
-                    agent,
-                    property_key.unbind(),
-                    PropertyDescriptor::new_data_descriptor(v),
-                    gc.reborrow(),
-                )
-                .unwrap();
+            unwrap_try(target.get(agent).try_define_own_property(
+                agent,
+                property_key.unbind(),
+                PropertyDescriptor::new_data_descriptor(scoped_v.get(agent)),
+                gc.nogc(),
+            ));
             // c. Return undefined.
         }
     }
@@ -1242,20 +1332,20 @@ pub fn add_entries_from_iterable_from_entries<'a>(
 /// The abstract operation GetOwnPropertyKeys takes arguments O (an ECMAScript
 /// language value) and type (STRING or SYMBOL) and returns either a normal
 /// completion containing a List of property keys or a throw completion.
-fn get_own_string_property_keys(
+fn get_own_string_property_keys<'gc>(
     agent: &mut Agent,
     o: Value,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o, gc.nogc())?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
-    let keys = unbind_property_keys(
-        obj.unbind()
-            .internal_own_property_keys(agent, gc.reborrow())?,
-    );
+    let keys = obj
+        .unbind()
+        .internal_own_property_keys(agent, gc.reborrow())?
+        .unbind();
     let gc = gc.into_nogc();
-    let keys = bind_property_keys(keys, gc);
+    let keys = keys.bind(gc);
     // 3. Let nameList be a new empty List.
     let mut name_list = Vec::with_capacity(keys.len());
     // 4. For each element nextKey of keys, do
@@ -1276,11 +1366,11 @@ fn get_own_string_property_keys(
     Ok(name_list)
 }
 
-fn get_own_symbol_property_keys(
+fn get_own_symbol_property_keys<'gc>(
     agent: &mut Agent,
     o: Value,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Vec<Value<'gc>>> {
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o, gc.nogc())?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
@@ -1293,20 +1383,20 @@ fn get_own_symbol_property_keys(
     for next_key in keys {
         // a. If nextKey is a Symbol and type is SYMBOL then
         if let PropertyKey::Symbol(next_key) = next_key {
-            name_list.push(next_key.into_value())
+            name_list.push(next_key.into_value().unbind())
         }
     }
     // 5. Return nameList.
     Ok(name_list)
 }
 
-fn get_own_property_descriptors_slow(
+fn get_own_property_descriptors_slow<'gc>(
     agent: &mut Agent,
     obj: Scoped<'_, Object<'static>>,
     own_keys: Vec<PropertyKey>,
     descriptors: OrdinaryObject,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let descriptors = descriptors.scope(agent, gc.nogc());
     let own_keys = scope_property_keys(agent, own_keys, gc.nogc());
     for key in own_keys {

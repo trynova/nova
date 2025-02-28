@@ -8,7 +8,7 @@ use std::vec;
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         unwrap_try, Scoped, TryResult,
     },
 };
@@ -647,13 +647,13 @@ pub(crate) fn ordinary_has_property_entry<'a>(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_try_get(
+pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    gc: NoGcScope,
-) -> TryResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<Value<'gc>> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
         // 2. If desc is undefined, then
@@ -696,13 +696,13 @@ pub(crate) fn ordinary_try_get(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_get(
+pub(crate) fn ordinary_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
@@ -749,7 +749,7 @@ pub(crate) fn ordinary_get(
         // c. Return ? parent.[[Get]](P, Receiver).
         return parent
             .unbind()
-            .internal_get(agent, property_key.unbind(), receiver, gc.reborrow());
+            .internal_get(agent, property_key.unbind(), receiver, gc);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -896,7 +896,7 @@ fn ordinary_try_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 ..Default::default()
             };
 
@@ -1010,7 +1010,7 @@ fn ordinary_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 ..Default::default()
             };
 
@@ -1051,7 +1051,13 @@ fn ordinary_set_with_own_descriptor(
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
-    call_function(agent, setter, receiver, Some(ArgumentsList(&[value])), gc)?;
+    call_function(
+        agent,
+        setter,
+        receiver,
+        Some(ArgumentsList(&[value.unbind()])),
+        gc,
+    )?;
 
     // 7. Return true.
     Ok(true)

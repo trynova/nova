@@ -5,7 +5,7 @@
 //! ## [27.2.1.1 PromiseCapability Records]()
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{
@@ -97,7 +97,7 @@ impl PromiseCapability {
         // 5. Set promise.[[PromiseRejectReactions]] to undefined.
         // 6. Set promise.[[PromiseState]] to FULFILLED.
         *promise_state = PromiseState::Fulfilled {
-            promise_result: value,
+            promise_result: value.unbind(),
         };
         // 7. Perform TriggerPromiseReactions(reactions, value)
         if let Some(reactions) = reactions {
@@ -123,7 +123,7 @@ impl PromiseCapability {
         // NOTE: [[PromiseIsHandled]] for pending promises corresponds to
         // whether [[PromiseRejectReactions]] is not empty.
         *promise_state = PromiseState::Rejected {
-            promise_result: reason,
+            promise_result: reason.unbind(),
             is_handled: reactions.is_some(),
         };
 
@@ -158,11 +158,13 @@ impl PromiseCapability {
         if resolution == self.promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
-            let exception = agent.create_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Tried to resolve a promise with itself.",
-                gc.nogc(),
-            );
+            let exception = agent
+                .create_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Tried to resolve a promise with itself.",
+                    gc.nogc(),
+                )
+                .unbind();
             self.internal_reject(agent, exception);
             // c. Return undefined.
             return;
@@ -233,11 +235,13 @@ impl PromiseCapability {
         if resolution == self.promise.into_value() {
             // a. Let selfResolutionError be a newly created TypeError object.
             // b. Perform RejectPromise(promise, selfResolutionError).
-            let exception = agent.create_exception_with_static_message(
-                ExceptionType::TypeError,
-                "Tried to resolve a promise with itself.",
-                gc,
-            );
+            let exception = agent
+                .create_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "Tried to resolve a promise with itself.",
+                    gc,
+                )
+                .unbind();
             self.internal_reject(agent, exception);
             // c. Return undefined.
             return TryResult::Continue(());
@@ -337,16 +341,17 @@ impl HeapMarkAndSweep for PromiseCapability {
 ///     a. Set value to ! value.
 /// ```
 #[inline(always)]
-pub(crate) fn if_abrupt_reject_promise<T>(
+pub(crate) fn if_abrupt_reject_promise<'gc, T: 'gc>(
     agent: &mut Agent,
     value: JsResult<T>,
     capability: PromiseCapability,
-) -> Result<T, Promise> {
+    gc: NoGcScope<'gc, '_>,
+) -> Result<T, Promise<'gc>> {
     value.map_err(|err| {
         capability.reject(agent, err.value());
 
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator
-        capability.promise()
+        capability.promise().bind(gc)
     })
 }

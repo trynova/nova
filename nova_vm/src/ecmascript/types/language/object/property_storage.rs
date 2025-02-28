@@ -7,8 +7,9 @@ use core::cell::Ref;
 use crate::{
     ecmascript::{
         execution::{Agent, Realm},
-        types::{PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
     },
+    engine::context::Bindable,
     heap::element_array::ElementDescriptor,
     Heap,
 };
@@ -27,8 +28,8 @@ impl<'a> PropertyStorage<'a> {
         self.0
     }
 
-    fn into_value(self) -> Value {
-        self.into_object().into_value()
+    fn into_value(self) -> Value<'a> {
+        self.0.into_value()
     }
 
     pub fn has(self, agent: &Agent, key: PropertyKey) -> bool {
@@ -106,7 +107,7 @@ impl<'a> PropertyStorage<'a> {
                     .map(|res| res.0);
                 if let Some(index) = result {
                     let key_entry = agent.heap.elements.get_mut(keys).get_mut(index).unwrap();
-                    *key_entry = Some(property_key);
+                    *key_entry = Some(property_key.unbind());
                     let value_entry = agent.heap.elements.get_mut(values).get_mut(index).unwrap();
                     *value_entry = value;
                     agent

@@ -5,7 +5,7 @@
 use core::ops::{Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
@@ -80,8 +80,8 @@ impl BoundFunction<'_> {
     }
 }
 
-impl IntoValue for BoundFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BoundFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::BoundFunction(self.unbind())
     }
 }
@@ -148,7 +148,7 @@ pub(crate) fn bound_function_create<'a>(
         object_index: None,
         length: 0,
         bound_target_function: target_function.unbind(),
-        bound_this,
+        bound_this: bound_this.unbind(),
         bound_arguments: elements,
         name: None,
     };
@@ -239,23 +239,23 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -305,13 +305,13 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
     /// argumentsList (a List of ECMAScript language values) and returns either
     /// a normal completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].

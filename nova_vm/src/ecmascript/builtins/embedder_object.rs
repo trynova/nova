@@ -64,8 +64,8 @@ impl EmbedderObject<'_> {
     }
 }
 
-impl IntoValue for EmbedderObject<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for EmbedderObject<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -76,15 +76,15 @@ impl<'a> IntoObject<'a> for EmbedderObject<'a> {
     }
 }
 
-impl From<EmbedderObject<'_>> for Value {
-    fn from(val: EmbedderObject) -> Self {
-        Value::EmbedderObject(val.unbind().unbind())
+impl<'a> From<EmbedderObject<'a>> for Value<'a> {
+    fn from(value: EmbedderObject<'a>) -> Self {
+        Value::EmbedderObject(value.unbind())
     }
 }
 
 impl<'a> From<EmbedderObject<'a>> for Object<'a> {
-    fn from(val: EmbedderObject) -> Self {
-        Object::EmbedderObject(val.unbind())
+    fn from(value: EmbedderObject<'a>) -> Self {
+        Object::EmbedderObject(value)
     }
 }
 

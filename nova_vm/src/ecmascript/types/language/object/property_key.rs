@@ -18,7 +18,7 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
     },
@@ -37,26 +37,6 @@ pub enum PropertyKey<'a> {
 }
 
 impl<'a> PropertyKey<'a> {
-    /// Unbind this PropertyKey from its current lifetime. This is necessary to
-    /// use the PropertyKey as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> PropertyKey<'static> {
-        unsafe { core::mem::transmute::<Self, PropertyKey<'static>>(self) }
-    }
-
-    // Bind this PropertyKey to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your PropertyKeys cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let primitive = primitive.bind(&gc);
-    // ```
-    // to make sure that the unbound PropertyKey cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<PropertyKey, Self>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &Agent,
@@ -100,10 +80,10 @@ impl<'a> PropertyKey<'a> {
     ///
     /// This converts any integer keys into strings. This matches what the
     /// ECMAScript specification expects.
-    pub fn convert_to_value(self, agent: &mut Agent, gc: NoGcScope) -> Value {
+    pub fn convert_to_value<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                Value::from_string(agent, format!("{}", small_integer.into_i64()), gc)
+                Value::from_string(agent, small_integer.into_i64().to_string(), gc)
             }
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
             PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
@@ -122,12 +102,12 @@ impl<'a> PropertyKey<'a> {
     /// If the resulting PropertyKey is mixed with normal JavaScript values or
     /// passed to user code, the resulting JavaScript will not necessarily
     /// correctly match the ECMAScript specification or user's expectations.
-    pub(crate) unsafe fn into_value_unchecked(self) -> Value {
+    pub(crate) unsafe fn into_value_unchecked(self) -> Value<'a> {
         match self {
             PropertyKey::Integer(small_integer) => Value::Integer(small_integer),
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
-            PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
-            PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
+            PropertyKey::String(heap_string) => Value::String(heap_string),
+            PropertyKey::Symbol(symbol) => Value::Symbol(symbol),
         }
     }
 
@@ -147,12 +127,12 @@ impl<'a> PropertyKey<'a> {
     ///
     /// If the passed-in Value is not a string, integer, or symbol, the method
     /// will panic.
-    pub(crate) unsafe fn from_value_unchecked(value: Value) -> Self {
+    pub(crate) unsafe fn from_value_unchecked(value: Value<'a>) -> Self {
         match value {
             Value::Integer(small_integer) => PropertyKey::Integer(small_integer),
             Value::SmallString(small_string) => PropertyKey::SmallString(small_string),
-            Value::String(heap_string) => PropertyKey::String(heap_string.unbind()),
-            Value::Symbol(symbol) => PropertyKey::Symbol(symbol.unbind()),
+            Value::String(heap_string) => PropertyKey::String(heap_string),
+            Value::Symbol(symbol) => PropertyKey::Symbol(symbol),
             _ => unreachable!(),
         }
     }
@@ -213,14 +193,19 @@ impl<'a> PropertyKey<'a> {
     }
 }
 
-#[inline(always)]
-pub fn unbind_property_keys<'a>(vec: Vec<PropertyKey<'a>>) -> Vec<PropertyKey<'static>> {
-    unsafe { core::mem::transmute::<Vec<PropertyKey<'a>>, Vec<PropertyKey<'static>>>(vec) }
-}
+// SAFETY: Properly implemented as a lifetime transmute.
+unsafe impl Bindable for PropertyKey<'_> {
+    type Of<'a> = PropertyKey<'a>;
 
-#[inline(always)]
-pub fn bind_property_keys<'a>(vec: Vec<PropertyKey>, _: NoGcScope<'a, '_>) -> Vec<PropertyKey<'a>> {
-    unsafe { core::mem::transmute::<Vec<PropertyKey>, Vec<PropertyKey<'a>>>(vec) }
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 #[inline]
@@ -314,12 +299,12 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
     }
 }
 
-impl From<PropertyKey<'_>> for Value {
+impl<'a> From<PropertyKey<'a>> for Value<'a> {
     /// Note: You should not be using this conversion without thinking. Integer
     /// keys don't actually become proper strings here, so converting a
     /// PropertyKey into a Value using this and then comparing that with an
     /// actual Value is unsound.
-    fn from(value: PropertyKey) -> Self {
+    fn from(value: PropertyKey<'a>) -> Self {
         // SAFETY: Don't be silly!
         unsafe { value.into_value_unchecked() }
     }

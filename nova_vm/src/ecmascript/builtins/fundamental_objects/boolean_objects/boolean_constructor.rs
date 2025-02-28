@@ -38,13 +38,13 @@ impl BuiltinIntrinsicConstructor for BooleanConstructor {
 }
 
 impl BooleanConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
         let b = to_boolean(agent, value);
         let Some(new_target) = new_target else {

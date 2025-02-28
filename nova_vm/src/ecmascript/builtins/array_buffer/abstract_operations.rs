@@ -5,15 +5,12 @@
 use super::{ArrayBuffer, ArrayBufferHeapData};
 use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::types::{Numeric, Viewable};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
         execution::{agent::ExceptionType, Agent, JsResult},
-        types::{
-            DataBlock, Function, IntoFunction, Number, Object, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
-        },
+        types::{DataBlock, Function, IntoFunction, Number, Object, Value, BUILTIN_STRING_MEMORY},
     },
     heap::indexes::ArrayBufferIndex,
     Heap,
@@ -202,6 +199,7 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
     options: Value,
     mut gc: GcScope,
 ) -> JsResult<Option<i64>> {
+    let options = options.bind(gc.nogc());
     // 1. If options is not an Object, return EMPTY.
     let options = if let Ok(options) = Object::try_from(options) {
         options
@@ -209,14 +207,18 @@ pub(crate) fn get_array_buffer_max_byte_length_option(
         return Ok(None);
     };
     // 2. Let maxByteLength be ? Get(options, "maxByteLength").
-    let property = PropertyKey::from(BUILTIN_STRING_MEMORY.maxByteLength);
-    let max_byte_length = get(agent, options, property, gc.reborrow())?;
+    let max_byte_length = get(
+        agent,
+        options.unbind(),
+        BUILTIN_STRING_MEMORY.maxByteLength.into(),
+        gc.reborrow(),
+    )?;
     // 3. If maxByteLength is undefined, return EMPTY.
     if max_byte_length.is_undefined() {
         return Ok(None);
     }
     // 4. Return ? ToIndex(maxByteLength).
-    to_index(agent, max_byte_length, gc).map(Some)
+    to_index(agent, max_byte_length.unbind(), gc).map(Some)
 }
 
 /// ### [25.1.3.7 HostResizeArrayBuffer ( buffer, newByteLength )](https://tc39.es/ecma262/#sec-hostresizearraybuffer)

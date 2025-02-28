@@ -11,7 +11,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+        Scoped,
+    },
     heap::{
         indexes::{BaseIndex, SetIndex},
         CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
@@ -65,8 +69,8 @@ impl Set<'_> {
     }
 }
 
-impl IntoValue for Set<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Set<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -77,22 +81,22 @@ impl<'a> IntoObject<'a> for Set<'a> {
     }
 }
 
-impl From<Set<'_>> for Value {
-    fn from(val: Set) -> Self {
-        Value::Set(val.unbind())
+impl<'a> From<Set<'a>> for Value<'a> {
+    fn from(value: Set<'a>) -> Self {
+        Value::Set(value)
     }
 }
 
 impl<'a> From<Set<'a>> for Object<'a> {
-    fn from(val: Set) -> Self {
-        Object::Set(val.unbind())
+    fn from(value: Set<'a>) -> Self {
+        Object::Set(value)
     }
 }
 
-impl TryFrom<Value> for Set<'_> {
+impl<'a> TryFrom<Value<'a>> for Set<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::Set(set) = value {
             Ok(set)
         } else {

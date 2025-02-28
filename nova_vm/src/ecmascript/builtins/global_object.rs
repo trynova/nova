@@ -11,7 +11,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     is_trimmable_whitespace, to_int32, to_int32_number, to_number_primitive, to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,
@@ -145,19 +145,19 @@ impl BuiltinIntrinsic for GlobalObjectUnescape {
 /// language value), strictCaller (a Boolean), and direct (a Boolean) and
 /// returns either a normal completion containing an ECMAScript language value
 /// or a throw completion.
-pub fn perform_eval(
+pub fn perform_eval<'gc>(
     agent: &mut Agent,
     x: Value,
     direct: bool,
     strict_caller: bool,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. Assert: If direct is false, then strictCaller is also false.
     assert!(direct || !strict_caller);
 
     // 2. If x is not a String, return x.
     let Ok(x) = String::try_from(x) else {
-        return Ok(x);
+        return Ok(x.unbind());
     };
 
     // 3. Let evalRealm be the current Realm Record.
@@ -356,7 +356,7 @@ pub fn perform_eval(
     // 32. Resume the context that is now on the top of the execution context stack as the running execution context.
 
     // 33. Return ? result.
-    result
+    result.map(|v| v.unbind())
 }
 
 /// ### [19.2.1.3 EvalDeclarationInstantiation ( body, varEnv, lexEnv, privateEnv, strict )](https://tc39.es/ecma262/#sec-evaldeclarationinstantiation)
@@ -629,8 +629,9 @@ pub fn eval_declaration_instantiation(
         });
 
         // b. Let fo be InstantiateFunctionObject of f with arguments lexEnv and privateEnv.
-        let fo =
-            instantiate_function_object(agent, f, lex_env, private_env, gc.nogc()).into_value();
+        let fo = instantiate_function_object(agent, f, lex_env, private_env, gc.nogc())
+            .into_value()
+            .unbind();
 
         // c. If varEnv is a Global Environment Record, then
         if let EnvironmentIndex::Global(var_env) = var_env {
@@ -639,8 +640,8 @@ pub fn eval_declaration_instantiation(
             // i. Perform ? varEnv.CreateGlobalFunctionBinding(fn, fo, true).
             var_env.create_global_function_binding(
                 agent,
-                function_name,
-                fo,
+                function_name.unbind(),
+                fo.unbind(),
                 true,
                 gc.reborrow(),
             )?;
@@ -650,7 +651,7 @@ pub fn eval_declaration_instantiation(
             let function_name = String::from_str(agent, function_name.unwrap().as_str(), gc.nogc())
                 .scope(agent, gc.nogc());
             let binding_exists = var_env
-                .has_binding(agent, function_name.get(agent), gc.reborrow())
+                .has_binding(agent, function_name.get(agent).unbind(), gc.reborrow())
                 .unwrap();
 
             // ii. If bindingExists is false, then
@@ -658,17 +659,28 @@ pub fn eval_declaration_instantiation(
                 // 1. NOTE: The following invocation cannot return an abrupt completion because of the validation preceding step 14.
                 // 2. Perform ! varEnv.CreateMutableBinding(fn, true).
                 var_env
-                    .create_mutable_binding(agent, function_name.get(agent), true, gc.reborrow())
+                    .create_mutable_binding(
+                        agent,
+                        function_name.get(agent).unbind(),
+                        true,
+                        gc.reborrow(),
+                    )
                     .unwrap();
                 // 3. Perform ! varEnv.InitializeBinding(fn, fo).
                 var_env
-                    .initialize_binding(agent, function_name.get(agent), fo, gc.reborrow())
+                    .initialize_binding(agent, function_name.get(agent).unbind(), fo, gc.reborrow())
                     .unwrap();
             } else {
                 // iii. Else,
                 // 1. Perform ! varEnv.SetMutableBinding(fn, fo, false).
                 var_env
-                    .set_mutable_binding(agent, function_name.get(agent), fo, false, gc.reborrow())
+                    .set_mutable_binding(
+                        agent,
+                        function_name.get(agent).unbind(),
+                        fo,
+                        false,
+                        gc.reborrow(),
+                    )
                     .unwrap();
             }
         }
@@ -709,27 +721,27 @@ impl GlobalObject {
     /// ### [19.2.1 eval ( x )](https://tc39.es/ecma262/#sec-eval-x)
     ///
     /// This function is the %eval% intrinsic object.
-    fn eval(
+    fn eval<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let x = arguments.get(0);
 
         // 1. Return ? PerformEval(x, false, false).
-        perform_eval(agent, x, false, false, gc.reborrow())
+        perform_eval(agent, x, false, false, gc.reborrow()).map(|v| v.unbind())
     }
 
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
     ///
     /// This function is the %isFinite% intrinsic object.
-    fn is_finite(
+    fn is_finite<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number, gc.reborrow())?;
@@ -745,12 +757,12 @@ impl GlobalObject {
     /// > NOTE: A reliable way for ECMAScript code to test if a value X is NaN
     /// > is an expression of the form X !== X. The result will be true if and
     /// > only if X is NaN.
-    fn is_nan(
+    fn is_nan<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let number = arguments.get(0);
         // 1. Let num be ? ToNumber(number).
         let num = to_number(agent, number, gc.reborrow())?;
@@ -763,12 +775,12 @@ impl GlobalObject {
     ///
     /// This function produces a Number value dictated by interpretation of the
     /// contents of the string argument as a decimal literal.
-    fn parse_float(
+    fn parse_float<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if arguments.len() == 0 {
             return Ok(Value::nan());
         }
@@ -817,7 +829,7 @@ impl GlobalObject {
                 }
             }
 
-            Ok(Value::from_f64(agent, f, gc.nogc()))
+            Ok(Value::from_f64(agent, f, gc.nogc()).unbind())
         } else {
             Ok(Value::nan())
         }
@@ -832,12 +844,12 @@ impl GlobalObject {
     /// representation begins with "0x" or "0X", in which case it is assumed to
     /// be 16. If radix is 16, the number representation may optionally begin
     /// with "0x" or "0X".
-    fn parse_int(
+    fn parse_int<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let string = arguments.get(0);
         let radix = arguments.get(1);
 
@@ -854,7 +866,7 @@ impl GlobalObject {
         if let Value::Integer(radix) = radix {
             let radix = radix.into_i64();
             if radix == 10 && matches!(string, Value::Integer(_)) {
-                return Ok(string);
+                return Ok(string.unbind());
             }
         }
 
@@ -1002,59 +1014,59 @@ impl GlobalObject {
                         // a. If sign = -1, return -0𝔽.
                         // b. Return +0𝔽.
                         // 16. Return 𝔽(sign × mathInt).
-                        Ok(Value::from_f64(agent, sign as f64 * math_int, gc.nogc()))
+                        Ok(Value::from_f64(agent, sign as f64 * math_int, gc.nogc()).unbind())
                     }
                 }
             }
         }
     }
 
-    fn decode_uri(
+    fn decode_uri<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn decode_uri_component(
+    fn decode_uri_component<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn encode_uri(
+    fn encode_uri<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn encode_uri_component(
+    fn encode_uri_component<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn escape(
+    fn escape<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn unescape(
+    fn unescape<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

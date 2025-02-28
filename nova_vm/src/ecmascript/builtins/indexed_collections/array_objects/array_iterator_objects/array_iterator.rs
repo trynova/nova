@@ -11,7 +11,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+        Scoped,
+    },
     heap::{
         indexes::ArrayIteratorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
         WorkQueues,
@@ -74,8 +78,8 @@ impl ArrayIterator<'_> {
     }
 }
 
-impl IntoValue for ArrayIterator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for ArrayIterator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -92,16 +96,16 @@ impl<'a> From<ArrayIterator<'a>> for Object<'a> {
     }
 }
 
-impl From<ArrayIterator<'_>> for Value {
-    fn from(value: ArrayIterator) -> Self {
-        Self::ArrayIterator(value.unbind())
+impl<'a> From<ArrayIterator<'a>> for Value<'a> {
+    fn from(value: ArrayIterator<'a>) -> Self {
+        Self::ArrayIterator(value)
     }
 }
 
-impl TryFrom<Value> for ArrayIterator<'_> {
+impl<'a> TryFrom<Value<'a>> for ArrayIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::ArrayIterator(data) => Ok(data),
             _ => Err(()),

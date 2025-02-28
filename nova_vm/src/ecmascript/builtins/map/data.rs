@@ -7,6 +7,7 @@ use crate::{
         bigint::HeapBigInt, HeapNumber, HeapPrimitive, HeapString, OrdinaryObject, Value,
         BIGINT_DISCRIMINANT, NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
     },
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
@@ -30,8 +31,8 @@ pub struct MapHeapData {
 pub(crate) struct MapData {
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
     // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    pub(crate) keys: Vec<Option<Value>>,
-    pub(crate) values: Vec<Option<Value>>,
+    pub(crate) keys: Vec<Option<Value<'static>>>,
+    pub(crate) values: Vec<Option<Value<'static>>>,
     /// Low-level hash table pointing to keys-values indexes.
     pub(crate) map_data: RefCell<HashTable<u32>>,
     /// Flag that lets the Map know if it needs to rehash its primitive keys.
@@ -58,11 +59,11 @@ impl MapHeapData {
         self.map_data.map_data.borrow().len() as u32
     }
 
-    pub fn keys(&self) -> &[Option<Value>] {
+    pub fn keys<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.map_data.keys
     }
 
-    pub fn values(&self) -> &[Option<Value>] {
+    pub fn values<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.map_data.values
     }
 
@@ -115,7 +116,7 @@ fn rehash_map_data(
 ) {
     let hasher = |value: Value| {
         let mut hasher = AHasher::default();
-        value.hash(arena, &mut hasher);
+        value.unbind().hash(arena, &mut hasher);
         hasher.finish()
     };
     let hashes = {

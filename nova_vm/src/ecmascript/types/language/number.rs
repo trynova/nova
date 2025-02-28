@@ -12,7 +12,10 @@ use super::{
 };
 use crate::{
     ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::{context::NoGcScope, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        Scoped,
+    },
 };
 use crate::{
     ecmascript::execution::Agent,
@@ -85,8 +88,8 @@ pub enum NumberRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl IntoValue for HeapNumber<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapNumber<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::Number(self.unbind())
     }
 }
@@ -97,8 +100,8 @@ impl<'a> IntoPrimitive<'a> for HeapNumber<'a> {
     }
 }
 
-impl IntoValue for Number<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Number<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Number::Number(idx) => Value::Number(idx.unbind()),
             Number::Integer(data) => Value::Integer(data),
@@ -113,10 +116,10 @@ impl<'a> IntoNumeric<'a> for HeapNumber<'a> {
     }
 }
 
-impl TryFrom<Value> for HeapNumber<'_> {
+impl<'a> TryFrom<Value<'a>> for HeapNumber<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::Number(x) = value {
             Ok(x)
         } else {
@@ -260,9 +263,9 @@ impl TryFrom<f64> for Number<'static> {
     }
 }
 
-impl TryFrom<Value> for Number<'_> {
+impl<'a> TryFrom<Value<'a>> for Number<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Number::Number(data)),
             Value::Integer(data) => Ok(Number::Integer(data)),

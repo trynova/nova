@@ -11,12 +11,18 @@ use crate::{
             type_conversion::to_boolean,
         },
         builtins::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList},
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
-        types::{Function, Object, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        execution::{
+            agent::{ExceptionType, JsError},
+            Agent, JsResult, ProtoIntrinsics,
+        },
+        types::{
+            Function, IntoValue, Object, PropertyDescriptor, PropertyKey, Value,
+            BUILTIN_STRING_MEMORY,
+        },
     },
     engine::{
-        context::{GcScope, NoGcScope},
-        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        Scoped, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -28,7 +34,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct IteratorRecord {
     pub(crate) iterator: Object<'static>,
-    pub(crate) next_method: Value,
+    pub(crate) next_method: Value<'static>,
     pub(crate) done: bool,
 }
 
@@ -44,9 +50,12 @@ pub(crate) fn get_iterator_from_method(
     method: Function,
     mut gc: GcScope,
 ) -> JsResult<IteratorRecord> {
+    let obj = obj.bind(gc.nogc());
     let method = method.bind(gc.nogc());
     // 1. Let iterator be ? Call(method, obj).
-    let iterator = call(agent, method.into(), obj, None, gc.reborrow())?;
+    let iterator = call_function(agent, method.unbind(), obj.unbind(), None, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
 
     // 2. If iterator is not an Object, throw a TypeError exception.
     let Ok(iterator) = Object::try_from(iterator) else {
@@ -56,7 +65,6 @@ pub(crate) fn get_iterator_from_method(
             gc.nogc(),
         ));
     };
-    let iterator = iterator.bind(gc.nogc());
 
     let scoped_iterator = iterator.scope(agent, gc.nogc());
     // 3. Let nextMethod be ? Get(iterator, "next").
@@ -71,7 +79,7 @@ pub(crate) fn get_iterator_from_method(
     // 5. Return iteratorRecord.
     Ok(IteratorRecord {
         iterator: scoped_iterator.get(agent).unbind(),
-        next_method,
+        next_method: next_method.unbind(),
         done: false,
     })
 }
@@ -87,12 +95,14 @@ pub(crate) fn get_iterator(
     is_async: bool,
     mut gc: GcScope,
 ) -> JsResult<IteratorRecord> {
+    let obj = obj.bind(gc.nogc());
+    let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. If kind is async, then
     let method = if is_async {
         // a. Let method be ? GetMethod(obj, @@asyncIterator).
         let method = get_method(
             agent,
-            obj,
+            obj.unbind(),
             PropertyKey::Symbol(WellKnownSymbolIndexes::AsyncIterator.into()),
             gc.reborrow(),
         )?;
@@ -102,7 +112,7 @@ pub(crate) fn get_iterator(
             // i. Let syncMethod be ? GetMethod(obj, @@iterator).
             let Some(sync_method) = get_method(
                 agent,
-                obj,
+                scoped_obj.get(agent),
                 PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
                 gc.reborrow(),
             )?
@@ -116,8 +126,12 @@ pub(crate) fn get_iterator(
             };
 
             // iii. Let syncIteratorRecord be ? GetIteratorFromMethod(obj, syncMethod).
-            let _sync_iterator_record =
-                get_iterator_from_method(agent, obj, sync_method.unbind(), gc.reborrow())?;
+            let _sync_iterator_record = get_iterator_from_method(
+                agent,
+                scoped_obj.get(agent),
+                sync_method.unbind(),
+                gc.reborrow(),
+            )?;
 
             // iv. Return CreateAsyncFromSyncIterator(syncIteratorRecord).
             todo!("Implement create_async_from_sync_iterator(sync_iterator_record)")
@@ -129,7 +143,7 @@ pub(crate) fn get_iterator(
         // a. Let method be ? GetMethod(obj, @@iterator).
         get_method(
             agent,
-            obj,
+            obj.unbind(),
             PropertyKey::Symbol(WellKnownSymbolIndexes::Iterator.into()),
             gc.reborrow(),
         )?
@@ -145,7 +159,7 @@ pub(crate) fn get_iterator(
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
-    get_iterator_from_method(agent, obj, method.unbind(), gc.reborrow())
+    get_iterator_from_method(agent, scoped_obj.get(agent), method.unbind(), gc.reborrow())
 }
 
 /// ### [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
@@ -157,7 +171,9 @@ pub(crate) fn get_iterator(
 pub(crate) fn iterator_next<'a>(
     agent: &mut Agent,
     iterator_record: &IteratorRecord,
-    value: Option<Value>,
+    // SAFETY: The value is immediately passed to Call and never used again:
+    // We don't need to bind/unbind/worry about its lifetime.
+    value: Option<Value<'static>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Object<'a>> {
     // 1. If value is not present, then
@@ -172,7 +188,10 @@ pub(crate) fn iterator_next<'a>(
             .as_ref()
             .map(|data| ArgumentsList(core::slice::from_ref(data))),
         gc.reborrow(),
-    )?;
+    )?
+    .unbind();
+    let gc = gc.into_nogc();
+    let result = result.bind(gc);
 
     // 3. If result is not an Object, throw a TypeError exception.
     // 4. Return result.
@@ -181,7 +200,7 @@ pub(crate) fn iterator_next<'a>(
         .or(Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "The iterator result was not an object",
-            gc.nogc(),
+            gc,
         )))
 }
 
@@ -210,18 +229,13 @@ pub(crate) fn iterator_complete(
 /// The abstract operation IteratorValue takes argument iterResult (an
 /// Object) and returns either a normal completion containing an ECMAScript
 /// language value or a throw completion.
-pub(crate) fn iterator_value(
+pub(crate) fn iterator_value<'a>(
     agent: &mut Agent,
     iter_result: Object,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'a, '_>,
+) -> JsResult<Value<'a>> {
     // 1. Return ? Get(iterResult, "value").
-    get(
-        agent,
-        iter_result,
-        BUILTIN_STRING_MEMORY.value.into(),
-        gc.reborrow(),
-    )
+    get(agent, iter_result, BUILTIN_STRING_MEMORY.value.into(), gc)
 }
 
 /// ### [7.4.7 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)
@@ -267,11 +281,11 @@ pub(crate) fn iterator_step<'a>(
 /// iteratorRecord.[\[NextMethod\]] and returns either done indicating that the
 /// iterator has reached its end or the value from the IteratorResult object if
 /// a next value is available.
-pub(crate) fn iterator_step_value(
+pub(crate) fn iterator_step_value<'a>(
     agent: &mut Agent,
     iterator_record: &mut IteratorRecord,
-    mut gc: GcScope,
-) -> JsResult<Option<Value>> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Option<Value<'a>>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
     let result = iterator_next(agent, iterator_record, None, gc.reborrow());
 
@@ -319,7 +333,7 @@ pub(crate) fn iterator_step_value(
         agent,
         scoped_result.get(agent),
         BUILTIN_STRING_MEMORY.value.into(),
-        gc.reborrow(),
+        gc,
     );
 
     // 9. If value is a throw completion, then
@@ -390,6 +404,42 @@ pub(crate) fn iterator_close<T>(
     Ok(completion)
 }
 
+pub(crate) fn iterator_close_with_error(
+    agent: &mut Agent,
+    iterator_record: &IteratorRecord,
+    completion: JsError,
+    mut gc: GcScope,
+) -> JsError {
+    // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
+    // 2. Let iterator be iteratorRecord.[[Iterator]].
+    let iterator = iterator_record.iterator;
+    // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
+    let inner_result = get_method(
+        agent,
+        iterator.into_value(),
+        BUILTIN_STRING_MEMORY.r#return.into(),
+        gc.reborrow(),
+    );
+    // 4. If innerResult.[[Type]] is normal, then
+    if let Ok(r#return) = inner_result {
+        // a. Let return be innerResult.[[Value]].
+        // b. If return is undefined, return ? completion.
+        let Some(r#return) = r#return else {
+            return completion;
+        };
+        // c. Set innerResult to Completion(Call(return, iterator)).
+        let _ = call_function(
+            agent,
+            r#return.unbind(),
+            iterator.into_value(),
+            None,
+            gc.reborrow(),
+        );
+    }
+    // 5. If completion.[[Type]] is throw, return ? completion.
+    completion
+}
+
 /// ### [7.4.9 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
 ///
 /// The abstract operation IteratorClose takes arguments iteratorRecord (an
@@ -436,26 +486,28 @@ pub(crate) fn try_iterator_close<T>(
     }
 }
 
-/// ### [7.4.10 IfAbruptCloseIterator ( value, iteratorRecord )](https://tc39.es/ecma262/#sec-ifabruptcloseiterator)
-///
-/// IfAbruptCloseIterator is a shorthand for a sequence of algorithm steps that
-/// use an Iterator Record.
-#[inline(always)]
-pub(crate) fn if_abrupt_close_iterator<T>(
-    agent: &mut Agent,
-    value: JsResult<T>,
-    iterator_record: &IteratorRecord,
-    gc: GcScope,
-) -> JsResult<T> {
-    // 1. Assert: value is a Completion Record.
-    // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
-    if value.is_err() {
-        iterator_close(agent, iterator_record, value, gc)
-    } else {
-        // 3. Else, set value to value.[[Value]].
-        value
-    }
+macro_rules! if_abrupt_close_iterator {
+    ($agent:ident, $value:ident, $iterator_record:ident, $gc:ident) => {
+        // 1. Assert: value is a Completion Record.
+        // 2. If value is an abrupt completion, return ? IteratorClose(iteratorRecord, value).
+        if let Err(err) = $value {
+            return Err(
+                crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close_with_error(
+                    $agent,
+                    &$iterator_record,
+                    err,
+                    $gc
+                )
+            );
+        } else if let Ok(value) = $value {
+            value.unbind().bind($gc.nogc())
+        } else {
+            unreachable!();
+        }
+    };
 }
+
+pub(crate) use if_abrupt_close_iterator;
 
 /// ### [7.4.11 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
 ///
@@ -464,12 +516,12 @@ pub(crate) fn if_abrupt_close_iterator<T>(
 /// Completion Record. It is used to notify an async iterator that it should
 /// perform any actions it would normally perform when it has reached its
 /// completed state.
-pub(crate) fn async_iterator_close(
+pub(crate) fn async_iterator_close<'a>(
     _agent: &mut Agent,
     _iterator_record: &IteratorRecord,
     _completion: JsResult<Value>,
-    _gc: GcScope,
-) -> JsResult<Value> {
+    _gc: GcScope<'a, '_>,
+) -> JsResult<Value<'a>> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
@@ -522,11 +574,11 @@ pub(crate) fn create_iter_result_object<'a>(
 /// of ECMAScript language values) and returns an Iterator Record. It creates
 /// an Iterator (27.1.1.2) object record whose next method returns the
 /// successive elements of list.
-pub(crate) fn create_list_iterator_record(
+pub(crate) fn create_list_iterator_record<'a>(
     _agent: &mut Agent,
     _list: &[Value],
-    _gc: GcScope,
-) -> JsResult<Value> {
+    _gc: GcScope<'a, '_>,
+) -> JsResult<Value<'a>> {
     // 1. Let closure be a new Abstract Closure with no parameters that captures list and performs the following steps when called:
     // a. For each element E of list, do
     // i. Perform ? GeneratorYield(CreateIterResultObject(E, false)).
@@ -541,11 +593,11 @@ pub(crate) fn create_list_iterator_record(
 /// The abstract operation IteratorToList takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing a List
 /// of ECMAScript language values or a throw completion.
-pub(crate) fn iterator_to_list(
+pub(crate) fn iterator_to_list<'b>(
     agent: &mut Agent,
     iterator_record: &IteratorRecord,
-    mut gc: GcScope,
-) -> JsResult<Vec<Value>> {
+    mut gc: GcScope<'_, 'b>,
+) -> JsResult<Vec<Scoped<'b, Value<'static>>>> {
     // 1. Let values be a new empty List.
     let mut values = Vec::new();
 
@@ -556,7 +608,12 @@ pub(crate) fn iterator_to_list(
     while let Some(next) = iterator_step(agent, iterator_record, gc.reborrow())? {
         // i. Let nextValue be ? IteratorValue(next).
         // ii. Append nextValue to values.
-        values.push(iterator_value(agent, next.unbind(), gc.reborrow())?);
+        values.push(
+            iterator_value(agent, next.unbind(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc())
+                .scope(agent, gc.nogc()),
+        );
     }
 
     // 4. Return values.

@@ -7,7 +7,7 @@ use small_string::SmallString;
 use crate::{
     ecmascript::execution::Agent,
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
         Scoped,
@@ -95,26 +95,26 @@ pub enum PrimitiveRootRepr {
 /// stored on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub(crate) enum HeapPrimitive {
+pub(crate) enum HeapPrimitive<'a> {
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString<'static>) = STRING_DISCRIMINANT,
+    String(HeapString<'a>) = STRING_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
 }
 
-impl IntoValue for HeapPrimitive {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapPrimitive<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             HeapPrimitive::String(data) => Value::String(data),
             HeapPrimitive::Number(data) => Value::Number(data),
@@ -123,10 +123,10 @@ impl IntoValue for HeapPrimitive {
     }
 }
 
-impl TryFrom<Value> for HeapPrimitive {
+impl<'a> TryFrom<Value<'a>> for HeapPrimitive<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::String(data) => Ok(Self::String(data)),
             Value::Number(data) => Ok(Self::Number(data)),
@@ -136,8 +136,8 @@ impl TryFrom<Value> for HeapPrimitive {
     }
 }
 
-impl IntoValue for Primitive<'_> {
-    fn into_value(self) -> super::Value {
+impl<'a> IntoValue<'a> for Primitive<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Primitive::Undefined => Value::Undefined,
             Primitive::Null => Value::Null,
@@ -211,8 +211,8 @@ impl<'a> Primitive<'a> {
     }
 }
 
-impl From<Primitive<'_>> for Value {
-    fn from(value: Primitive) -> Self {
+impl<'a> From<Primitive<'a>> for Value<'a> {
+    fn from(value: Primitive<'a>) -> Self {
         value.into_value()
     }
 }
@@ -224,10 +224,10 @@ impl<'a> IntoPrimitive<'a> for Primitive<'a> {
     }
 }
 
-impl TryFrom<Value> for Primitive<'_> {
+impl<'a> TryFrom<Value<'a>> for Primitive<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Undefined => Ok(Primitive::Undefined),
             Value::Null => Ok(Primitive::Null),

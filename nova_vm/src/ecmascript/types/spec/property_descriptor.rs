@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{try_get, try_has_property};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
@@ -24,7 +24,7 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct PropertyDescriptor {
     /// \[\[Value]]
-    pub value: Option<Value>,
+    pub value: Option<Value<'static>>,
 
     /// \[\[Writable]]
     pub writable: Option<bool>,
@@ -45,7 +45,7 @@ pub struct PropertyDescriptor {
 #[derive(Debug)]
 pub struct ScopedPropertyDescriptor<'a> {
     /// \[\[Value]]
-    pub value: Option<Scoped<'a, Value>>,
+    pub value: Option<Scoped<'a, Value<'static>>>,
 
     /// \[\[Writable]]
     pub writable: Option<bool>,
@@ -94,7 +94,7 @@ impl PropertyDescriptor {
 
     pub fn new_data_descriptor(value: Value) -> Self {
         Self {
-            value: Some(value),
+            value: Some(value.unbind()),
             writable: Some(true),
             get: None,
             set: None,
@@ -303,7 +303,7 @@ impl PropertyDescriptor {
                 gc.reborrow(),
             )?;
             // b. Set desc.[[Value]] to value.
-            desc.value = Some(value);
+            desc.value = Some(value.unbind());
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
         let has_writable = has_property(
@@ -330,7 +330,9 @@ impl PropertyDescriptor {
         // 12. If hasGet is true, then
         if has_get {
             // a. Let getter be ? Get(Obj, "get").
-            let getter = get(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc.reborrow())?;
+            let getter = get(agent, obj, BUILTIN_STRING_MEMORY.get.into(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
             // b. If IsCallable(getter) is false and getter is not undefined,
             // throw a TypeError exception.
             if !getter.is_undefined() {
@@ -350,7 +352,9 @@ impl PropertyDescriptor {
         // 14. If hasSet is true, then
         if has_set {
             // a. Let setter be ? Get(Obj, "set").
-            let setter = get(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc.reborrow())?;
+            let setter = get(agent, obj, BUILTIN_STRING_MEMORY.set.into(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
             // b. If IsCallable(setter) is false and setter is not undefined,
             // throw a TypeError exception.
             if !setter.is_undefined() {
@@ -426,7 +430,7 @@ impl PropertyDescriptor {
             // a. Let value be ? Get(Obj, "value").
             let value = try_get(agent, obj, BUILTIN_STRING_MEMORY.value.into(), gc)?;
             // b. Set desc.[[Value]] to value.
-            desc.value = Some(value);
+            desc.value = Some(value.unbind());
         }
         // 9. Let hasWritable be ? HasProperty(Obj, "writable").
         let has_writable = try_has_property(agent, obj, BUILTIN_STRING_MEMORY.writable.into(), gc)?;

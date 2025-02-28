@@ -15,12 +15,12 @@ use nova_vm::{
     ecmascript::{
         execution::{
             agent::{GcAgent, HostHooks, Job, Options},
-            Agent,
+            Agent, JsResult,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{Object, String as JsString},
+        types::{Object, String as JsString, Value},
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope},
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
@@ -90,6 +90,10 @@ impl Debug for CliHostHooks {
 }
 
 impl CliHostHooks {
+    fn has_promise_jobs(&self) -> bool {
+        !self.promise_job_queue.borrow().is_empty()
+    }
+
     fn pop_promise_job(&self) -> Option<Job> {
         self.promise_job_queue.borrow_mut().pop_front()
     }
@@ -186,16 +190,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, &path, source_text)
                             }
                         };
-                        let mut result = script_evaluation(agent, script, gc.reborrow());
+                        let result = script_evaluation(agent, script, gc.reborrow());
 
-                        if result.is_ok() {
-                            while let Some(job) = host_hooks.pop_promise_job() {
-                                if let Err(err) = job.run(agent, gc.reborrow()) {
-                                    result = Err(err);
-                                    break;
+                        fn run_microtask_queue<'gc>(
+                            agent: &mut Agent,
+                            host_hooks: &CliHostHooks,
+                            result: JsResult<Value>,
+                            mut gc: GcScope<'gc, '_>,
+                        ) -> JsResult<Value<'gc>> {
+                            match result.bind(gc.nogc()) {
+                                Ok(result) => {
+                                    let ok_result = result.unbind().scope(agent, gc.nogc());
+                                    while let Some(job) = host_hooks.pop_promise_job() {
+                                        job.run(agent, gc.reborrow())?;
+                                    }
+                                    Ok(ok_result.get(agent).bind(gc.into_nogc()))
                                 }
+                                Err(_) => result.bind(gc.into_nogc()),
                             }
                         }
+
+                        let result = if host_hooks.has_promise_jobs() {
+                            run_microtask_queue(agent, host_hooks, result.unbind(), gc.reborrow())
+                                .unbind()
+                                .bind(gc.nogc())
+                        } else {
+                            result
+                        };
 
                         match result {
                             Ok(result) => {

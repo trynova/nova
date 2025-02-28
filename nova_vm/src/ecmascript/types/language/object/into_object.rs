@@ -8,7 +8,7 @@ use super::Object;
 
 pub trait IntoObject<'a>
 where
-    Self: 'a + Sized + Copy + IntoValue,
+    Self: 'a + Sized + Copy + IntoValue<'a>,
 {
     fn into_object(self) -> Object<'a>;
 }

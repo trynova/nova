@@ -6,7 +6,8 @@ use super::{ObjectEnvironmentIndex, OuterEnv};
 use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_define_property_or_throw, try_get, try_has_property, try_set,
 };
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::ecmascript::types::IntoValue;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
     ecmascript::{
@@ -185,7 +186,7 @@ impl ObjectEnvironmentIndex {
         // 6. If unscopables is an Object, then
         if let Ok(unscopables) = Object::try_from(unscopables) {
             // a. Let blocked be ToBoolean(? Get(unscopables, N)).
-            let blocked = get(agent, unscopables, name, gc.reborrow())?;
+            let blocked = get(agent, unscopables.unbind(), name, gc.reborrow())?;
             let blocked = to_boolean(agent, blocked);
             // b. If blocked is true, return false.
             Ok(!blocked)
@@ -431,13 +432,13 @@ impl ObjectEnvironmentIndex {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn try_get_binding_value(
+    pub(crate) fn try_get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<Value>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<JsResult<Value<'gc>>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;
@@ -474,13 +475,13 @@ impl ObjectEnvironmentIndex {
     /// throw completion. It returns the value of its associated binding
     /// object's property whose name is N. The property should already exist
     /// but if it does not the result depends upon S.
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let env_rec = &agent[self];
         // 1. Let bindingObject be envRec.[[BindingObject]].
         let binding_object = env_rec.binding_object;

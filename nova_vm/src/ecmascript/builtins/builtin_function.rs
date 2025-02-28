@@ -5,7 +5,7 @@
 use core::ops::{Deref, Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{Scoped, TryResult};
 use crate::{
@@ -31,10 +31,10 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArgumentsList<'a>(pub(crate) &'a [Value]);
+pub struct ArgumentsList<'a>(pub(crate) &'a [Value<'static>]);
 
 impl<'a> Deref for ArgumentsList<'a> {
-    type Target = &'a [Value];
+    type Target = &'a [Value<'static>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -48,9 +48,15 @@ impl ArgumentsList<'_> {
     }
 }
 
-pub type RegularFn = fn(&mut Agent, Value, ArgumentsList, GcScope) -> JsResult<Value>;
-pub type ConstructorFn =
-    fn(&mut Agent, Value, ArgumentsList, Option<Object>, GcScope) -> JsResult<Value>;
+pub type RegularFn =
+    for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<Value<'gc>>;
+pub type ConstructorFn = for<'gc> fn(
+    &mut Agent,
+    Value,
+    ArgumentsList,
+    Option<Object>,
+    GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -165,8 +171,8 @@ impl<'a> From<BuiltinFunctionIndex<'a>> for BuiltinFunction<'a> {
     }
 }
 
-impl IntoValue for BuiltinFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BuiltinFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -183,9 +189,9 @@ impl<'a> IntoFunction<'a> for BuiltinFunction<'a> {
     }
 }
 
-impl From<BuiltinFunction<'_>> for Value {
-    fn from(value: BuiltinFunction) -> Self {
-        Value::BuiltinFunction(value.unbind())
+impl<'a> From<BuiltinFunction<'a>> for Value<'a> {
+    fn from(value: BuiltinFunction<'a>) -> Self {
+        Value::BuiltinFunction(value)
     }
 }
 
@@ -313,23 +319,23 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -379,13 +385,13 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
     }
@@ -416,14 +422,14 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-pub(crate) fn builtin_call_or_construct(
+pub(crate) fn builtin_call_or_construct<'gc>(
     agent: &mut Agent,
     f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
     new_target: Option<Function>,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let f = f.bind(gc.nogc());
     let new_target = new_target.map(|f| f.bind(gc.nogc()));
     // 1. Let callerContext be the running execution context.

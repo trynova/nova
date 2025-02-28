@@ -88,7 +88,7 @@ use crate::{
             SymbolHeapData, BUILTIN_STRINGS_LIST,
         },
     },
-    engine::{rootable::HeapRootData, ExecutableHeapData},
+    engine::{context::Bindable, rootable::HeapRootData, ExecutableHeapData},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;

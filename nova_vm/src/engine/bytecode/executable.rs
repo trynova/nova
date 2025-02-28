@@ -17,7 +17,7 @@ use crate::{
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_ast::ast::{self, Program, Statement};
@@ -101,13 +101,13 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 #[derive(Debug, Clone)]
 pub(crate) struct ExecutableHeapData {
     pub instructions: Box<[u8]>,
-    pub(crate) constants: Box<[Value]>,
+    pub(crate) constants: Box<[Value<'static>]>,
     pub(crate) function_expressions: Box<[FunctionExpression]>,
     pub(crate) arrow_function_expressions: Box<[ArrowFunctionExpression]>,
     pub(crate) class_initializer_bytecodes: Box<[(Option<Executable>, bool)]>,
 }
 
-impl Executable {
+impl<'gc> Executable {
     pub(crate) fn compile_script(
         agent: &mut Agent,
         script: ScriptIdentifier,
@@ -208,12 +208,16 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn get_constants(self, agent: &Agent) -> &[Value] {
+    pub(super) fn get_constants<'a>(
+        self,
+        agent: &'a Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> &'a [Value<'gc>] {
         &agent[self].constants[..]
     }
 
     #[inline]
-    pub(super) fn fetch_identifier<'gc>(
+    pub(super) fn fetch_identifier(
         self,
         agent: &Agent,
         index: usize,
@@ -231,12 +235,17 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn fetch_constant(self, agent: &Agent, index: usize) -> Value {
+    pub(super) fn fetch_constant(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Value<'gc> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable
         // reference during GC and fetching references here never overlap.
-        agent[self].constants[index]
+        agent[self].constants[index].bind(gc)
     }
 
     pub(super) fn fetch_function_expression(

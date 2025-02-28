@@ -11,7 +11,11 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+        Scoped,
+    },
     heap::{
         indexes::{BaseIndex, WeakMapIndex},
         CreateHeapData, HeapMarkAndSweep,
@@ -65,8 +69,8 @@ impl WeakMap<'_> {
     }
 }
 
-impl IntoValue for WeakMap<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for WeakMap<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -77,15 +81,15 @@ impl<'a> IntoObject<'a> for WeakMap<'a> {
     }
 }
 
-impl From<WeakMap<'_>> for Value {
-    fn from(val: WeakMap) -> Self {
-        Value::WeakMap(val.unbind())
+impl<'a> From<WeakMap<'a>> for Value<'a> {
+    fn from(value: WeakMap<'a>) -> Self {
+        Value::WeakMap(value)
     }
 }
 
 impl<'a> From<WeakMap<'a>> for Object<'a> {
-    fn from(val: WeakMap) -> Self {
-        Object::WeakMap(val.unbind())
+    fn from(value: WeakMap<'a>) -> Self {
+        Object::WeakMap(value)
     }
 }
 

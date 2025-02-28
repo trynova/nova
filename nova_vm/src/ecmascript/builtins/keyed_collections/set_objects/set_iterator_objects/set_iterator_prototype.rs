@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::builtins::Behaviour;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -28,17 +29,16 @@ impl Builtin for SetIteratorPrototypeNext {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(SetIteratorPrototype::next);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(SetIteratorPrototype::next);
 }
 
 impl SetIteratorPrototype {
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         // 27.5.3.2 GeneratorValidate ( generator, generatorBrand )
         // 3. If generator.[[GeneratorBrand]] is not generatorBrand, throw a TypeError exception.
@@ -60,14 +60,14 @@ impl SetIteratorPrototype {
         // b. Let entries be set.[[SetData]].
         // c. Let numEntries be the number of elements in entries.
         // d. Repeat, while index < numEntries,
-        while agent[iterator].next_index < agent[set].values().len() {
+        while agent[iterator].next_index < agent[set].values(gc).len() {
             // i. Let e be entries[index].
             // ii. Set index to index + 1.
             let index = agent[iterator].next_index;
             agent[iterator].next_index += 1;
 
             // iii. if e is not EMPTY, then
-            let Some(e) = agent[set].values()[index] else {
+            let Some(e) = agent[set].values(gc)[index] else {
                 continue;
             };
 
@@ -77,7 +77,7 @@ impl SetIteratorPrototype {
                     // 1. If kind is KEY+VALUE, then
                     //   a. Let result be CreateArrayFromList(« e, e »).
                     //   b. Perform ? GeneratorYield(CreateIteratorResultObject(result, false)).
-                    create_array_from_list(agent, &[e, e], gc).into_value()
+                    create_array_from_list(agent, &[e.unbind(), e.unbind()], gc).into_value()
                 }
                 CollectionIteratorKind::Value => {
                     // 2. Else,
@@ -87,10 +87,10 @@ impl SetIteratorPrototype {
                 }
             };
 
-            return Ok(create_iter_result_object(agent, result, false, gc).into_value());
+            return Ok(create_iter_result_object(agent, result.unbind(), false, gc).into_value());
         }
 
-        debug_assert_eq!(agent[iterator].next_index, agent[set].values().len());
+        debug_assert_eq!(agent[iterator].next_index, agent[set].values(gc).len());
 
         // e. Return undefined.
         agent[iterator].set = None;

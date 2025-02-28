@@ -33,7 +33,7 @@ pub struct CreatorProperties(
     Vec<(
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     )>,
 );
 
@@ -128,7 +128,7 @@ impl<'agent, P> OrdinaryObjectBuilder<'agent, P, NoProperties> {
 
 impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
     #[must_use]
-    pub fn with_data_property(mut self, key: PropertyKey<'static>, value: Value) -> Self {
+    pub fn with_data_property(mut self, key: PropertyKey<'static>, value: Value<'static>) -> Self {
         self.properties.0.push((key, None, Some(value)));
         OrdinaryObjectBuilder {
             agent: self.agent,
@@ -148,7 +148,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'static>>,
         ),
     ) -> Self {
         let builder = PropertyBuilder::new(self.agent);
@@ -165,7 +165,7 @@ impl<P> OrdinaryObjectBuilder<'_, P, CreatorProperties> {
     }
 
     #[must_use]
-    pub fn with_constructor_property(mut self, constructor: BuiltinFunction) -> Self {
+    pub fn with_constructor_property(mut self, constructor: BuiltinFunction<'static>) -> Self {
         let property = PropertyBuilder::new(self.agent)
             .with_enumerable(false)
             .with_key(BUILTIN_STRING_MEMORY.constructor.into())

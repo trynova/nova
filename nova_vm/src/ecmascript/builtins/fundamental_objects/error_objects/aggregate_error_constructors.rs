@@ -2,12 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_scoped_list;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator, iterator_to_list},
-            operations_on_objects::{create_array_from_list, define_property_or_throw},
+            operations_on_objects::define_property_or_throw,
             type_conversion::to_string,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -39,13 +40,13 @@ impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
 }
 
 impl AggregateErrorConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let errors = arguments.get(0);
         let message = arguments.get(1);
         let options = arguments.get(2);
@@ -93,7 +94,11 @@ impl AggregateErrorConstructor {
             // [[Writable]]: true,
             writable: Some(true),
             // [[Value]]: CreateArrayFromList(errorsList)
-            value: Some(create_array_from_list(agent, &errors_list, gc.nogc()).into_value()),
+            value: Some(
+                create_array_from_scoped_list(agent, errors_list, gc.nogc())
+                    .into_value()
+                    .unbind(),
+            ),
             ..Default::default()
         };
         define_property_or_throw(

@@ -19,7 +19,7 @@ use crate::{
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
         unwrap_try, Scoped, TryResult,
     },
@@ -207,8 +207,8 @@ impl<'a> From<TypedArray<'a>> for TypedArrayIndex<'a> {
     }
 }
 
-impl IntoValue for TypedArray<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for TypedArray<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -219,9 +219,9 @@ impl<'a> IntoObject<'a> for TypedArray<'a> {
     }
 }
 
-impl From<TypedArray<'_>> for Value {
-    fn from(val: TypedArray) -> Self {
-        match val.unbind() {
+impl<'a> From<TypedArray<'a>> for Value<'a> {
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
             TypedArray::Int8Array(idx) => Value::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Value::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Value::Uint8ClampedArray(idx),
@@ -240,8 +240,8 @@ impl From<TypedArray<'_>> for Value {
 }
 
 impl<'a> From<TypedArray<'a>> for Object<'a> {
-    fn from(val: TypedArray) -> Self {
-        match val.unbind() {
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
             TypedArray::Int8Array(idx) => Object::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Object::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Object::Uint8ClampedArray(idx),
@@ -259,10 +259,10 @@ impl<'a> From<TypedArray<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for TypedArray<'_> {
+impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Int8Array(base_index) => Ok(TypedArray::Int8Array(base_index)),
             Value::Uint8Array(base_index) => Ok(TypedArray::Uint8Array(base_index)),
@@ -397,7 +397,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.into_value()),
+                    value: Some(value.into_value().unbind()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -577,13 +577,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.5 Infallible \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
@@ -613,13 +613,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.5 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then

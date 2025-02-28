@@ -176,7 +176,7 @@ mod private {
     impl RootableSealed for Symbol<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray<'_> {}
-    impl RootableSealed for Value {}
+    impl RootableSealed for Value<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakMap<'_> {}
     #[cfg(feature = "weak-refs")]
@@ -187,6 +187,8 @@ mod private {
 
 pub use global::Global;
 pub use scoped::Scoped;
+
+use super::context::Bindable;
 
 pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
     type RootRepr: Sized + Clone + core::fmt::Debug;

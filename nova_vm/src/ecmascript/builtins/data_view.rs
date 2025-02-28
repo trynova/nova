@@ -113,8 +113,8 @@ impl<'a> IntoBaseIndex<'a, DataViewHeapData> for DataView<'a> {
     }
 }
 
-impl IntoValue for DataView<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for DataView<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -125,15 +125,15 @@ impl<'a> IntoObject<'a> for DataView<'a> {
     }
 }
 
-impl From<DataView<'_>> for Value {
-    fn from(val: DataView) -> Self {
-        Value::DataView(val.unbind())
+impl<'a> From<DataView<'a>> for Value<'a> {
+    fn from(value: DataView<'a>) -> Self {
+        Value::DataView(value)
     }
 }
 
 impl<'a> From<DataView<'a>> for Object<'a> {
-    fn from(val: DataView) -> Self {
-        Object::DataView(val.unbind())
+    fn from(value: DataView<'a>) -> Self {
+        Object::DataView(value)
     }
 }
 
@@ -191,10 +191,7 @@ impl<'a> InternalSlots<'a> for DataView<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 

@@ -6,7 +6,7 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -55,14 +55,16 @@ impl BuiltinGetter for SetGetSpecies {}
 
 impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let iterable = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let iterable = arguments.get(0).bind(nogc);
+        let new_target = new_target.bind(nogc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -73,9 +75,20 @@ impl SetConstructor {
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
         let new_target = Function::try_from(new_target).unwrap();
+        // 4. If iterable is either undefined or null, return set.
+        if iterable.is_undefined() || iterable.is_null() {
+            return ordinary_create_from_constructor(
+                agent,
+                new_target.unbind(),
+                ProtoIntrinsics::Set,
+                gc,
+            )
+            .map(|o| o.into_value());
+        }
+        let scoped_iterable = iterable.scope(agent, nogc);
         let set = Set::try_from(ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::Set,
             gc.reborrow(),
         )?)
@@ -84,10 +97,7 @@ impl SetConstructor {
         .bind(gc.nogc());
         let scoped_set = set.scope(agent, gc.nogc());
         // 3. Set set.[[SetData]] to a new empty List.
-        // 4. If iterable is either undefined or null, return set.
-        if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.into_value());
-        }
+
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
             agent,
@@ -96,7 +106,7 @@ impl SetConstructor {
             gc.reborrow(),
         )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
-        let Some(adder) = is_callable(adder, gc.nogc()) else {
+        let Some(adder) = is_callable(adder.unbind(), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid adder function",
@@ -104,9 +114,8 @@ impl SetConstructor {
             ));
         };
         let adder = adder.scope(agent, gc.nogc());
-        if let Value::Array(iterable) = iterable {
+        if let Value::Array(iterable) = scoped_iterable.get(agent) {
             let iterable = iterable.bind(gc.nogc());
-            let scoped_iterable = iterable.scope(agent, gc.nogc());
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)
                 && get_method(
@@ -125,7 +134,9 @@ impl SetConstructor {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
                 let set = scoped_set.get(agent).bind(gc.nogc());
-                let iterable = scoped_iterable.get(agent).bind(gc.nogc());
+                let Value::Array(iterable) = scoped_iterable.get(agent).bind(gc.nogc()) else {
+                    unreachable!()
+                };
                 let Heap {
                     elements,
                     arrays,
@@ -169,19 +180,20 @@ impl SetConstructor {
                             // We have duplicates in the array. Latter
                             // ones overwrite earlier ones.
                             let index = *occupied.get();
-                            values[index as usize] = Some(value);
+                            values[index as usize] = Some(value.unbind());
                         }
                         hashbrown::hash_table::Entry::Vacant(vacant) => {
                             vacant.insert(next_index);
-                            values.push(Some(value));
+                            values.push(Some(value.unbind()));
                         }
                     }
                 });
-                return Ok(set.into_value());
+                return Ok(set.into_value().unbind());
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
+        let mut iterator_record =
+            get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())?;
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
@@ -195,21 +207,21 @@ impl SetConstructor {
                 agent,
                 adder.get(agent),
                 scoped_set.get(agent).into_value(),
-                Some(ArgumentsList(&[next])),
+                Some(ArgumentsList(&[next.unbind()])),
                 gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, status, &iterator_record, gc.reborrow())?;
+            let _ = if_abrupt_close_iterator!(agent, status, iterator_record, gc);
         }
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        Ok(this_value)
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        Ok(this_value.unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

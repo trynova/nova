@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::{context::{GcScope, NoGcScope}, Scoped, TryResult};
+use crate::engine::{context::{ Bindable, GcScope, NoGcScope}, Scoped, TryResult};
 use crate::{
     ecmascript::{
         builtins::{
@@ -69,8 +69,8 @@ impl core::fmt::Debug for Function<'_> {
     }
 }
 
-impl IntoValue for Function<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Function<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -117,9 +117,9 @@ impl<'a> TryFrom<Object<'a>> for Function<'a> {
     }
 }
 
-impl TryFrom<Value> for Function<'_> {
+impl<'a> TryFrom<Value<'a>> for Function<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::BoundFunction(d) => Ok(Function::BoundFunction(d)),
             Value::BuiltinFunction(d) => Ok(Function::BuiltinFunction(d)),
@@ -157,8 +157,8 @@ impl<'a> From<Function<'a>> for Object<'a> {
     }
 }
 
-impl From<Function<'_>> for Value {
-    fn from(value: Function) -> Self {
+impl<'a> From<Function<'a>> for Value<'a> {
+    fn from(value: Function<'a>) -> Self {
         match value {
             Function::BoundFunction(d) => Value::BoundFunction(d.unbind()),
             Function::BuiltinFunction(d) => Value::BuiltinFunction(d.unbind()),
@@ -176,27 +176,7 @@ impl From<Function<'_>> for Value {
     }
 }
 
-impl<'a> Function<'a> {
-    /// Unbind this Function from its current lifetime. This is necessary to
-    /// use the Function as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Function<'static> {
-        unsafe { core::mem::transmute::<Function<'a>, Function<'static>>(self) }
-    }
-
-    // Bind this Function to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your Functions cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let function = function.bind(&gc);
-    // ```
-    // to make sure that the unbound Function cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Function<'gc> {
-        unsafe { core::mem::transmute::<Function<'a>, Function<'gc>>(self) }
-    }
-
+impl Function<'_> {
     pub fn scope<'b>(
         self,
         agent: &mut Agent,
@@ -216,6 +196,19 @@ impl<'a> Function<'a> {
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Function<'_> {
+    type Of<'a> = Function<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -428,13 +421,13 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         match self {
             Function::BoundFunction(x) => x.try_get(agent, property_key, receiver, gc),
             Function::BuiltinFunction(x) => x.try_get(agent, property_key, receiver, gc),
@@ -449,13 +442,13 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             Function::BoundFunction(x) => x.internal_get(agent, property_key, receiver, gc),
             Function::BuiltinFunction(x) => x.internal_get(agent, property_key, receiver, gc),
@@ -559,13 +552,13 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         }
     }
 
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments_list, gc),
             Function::BuiltinFunction(x) => {
@@ -645,13 +638,13 @@ impl HeapMarkAndSweep for Function<'static> {
 }
 
 impl Function<'_> {
-    pub fn call(
+    pub fn call<'gc>(
         self,
         agent: &mut Agent,
-        this_argument: Value,
-        args: &[Value],
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        this_argument: Value<'static>,
+        args: &[Value<'static>],
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         self.internal_call(agent, this_argument, ArgumentsList(args), gc)
     }
 }

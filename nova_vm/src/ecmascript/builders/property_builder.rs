@@ -38,10 +38,10 @@ pub struct CreatorGetSetAccessor {
 }
 
 #[derive(Clone, Copy)]
-pub struct CreatorValue(Value);
+pub struct CreatorValue(Value<'static>);
 
 #[derive(Clone, Copy)]
-pub struct CreatorReadOnlyValue(Value);
+pub struct CreatorReadOnlyValue(Value<'static>);
 
 pub struct PropertyBuilder<'agent, K: 'static, D> {
     pub(crate) agent: &'agent mut Agent,
@@ -76,7 +76,7 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
-    pub fn with_value(self, value: Value) -> PropertyBuilder<'agent, K, CreatorValue> {
+    pub fn with_value(self, value: Value<'static>) -> PropertyBuilder<'agent, K, CreatorValue> {
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
@@ -88,7 +88,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_readonly(
         self,
-        value: Value,
+        value: Value<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
         PropertyBuilder {
             agent: self.agent,
@@ -101,7 +101,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_creator(
         self,
-        creator: impl FnOnce(&mut Agent) -> Value,
+        creator: impl FnOnce(&mut Agent) -> Value<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorValue> {
         let value = creator(self.agent);
         PropertyBuilder {
@@ -115,7 +115,7 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_creator_readonly(
         self,
-        creator: impl FnOnce(&mut Agent) -> Value,
+        creator: impl FnOnce(&mut Agent) -> Value<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
         let value = creator(self.agent);
         PropertyBuilder {
@@ -248,7 +248,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorValue> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -264,7 +264,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorReadOnlyValue> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -280,7 +280,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetAccessor> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -300,7 +300,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorSetAccess> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,
@@ -320,7 +320,7 @@ impl PropertyBuilder<'_, CreatorKey, CreatorGetSetAccessor> {
     ) -> (
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     ) {
         (
             self.key.0,

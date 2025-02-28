@@ -250,15 +250,15 @@ pub(crate) fn get_view_value<'gc, T: Viewable>(
 /// (an ECMAScript language value) and returns either a normal completion
 /// containing undefined or a throw completion. It is used by functions on
 /// DataView instances to store values into the view's buffer.
-pub(crate) fn set_view_value<T: Viewable>(
+pub(crate) fn set_view_value<'gc, T: Viewable>(
     agent: &mut Agent,
     view: Value,
     request_index: Value,
     // 6. Set isLittleEndian to ToBoolean(isLittleEndian).
     is_little_endian: bool,
     value: Value,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. Perform ? RequireInternalSlot(view, [[DataView]]).
     // 2. Assert: view has a [[ViewedArrayBuffer]] internal slot.
     let mut view = require_internal_slot_data_view(agent, view, gc.nogc())?;

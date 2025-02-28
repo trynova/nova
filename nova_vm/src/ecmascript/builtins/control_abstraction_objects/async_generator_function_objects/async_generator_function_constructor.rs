@@ -30,13 +30,13 @@ impl BuiltinIntrinsicConstructor for AsyncGeneratorFunctionConstructor {
 }
 
 impl AsyncGeneratorFunctionConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into_value())

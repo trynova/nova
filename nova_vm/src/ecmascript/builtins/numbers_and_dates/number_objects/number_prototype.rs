@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::ecmascript::builtins::Behaviour;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_integer_or_infinity,
@@ -25,8 +26,7 @@ impl Builtin for NumberPrototypeToExponential {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_exponential);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_exponential);
 }
 
 struct NumberPrototypeToFixed;
@@ -35,8 +35,7 @@ impl Builtin for NumberPrototypeToFixed {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_fixed);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_fixed);
 }
 
 struct NumberPrototypeToLocaleString;
@@ -45,8 +44,7 @@ impl Builtin for NumberPrototypeToLocaleString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_locale_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_locale_string);
 }
 
 struct NumberPrototypeToPrecision;
@@ -55,8 +53,7 @@ impl Builtin for NumberPrototypeToPrecision {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_precision);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_precision);
 }
 
 struct NumberPrototypeToString;
@@ -65,8 +62,7 @@ impl Builtin for NumberPrototypeToString {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::to_string);
 }
 
 struct NumberPrototypeValueOf;
@@ -75,29 +71,29 @@ impl Builtin for NumberPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(NumberPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(NumberPrototype::value_of);
 }
 
 impl NumberPrototype {
-    fn to_exponential(
+    fn to_exponential<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let fraction_digits = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let fraction_digits = arguments.get(0).bind(nogc);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())?;
-        let x = x.scope(agent, gc.nogc());
+        let fraction_digits_is_undefined = fraction_digits.is_undefined();
+        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
-        let f = to_integer_or_infinity(agent, fraction_digits, gc.reborrow())?;
+        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow())?;
         // No GC can happen after this point.
         let gc = gc.into_nogc();
         let x = x.get(agent).bind(gc);
 
         // 3. Assert: If fractionDigits is undefined, then f is 0.
-        debug_assert!(!fraction_digits.is_undefined() || f.into_i64() == 0);
+        debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If x is not finite, return Number::toString(x, 10).
         if !x.is_finite(agent) {
             return Ok(Number::to_string_radix_10(agent, x, gc).into_value());
@@ -126,23 +122,24 @@ impl NumberPrototype {
         }
     }
 
-    fn to_fixed(
+    fn to_fixed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let fraction_digits = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let fraction_digits = arguments.get(0).bind(nogc);
         // Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())?;
-        let x = x.scope(agent, gc.nogc());
+        let x = this_number_value(agent, this_value, nogc)?.scope(agent, nogc);
         // 2. Let f be ? ToIntegerOrInfinity(fractionDigits).
-        let f = to_integer_or_infinity(agent, fraction_digits, gc.reborrow())?;
+        let fraction_digits_is_undefined = fraction_digits.is_undefined();
+        let f = to_integer_or_infinity(agent, fraction_digits.unbind(), gc.reborrow())?;
         // No GC is possible after this point.
         let gc = gc.into_nogc();
         let x = x.get(agent).bind(gc);
         // 3. Assert: If fractionDigits is undefined, then f is 0.
-        debug_assert!(!fraction_digits.is_undefined() || f.into_i64() == 0);
+        debug_assert!(!fraction_digits_is_undefined || f.into_i64() == 0);
         // 4. If f is not finite, throw a RangeError exception.
         if !f.is_finite() {
             return Err(agent.throw_exception_with_static_message(
@@ -171,12 +168,12 @@ impl NumberPrototype {
         Ok(Value::from_str(agent, string, gc))
     }
 
-    fn to_locale_string(
+    fn to_locale_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Self::to_string(agent, this_value, arguments, gc)
     }
 
@@ -184,31 +181,32 @@ impl NumberPrototype {
     /// Copied from Boa JS engine. Source https://github.com/boa-dev/boa/blob/6f1d7d11ce49040eafe54e5ff2da379be4d998c2/core/engine/src/builtins/number/mod.rs#L412
     ///
     /// Copyright (c) 2019 Jason Williams
-    fn to_precision(
+    fn to_precision<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let precision = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let precision = arguments.get(0).bind(nogc);
 
         // 1. Let x be ? ThisNumberValue(this value).
-        let x = this_number_value(agent, this_value, gc.nogc())?
-            .unbind()
-            .bind(gc.nogc());
+        let x = this_number_value(agent, this_value, nogc)?;
 
         // 2. If precision is undefined, return ! ToString(x).
         if precision.is_undefined() {
             // Skip: We know ToString calls Number::toString(argument, 10).
             // Note: That is not `Number.prototype.toString`, but the abstract
             // operation Number::toString.
-            return Ok(Number::to_string_radix_10(agent, x, gc.nogc()).into_value());
+            return Ok(Number::to_string_radix_10(agent, x, nogc)
+                .unbind()
+                .into_value());
         }
 
-        let x = x.scope(agent, gc.nogc());
+        let x = x.scope(agent, nogc);
 
         // 3. Let p be ? ToIntegerOrInfinity(precision).
-        let p = to_integer_or_infinity(agent, precision, gc.reborrow())?;
+        let p = to_integer_or_infinity(agent, precision.unbind(), gc.reborrow())?;
         // No GC can occur after this point.
         let gc = gc.into_nogc();
 
@@ -430,28 +428,31 @@ impl NumberPrototype {
         (flt.len() as i32) - 1
     }
 
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
-        let x = this_number_value(agent, this_value, gc.nogc())?;
-        let radix = arguments.get(0);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.into_nogc();
+        let x = this_number_value(agent, this_value, nogc)?;
+        let radix = arguments.get(0).bind(nogc);
         if radix.is_undefined() || radix == Value::from(10u8) {
-            Ok(Number::to_string_radix_10(agent, x, gc.nogc()).into_value())
+            Ok(Number::to_string_radix_10(agent, x, nogc)
+                .unbind()
+                .into_value())
         } else {
             todo!();
         }
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
-        this_number_value(agent, this_value, gc.nogc()).map(|result| result.into_value())
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        this_number_value(agent, this_value, gc.nogc()).map(|result| result.unbind().into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -520,7 +521,7 @@ fn this_number_value<'gc>(
 ) -> JsResult<Number<'gc>> {
     // 1. If value is a Number, return value.
     if let Ok(value) = Number::try_from(value) {
-        return Ok(value);
+        return Ok(value.unbind());
     }
     // 2. If value is an Object and value has a [[NumberData]] internal slot, then
     if let Ok(value) = PrimitiveObject::try_from(value) {

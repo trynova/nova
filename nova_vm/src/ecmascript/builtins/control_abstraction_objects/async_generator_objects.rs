@@ -26,7 +26,7 @@ use crate::{
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Executable, ExecutionResult, Scoped, SuspendedVm,
     },
@@ -247,15 +247,16 @@ impl AsyncGenerator<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
+        let value = value.bind(gc.nogc());
         if self.is_draining_queue(agent) {
             // We're coming here because return was called.
             match reaction_type {
                 PromiseReactionType::Fulfill => {
                     // AsyncGeneratorAwaitReturn onFulfilled
-                    async_generator_await_return_on_fulfilled(agent, self, value, gc);
+                    async_generator_await_return_on_fulfilled(agent, self, value.unbind(), gc);
                 }
                 PromiseReactionType::Reject => {
-                    async_generator_await_return_on_rejected(agent, self, value, gc);
+                    async_generator_await_return_on_rejected(agent, self, value.unbind(), gc);
                 }
             }
             return;
@@ -278,10 +279,10 @@ impl AsyncGenerator<'_> {
                 let executable = agent[self].executable.unwrap();
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
-                        vm.resume(agent, executable, value, gc.reborrow())
+                        vm.resume(agent, executable, value.unbind(), gc.reborrow())
                     }
                     PromiseReactionType::Reject => {
-                        vm.resume_throw(agent, executable, value, gc.reborrow())
+                        vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                     }
                 }
             }
@@ -291,11 +292,11 @@ impl AsyncGenerator<'_> {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
                     let executable = agent[self].executable.unwrap();
-                    vm.resume_throw(agent, executable, value, gc.reborrow())
+                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     async_generator_yield(
                         agent,
-                        value,
+                        value.unbind(),
                         scoped_generator.clone(),
                         vm,
                         gc.reborrow(),
@@ -308,7 +309,7 @@ impl AsyncGenerator<'_> {
                 // 3. If awaited is a throw completion, return ? awaited.
                 if reaction_type == PromiseReactionType::Reject {
                     let executable = agent[self].executable.unwrap();
-                    vm.resume_throw(agent, executable, value, gc.reborrow())
+                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     // TODO: vm.resume_return(agent, executable, value, gc.reborrow())
                     // 4. Assert: awaited is a normal completion.
@@ -317,12 +318,12 @@ impl AsyncGenerator<'_> {
                 }
             }
         };
-        resume_handle_result(agent, execution_result, scoped_generator, gc);
+        resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
     }
 }
 
-impl IntoValue for AsyncGenerator<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for AsyncGenerator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -333,9 +334,9 @@ impl<'a> IntoObject<'a> for AsyncGenerator<'a> {
     }
 }
 
-impl From<AsyncGenerator<'_>> for Value {
-    fn from(val: AsyncGenerator) -> Self {
-        Value::AsyncGenerator(val.unbind())
+impl<'a> From<AsyncGenerator<'a>> for Value<'a> {
+    fn from(value: AsyncGenerator<'a>) -> Self {
+        Value::AsyncGenerator(value)
     }
 }
 
@@ -345,10 +346,10 @@ impl<'a> From<AsyncGenerator<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for AsyncGenerator<'_> {
+impl<'a> TryFrom<Value<'a>> for AsyncGenerator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::AsyncGenerator(value) = value {
             Ok(value)
         } else {
@@ -362,7 +363,7 @@ impl<'a> TryFrom<Object<'a>> for AsyncGenerator<'a> {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         if let Object::AsyncGenerator(value) = value {
-            Ok(value)
+            Ok(value.unbind())
         } else {
             Err(())
         }
@@ -447,7 +448,7 @@ pub(crate) enum AsyncGeneratorAwaitKind {
 #[derive(Debug)]
 pub(crate) enum AsyncGeneratorState {
     SuspendedStart {
-        arguments: Box<[Value]>,
+        arguments: Box<[Value<'static>]>,
         execution_context: ExecutionContext,
         queue: VecDeque<AsyncGeneratorRequest>,
     },
@@ -511,16 +512,39 @@ impl AsyncGeneratorState {
 #[derive(Debug)]
 pub(crate) struct AsyncGeneratorRequest {
     /// \[\[Completion]]
-    pub(crate) completion: AsyncGeneratorRequestCompletion,
+    pub(crate) completion: AsyncGeneratorRequestCompletion<'static>,
     /// \[\[Capability]]
     pub(crate) capability: PromiseCapability,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum AsyncGeneratorRequestCompletion {
-    Ok(Value),
+pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
+    Ok(Value<'a>),
     Err(JsError),
-    Return(Value),
+    Return(Value<'a>),
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
+    type Of<'a> = AsyncGeneratorRequestCompletion<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        match self {
+            Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.unbind()),
+            Self::Err(js_error) => AsyncGeneratorRequestCompletion::Err(js_error),
+            Self::Return(value) => AsyncGeneratorRequestCompletion::Return(value.unbind()),
+        }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        match self {
+            Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.bind(gc)),
+            Self::Err(js_error) => AsyncGeneratorRequestCompletion::Err(js_error),
+            Self::Return(value) => AsyncGeneratorRequestCompletion::Return(value.bind(gc)),
+        }
+    }
 }
 
 impl Rootable for AsyncGenerator<'_> {

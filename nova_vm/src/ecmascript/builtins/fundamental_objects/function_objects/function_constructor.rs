@@ -23,7 +23,7 @@ use crate::{
             BUILTIN_STRING_MEMORY,
         },
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope},
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -41,13 +41,13 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 }
 
 impl FunctionConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into_value())
@@ -77,7 +77,7 @@ impl FunctionConstructor {
         //   a. Perform MakeConstructor(F).
         make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
-        Ok(f.into_value())
+        Ok(f.into_value().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

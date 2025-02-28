@@ -21,7 +21,7 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{
         indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
