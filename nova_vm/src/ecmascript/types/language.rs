@@ -31,13 +31,14 @@ pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
-    bind_property_keys, scope_property_keys, unbind_property_keys, InternalMethods, InternalSlots,
-    IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey,
+    scope_property_keys, InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData,
+    OrdinaryObject, PropertyKey,
 };
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
 pub use string::{HeapString, String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
 pub use symbol::{Symbol, SymbolHeapData};
+pub use value::Value;
 #[cfg(feature = "date")]
 pub(crate) use value::DATE_DISCRIMINANT;
 #[cfg(feature = "proposal-float16array")]
@@ -46,7 +47,6 @@ pub(crate) use value::FLOAT_16_ARRAY_DISCRIMINANT;
 pub(crate) use value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) use value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
-pub use value::{bind_values, unbind_values, Value};
 pub(crate) use value::{
     ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
     ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT, BIGINT_DISCRIMINANT,

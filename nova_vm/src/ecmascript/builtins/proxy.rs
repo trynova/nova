@@ -21,9 +21,9 @@ use crate::{
         builtins::ArgumentsList,
         execution::{agent::ExceptionType, Agent, JsResult},
         types::{
-            scope_property_keys, unbind_property_keys, Function, InternalMethods, InternalSlots,
-            IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            scope_property_keys, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -1417,7 +1417,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         let target_keys = scoped_target
             .get(agent)
             .internal_own_property_keys(agent, gc.reborrow())?;
-        let target_keys = scope_property_keys(agent, unbind_property_keys(target_keys), gc.nogc());
+        let target_keys = scope_property_keys(agent, target_keys.unbind(), gc.nogc());
         // 13. Assert: targetKeys contains no duplicate entries.
         let mut unique_target_keys = Vec::with_capacity(target_keys.len());
         for value in target_keys.iter() {

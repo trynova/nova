@@ -1116,16 +1116,6 @@ impl From<bool> for Value<'_> {
     }
 }
 
-#[inline(always)]
-pub fn unbind_values<'a>(vec: Vec<Value<'a>>) -> Vec<Value<'static>> {
-    unsafe { std::mem::transmute::<Vec<Value<'a>>, Vec<Value<'static>>>(vec) }
-}
-
-#[inline(always)]
-pub fn bind_values<'a>(vec: Vec<Value>, _: NoGcScope<'a, '_>) -> Vec<Value<'a>> {
-    unsafe { std::mem::transmute::<Vec<Value>, Vec<Value<'a>>>(vec) }
-}
-
 // SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for Value<'_> {
     type Of<'a> = Value<'a>;

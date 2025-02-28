@@ -26,9 +26,8 @@ use crate::{
         },
         execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         types::{
-            bind_property_keys, scope_property_keys, unbind_property_keys, InternalMethods,
-            IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            scope_property_keys, InternalMethods, IntoFunction, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -729,13 +728,11 @@ impl ObjectConstructor {
                 own_keys
             } else {
                 scoped_obj = Some(obj.scope(agent, gc.nogc()));
-                let own_keys = bind_property_keys(
-                    unbind_property_keys(
-                        obj.unbind()
-                            .internal_own_property_keys(agent, gc.reborrow())?,
-                    ),
-                    gc.nogc(),
-                );
+                let own_keys = obj
+                    .unbind()
+                    .internal_own_property_keys(agent, gc.reborrow())?
+                    .unbind()
+                    .bind(gc.nogc());
                 obj = scoped_obj.as_ref().unwrap().get(agent).bind(gc.nogc());
                 own_keys
             };
@@ -770,9 +767,14 @@ impl ObjectConstructor {
             .bind(gc.nogc());
         if i < own_keys.len() {
             let _ = own_keys.drain(..i);
-            let own_keys = unbind_property_keys(own_keys);
             let obj = scoped_obj.unwrap_or_else(|| obj.scope(agent, gc.nogc()));
-            get_own_property_descriptors_slow(agent, obj, own_keys, descriptors.unbind(), gc)
+            get_own_property_descriptors_slow(
+                agent,
+                obj,
+                own_keys.unbind(),
+                descriptors.unbind(),
+                gc,
+            )
         } else {
             // 5. Return descriptors.
             Ok(descriptors.into_value().unbind())
@@ -1132,14 +1134,11 @@ fn object_define_properties<'a, T: InternalMethods<'a>>(
     // 1. Let props be ? ToObject(Properties).
     let props = to_object(agent, properties, gc.nogc())?.scope(agent, gc.nogc());
     // 2. Let keys be ? props.[[OwnPropertyKeys]]().
-    let keys = bind_property_keys(
-        unbind_property_keys(
-            props
-                .get(agent)
-                .internal_own_property_keys(agent, gc.reborrow())?,
-        ),
-        gc.nogc(),
-    );
+    let keys = props
+        .get(agent)
+        .internal_own_property_keys(agent, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
     let keys = scope_property_keys(agent, keys, gc.nogc());
     // 3. Let descriptors be a new empty List.
     let mut descriptors = Vec::with_capacity(keys.len());
@@ -1341,12 +1340,12 @@ fn get_own_string_property_keys<'gc>(
     // 1. Let obj be ? ToObject(O).
     let obj = to_object(agent, o, gc.nogc())?;
     // 2. Let keys be ? obj.[[OwnPropertyKeys]]().
-    let keys = unbind_property_keys(
-        obj.unbind()
-            .internal_own_property_keys(agent, gc.reborrow())?,
-    );
+    let keys = obj
+        .unbind()
+        .internal_own_property_keys(agent, gc.reborrow())?
+        .unbind();
     let gc = gc.into_nogc();
-    let keys = bind_property_keys(keys, gc);
+    let keys = keys.bind(gc);
     // 3. Let nameList be a new empty List.
     let mut name_list = Vec::with_capacity(keys.len());
     // 4. For each element nextKey of keys, do

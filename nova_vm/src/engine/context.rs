@@ -190,7 +190,7 @@ impl<'a, 'b> NoGcScope<'a, 'b> {
 /// transmute on performed on Self. The implementation of the functions
 /// themselves are also allowed to be a plain transmute.
 ///
-/// ```rust
+/// ```rust,compile_fail
 /// let result = unsafe { core::mem::transmute::<Value<'a>, Value<'b>(value) };
 /// ```
 pub unsafe trait Bindable: Sized {
@@ -208,8 +208,20 @@ pub unsafe trait Bindable: Sized {
     /// This is the only correct way to define the type:
     ///
     /// ```rust
+    /// use nova_vm::engine::context::{Bindable, NoGcScope};
+    /// struct MyType<'a>(std::marker::PhantomData<&'a ()>);
     /// unsafe impl Bindable for MyType<'_> {
     ///   type Of<'a> = MyType<'a>;
+    ///
+    ///   #[inline(always)]
+    ///   fn unbind(self) -> Self::Of<'static> {
+    ///     unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    ///   }
+    ///
+    ///   #[inline(always)]
+    ///   fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+    ///     unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    ///   }
     /// }
     /// ```
     type Of<'a>;
@@ -234,12 +246,12 @@ pub unsafe trait Bindable: Sized {
     ///
     /// ## Examples
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Unbind a value to allow passing it as a parameter.
     /// function_call(agent, value.unbind(), gc.reborrow());
     /// ```
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Unbind a value to allow returning as a result.
     /// let result = function_call(agent, gc.reborrow());
     /// if cond {
@@ -249,7 +261,7 @@ pub unsafe trait Bindable: Sized {
     /// }
     /// ```
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Unbind a value temporarily to immediately rebind it with a
     /// // `NoGcScope`.
     /// let result = function_call(agent, gc.reborrow()).unbind();
@@ -259,7 +271,7 @@ pub unsafe trait Bindable: Sized {
     ///
     /// *Incrrect* usage of this function: unbind a value into a variable
     /// without immediate rebinding.
-    /// ```rust
+    /// ```rust,ignore
     /// let result = try_function_call(agent, gc.nogc()).unbind();
     /// function_call(agent, result, gc.reborrow());
     /// // Note: `result` is use-after-free because of above `gc.reborrow()`.
@@ -289,10 +301,14 @@ pub unsafe trait Bindable: Sized {
     /// ## Examples
     ///
     /// ```rust
+    /// use nova_vm::ecmascript::builtins::ArgumentsList;
+    /// use nova_vm::ecmascript::execution::{Agent, JsResult};
+    /// use nova_vm::ecmascript::types::Value;
+    /// use nova_vm::engine::context::{GcScope, Bindable};
     /// fn function_call<'gc>(
     ///   agent: &mut Agent,
     ///   this_value: Value,
-    ///   arguments: Arguments,
+    ///   arguments: ArgumentsList,
     ///   gc: GcScope<'gc, '_>
     /// ) -> Value<'gc> {
     ///   // Bind every bindable argument when a function with a garbage
@@ -301,11 +317,13 @@ pub unsafe trait Bindable: Sized {
     ///   // safepoint.
     ///   let nogc = gc.nogc();
     ///   let this_value = this_value.bind(nogc);
-    ///   let arguments = arguments.bind(nogc);
+    ///   let arg0 = arguments.get(0).bind(nogc);
+    ///   // ...
+    ///   Value::Undefined
     /// }
     /// ```
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// // Bind a bindable value when it is copied from the engine heap.
     /// let first = agent[array].as_slice()[0].bind(gc.nogc());
     /// ```
@@ -313,18 +331,24 @@ pub unsafe trait Bindable: Sized {
     /// *Incorrect* usage of this function: skip binding arguments when a
     /// function with a garbage collector safepoint is entered.
     /// ```rust
+    /// use nova_vm::ecmascript::builtins::ArgumentsList;
+    /// use nova_vm::ecmascript::execution::{Agent, JsResult};
+    /// use nova_vm::ecmascript::types::Value;
+    /// use nova_vm::engine::context::{GcScope, Bindable};
     /// fn function_call<'gc>(
     ///   agent: &mut Agent,
     ///   this_value: Value,
-    ///   arguments: Arguments,
-    ///   gc: GcScope<'gc, '_>
+    ///   arguments: ArgumentsList,
+    ///   mut gc: GcScope<'gc, '_>
     /// ) -> Value<'gc> {
-    ///   // Note: This is still technically fine due to no preceding `GcSCope`
+    ///   // Note: This is still technically fine due to no preceding `GcScope`
     ///   // usage.
-    ///   let string = to_string(agent, this_value, gc.reborrow());
+    ///   let string = this_value.to_string(agent, gc.reborrow());
     ///   // Note: `arguments` is use-after-free because of above
     ///   // `gc.reborrow()`.
-    ///   let value = arguments.get(0);
+    ///   let value = arguments.get(0).bind(gc.nogc());
+    ///   // ...
+    ///   Value::Undefined
     /// }
     /// ```
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a>;

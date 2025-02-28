@@ -14,9 +14,7 @@ use super::{
     },
 };
 use crate::{
-    ecmascript::types::{
-        bind_property_keys, bind_values, scope_property_keys, unbind_property_keys, unbind_values,
-    },
+    ecmascript::types::scope_property_keys,
     engine::{
         context::{Bindable, GcScope, NoGcScope},
         rootable::Rootable,
@@ -727,7 +725,7 @@ pub(crate) fn set_integrity_level<T: Level>(
     }
     // 3. Let keys be ? O.[[OwnPropertyKeys]]().
     let keys = o.internal_own_property_keys(agent, gc.reborrow())?;
-    let keys = bind_property_keys(unbind_property_keys(keys), gc.nogc());
+    let keys = keys.unbind().bind(gc.nogc());
     // 4. If level is SEALED, then
     if T::LEVEL == IntegrityLevel::Sealed {
         // a. For each element k of keys, do
@@ -875,7 +873,7 @@ pub(crate) fn test_integrity_level<T: Level>(
 
     // 4. Let keys be ? O.[[OwnPropertyKeys]]().
     let keys = o.internal_own_property_keys(agent, gc.reborrow())?;
-    let keys = bind_property_keys(unbind_property_keys(keys), gc.nogc());
+    let keys = keys.unbind().bind(gc.nogc());
 
     let mut broke = false;
     let mut i = 0;
@@ -1406,23 +1404,21 @@ pub(crate) fn scoped_enumerable_own_keys<'a>(
             .collect());
     }
     // 1. Let ownKeys be ? O.[[OwnPropertyKeys]]().
-    let own_string_keys = bind_property_keys(
-        unbind_property_keys(
-            o.get(agent)
-                .internal_own_property_keys(agent, gc.reborrow())?,
-        ),
-        gc.nogc(),
-    )
-    .into_iter()
-    // 1. If key is a String, then
-    .filter_map(|key| {
-        if key.is_string() {
-            Some(key.scope(agent, gc.nogc()))
-        } else {
-            None
-        }
-    })
-    .collect::<Vec<_>>();
+    let own_string_keys = o
+        .get(agent)
+        .internal_own_property_keys(agent, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc())
+        .into_iter()
+        // 1. If key is a String, then
+        .filter_map(|key| {
+            if key.is_string() {
+                Some(key.scope(agent, gc.nogc()))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
 
     // 2. Let results be a new empty List.
     // 3. For each element key of ownKeys, do
@@ -1474,13 +1470,11 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
             own_keys
         } else {
             scoped_o = Some(o.scope(agent, gc.nogc()));
-            let result = bind_property_keys(
-                unbind_property_keys(
-                    o.unbind()
-                        .internal_own_property_keys(agent, gc.reborrow())?,
-                ),
-                gc.nogc(),
-            );
+            let result = o
+                .unbind()
+                .internal_own_property_keys(agent, gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
             o = scoped_o.as_ref().unwrap().get(agent).bind(gc.nogc());
             result
         };
@@ -1573,13 +1567,13 @@ pub(crate) fn enumerable_own_properties<'gc, Kind: EnumerablePropertiesKind>(
         enumerable_own_properties_slow::<Kind>(
             agent,
             scoped_o,
-            unbind_property_keys(own_keys),
-            unbind_values(results),
+            own_keys.unbind(),
+            results.unbind(),
             gc,
         )
     } else {
         // 4. Return results.
-        Ok(bind_values(unbind_values(results), gc.into_nogc()))
+        Ok(results.unbind().bind(gc.into_nogc()))
     }
 }
 
@@ -1721,13 +1715,11 @@ pub(crate) fn copy_data_properties(
     } else {
         scoped_target = Some(target.scope(agent, gc.nogc()));
         scoped_from = Some(from.scope(agent, gc.nogc()));
-        let keys = bind_property_keys(
-            unbind_property_keys(
-                from.unbind()
-                    .internal_own_property_keys(agent, gc.reborrow())?,
-            ),
-            gc.nogc(),
-        );
+        let keys = from
+            .unbind()
+            .internal_own_property_keys(agent, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
         target = scoped_target.as_ref().unwrap().get(agent).bind(gc.nogc());
         from = scoped_from.as_ref().unwrap().get(agent).bind(gc.nogc());
         keys
@@ -1777,10 +1769,9 @@ pub(crate) fn copy_data_properties(
 
     if broke {
         let _ = keys.drain(..i);
-        let keys = unbind_property_keys(keys);
         let target = scoped_target.unwrap_or_else(|| target.scope(agent, gc.nogc()));
         let from = scoped_from.unwrap_or_else(|| from.scope(agent, gc.nogc()));
-        copy_data_properties_slow(agent, target, from, keys, gc)
+        copy_data_properties_slow(agent, target, from, keys.unbind(), gc)
     } else {
         // 5. Return UNUSED.
         Ok(())
@@ -1898,13 +1889,11 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     let mut entries = Vec::new();
 
     // 3. Let keys be ? from.[[OwnPropertyKeys]]().
-    let mut keys = bind_property_keys(
-        unbind_property_keys(
-            from.unbind()
-                .internal_own_property_keys(agent, gc.reborrow())?,
-        ),
-        gc.nogc(),
-    );
+    let mut keys = from
+        .unbind()
+        .internal_own_property_keys(agent, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc());
     let from = scoped_from.get(agent).bind(gc.nogc());
     // 4. For each element nextKey of keys, do
     let mut broke = false;
@@ -1960,7 +1949,7 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
             agent,
             scoped_from,
             excluded_items,
-            unbind_property_keys(keys),
+            keys.unbind(),
             object.unbind(),
             gc.reborrow(),
         )?
@@ -1979,7 +1968,7 @@ fn copy_data_properties_into_object_slow<'a, 'b>(
     object: OrdinaryObject<'a>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<OrdinaryObject<'a>> {
-    let keys = bind_property_keys(keys, gc.nogc());
+    let keys = keys.bind(gc.nogc());
     let object = object.scope(agent, gc.nogc());
     // We need to collect the excluded items into a vector, as we cannot hash
     // scoped items: The same item can be scoped multiple times.

@@ -208,16 +208,6 @@ unsafe impl Bindable for PropertyKey<'_> {
     }
 }
 
-#[inline(always)]
-pub fn unbind_property_keys<'a>(vec: Vec<PropertyKey<'a>>) -> Vec<PropertyKey<'static>> {
-    unsafe { core::mem::transmute::<Vec<PropertyKey<'a>>, Vec<PropertyKey<'static>>>(vec) }
-}
-
-#[inline(always)]
-pub fn bind_property_keys<'a>(vec: Vec<PropertyKey>, _: NoGcScope<'a, '_>) -> Vec<PropertyKey<'a>> {
-    unsafe { core::mem::transmute::<Vec<PropertyKey>, Vec<PropertyKey<'a>>>(vec) }
-}
-
 #[inline]
 pub fn scope_property_keys<'a>(
     agent: &mut Agent,

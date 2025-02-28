@@ -6,7 +6,6 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     to_property_key_complex, to_property_key_simple,
 };
 use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::types::{bind_property_keys, unbind_property_keys};
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
 use crate::{
@@ -540,17 +539,14 @@ impl ReflectObject {
         };
 
         // 2. Let keys be ? target.[[OwnPropertyKeys]]().
-        let keys: Vec<Value> = bind_property_keys(
-            unbind_property_keys(
-                target
-                    .unbind()
-                    .internal_own_property_keys(agent, gc.reborrow())?,
-            ),
-            gc.nogc(),
-        )
-        .into_iter()
-        .map(|key| key.convert_to_value(agent, gc.nogc()))
-        .collect();
+        let keys: Vec<Value> = target
+            .unbind()
+            .internal_own_property_keys(agent, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+            .into_iter()
+            .map(|key| key.convert_to_value(agent, gc.nogc()))
+            .collect();
         // 3. Return CreateArrayFromList(keys).
         Ok(create_array_from_list(agent, &keys, gc.nogc())
             .into_value()

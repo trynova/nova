@@ -49,10 +49,10 @@ use crate::{
         },
         types::{
             get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, try_initialize_referenced_binding, unbind_values, Base,
-            BigInt, Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Number,
-            Numeric, Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, Reference,
-            String, Value, BUILTIN_STRING_MEMORY,
+            is_super_reference, put_value, try_initialize_referenced_binding, Base, BigInt,
+            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Number, Numeric,
+            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, Reference, String,
+            Value, BUILTIN_STRING_MEMORY,
         },
     },
     engine::{
@@ -1457,7 +1457,7 @@ impl<'a> Vm {
                     }
                 } else {
                     let func = func.unbind();
-                    let args = unbind_values(args);
+                    let args = args.unbind();
                     with_vm_gc(
                         agent,
                         vm,
@@ -1500,7 +1500,7 @@ impl<'a> Vm {
                     // a. Let thisValue be undefined.
                     Value::Undefined
                 };
-                let args = unbind_values(vm.get_call_args(instr, gc.nogc()));
+                let args = vm.get_call_args(instr, gc.nogc()).unbind();
                 let func = vm.stack.pop().unwrap().unbind();
                 let this_value = this_value.unbind();
                 let result = with_vm_gc(
@@ -1589,7 +1589,7 @@ impl<'a> Vm {
                 // 6. Let result be ? Construct(func, argList, newTarget).
                 let result = {
                     let func = func.unbind();
-                    let arg_list = unbind_values(arg_list);
+                    let arg_list = arg_list.unbind();
                     let new_target = new_target.unbind();
                     let result = with_vm_gc(
                         agent,
