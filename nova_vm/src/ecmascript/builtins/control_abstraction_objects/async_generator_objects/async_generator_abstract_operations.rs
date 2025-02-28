@@ -65,7 +65,7 @@ pub(crate) fn async_generator_start_result(
         gc.nogc(),
     );
     // k. Perform AsyncGeneratorDrainQueue(acGenerator).
-    async_generator_drain_queue(agent, scoped_generator.get(agent), gc.reborrow());
+    async_generator_drain_queue(agent, scoped_generator, gc.reborrow());
     // l. Return undefined.
 }
 
@@ -250,8 +250,7 @@ pub(super) fn resume_handle_result(
                 gc.nogc(),
             );
             // k. Perform AsyncGeneratorDrainQueue(acGenerator).
-            let generator = scoped_generator.get(agent).bind(gc.nogc());
-            async_generator_drain_queue(agent, generator.unbind(), gc.reborrow());
+            async_generator_drain_queue(agent, scoped_generator, gc.reborrow());
             // l. Return undefined.
         }
         ExecutionResult::Throw(err) => {
@@ -271,7 +270,7 @@ pub(super) fn resume_handle_result(
                 gc.nogc(),
             );
             // k. Perform AsyncGeneratorDrainQueue(acGenerator).
-            async_generator_drain_queue(agent, generator.unbind(), gc.reborrow());
+            async_generator_drain_queue(agent, scoped_generator, gc.reborrow());
             // l. Return undefined.
         }
         ExecutionResult::Yield { vm, yielded_value } => {
@@ -334,18 +333,19 @@ fn async_generator_unwrap_yield_resumption(
     resumption_value: AsyncGeneratorRequestCompletion,
     mut gc: GcScope,
 ) {
+    let resumption_value = resumption_value.bind(gc.nogc());
     // 1. If resumptionValue is not a return completion, return ? resumptionValue.
     let execution_result = match resumption_value {
         AsyncGeneratorRequestCompletion::Ok(v) => vm.resume(
             agent,
             generator.get(agent).get_executable(agent),
-            v,
+            v.unbind(),
             gc.reborrow(),
         ),
         AsyncGeneratorRequestCompletion::Err(e) => vm.resume_throw(
             agent,
             generator.get(agent).get_executable(agent),
-            e.value(),
+            e.value().unbind(),
             gc.reborrow(),
         ),
         AsyncGeneratorRequestCompletion::Return(value) => {
@@ -354,14 +354,14 @@ fn async_generator_unwrap_yield_resumption(
                 agent,
                 generator,
                 vm,
-                value,
+                value.unbind(),
                 AsyncGeneratorAwaitKind::Return,
                 gc.reborrow(),
             );
             return;
         }
     };
-    resume_handle_result(agent, execution_result, generator, gc);
+    resume_handle_result(agent, execution_result.unbind(), generator, gc);
 }
 
 /// ### [27.6.3.8 AsyncGeneratorYield ( value )](https://tc39.es/ecma262/#sec-asyncgeneratoryield)
@@ -447,10 +447,10 @@ pub(super) fn async_generator_yield(
 /// (an AsyncGenerator) and returns unused.
 pub(super) fn async_generator_await_return(
     agent: &mut Agent,
-    generator: AsyncGenerator,
+    scoped_generator: Scoped<'_, AsyncGenerator<'static>>,
     mut gc: GcScope,
 ) {
-    let generator = generator.bind(gc.nogc());
+    let generator = scoped_generator.get(agent).bind(gc.nogc());
     // 1. Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     assert!(generator.is_draining_queue(agent));
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
@@ -465,7 +465,6 @@ pub(super) fn async_generator_await_return(
         unreachable!()
     };
     // 7. Let promiseCompletion be Completion(PromiseResolve(%Promise%, completion.[[Value]])).
-    let generator = generator.scope(agent, gc.nogc());
     // 8. If promiseCompletion is an abrupt completion, then
     //         a. Perform AsyncGeneratorCompleteStep(generator, promiseCompletion, true).
     //         b. Perform AsyncGeneratorDrainQueue(generator).
@@ -478,7 +477,7 @@ pub(super) fn async_generator_await_return(
     // 13. ... onRejected ...
     // 14. Let onRejected be CreateBuiltinFunction(rejectedClosure, 1, "", « »).
     // 15. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
-    let handler = PromiseReactionHandler::AsyncGenerator(generator.get(agent));
+    let handler = PromiseReactionHandler::AsyncGenerator(scoped_generator.get(agent));
     inner_promise_then(agent, promise, handler, handler, None);
     // 16. Return unused.
 }
@@ -508,7 +507,7 @@ pub(crate) fn async_generator_await_return_on_fulfilled(
         gc.nogc(),
     );
     // d. Perform AsyncGeneratorDrainQueue(generator).
-    async_generator_drain_queue(agent, scoped_generator.get(agent).unbind(), gc);
+    async_generator_drain_queue(agent, scoped_generator, gc);
     // e. Return undefined.
 }
 
@@ -531,13 +530,13 @@ pub(crate) fn async_generator_await_return_on_rejected(
     async_generator_complete_step(
         agent,
         generator.unbind(),
-        AsyncGeneratorRequestCompletion::Err(JsError::new(value)),
+        AsyncGeneratorRequestCompletion::Err(JsError::new(value.unbind())),
         true,
         None,
         gc.nogc(),
     );
     // d. Perform AsyncGeneratorDrainQueue(generator).
-    async_generator_drain_queue(agent, scoped_generator.get(agent).unbind(), gc);
+    async_generator_drain_queue(agent, scoped_generator, gc);
     // e. Return undefined.
 }
 
@@ -547,7 +546,12 @@ pub(crate) fn async_generator_await_return_on_rejected(
 /// (an AsyncGenerator) and returns unused. It drains the generator's
 /// AsyncGeneratorQueue until it encounters an AsyncGeneratorRequest which
 /// holds a return completion.
-fn async_generator_drain_queue(agent: &mut Agent, generator: AsyncGenerator, mut gc: GcScope) {
+fn async_generator_drain_queue(
+    agent: &mut Agent,
+    scoped_generator: Scoped<'_, AsyncGenerator<'static>>,
+    mut gc: GcScope,
+) {
+    let generator = scoped_generator.get(agent).bind(gc.nogc());
     // Assert: generator.[[AsyncGeneratorState]] is draining-queue.
     // 2. Let queue be generator.[[AsyncGeneratorQueue]].
     let Some(AsyncGeneratorState::DrainingQueue(queue)) =
@@ -566,9 +570,8 @@ fn async_generator_drain_queue(agent: &mut Agent, generator: AsyncGenerator, mut
     }
 
     // 4. Let done be false.
-    let mut done = false;
     // 5. Repeat, while done is false,
-    while !done {
+    loop {
         // a. Let next be the first element of queue.
         let next = generator.peek_first(agent);
         // b. Let completion be Completion(next.[[Completion]]).
@@ -576,9 +579,9 @@ fn async_generator_drain_queue(agent: &mut Agent, generator: AsyncGenerator, mut
         // c. If completion is a return completion, then
         if let AsyncGeneratorRequestCompletion::Return(_) = completion {
             // i. Perform AsyncGeneratorAwaitReturn(generator).
-            async_generator_await_return(agent, generator, gc.reborrow());
+            async_generator_await_return(agent, scoped_generator, gc.reborrow());
             // ii. Set done to true.
-            done = true;
+            return;
         } else {
             // d. Else,
             // i. If completion is a normal completion, then
@@ -602,7 +605,7 @@ fn async_generator_drain_queue(agent: &mut Agent, generator: AsyncGenerator, mut
                     .async_generator_state
                     .replace(AsyncGeneratorState::Completed);
                 // 2. Set done to true.
-                done = true
+                return;
             }
         }
     }

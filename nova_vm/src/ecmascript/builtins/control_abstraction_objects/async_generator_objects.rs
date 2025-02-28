@@ -247,15 +247,16 @@ impl AsyncGenerator<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
+        let value = value.bind(gc.nogc());
         if self.is_draining_queue(agent) {
             // We're coming here because return was called.
             match reaction_type {
                 PromiseReactionType::Fulfill => {
                     // AsyncGeneratorAwaitReturn onFulfilled
-                    async_generator_await_return_on_fulfilled(agent, self, value, gc);
+                    async_generator_await_return_on_fulfilled(agent, self, value.unbind(), gc);
                 }
                 PromiseReactionType::Reject => {
-                    async_generator_await_return_on_rejected(agent, self, value, gc);
+                    async_generator_await_return_on_rejected(agent, self, value.unbind(), gc);
                 }
             }
             return;
@@ -278,10 +279,10 @@ impl AsyncGenerator<'_> {
                 let executable = agent[self].executable.unwrap();
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
-                        vm.resume(agent, executable, value, gc.reborrow())
+                        vm.resume(agent, executable, value.unbind(), gc.reborrow())
                     }
                     PromiseReactionType::Reject => {
-                        vm.resume_throw(agent, executable, value, gc.reborrow())
+                        vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                     }
                 }
             }
@@ -291,11 +292,11 @@ impl AsyncGenerator<'_> {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
                     let executable = agent[self].executable.unwrap();
-                    vm.resume_throw(agent, executable, value, gc.reborrow())
+                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     async_generator_yield(
                         agent,
-                        value,
+                        value.unbind(),
                         scoped_generator.clone(),
                         vm,
                         gc.reborrow(),
@@ -308,7 +309,7 @@ impl AsyncGenerator<'_> {
                 // 3. If awaited is a throw completion, return ? awaited.
                 if reaction_type == PromiseReactionType::Reject {
                     let executable = agent[self].executable.unwrap();
-                    vm.resume_throw(agent, executable, value, gc.reborrow())
+                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     // TODO: vm.resume_return(agent, executable, value, gc.reborrow())
                     // 4. Assert: awaited is a normal completion.
@@ -317,7 +318,7 @@ impl AsyncGenerator<'_> {
                 }
             }
         };
-        resume_handle_result(agent, execution_result, scoped_generator, gc);
+        resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
     }
 }
 

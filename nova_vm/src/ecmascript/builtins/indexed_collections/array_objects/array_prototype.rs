@@ -383,7 +383,7 @@ impl ArrayPrototype {
         if let Object::Array(a) = a {
             let mut total_len = 0u32;
             if let Object::Array(this_value) = scoped_o.get(agent) {
-                total_len.saturating_add(this_value.len(agent));
+                total_len = total_len.saturating_add(this_value.len(agent));
             }
             items.iter().for_each(|item| {
                 if let Value::Array(item) = item.get(agent) {

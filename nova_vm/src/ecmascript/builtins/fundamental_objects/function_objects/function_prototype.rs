@@ -114,6 +114,9 @@ impl FunctionPrototype {
         args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
+        let this_arg = args.get(0).bind(gc.nogc());
+        let arg_array = args.get(1).bind(gc.nogc());
         // 1. Let func be the this value.
         let Some(func) = is_callable(this_value, gc.nogc()) else {
             // 2. If IsCallable(func) is false, throw a TypeError exception.
@@ -123,22 +126,25 @@ impl FunctionPrototype {
                 gc.nogc(),
             ));
         };
-        let func = func.bind(gc.nogc());
-        let this_arg = args.get(0);
-        let arg_array = args.get(1);
         if arg_array.is_undefined() || arg_array.is_null() {
             // 3. If argArray is either undefined or null, then
             //   a. TODO: Perform PrepareForTailCall().
             //   b. Return ? Call(func, thisArg).
-            return call_function(agent, func.unbind(), this_arg, None, gc);
+            return call_function(agent, func.unbind(), this_arg.unbind(), None, gc);
         }
         let func = func.scope(agent, gc.nogc());
+        let this_arg = this_arg.scope(agent, gc.nogc());
         // 4. Let argList be ? CreateListFromArrayLike(argArray).
-        let args = create_list_from_array_like(agent, arg_array, gc.reborrow())?;
-        let args_list = ArgumentsList(&args);
+        let args_list = create_list_from_array_like(agent, arg_array.unbind(), gc.reborrow())?;
         // 5. TODO: Perform PrepareForTailCall().
         // 6.Return ? Call(func, thisArg, argList).
-        call_function(agent, func.get(agent), this_arg, Some(args_list), gc)
+        call_function(
+            agent,
+            func.get(agent),
+            this_arg.get(agent),
+            Some(ArgumentsList(&args_list.unbind())),
+            gc,
+        )
     }
 
     /// ### [20.2.3.2 Function.prototype.bind ( thisArg, ...args )](https://tc39.es/ecma262/#sec-function.prototype.bind)
@@ -159,7 +165,8 @@ impl FunctionPrototype {
         args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let this_arg = args.get(0);
+        let this_value = this_value.bind(gc.nogc());
+        let this_arg = args.get(0).bind(gc.nogc());
         let args = if args.len() > 1 { &args[1..] } else { &[] };
         // 1. Let Target be the this value.
         let target = this_value;
@@ -173,9 +180,15 @@ impl FunctionPrototype {
         };
         let scoped_target = target.scope(agent, gc.nogc());
         // 3. Let F be ? BoundFunctionCreate(Target, thisArg, args).
-        let mut f = bound_function_create(agent, target.unbind(), this_arg, args, gc.reborrow())?
-            .unbind()
-            .bind(gc.nogc());
+        let mut f = bound_function_create(
+            agent,
+            target.unbind(),
+            this_arg.unbind(),
+            args,
+            gc.reborrow(),
+        )?
+        .unbind()
+        .bind(gc.nogc());
         target = scoped_target.get(agent);
         let mut scoped_f = None;
         // 4. Let L be 0.
@@ -302,18 +315,19 @@ impl FunctionPrototype {
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let Some(func) = is_callable(this_value, gc.nogc()) else {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let this_arg = args.get(0).bind(nogc);
+        let Some(func) = is_callable(this_value, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Not a callable value",
-                gc.nogc(),
+                nogc,
             ));
         };
-        let func = func.bind(gc.nogc());
         // TODO: PrepareForTailCall
-        let this_arg = args.get(0);
         let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });
-        call_function(agent, func.unbind(), this_arg, Some(args), gc)
+        call_function(agent, func.unbind(), this_arg.unbind(), Some(args), gc)
     }
 
     fn to_string<'gc>(
@@ -322,6 +336,7 @@ impl FunctionPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         // Let func be the this value.
         let Ok(func) = Function::try_from(this_value) else {
             // 5. Throw a TypeError exception.

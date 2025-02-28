@@ -1031,7 +1031,7 @@ pub(crate) fn make_constructor<'a>(
             agent,
             key,
             PropertyDescriptor {
-                value: Some(function.into_value()),
+                value: Some(function.into_value().unbind()),
                 writable: Some(writable_prototype),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -1050,7 +1050,7 @@ pub(crate) fn make_constructor<'a>(
         agent,
         key,
         PropertyDescriptor {
-            value: Some(prototype.into_value()),
+            value: Some(prototype.into_value().unbind()),
             writable: Some(writable_prototype),
             enumerable: Some(false),
             configurable: Some(false),

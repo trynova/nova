@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::{context::{ GcScope, NoGcScope}, Scoped, TryResult};
+use crate::engine::{context::{ Bindable, GcScope, NoGcScope}, Scoped, TryResult};
 use crate::{
     ecmascript::{
         builtins::{
@@ -177,26 +177,6 @@ impl<'a> From<Function<'a>> for Value<'a> {
 }
 
 impl<'a> Function<'a> {
-    /// Unbind this Function from its current lifetime. This is necessary to
-    /// use the Function as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Function<'static> {
-        unsafe { core::mem::transmute::<Function<'a>, Function<'static>>(self) }
-    }
-
-    // Bind this Function to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your Functions cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let function = function.bind(&gc);
-    // ```
-    // to make sure that the unbound Function cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Function<'gc> {
-        unsafe { core::mem::transmute::<Function<'a>, Function<'gc>>(self) }
-    }
-
     pub fn scope<'b>(
         self,
         agent: &mut Agent,
@@ -216,6 +196,19 @@ impl<'a> Function<'a> {
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Function<'_> {
+    type Of<'a> = Function<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

@@ -1217,12 +1217,35 @@ pub(crate) fn invoke<'gc>(
     arguments_list: Option<ArgumentsList>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
+    let v = v.bind(gc.nogc());
+    let p = p.bind(gc.nogc());
     // 1. If argumentsList is not present, set argumentsList to a new empty List.
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. Let func be ? GetV(V, P).
-    let func = get_v(agent, v, p, gc.reborrow())?;
     // 3. Return ? Call(func, V, argumentsList).
-    call(agent, func.unbind(), v, Some(arguments_list), gc)
+    if let TryResult::Continue(func) = try_get_v(agent, v, p, gc.nogc()) {
+        call(agent, func?.unbind(), v.unbind(), Some(arguments_list), gc)
+    } else {
+        // We couldn't get the func without calling into Javascript: No
+        // choice, we must allocate the arguments onto the heap.
+        let scoped_v = v.scope(agent, gc.nogc());
+        let scoped_arguments = arguments_list
+            .iter()
+            .map(|v| v.scope(agent, gc.nogc()))
+            .collect::<Vec<_>>();
+        let func = get_v(agent, v.unbind(), p.unbind(), gc.reborrow())?;
+        let arguments = scoped_arguments
+            .into_iter()
+            .map(|v| v.get(agent))
+            .collect::<Vec<_>>();
+        call(
+            agent,
+            func.unbind(),
+            scoped_v.get(agent),
+            Some(ArgumentsList(&arguments)),
+            gc,
+        )
+    }
 }
 
 /// ### [7.3.21 OrdinaryHasInstance ( C, O )](https://tc39.es/ecma262/#sec-ordinaryhasinstance)
@@ -1242,7 +1265,6 @@ pub(crate) fn ordinary_has_instance<'a, 'b>(
     let Some(c) = is_callable(c, gc.nogc()) else {
         return Ok(false);
     };
-    let c = c.bind(gc.nogc());
     // 2. If C has a [[BoundTargetFunction]] internal slot, then
     if let Function::BoundFunction(c) = c {
         // a. Let BC be C.[[BoundTargetFunction]].
@@ -1998,9 +2020,10 @@ fn copy_data_properties_into_object_slow<'a, 'b>(
                     agent,
                     object.get(agent),
                     next_key.unbind(),
-                    prop_value,
+                    prop_value.unbind(),
                     gc.nogc(),
-                ));
+                ))
+                .unwrap();
             }
         }
     }

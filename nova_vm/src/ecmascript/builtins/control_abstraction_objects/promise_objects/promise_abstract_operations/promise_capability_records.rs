@@ -341,16 +341,17 @@ impl HeapMarkAndSweep for PromiseCapability {
 ///     a. Set value to ! value.
 /// ```
 #[inline(always)]
-pub(crate) fn if_abrupt_reject_promise<T>(
+pub(crate) fn if_abrupt_reject_promise<'gc, T: 'gc>(
     agent: &mut Agent,
     value: JsResult<T>,
     capability: PromiseCapability,
-) -> Result<T, Promise> {
+    gc: NoGcScope<'gc, '_>,
+) -> Result<T, Promise<'gc>> {
     value.map_err(|err| {
         capability.reject(agent, err.value());
 
         // Note: We return an error here so that caller gets to call this
         // function with the ? operator
-        capability.promise()
+        capability.promise().bind(gc)
     })
 }

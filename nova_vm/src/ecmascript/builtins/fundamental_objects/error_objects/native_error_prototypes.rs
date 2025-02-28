@@ -5,7 +5,7 @@
 use crate::ecmascript::{
     builders::ordinary_object_builder::OrdinaryObjectBuilder,
     execution::{Agent, RealmIdentifier},
-    types::{String, BUILTIN_STRING_MEMORY},
+    types::{IntoValue, String, BUILTIN_STRING_MEMORY},
 };
 
 pub(crate) struct NativeErrorPrototypes;

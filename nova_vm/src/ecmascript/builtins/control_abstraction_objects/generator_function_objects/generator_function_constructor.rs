@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
@@ -44,26 +44,31 @@ impl GeneratorFunctionConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let new_target = new_target.bind(gc.nogc());
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into_value())
         } else {
             let (last, others) = arguments.split_last().unwrap();
-            (others, *last)
+            (others, last.bind(gc.nogc()))
         };
         let constructor = if let Some(new_target) = new_target {
             Function::try_from(new_target).unwrap()
         } else {
-            agent.running_execution_context().function.unwrap()
+            agent
+                .running_execution_context()
+                .function
+                .unwrap()
+                .bind(gc.nogc())
         };
 
         // 3. Return ? CreateDynamicFunction(C, NewTarget, generator, parameterArgs, bodyArg).
         let f = create_dynamic_function(
             agent,
-            constructor,
+            constructor.unbind(),
             DynamicFunctionKind::Generator,
             parameter_args,
-            body_arg,
+            body_arg.unbind(),
             gc.reborrow(),
         )?
         .unbind();
@@ -90,7 +95,7 @@ impl GeneratorFunctionConstructor {
             f,
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
-                value: Some(prototype.into_value()),
+                value: Some(prototype.into_value().unbind()),
                 writable: Some(true),
                 get: None,
                 set: None,

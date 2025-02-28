@@ -1,16 +1,23 @@
-use nova_vm::ecmascript::{
-    builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs, RegularFn},
-    execution::{agent::ExceptionType, Agent, JsResult},
-    types::{
-        InternalMethods, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
-        String, Value,
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+use nova_vm::{
+    ecmascript::{
+        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
+        execution::{agent::ExceptionType, Agent, JsResult},
+        types::{
+            InternalMethods, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            String, Value,
+        },
     },
+    engine::context::{Bindable, GcScope},
 };
-use nova_vm::engine::context::GcScope;
 use oxc_diagnostics::OxcDiagnostic;
 
 /// Initialize the global object with the built-in functions.
 pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcScope) {
+    let global = global.scope(agent, gc.nogc());
     // `print` function
     fn print<'gc>(
         agent: &mut Agent,
@@ -50,7 +57,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
 
         let file = std::fs::read_to_string(path.as_str(agent))
             .map_err(|e| agent.throw_exception(ExceptionType::Error, e.to_string(), gc.nogc()))?;
-        Ok(String::from_string(agent, file, gc.nogc()).into_value())
+        Ok(String::from_string(agent, file, gc.into_nogc()).into_value())
     }
 
     let function = create_builtin_function(
@@ -61,11 +68,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
     );
     let property_key = PropertyKey::from_static_str(agent, "print", gc.nogc()).unbind();
     global
+        .get(agent)
         .internal_define_own_property(
             agent,
             property_key,
             PropertyDescriptor {
-                value: Some(function.into_value()),
+                value: Some(function.into_value().unbind()),
                 writable: Some(true),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -83,11 +91,12 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
     );
     let property_key = PropertyKey::from_static_str(agent, "readTextFile", gc.nogc()).unbind();
     global
+        .get(agent)
         .internal_define_own_property(
             agent,
             property_key,
             PropertyDescriptor {
-                value: Some(function.into_value()),
+                value: Some(function.into_value().unbind()),
                 writable: Some(true),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -117,12 +126,12 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         Ok(Value::Undefined)
     }
 
-    fn create_realm(
+    fn create_realm<'gc>(
         agent: &mut Agent,
         _this: Value,
         _args: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let create_global_object: Option<for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>> =
             None;
         let create_global_this_value: Option<
@@ -133,7 +142,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             create_global_this_value,
             Some(initialize_global_object_with_internals),
         );
-        Ok(realm.global_object(agent).into_value())
+        Ok(realm.global_object(agent).into_value().unbind())
     }
 
     initialize_global_object(agent, global, gc.reborrow());
@@ -168,7 +177,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             agent,
             property_key,
             PropertyDescriptor {
-                value: Some(function.into_value()),
+                value: Some(function.into_value().unbind()),
                 writable: Some(true),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -191,7 +200,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
             agent,
             property_key,
             PropertyDescriptor {
-                value: Some(function.into_value()),
+                value: Some(function.into_value().unbind()),
                 writable: Some(true),
                 enumerable: Some(false),
                 configurable: Some(true),
