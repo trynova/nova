@@ -202,9 +202,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 Ok(result) => {
                                     let ok_result = result.unbind().scope(agent, gc.nogc());
                                     while let Some(job) = host_hooks.pop_promise_job() {
-                                        if let Err(err) = job.run(agent, gc.reborrow()) {
-                                            return Err(err);
-                                        }
+                                        job.run(agent, gc.reborrow())?;
                                     }
                                     Ok(ok_result.get(agent).bind(gc.into_nogc()))
                                 }
