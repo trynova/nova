@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
-use crate::ecmascript::types::IntoValue;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
 use crate::{
@@ -101,7 +100,7 @@ pub(crate) fn array_species_create<'a>(
     let nogc = gc.nogc();
     let original_array = original_array.bind(nogc);
     // 1. Let isArray be ? IsArray(originalArray).
-    let original_is_array = is_array(agent, original_array.into_value(), nogc)?;
+    let original_is_array = is_array(agent, original_array, nogc)?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
@@ -132,19 +131,18 @@ pub(crate) fn array_species_create<'a>(
     }
     // 5. If C is an Object, then
     if let Ok(c_obj) = Object::try_from(c) {
-        let scoped_c = c.scope(agent, gc.nogc());
         // a. Set C to ? Get(C, @@species).
         c = get(
             agent,
             c_obj.unbind(),
             WellKnownSymbolIndexes::Species.into(),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // b. If C is null, set C to undefined.
         if c.is_null() {
             c = Value::Undefined;
-        } else {
-            c = scoped_c.get(agent).bind(gc.nogc()).into_value();
         }
     }
     // 6. If C is undefined, return ? ArrayCreate(length).

@@ -327,7 +327,7 @@ impl ObjectConstructor {
         if arguments.len() <= 1 {
             return Ok(to.into_value().unbind());
         }
-        let sources = arguments
+        let sources = arguments[1..]
             .iter()
             .map(|a| a.scope(agent, nogc))
             .collect::<Vec<_>>();

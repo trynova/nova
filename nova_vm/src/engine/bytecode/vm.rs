@@ -1213,13 +1213,19 @@ impl<'a> Vm {
                     let prototype = ordinary_object_create_with_intrinsics(
                         agent,
                         Some(ProtoIntrinsics::Object),
-                        Some(
+                        Some(if function_expression.r#async {
+                            agent
+                                .current_realm()
+                                .intrinsics()
+                                .async_generator_prototype()
+                                .into_object()
+                        } else {
                             agent
                                 .current_realm()
                                 .intrinsics()
                                 .generator_prototype()
-                                .into_object(),
-                        ),
+                                .into_object()
+                        }),
                         gc.nogc(),
                     );
                     // 8. Perform ! DefinePropertyOrThrow(F, "prototype", PropertyDescriptor { [[Value]]: prototype, [[Writable]]: true, [[Enumerable]]: false, [[Configurable]]: false }).
@@ -2148,12 +2154,16 @@ impl<'a> Vm {
                         vm,
                         |agent, mut gc| {
                             for ele in args.iter_mut() {
-                                let string = to_string(agent, ele.get(agent), gc.reborrow())?;
+                                let maybe_string = ele.get(agent).bind(gc.nogc());
+                                if maybe_string.is_string() {
+                                    continue;
+                                }
+                                let string =
+                                    to_string(agent, maybe_string.unbind(), gc.reborrow())?;
                                 length += string.len(agent);
                                 let string = string.into_value();
-                                if ele.get(agent) != string {
-                                    *ele = string.into_value().unbind().scope(agent, gc.nogc());
-                                }
+                                // SAFETY: args are never shared
+                                unsafe { ele.replace(agent, string.unbind()) };
                             }
                             Ok(())
                         },
