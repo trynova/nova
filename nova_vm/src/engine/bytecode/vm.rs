@@ -1494,9 +1494,9 @@ impl<'a> Vm {
                     // a. Let thisValue be undefined.
                     Value::Undefined
                 };
+                let args = unbind_values(vm.get_call_args(instr, gc.nogc()));
                 let func = vm.stack.pop().unwrap().unbind();
                 let this_value = this_value.unbind();
-                let args = unbind_values(vm.get_call_args(instr, gc.nogc()));
                 let result = with_vm_gc(
                     agent,
                     vm,
@@ -1506,6 +1506,7 @@ impl<'a> Vm {
                 vm.result = Some(result.unbind());
             }
             Instruction::EvaluateNew => {
+                let args = vm.get_call_args(instr, gc.nogc());
                 let constructor = vm.stack.pop().unwrap().bind(gc.nogc());
                 let Some(constructor) = is_constructor(agent, constructor) else {
                     let constructor_string = {
@@ -1529,7 +1530,7 @@ impl<'a> Vm {
                 };
 
                 let constructor = constructor.unbind();
-                let args = unbind_values(vm.get_call_args(instr, gc.nogc()));
+                let args = args.unbind();
                 let result = with_vm_gc(
                     agent,
                     vm,

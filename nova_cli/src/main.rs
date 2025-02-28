@@ -213,11 +213,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
 
                         let result = if host_hooks.has_promise_jobs() {
-                            result
-                        } else {
                             run_microtask_queue(agent, host_hooks, result.unbind(), gc.reborrow())
                                 .unbind()
                                 .bind(gc.nogc())
+                        } else {
+                            result
                         };
 
                         match result {
