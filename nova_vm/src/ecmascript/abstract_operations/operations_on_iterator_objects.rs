@@ -593,10 +593,10 @@ pub(crate) fn create_list_iterator_record<'a>(
 /// The abstract operation IteratorToList takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing a List
 /// of ECMAScript language values or a throw completion.
-pub(crate) fn iterator_to_list<'a, 'b>(
+pub(crate) fn iterator_to_list<'b>(
     agent: &mut Agent,
     iterator_record: &IteratorRecord,
-    mut gc: GcScope<'a, 'b>,
+    mut gc: GcScope<'_, 'b>,
 ) -> JsResult<Vec<Scoped<'b, Value<'static>>>> {
     // 1. Let values be a new empty List.
     let mut values = Vec::new();

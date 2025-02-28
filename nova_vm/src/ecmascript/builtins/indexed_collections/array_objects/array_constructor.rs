@@ -389,7 +389,7 @@ impl ArrayConstructor {
                 );
 
                 // viii. IfAbruptCloseIterator(defineStatus, iteratorRecord).
-                let _ = if_abrupt_close_iterator!(agent, define_status, iterator_record, gc);
+                if_abrupt_close_iterator!(agent, define_status, iterator_record, gc);
 
                 // ix. Set k to k + 1.
                 k += 1;

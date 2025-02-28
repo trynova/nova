@@ -176,7 +176,7 @@ impl<'a> From<Function<'a>> for Value<'a> {
     }
 }
 
-impl<'a> Function<'a> {
+impl Function<'_> {
     pub fn scope<'b>(
         self,
         agent: &mut Agent,

@@ -1339,7 +1339,7 @@ pub(crate) fn validate_index(agent: &mut Agent, value: i64, gc: NoGcScope) -> Js
             gc,
         ));
     }
-    return Ok(value as u64);
+    Ok(value as u64)
 }
 
 /// ### [7.1.22 ToIndex ( value )](https://tc39.es/ecma262/#sec-toindex)

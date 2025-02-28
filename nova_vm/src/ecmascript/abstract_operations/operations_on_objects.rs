@@ -1960,9 +1960,9 @@ pub(crate) fn copy_data_properties_into_object<'a, 'b>(
     }
 }
 
-fn copy_data_properties_into_object_slow<'a, 'b>(
+fn copy_data_properties_into_object_slow<'a>(
     agent: &mut Agent,
-    from: Scoped<'b, Object<'static>>,
+    from: Scoped<'_, Object<'static>>,
     excluded_items: &AHashSet<PropertyKey<'a>>,
     keys: Vec<PropertyKey<'a>>,
     object: OrdinaryObject<'a>,

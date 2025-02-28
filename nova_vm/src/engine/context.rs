@@ -359,14 +359,10 @@ unsafe impl Bindable for () {
     type Of<'a> = ();
 
     #[inline(always)]
-    fn unbind(self) -> Self::Of<'static> {
-        ()
-    }
+    fn unbind(self) -> Self::Of<'static> {}
 
     #[inline(always)]
-    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        ()
-    }
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {}
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
@@ -443,14 +439,6 @@ unsafe impl<T: Bindable> Bindable for Vec<T> {
         // we can safely transmute the lifetime out of the T's in the Vec.
         unsafe { core::mem::transmute::<Vec<T>, Vec<T::Of<'a>>>(self) }
     }
-}
-
-unsafe trait BindableBorrow<'borrow> {
-    type Of<'gc>
-    where
-        Self: 'borrow;
-
-    fn unbind_ref(&'borrow self) -> &'borrow Self::Of<'static>;
 }
 
 // SAFETY: The blanket impls are safe if the implementors are.
