@@ -12,7 +12,10 @@ use super::{
 };
 use crate::{
     ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::{context::NoGcScope, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        Scoped,
+    },
 };
 use crate::{
     ecmascript::execution::Agent,

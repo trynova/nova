@@ -76,11 +76,11 @@ impl<'agent, D> PropertyBuilder<'agent, NoKey, D> {
 }
 
 impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
-    pub fn with_value(self, value: Value) -> PropertyBuilder<'agent, K, CreatorValue> {
+    pub fn with_value(self, value: Value<'static>) -> PropertyBuilder<'agent, K, CreatorValue> {
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
-            definition: CreatorValue(value.unbind()),
+            definition: CreatorValue(value),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -88,12 +88,12 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_readonly(
         self,
-        value: Value,
+        value: Value<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
-            definition: CreatorReadOnlyValue(value.unbind()),
+            definition: CreatorReadOnlyValue(value),
             enumerable: self.enumerable,
             configurable: self.configurable,
         }
@@ -101,9 +101,9 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_creator(
         self,
-        creator: impl FnOnce(&mut Agent) -> Value,
+        creator: impl FnOnce(&mut Agent) -> Value<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorValue> {
-        let value = creator(self.agent).unbind();
+        let value = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
             key: self.key,
@@ -115,9 +115,9 @@ impl<'agent, K> PropertyBuilder<'agent, K, NoDefinition> {
 
     pub fn with_value_creator_readonly(
         self,
-        creator: impl FnOnce(&mut Agent) -> Value,
+        creator: impl FnOnce(&mut Agent) -> Value<'static>,
     ) -> PropertyBuilder<'agent, K, CreatorReadOnlyValue> {
-        let value = creator(self.agent).unbind();
+        let value = creator(self.agent);
         PropertyBuilder {
             agent: self.agent,
             key: self.key,

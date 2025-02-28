@@ -2193,24 +2193,14 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         );
 
         // f. IfAbruptCloseIterator(key, iteratorRecord).
-        let key = if_abrupt_close_iterator(
-            agent,
-            key.map(|k| k.unbind()),
-            &iterator_record,
-            gc.reborrow(),
-        )?;
+        let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
         // g. If keyCoercion is property, then
         // i. Set key to Completion(ToPropertyKey(key)).
         let key = to_property_key(agent, key.unbind(), gc.reborrow()).map(|pk| pk.unbind());
 
         // ii. IfAbruptCloseIterator(key, iteratorRecord).
-        let key = if_abrupt_close_iterator(
-            agent,
-            key.map(|k| k.unbind()),
-            &iterator_record,
-            gc.reborrow(),
-        )?;
+        let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
         add_value_to_keyed_group(agent, &mut groups, key.unbind(), scoped_value, gc.nogc())?;
@@ -2271,7 +2261,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
             );
 
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error), gc.reborrow());
+            return iterator_close(agent, &iterator_record, Err(error), gc);
         }
 
         // b. Let next be ? IteratorStepValue(iteratorRecord).
@@ -2301,7 +2291,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         .map(|key| key.unbind());
 
         // f. IfAbruptCloseIterator(key, iteratorRecord).
-        let key = if_abrupt_close_iterator(agent, key, &iterator_record, gc.reborrow())?;
+        let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
         // h. Else,
         // i. Assert: keyCoercion is collection.
@@ -2309,7 +2299,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
         let key = canonicalize_keyed_collection_key(agent, key);
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
-        add_value_to_keyed_group(agent, &mut groups, key, scoped_value, gc.nogc())?;
+        add_value_to_keyed_group(agent, &mut groups, key.unbind(), scoped_value, gc.nogc())?;
 
         // j. Set k to k + 1.
         k += 1;

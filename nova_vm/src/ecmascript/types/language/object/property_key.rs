@@ -18,7 +18,7 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
     },
@@ -37,26 +37,6 @@ pub enum PropertyKey<'a> {
 }
 
 impl<'a> PropertyKey<'a> {
-    /// Unbind this PropertyKey from its current lifetime. This is necessary to
-    /// use the PropertyKey as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> PropertyKey<'static> {
-        unsafe { core::mem::transmute::<Self, PropertyKey<'static>>(self) }
-    }
-
-    // Bind this PropertyKey to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your PropertyKeys cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let primitive = primitive.bind(&gc);
-    // ```
-    // to make sure that the unbound PropertyKey cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<PropertyKey, Self>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &Agent,
@@ -210,6 +190,21 @@ impl<'a> PropertyKey<'a> {
             self,
             PropertyKey::String(_) | PropertyKey::SmallString(_) | PropertyKey::Integer(_)
         )
+    }
+}
+
+// SAFETY: Properly implemented as a lifetime transmute.
+unsafe impl Bindable for PropertyKey<'_> {
+    type Of<'a> = PropertyKey<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

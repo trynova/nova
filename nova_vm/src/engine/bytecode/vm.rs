@@ -98,6 +98,7 @@ impl<'a> ExecutionResult<'a> {
     }
 }
 
+// SAFETY: Property implemented as a recursive bind.
 unsafe impl Bindable for ExecutionResult<'_> {
     type Of<'a> = ExecutionResult<'a>;
 

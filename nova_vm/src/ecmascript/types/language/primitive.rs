@@ -7,7 +7,7 @@ use small_string::SmallString;
 use crate::{
     ecmascript::execution::Agent,
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
         Scoped,

@@ -17,7 +17,7 @@ use super::{
 use crate::{
     ecmascript::{execution::Agent, types::PropertyDescriptor},
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
     },
@@ -36,26 +36,6 @@ use wtf8::Wtf8Buf;
 pub struct HeapString<'a>(pub(crate) StringIndex<'a>);
 
 impl HeapString<'_> {
-    /// Unbind this HeapString from its current lifetime. This is necessary to
-    /// use the HeapString as a parameter in a call that can perform garbage
-    /// collection.
-    pub const fn unbind(self) -> HeapString<'static> {
-        unsafe { core::mem::transmute::<HeapString<'_>, HeapString<'static>>(self) }
-    }
-
-    // Bind this HeapString to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your HeapStrings cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let heap_string = heap_string.bind(&gc);
-    // ```
-    // to make sure that the unbound HeapString cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapString<'gc> {
-        unsafe { core::mem::transmute::<HeapString<'_>, HeapString<'gc>>(self) }
-    }
-
     pub fn len(self, agent: &Agent) -> usize {
         agent[self].len()
     }
@@ -70,6 +50,19 @@ impl HeapString<'_> {
 
     pub fn as_str(self, agent: &Agent) -> &str {
         agent[self].as_str()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapString<'_> {
+    type Of<'a> = HeapString<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -260,26 +253,6 @@ impl IntoPrimitive<'static> for SmallString {
 
 impl<'a> String<'a> {
     pub const EMPTY_STRING: String<'static> = String::from_small_string("");
-
-    /// Unbind this String from its current lifetime. This is necessary to use
-    /// the String as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> String<'static> {
-        unsafe { core::mem::transmute::<String<'_>, String<'static>>(self) }
-    }
-
-    // Bind this String to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Strings cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let string = string.bind(&gc);
-    // ```
-    // to make sure that the unbound String cannot be used after binding.
-    pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> String<'gc> {
-        unsafe { core::mem::transmute::<String<'_>, String<'gc>>(self) }
-    }
 
     pub fn scope<'scope>(
         self,
@@ -575,6 +548,19 @@ impl<'gc> String<'gc> {
             // SAFETY: String couldn't be represented as a SmallString.
             unsafe { agent.heap.alloc_static_str(str) }
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for String<'_> {
+    type Of<'a> = String<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

@@ -523,9 +523,11 @@ pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
     Return(Value<'a>),
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
     type Of<'a> = AsyncGeneratorRequestCompletion<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         match self {
             Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.unbind()),
@@ -534,6 +536,7 @@ unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
         }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         match self {
             Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.bind(gc)),

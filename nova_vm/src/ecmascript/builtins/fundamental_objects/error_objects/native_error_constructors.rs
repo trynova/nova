@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
@@ -102,8 +102,10 @@ impl NativeErrorConstructors {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let message = arguments.get(0);
-        let options = arguments.get(1);
+        let nogc = gc.nogc();
+        let scoped_message = arguments.get(0).scope(agent, nogc);
+        let options = arguments.get(1).scope(agent, nogc);
+        let new_target = new_target.bind(nogc);
 
         let intrinsic = match error_kind {
             ExceptionType::Error => ProtoIntrinsics::Error,
@@ -123,7 +125,6 @@ impl NativeErrorConstructors {
                 .unwrap()
                 .into_object()
         });
-        let new_target = new_target.bind(gc.nogc());
         let o = ordinary_create_from_constructor(
             agent,
             Function::try_from(new_target.unbind()).unwrap(),
@@ -133,23 +134,24 @@ impl NativeErrorConstructors {
         .unbind()
         .bind(gc.nogc())
         .scope(agent, gc.nogc());
+        let message = scoped_message.get(agent);
         let msg = if !message.is_undefined() {
-            Some(
-                to_string(agent, message, gc.reborrow())?
-                    .unbind()
-                    .scope(agent, gc.nogc()),
-            )
+            let msg = to_string(agent, message.unbind(), gc.reborrow())?;
+            // Safety: scoped_message is never shared.
+            Some(unsafe { scoped_message.replace_self(agent, msg.unbind()) })
         } else {
             None
         };
-        let cause = get_error_cause(agent, options, gc.reborrow())?;
-        let o = Error::try_from(o.get(agent).bind(gc.nogc())).unwrap();
+        let cause = get_error_cause(agent, options.get(agent), gc.reborrow())?.unbind();
+        let gc = gc.into_nogc();
+        let cause = cause.bind(gc);
+        let o = Error::try_from(o.get(agent).bind(gc)).unwrap();
         // b. Perform CreateNonEnumerableDataPropertyOrThrow(O, "message", msg).
-        let msg = msg.map(|msg| msg.get(agent));
+        let msg = msg.map(|msg| msg.get(agent).bind(gc));
         let heap_data = &mut agent[o];
         heap_data.kind = error_kind;
-        heap_data.message = msg;
-        heap_data.cause = cause;
+        heap_data.message = msg.unbind();
+        heap_data.cause = cause.unbind();
         Ok(o.into_value())
     }
 

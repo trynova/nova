@@ -381,7 +381,8 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let index = arguments.get(0);
+        let this_value = this_value.bind(gc.nogc());
+        let index = arguments.get(0).bind(gc.nogc());
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
@@ -415,7 +416,7 @@ impl TypedArrayPrototype {
             index.into_i64()
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
-            let result = to_integer_or_infinity(agent, index, gc.reborrow())?.into_i64();
+            let result = to_integer_or_infinity(agent, index.unbind(), gc.reborrow())?.into_i64();
             o = scoped_o.get(agent).bind(gc.nogc());
             result
         };
@@ -583,9 +584,10 @@ impl TypedArrayPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?.object;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc)?.object;
         // 3. Return CreateArrayIterator(O, key+value).
         Ok(
             ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::KeyAndValue)
@@ -600,46 +602,43 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback = arguments.get(0).bind(gc.nogc());
-        let this_arg = arguments.get(1).bind(gc.nogc());
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback = arguments.get(0).bind(nogc);
+        let this_arg = arguments.get(1).bind(nogc);
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, nogc)?;
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+                typed_array_length::<u16>(agent, &ta_record, nogc)
             }
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
             TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
             TypedArray::BigInt64Array(_)
             | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
-        let Some(callback) = is_callable(callback, gc.nogc()) else {
+        let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not callable",
-                gc.nogc(),
+                nogc,
             ));
         };
-        let callback = callback.scope(agent, gc.nogc());
-        let scoped_o = o.scope(agent, gc.nogc());
+        let callback = callback.scope(agent, nogc);
+        let this_arg = this_arg.scope(agent, nogc);
+        let scoped_o = o.scope(agent, nogc);
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -652,11 +651,11 @@ impl TypedArrayPrototype {
             let call = call_function(
                 agent,
                 callback.get(agent),
-                this_arg,
+                this_arg.get(agent),
                 Some(ArgumentsList(&[
-                    k_value,
+                    k_value.unbind(),
                     Number::try_from(k).unwrap().into_value(),
-                    o.into_value(),
+                    o.into_value().unbind(),
                 ])),
                 gc.reborrow(),
             )?;
@@ -735,46 +734,43 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback = arguments.get(0).bind(gc.nogc());
-        let this_arg = arguments.get(1).bind(gc.nogc());
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback = arguments.get(0).bind(nogc);
+        let this_arg = arguments.get(1).bind(nogc);
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, nogc)?;
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
-        let scoped_o = o.scope(agent, gc.nogc());
+        let scoped_o = o.scope(agent, nogc);
         let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+                typed_array_length::<u16>(agent, &ta_record, nogc)
             }
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
             TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
             TypedArray::BigInt64Array(_)
             | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
-        let Some(callback) = is_callable(callback, gc.nogc()) else {
+        let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not callable",
-                gc.nogc(),
+                nogc,
             ));
         };
-        let callback = callback.scope(agent, gc.nogc());
+        let callback = callback.scope(agent, nogc);
+        let this_arg = this_arg.scope(agent, nogc);
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -789,7 +785,7 @@ impl TypedArrayPrototype {
             call_function(
                 agent,
                 callback.get(agent),
-                this_arg,
+                this_arg.get(agent),
                 Some(ArgumentsList(&[
                     k_value.unbind(),
                     fk.unbind(),
@@ -813,53 +809,57 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let search_element = arguments.get(0).bind(gc.nogc());
-        let from_index = arguments.get(1).bind(gc.nogc());
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let mut search_element = arguments.get(0).bind(nogc);
+        let from_index = arguments.get(1).bind(nogc);
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, nogc)?;
         // 3. Let len be TypedArrayLength(taRecord).
         let mut o = ta_record.object;
         let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+                typed_array_length::<u16>(agent, &ta_record, nogc)
             }
             #[cfg(feature = "proposal-float16array")]
             TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
             TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
             TypedArray::BigInt64Array(_)
             | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
         } as i64;
         // 4. If len = 0, return false.
         if len == 0 {
             return Ok(false.into());
         };
         // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
-        let n = if let TryResult::Continue(n) =
-            try_to_integer_or_infinity(agent, from_index, gc.nogc())
+        let from_index_is_undefined = from_index.is_undefined();
+        let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, from_index, nogc)
         {
             n?
         } else {
-            let scoped_o = o.scope(agent, gc.nogc());
-            let result = to_integer_or_infinity(agent, from_index, gc.reborrow());
-            o = scoped_o.get(agent).bind(gc.nogc());
-            result?
+            let scoped_o = o.scope(agent, nogc);
+            let scoped_search_element = search_element.scope(agent, nogc);
+            let result = to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow())?;
+            let gc = gc.nogc();
+            o = scoped_o.get(agent).bind(gc);
+            search_element = scoped_search_element.get(agent).bind(gc);
+            result
         };
+        let o = o.unbind();
+        let search_element = search_element.unbind();
+        let gc = gc.into_nogc();
+        let o = o.bind(gc);
+        let search_element = search_element.bind(gc);
         // 6. Assert: If fromIndex is undefined, then n is 0.
-        if from_index.is_undefined() {
+        if from_index_is_undefined {
             assert_eq!(n.into_i64(), 0);
         }
         // 7. If n = +∞, return false.
@@ -893,7 +893,7 @@ impl TypedArrayPrototype {
                 agent,
                 o,
                 PropertyKey::Integer(k.try_into().unwrap()),
-                gc.nogc(),
+                gc,
             ));
             // b. If SameValueZero(searchElement, elementK) is true, return true.
             if same_value_zero(agent, search_element, element_k) {
@@ -928,61 +928,63 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let separator = arguments.get(0);
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let separator = arguments.get(0).bind(nogc);
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, nogc)?;
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let (len, element_size) = match o {
             TypedArray::Int8Array(_) => (
-                typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<i8>(agent, &ta_record, nogc),
                 core::mem::size_of::<i8>(),
             ),
             TypedArray::Uint8Array(_) => (
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<u8>(agent, &ta_record, nogc),
                 core::mem::size_of::<u8>(),
             ),
             TypedArray::Uint8ClampedArray(_) => (
-                typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<U8Clamped>(agent, &ta_record, nogc),
                 core::mem::size_of::<U8Clamped>(),
             ),
             TypedArray::Int16Array(_) => (
-                typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<i16>(agent, &ta_record, nogc),
                 core::mem::size_of::<i16>(),
             ),
             TypedArray::Uint16Array(_) => (
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<u16>(agent, &ta_record, nogc),
                 core::mem::size_of::<u16>(),
             ),
             TypedArray::Int32Array(_) => (
-                typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<i32>(agent, &ta_record, nogc),
                 core::mem::size_of::<i32>(),
             ),
             TypedArray::Uint32Array(_) => (
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<u32>(agent, &ta_record, nogc),
                 core::mem::size_of::<u32>(),
             ),
             TypedArray::BigInt64Array(_) => (
-                typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<i64>(agent, &ta_record, nogc),
                 core::mem::size_of::<i64>(),
             ),
             TypedArray::BigUint64Array(_) => (
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<u64>(agent, &ta_record, nogc),
                 core::mem::size_of::<u64>(),
             ),
             #[cfg(feature = "proposal-float16array")]
             TypedArray::Float16Array(_) => (
-                typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<f16>(agent, &ta_record, nogc),
                 core::mem::size_of::<f16>(),
             ),
             TypedArray::Float32Array(_) => (
-                typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<f32>(agent, &ta_record, nogc),
                 core::mem::size_of::<f32>(),
             ),
             TypedArray::Float64Array(_) => (
-                typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
+                typed_array_length::<f64>(agent, &ta_record, nogc),
                 core::mem::size_of::<f64>(),
             ),
         };
@@ -993,13 +995,17 @@ impl TypedArrayPrototype {
             (sep, false)
         } else {
             // 5. Else, let sep be ? ToString(separator).
-            let scoped_o = o.scope(agent, gc.nogc());
-            let result = to_string(agent, separator, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc());
-            o = scoped_o.get(agent).bind(gc.nogc());
-            (result, true)
+            let scoped_o = o.scope(agent, nogc);
+            let result = to_string(agent, separator.unbind(), gc.reborrow())?.unbind();
+            let gc = gc.nogc();
+            o = scoped_o.get(agent).bind(gc);
+            (result.bind(gc), true)
         };
+        let o = o.unbind();
+        let sep_string = sep_string.unbind();
+        let gc = gc.into_nogc();
+        let o = o.bind(gc);
+        let sep_string = sep_string.bind(gc);
         if len == 0 {
             return Ok(String::EMPTY_STRING.into_value());
         }
@@ -1021,75 +1027,61 @@ impl TypedArrayPrototype {
         // 7. Let k be 0.
         // 8. Repeat, while k < len,
         let offset = o.byte_offset(agent);
-        let viewed_array_buffer = o.get_viewed_array_buffer(agent, gc.nogc());
+        let viewed_array_buffer = o.get_viewed_array_buffer(agent, gc);
         // Note: Above ToString might have detached the ArrayBuffer or shrunk its length.
         let (is_invalid_typed_array, after_len) = if recheck_buffer {
             let is_detached = is_detached_buffer(agent, viewed_array_buffer);
-            let ta_record = make_typed_array_with_buffer_witness_record(
-                agent,
-                o,
-                Ordering::Unordered,
-                gc.nogc(),
-            );
+            let ta_record =
+                make_typed_array_with_buffer_witness_record(agent, o, Ordering::Unordered, gc);
             match o {
                 TypedArray::Int8Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
+                    typed_array_length::<i8>(agent, &ta_record, gc),
                 ),
                 TypedArray::Uint8Array(_) => (
-                    is_detached || is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
+                    typed_array_length::<u8>(agent, &ta_record, gc),
                 ),
                 TypedArray::Uint8ClampedArray(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc),
+                    typed_array_length::<U8Clamped>(agent, &ta_record, gc),
                 ),
                 TypedArray::Int16Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
+                    typed_array_length::<i16>(agent, &ta_record, gc),
                 ),
                 TypedArray::Uint16Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc),
+                    typed_array_length::<u16>(agent, &ta_record, gc),
                 ),
                 TypedArray::Int32Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
+                    typed_array_length::<i32>(agent, &ta_record, gc),
                 ),
                 TypedArray::Uint32Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc),
+                    typed_array_length::<u32>(agent, &ta_record, gc),
                 ),
                 TypedArray::BigInt64Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc),
+                    typed_array_length::<i64>(agent, &ta_record, gc),
                 ),
                 TypedArray::BigUint64Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<u64>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc),
+                    typed_array_length::<u64>(agent, &ta_record, gc),
                 ),
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc),
+                    typed_array_length::<f16>(agent, &ta_record, gc),
                 ),
                 TypedArray::Float32Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc),
+                    typed_array_length::<f32>(agent, &ta_record, gc),
                 ),
                 TypedArray::Float64Array(_) => (
-                    is_detached
-                        || is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc.nogc()),
-                    typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
+                    is_detached || is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc),
+                    typed_array_length::<f64>(agent, &ta_record, gc),
                 ),
             }
         } else {
@@ -1119,7 +1111,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Uint8Array(_) => get_value_from_buffer::<u8>(
                     agent,
@@ -1128,7 +1120,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Uint8ClampedArray(_) => get_value_from_buffer::<U8Clamped>(
                     agent,
@@ -1137,7 +1129,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Int16Array(_) => get_value_from_buffer::<i16>(
                     agent,
@@ -1146,7 +1138,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Uint16Array(_) => get_value_from_buffer::<u16>(
                     agent,
@@ -1155,7 +1147,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Int32Array(_) => get_value_from_buffer::<i32>(
                     agent,
@@ -1164,7 +1156,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Uint32Array(_) => get_value_from_buffer::<u32>(
                     agent,
@@ -1173,7 +1165,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::BigInt64Array(_) => get_value_from_buffer::<i64>(
                     agent,
@@ -1182,7 +1174,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::BigUint64Array(_) => get_value_from_buffer::<u64>(
                     agent,
@@ -1191,7 +1183,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => get_value_from_buffer::<f16>(
@@ -1201,7 +1193,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Float32Array(_) => get_value_from_buffer::<f32>(
                     agent,
@@ -1210,7 +1202,7 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
                 TypedArray::Float64Array(_) => get_value_from_buffer::<f64>(
                     agent,
@@ -1219,19 +1211,17 @@ impl TypedArrayPrototype {
                     true,
                     Ordering::Unordered,
                     None,
-                    gc.nogc(),
+                    gc,
                 ),
             };
             // i. Let S be ! ToString(element).
-            let s = unwrap_try(try_to_string(agent, element, gc.nogc())).unwrap();
+            let s = unwrap_try(try_to_string(agent, element, gc)).unwrap();
             // ii. Set R to the string-concatenation of R and S.
             r.push_str(s.as_str(agent));
             // d. Set k to k + 1.
         }
         // 9. Return R.
-        Ok(String::from_string(agent, r, gc.nogc())
-            .into_value()
-            .unbind())
+        Ok(String::from_string(agent, r, gc).into_value().unbind())
     }
 
     /// ### [23.2.3.19 %TypedArray%.prototype.keys ( )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.keys)
@@ -1391,46 +1381,43 @@ impl TypedArrayPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let callback = arguments.get(0).bind(gc.nogc());
-        let this_arg = arguments.get(1).bind(gc.nogc());
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback = arguments.get(0).bind(nogc);
+        let this_arg = arguments.get(1).bind(nogc);
         // 1. Let O be the this value.
         let o = this_value;
         // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
-        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, nogc)?;
         let mut o = ta_record.object;
         // 3. Let len be TypedArrayLength(taRecord).
         let len = match o {
             TypedArray::Int8Array(_)
             | TypedArray::Uint8Array(_)
-            | TypedArray::Uint8ClampedArray(_) => {
-                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, nogc),
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
-                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+                typed_array_length::<u16>(agent, &ta_record, nogc)
             }
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, nogc),
             TypedArray::Int32Array(_)
             | TypedArray::Uint32Array(_)
-            | TypedArray::Float32Array(_) => {
-                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, nogc),
             TypedArray::BigInt64Array(_)
             | TypedArray::BigUint64Array(_)
-            | TypedArray::Float64Array(_) => {
-                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
-            }
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, nogc),
         };
         // 4. If IsCallable(callback) is false, throw a TypeError exception.
-        let Some(callback) = is_callable(callback, gc.nogc()) else {
+        let Some(callback) = is_callable(callback, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback is not callable",
-                gc.nogc(),
+                nogc,
             ));
         };
-        let callback = callback.scope(agent, gc.nogc());
-        let scoped_o = o.scope(agent, gc.nogc());
+        let callback = callback.scope(agent, nogc);
+        let this_arg = this_arg.scope(agent, nogc);
+        let scoped_o = o.scope(agent, nogc);
         // 5. Let k be 0.
         let mut k = 0;
         // 6. Repeat, while k < len,
@@ -1443,7 +1430,7 @@ impl TypedArrayPrototype {
             let call = call_function(
                 agent,
                 callback.get(agent),
-                this_arg,
+                this_arg.get(agent),
                 Some(ArgumentsList(&[
                     k_value.unbind(),
                     Number::try_from(k).unwrap().into_value().unbind(),
@@ -1525,9 +1512,10 @@ impl TypedArrayPrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let O be the this value.
         // 2. Perform ? ValidateTypedArray(O, seq-cst).
-        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc.nogc())?.object;
+        let o = validate_typed_array(agent, this_value, Ordering::SeqCst, gc)?.object;
         // 3. Return CreateArrayIterator(O, value).
         Ok(
             ArrayIterator::from_object(agent, o.into_object(), CollectionIteratorKind::Value)
@@ -1549,8 +1537,10 @@ impl TypedArrayPrototype {
         _agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let O be the this value.
         if let Ok(o) = TypedArray::try_from(this_value) {
             // 4. Let name be O.[[TypedArrayName]].

@@ -237,7 +237,7 @@ impl NumberConstructor {
                 let value = Value::from_f64(builder.agent, f64::EPSILON, gc);
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.EPSILON.into())
-                    .with_value_readonly(value)
+                    .with_value_readonly(value.unbind())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()

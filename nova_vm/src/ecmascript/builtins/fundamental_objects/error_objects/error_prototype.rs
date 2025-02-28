@@ -8,9 +8,9 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
     },
-    engine::context::GcScope,
+    engine::context::{Bindable, GcScope},
 };
 
 pub(crate) struct ErrorPrototype;
@@ -33,6 +33,7 @@ impl ErrorPrototype {
         _: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let this_value = this_value.bind(gc.nogc());
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
@@ -42,10 +43,11 @@ impl ErrorPrototype {
                 gc.nogc(),
             ));
         };
+        let scoped_o = o.scope(agent, gc.nogc());
         // 3. Let name be ? Get(O, "name").
         let name = get(
             agent,
-            o,
+            o.unbind(),
             PropertyKey::from(BUILTIN_STRING_MEMORY.name),
             gc.reborrow(),
         )?;
@@ -54,30 +56,28 @@ impl ErrorPrototype {
             None
         } else {
             Some(
-                to_string(agent, name, gc.reborrow())?
+                to_string(agent, name.unbind(), gc.reborrow())?
                     .unbind()
                     .scope(agent, gc.nogc()),
             )
         };
         // 5. Let msg be ? Get(O, "message").
-        let key = PropertyKey::from(BUILTIN_STRING_MEMORY.message);
-        let msg = get(agent, o, key, gc.reborrow())?;
+        let msg = get(
+            agent,
+            scoped_o.get(agent),
+            BUILTIN_STRING_MEMORY.message.into(),
+            gc.reborrow(),
+        )?;
         // 6. If msg is undefined, set msg to the empty String; otherwise set msg to ? ToString(msg).
         let msg = if msg.is_undefined() {
-            None
+            String::EMPTY_STRING
         } else {
-            Some(
-                to_string(agent, msg, gc.reborrow())?
-                    .unbind()
-                    .scope(agent, gc.nogc()),
-            )
+            to_string(agent, msg.unbind(), gc.reborrow())?
         };
         // No more GC can be triggered.
-        let gc = gc.nogc();
-        // 6. If msg is undefined, set msg to the empty String
-        let msg = msg
-            .map_or(String::EMPTY_STRING, |msg| msg.get(agent))
-            .bind(gc);
+        let msg = msg.unbind();
+        let gc = gc.into_nogc();
+        let msg = msg.bind(gc);
         // 4. If name is undefined, set name to "Error"
         let name = name
             .map_or(BUILTIN_STRING_MEMORY.Error, |name| name.get(agent))

@@ -1126,13 +1126,16 @@ pub fn bind_values<'a>(vec: Vec<Value>, _: NoGcScope<'a, '_>) -> Vec<Value<'a>> 
     unsafe { std::mem::transmute::<Vec<Value>, Vec<Value<'a>>>(vec) }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for Value<'_> {
     type Of<'a> = Value<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }

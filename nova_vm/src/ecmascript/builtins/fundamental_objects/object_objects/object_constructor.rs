@@ -1224,11 +1224,19 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     iterable: Value,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<OrdinaryObject<'a>> {
-    let target = target.bind(gc.nogc()).scope(agent, gc.nogc());
+    // Note: scoped_next is a slot for next value scoping that originally holds
+    // the target but will later be reused for each repeat of the loop. We
+    // cannot reuse the scoped target below for this, as the value held in the
+    // scoped_next will change on each loop.
+    let mut scoped_next = target.into_object().scope(agent, gc.nogc());
+    let target = target.scope(agent, gc.nogc());
+    let iterable = iterable.scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
+    let mut iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow())?;
 
     // 2. Repeat,
+    let mut scoped_k = Value::Undefined.scope_static();
+    let mut scoped_v = Value::Undefined.scope_static();
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
         let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
@@ -1250,31 +1258,34 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             iterator_close(agent, &iterator_record, Err(error), gc.reborrow())?;
             return Ok(target.get(agent).bind(gc.into_nogc()));
         };
+        // SAFETY: scoped_next is its own Scoped value, not a clone from target
+        // or anything else. Hence we can change its held value freely.
+        unsafe { scoped_next.replace(agent, next.unbind()) };
         // d. Let k be Completion(Get(next, "0")).
-        let k = get(agent, next, 0.into(), gc.reborrow());
+        let k = get(agent, next.unbind(), 0.into(), gc.reborrow());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
-        let k = if_abrupt_close_iterator(agent, k, &iterator_record, gc.reborrow())?;
+        let k = if_abrupt_close_iterator!(agent, k, iterator_record, gc);
+        // SAFETY: scoped_k is never shared.
+        unsafe { scoped_k.replace(agent, k.unbind()) };
         // f. Let v be Completion(Get(next, "1")).
-        let v = get(agent, next, 1.into(), gc.reborrow());
+        let v = get(agent, scoped_next.get(agent), 1.into(), gc.reborrow());
         // g. IfAbruptCloseIterator(v, iteratorRecord).
-        let v = if_abrupt_close_iterator(agent, v, &iterator_record, gc.reborrow())?;
+        let v = if_abrupt_close_iterator!(agent, v, iterator_record, gc);
+        // SAFETY: scoped_v is never shared.
+        unsafe { scoped_v.replace(agent, v.unbind()) };
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         {
             // a. Let propertyKey be ? ToPropertyKey(key).
-            let property_key = to_property_key(agent, k, gc.reborrow()).map(|pk| pk.unbind());
+            let property_key = to_property_key(agent, scoped_k.get(agent), gc.reborrow());
             // i. IfAbruptCloseIterator(status, iteratorRecord).
-            let property_key =
-                if_abrupt_close_iterator(agent, property_key, &iterator_record, gc.reborrow())?;
+            let property_key = if_abrupt_close_iterator!(agent, property_key, iterator_record, gc);
             // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
-            target
-                .get(agent)
-                .internal_define_own_property(
-                    agent,
-                    property_key.unbind(),
-                    PropertyDescriptor::new_data_descriptor(v),
-                    gc.reborrow(),
-                )
-                .unwrap();
+            unwrap_try(target.get(agent).try_define_own_property(
+                agent,
+                property_key.unbind(),
+                PropertyDescriptor::new_data_descriptor(scoped_v.get(agent)),
+                gc.nogc(),
+            ));
             // c. Return undefined.
         }
     }

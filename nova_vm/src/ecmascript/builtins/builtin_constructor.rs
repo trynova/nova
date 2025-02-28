@@ -220,10 +220,7 @@ impl<'a> InternalSlots<'a> for BuiltinConstructorFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {

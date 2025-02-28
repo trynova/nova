@@ -330,6 +330,21 @@ pub unsafe trait Bindable: Sized {
     fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a>;
 }
 
+// SAFETY: Trivially safe.
+unsafe impl Bindable for () {
+    type Of<'a> = ();
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        ()
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        ()
+    }
+}
+
 // SAFETY: The blanket impls are safe if the implementors are.
 unsafe impl<T: Bindable> Bindable for Option<T> {
     type Of<'a> = Option<T::Of<'a>>;

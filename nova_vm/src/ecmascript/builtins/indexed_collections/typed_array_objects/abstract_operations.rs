@@ -30,7 +30,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        unwrap_try, Scoped, TryResult,
     },
     heap::indexes::TypedArrayIndex,
     SmallInteger,
@@ -1011,25 +1011,24 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
 /// either a normal completion containing unused or a throw completion.
 pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
     agent: &mut Agent,
-    o: TypedArray,
-    values: Vec<Value>,
+    scoped_o: Scoped<'_, TypedArray<'static>>,
+    values: Vec<Scoped<'_, Value<'static>>>,
     mut gc: GcScope,
 ) -> JsResult<()> {
-    let mut o = o.bind(gc.nogc());
+    let mut o = scoped_o.get(agent).bind(gc.nogc());
     // 1. Let len be the number of elements in values.
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
     allocate_typed_array_buffer::<T>(agent, o, values.len(), gc.nogc())?;
-
-    let scoped_o = o.scope(agent, gc.nogc());
 
     // 3. Let k be 0.
     // 4. Repeat, while k < len,
     // b. Let kValue be the first element of values.
     // c. Remove the first element from values.
     // e. Set k to k + 1.
-    for (k, &k_value) in values.iter().enumerate() {
+    for (k, k_value) in values.iter().enumerate() {
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
+        let k_value = k_value.get(agent).bind(gc.nogc());
         // d. Perform ? Set(O, Pk, kValue, true).
         if k_value.is_numeric() {
             unwrap_try(try_set(
@@ -1045,7 +1044,7 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
                 agent,
                 o.unbind().into_object(),
                 pk,
-                k_value,
+                k_value.unbind(),
                 true,
                 gc.reborrow(),
             )?;
@@ -1066,11 +1065,10 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
 /// throw completion.
 pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
     agent: &mut Agent,
-    o: TypedArray,
+    o: Scoped<'_, TypedArray<'static>>,
     array_like: Object,
     mut gc: GcScope,
 ) -> JsResult<()> {
-    let o = o.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let len be ? LengthOfArrayLike(arrayLike).
     let len = length_of_array_like(agent, array_like, gc.reborrow())? as usize;
 

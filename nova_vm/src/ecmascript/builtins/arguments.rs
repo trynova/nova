@@ -26,7 +26,7 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
-use crate::engine::context::NoGcScope;
+use crate::engine::context::{Bindable, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{

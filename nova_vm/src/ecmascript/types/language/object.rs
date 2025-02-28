@@ -271,25 +271,31 @@ impl<'a> IntoValue<'a> for Object<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for Object<'_> {
     type Of<'a> = Object<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
 unsafe impl Bindable for OrdinaryObject<'_> {
     type Of<'a> = OrdinaryObject<'a>;
 
+    #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
         unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
+    #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
         unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
