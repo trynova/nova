@@ -1565,8 +1565,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -1581,7 +1581,7 @@ impl MathObject {
             || n.is_pos_infinity(agent)
             || n.is_neg_infinity(agent)
         {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 4. Let n16 be the result of converting n to IEEE 754-2019 binary16 format using roundTiesToEven mode.
@@ -1613,8 +1613,8 @@ impl MathObject {
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let items = arguments.get(0);
 
         // 1. Perform ? RequireObjectCoercible(items).
@@ -1702,10 +1702,11 @@ impl MathObject {
         // 10. If state is minus-infinity, return -∞𝔽.
         // 11. If state is minus-zero, return -0𝔽.
         if state.is_nan() || state.is_infinite() || state == -0.0 {
-            return Ok(Value::from_f64(agent, state, gc.into_nogc()));
+            Ok(Value::from_f64(agent, state, gc.into_nogc()))
+        } else {
+            // 12. Return 𝔽(sum).
+            Ok(Value::from_f64(agent, sum, gc.into_nogc()))
         }
-        // 12. Return 𝔽(sum).
-        Ok(Value::from_f64(agent, sum, gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {

@@ -309,8 +309,8 @@ impl DataViewPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let byte_offset = arguments.get(0);
         // 2. If littleEndian is not present, set littleEndian to false.
         let little_endian = to_boolean(agent, arguments.get(1));
@@ -478,8 +478,8 @@ impl DataViewPrototype {
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let byte_offset = arguments.get(0);
         let value = arguments.get(1);
         // 2. If littleEndian is not present, set littleEndian to false.

@@ -349,15 +349,13 @@ impl<'a> Vm {
                         .collect::<Vec<_>>();
                     with_vm_gc(
                         agent,
-                        vm,
+                        &mut self,
                         |agent, gc| heap_gc(agent, &mut root_realms, gc),
                         gc.reborrow(),
                     );
                 }
             }
-            let temp = &mut self;
-            let temp_self = unsafe { core::mem::transmute::<&mut Vm, &mut Vm>(temp) };
-            match Self::execute_instruction(agent, temp_self, executable, &instr, gc.reborrow()) {
+            match Self::execute_instruction(agent, &mut self, executable, &instr, gc.reborrow()) {
                 Ok(ContinuationKind::Normal) => {}
                 Ok(ContinuationKind::Return) => {
                     let result = self.result.unwrap_or(Value::Undefined);
