@@ -2,16 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_string},
+        abstract_operations::{
+            operations_on_objects::get,
+            type_conversion::{to_boolean, to_string},
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

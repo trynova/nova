@@ -12,7 +12,6 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
@@ -26,14 +25,6 @@ use crate::{
 pub struct ArrayIterator<'a>(ArrayIteratorIndex<'a>);
 
 impl ArrayIterator<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, ArrayIterator<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {

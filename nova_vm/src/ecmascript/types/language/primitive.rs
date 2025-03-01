@@ -6,9 +6,7 @@ use small_string::SmallString;
 
 use crate::{
     SmallInteger,
-    ecmascript::execution::Agent,
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
@@ -155,14 +153,6 @@ impl<'a> IntoValue<'a> for Primitive<'a> {
 }
 
 impl Primitive<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Primitive<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
     }

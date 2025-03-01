@@ -186,7 +186,7 @@ mod private {
 }
 
 pub use global::Global;
-pub use scoped::Scoped;
+pub use scoped::{Scopable, Scoped};
 
 use super::context::Bindable;
 

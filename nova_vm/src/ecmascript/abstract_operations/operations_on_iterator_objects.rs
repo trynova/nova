@@ -23,6 +23,7 @@ use crate::{
     engine::{
         Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };

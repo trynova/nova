@@ -4,33 +4,34 @@
 
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    length_of_array_like, try_create_data_property, try_create_data_property_or_throw,
-};
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
-use crate::ecmascript::builtins::Behaviour;
-use crate::ecmascript::types::{IntoObject, IntoValue};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::{Scoped, unwrap_try};
 use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_data_property, get, scoped_enumerable_own_keys,
+                call_function, create_data_property, get, length_of_array_like,
+                scoped_enumerable_own_keys, try_create_data_property,
+                try_create_data_property_or_throw,
             },
-            testing_and_comparison::is_callable,
+            testing_and_comparison::{is_array, is_callable},
             type_conversion::to_string,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Builtin, array_create, ordinary::ordinary_object_create_with_intrinsics,
+            ArgumentsList, Behaviour, Builtin, array_create,
+            ordinary::ordinary_object_create_with_intrinsics,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, PropertyKey, String,
-            Value,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoValue, Number,
+            Object, PropertyKey, String, Value,
         },
+    },
+    engine::{
+        Scoped,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        unwrap_try,
     },
     heap::WellKnownSymbolIndexes,
 };

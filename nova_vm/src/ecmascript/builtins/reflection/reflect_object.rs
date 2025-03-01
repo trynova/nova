@@ -2,12 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::{
-    to_property_key_complex, to_property_key_simple,
-};
-use crate::ecmascript::builtins::Behaviour;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -15,14 +9,20 @@ use crate::{
                 call_function, construct, create_array_from_list, create_list_from_array_like,
             },
             testing_and_comparison::{is_callable, is_constructor},
+            type_conversion::{to_property_key_complex, to_property_key_simple},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor, String,
             Value,
         },
+    },
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::WellKnownSymbolIndexes,
 };

@@ -38,7 +38,7 @@ use crate::{
             function_internal_set,
         },
     },
-    engine::Executable,
+    engine::{Executable, rootable::Scopable},
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         indexes::ECMAScriptFunctionIndex,
@@ -50,7 +50,7 @@ use crate::{
         types::{function_try_get, function_try_has_property, function_try_set},
     },
     engine::{
-        Scoped, TryResult,
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -289,14 +289,6 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>
 }
 
 impl ECMAScriptFunction<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, ECMAScriptFunction<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
     }

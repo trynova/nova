@@ -53,6 +53,7 @@ use crate::ecmascript::types::Value;
 use crate::engine::Scoped;
 use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
+use crate::engine::rootable::Scopable;
 use crate::engine::unwrap_try;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;

@@ -19,6 +19,7 @@ use num_bigint::Sign;
 use crate::ecmascript::types::IntoPrimitive;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     SmallInteger,
     ecmascript::{

@@ -10,6 +10,7 @@ use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_a
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{

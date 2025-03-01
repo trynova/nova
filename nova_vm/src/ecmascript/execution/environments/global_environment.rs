@@ -26,6 +26,7 @@ use crate::{
     engine::{
         TryResult,
         context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

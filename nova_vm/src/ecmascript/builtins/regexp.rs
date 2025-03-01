@@ -16,7 +16,7 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
         unwrap_try,
@@ -38,14 +38,6 @@ use super::ordinary::{ordinary_set, ordinary_try_set};
 pub struct RegExp<'a>(RegExpIndex<'a>);
 
 impl RegExp<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, RegExp<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

@@ -6,7 +6,7 @@ use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::HeapRootData;
-use crate::engine::{Scoped, TryResult, unwrap_try};
+use crate::engine::{TryResult, unwrap_try};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
@@ -104,14 +104,6 @@ impl IndexMut<Module<'_>> for Vec<Option<ModuleHeapData>> {
 }
 
 impl Module<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Module<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(ModuleIdentifier::from_u32(0))
     }

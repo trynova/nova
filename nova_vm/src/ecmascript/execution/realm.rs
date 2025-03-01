@@ -8,6 +8,7 @@ use super::{
     Agent, ExecutionContext, GlobalEnvironment, JsResult, environments::GlobalEnvironmentIndex,
 };
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,

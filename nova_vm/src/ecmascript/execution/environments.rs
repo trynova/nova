@@ -44,6 +44,7 @@ pub(crate) use private_environment::PrivateEnvironment;
 
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

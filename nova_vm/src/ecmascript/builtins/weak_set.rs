@@ -13,7 +13,6 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
@@ -32,14 +31,6 @@ pub mod data;
 pub struct WeakSet<'a>(pub(crate) WeakSetIndex<'a>);
 
 impl WeakSet<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, WeakSet<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

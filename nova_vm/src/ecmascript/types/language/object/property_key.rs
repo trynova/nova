@@ -21,7 +21,7 @@ use crate::{
     engine::{
         Scoped,
         context::{Bindable, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -37,14 +37,6 @@ pub enum PropertyKey<'a> {
 }
 
 impl<'a> PropertyKey<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, PropertyKey<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub const fn scope_static(self) -> Scoped<'static, PropertyKey<'static>> {
         let key_root_repr = match self {
             PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),
@@ -358,7 +350,7 @@ pub enum PropertyKeyRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl Rootable for PropertyKey<'static> {
+impl Rootable for PropertyKey<'_> {
     type RootRepr = PropertyKeyRootRepr;
 
     #[inline]
@@ -366,8 +358,8 @@ impl Rootable for PropertyKey<'static> {
         match value {
             PropertyKey::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
             PropertyKey::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string)),
-            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
+            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
+            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
         }
     }
 

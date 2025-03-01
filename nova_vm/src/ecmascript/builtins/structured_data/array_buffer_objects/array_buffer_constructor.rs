@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::validate_index;
-use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::{operations_on_objects::get, type_conversion::to_index},
+        abstract_operations::{
+            operations_on_objects::get,
+            type_conversion::{to_index, validate_index},
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
             ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
@@ -17,6 +18,10 @@ use crate::{
             BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
             Value,
         },
+    },
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

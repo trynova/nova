@@ -4,6 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_scoped_list;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{

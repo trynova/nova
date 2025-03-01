@@ -12,21 +12,18 @@ use super::{
 };
 use crate::{
     SmallInteger,
-    ecmascript::execution::Agent,
+    ecmascript::{
+        abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
+        execution::Agent,
+    },
     engine::{
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
         indexes::NumberIndex,
-    },
-};
-use crate::{
-    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::{
-        Scoped,
-        context::{Bindable, NoGcScope},
     },
 };
 
@@ -295,14 +292,6 @@ impl<'a> TryFrom<Numeric<'a>> for Number<'a> {
 }
 
 impl<'a> Number<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Number<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
@@ -1484,13 +1473,13 @@ impl HeapMarkAndSweep for HeapNumber<'static> {
     }
 }
 
-impl Rootable for Number<'static> {
+impl Rootable for Number<'_> {
     type RootRepr = NumberRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
             Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
             Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
         }

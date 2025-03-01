@@ -14,7 +14,7 @@ use super::{
         ECMASCRIPT_FUNCTION_DISCRIMINANT,
     }, InternalMethods, IntoObject, IntoValue, Object, OrdinaryObject, InternalSlots, PropertyKey, Value
 };
-use crate::engine::{context::{ Bindable, GcScope, NoGcScope}, Scoped, TryResult};
+use crate::engine::{context::{ Bindable, GcScope, NoGcScope}, TryResult};
 use crate::{
     ecmascript::{
         builtins::{
@@ -178,14 +178,6 @@ impl<'a> From<Function<'a>> for Value<'a> {
 }
 
 impl Function<'_> {
-    pub fn scope<'b>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'b>,
-    ) -> Scoped<'b, Function<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub fn is_constructor(self, agent: &Agent) -> bool {
         match self {
             Function::BoundFunction(f) => f.is_constructor(agent),

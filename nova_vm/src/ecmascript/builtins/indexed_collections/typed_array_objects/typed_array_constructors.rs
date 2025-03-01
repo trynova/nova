@@ -18,6 +18,7 @@ use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::{Function, IntoValue, PropertyKey, U8Clamped, Viewable};
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{

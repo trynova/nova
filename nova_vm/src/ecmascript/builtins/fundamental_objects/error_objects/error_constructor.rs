@@ -27,6 +27,7 @@ use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
+use crate::engine::rootable::Scopable;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub(crate) struct ErrorConstructor;

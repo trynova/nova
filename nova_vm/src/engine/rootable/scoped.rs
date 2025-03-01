@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 use crate::{
     ecmascript::execution::Agent,
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootRef, Rootable},
     },
 };
@@ -40,7 +40,22 @@ impl<T: 'static + Rootable> Scoped<'static, T> {
     }
 }
 
-impl<'scope, T: 'static + Rootable> Scoped<'scope, T> {
+pub trait Scopable: Rootable + Bindable
+where
+    for<'a> Self::Of<'a>: Rootable + Bindable,
+{
+    fn scope<'scope>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Self::Of<'static>> {
+        Scoped::new(agent, self.unbind(), gc)
+    }
+}
+
+impl<T: Rootable + Bindable> Scopable for T where for<'a> Self::Of<'a>: Rootable + Bindable {}
+
+impl<'scope, T: Rootable> Scoped<'scope, T> {
     pub fn new(agent: &Agent, value: T, _gc: NoGcScope<'_, 'scope>) -> Self {
         let value = match T::to_root_repr(value) {
             Ok(stack_repr) => {

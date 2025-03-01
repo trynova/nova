@@ -797,13 +797,13 @@ impl HeapMarkAndSweep for HeapBigInt<'static> {
     }
 }
 
-impl Rootable for BigInt<'static> {
+impl Rootable for BigInt<'_> {
     type RootRepr = BigIntRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
         }
     }

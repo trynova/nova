@@ -12,6 +12,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
 };
 use crate::ecmascript::types::Primitive;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_number,

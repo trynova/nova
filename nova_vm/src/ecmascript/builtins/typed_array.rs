@@ -19,9 +19,9 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        rootable::HeapRootData,
+        rootable::{HeapRootData, Scopable},
         unwrap_try,
     },
     heap::{
@@ -72,14 +72,6 @@ pub enum TypedArray<'a> {
 }
 
 impl TypedArray<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, TypedArray<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) fn get_index(self) -> usize {
         match self {
             TypedArray::Int8Array(index)

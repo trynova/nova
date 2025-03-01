@@ -17,6 +17,7 @@ use crate::ecmascript::abstract_operations::type_conversion::{
 use crate::ecmascript::types::Primitive;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -2695,6 +2696,8 @@ fn create_html<'gc>(
     attribute_and_value: Option<(&str, Value)>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<String<'gc>> {
+    use crate::engine::rootable::Scopable;
+
     let nogc = gc.nogc();
     // 1. Let str be ? RequireObjectCoercible(string).
     let string = string.bind(nogc);
