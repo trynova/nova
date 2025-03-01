@@ -30,26 +30,6 @@ pub(super) enum VmIterator {
 }
 
 impl VmIterator {
-    /// Unbind this VmIterator from its current lifetime. This is necessary to use
-    /// the VmIterator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> VmIterator {
-        self
-    }
-
-    // Bind this VmIterator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your VmIterators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound VmIterator cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope) -> VmIterator {
-        self
-    }
-
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
     ///
     /// While not exactly equal to the IteratorStepValue method in usage, this
@@ -186,6 +166,21 @@ impl VmIterator {
                 Ok(VmIterator::GenericIterator(js_iterator))
             }
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for VmIterator {
+    type Of<'a> = VmIterator;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        self
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        self
     }
 }
 

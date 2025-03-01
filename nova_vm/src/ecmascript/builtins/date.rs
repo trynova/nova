@@ -15,7 +15,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -30,26 +30,6 @@ use self::data::DateHeapData;
 pub struct Date<'a>(pub(crate) DateIndex<'a>);
 
 impl Date<'_> {
-    /// Unbind this Date from its current lifetime. This is necessary to use
-    /// the Date as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Date<'static> {
-        unsafe { core::mem::transmute::<Self, Date<'static>>(self) }
-    }
-
-    // Bind this Date to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Dates cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let date = date.bind(&gc);
-    // ```
-    // to make sure that the unbound Date cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Date<'gc> {
-        unsafe { core::mem::transmute::<Date, Date<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -64,6 +44,21 @@ impl Date<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Date<'_> {
+    type Of<'a> = Date<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

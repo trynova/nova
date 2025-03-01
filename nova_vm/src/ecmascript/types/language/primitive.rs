@@ -154,27 +154,7 @@ impl<'a> IntoValue<'a> for Primitive<'a> {
     }
 }
 
-impl<'a> Primitive<'a> {
-    /// Unbind this Primitive from its current lifetime. This is necessary to
-    /// use the Primitive as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Primitive<'static> {
-        unsafe { core::mem::transmute::<Self, Primitive<'static>>(self) }
-    }
-
-    // Bind this Primitive to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your Primitives cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let primitive = primitive.bind(&gc);
-    // ```
-    // to make sure that the unbound Primitive cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<Primitive<'_>, Self>(self) }
-    }
-
+impl Primitive<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -208,6 +188,21 @@ impl<'a> Primitive<'a> {
 
     pub fn is_undefined(self) -> bool {
         matches!(self, Self::Undefined)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Primitive<'_> {
+    type Of<'a> = Primitive<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

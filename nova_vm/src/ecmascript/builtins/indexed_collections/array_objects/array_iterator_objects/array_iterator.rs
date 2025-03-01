@@ -26,26 +26,6 @@ use crate::{
 pub struct ArrayIterator<'a>(ArrayIteratorIndex<'a>);
 
 impl ArrayIterator<'_> {
-    /// Unbind this ArrayIterator from its current lifetime. This is necessary to use
-    /// the ArrayIterator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> ArrayIterator<'static> {
-        unsafe { core::mem::transmute::<Self, ArrayIterator<'static>>(self) }
-    }
-
-    // Bind this ArrayIterator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your ArrayIterators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_iterator = array_iterator.bind(&gc);
-    // ```
-    // to make sure that the unbound ArrayIterator cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ArrayIterator<'gc> {
-        unsafe { core::mem::transmute::<Self, ArrayIterator<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -75,6 +55,21 @@ impl ArrayIterator<'_> {
             next_index: 0,
             kind,
         })
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ArrayIterator<'_> {
+    type Of<'a> = ArrayIterator<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

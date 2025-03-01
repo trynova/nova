@@ -31,26 +31,6 @@ pub mod data;
 pub struct Promise<'a>(pub(crate) PromiseIndex<'a>);
 
 impl<'a> Promise<'a> {
-    /// Unbind this Promise from its current lifetime. This is necessary to use
-    /// the Promise as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Promise<'static> {
-        unsafe { core::mem::transmute::<Self, Promise<'static>>(self) }
-    }
-
-    // Bind this Promise to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Promises cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let promise = promise.bind(&gc);
-    // ```
-    // to make sure that the unbound Promise cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Promise<'gc> {
-        unsafe { core::mem::transmute::<Promise, Promise<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -83,6 +63,21 @@ impl<'a> Promise<'a> {
             // 4. Return promiseCapability.[[Promise]].
             promise_capability.promise().bind(gc.into_nogc())
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Promise<'_> {
+    type Of<'a> = Promise<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

@@ -13,7 +13,7 @@ use crate::{
     SmallInteger,
     ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -57,26 +57,6 @@ pub enum BigIntMathematicalValue {
 }
 
 impl<'a> HeapBigInt<'a> {
-    /// Unbind this HeapBigInt from its current lifetime. This is necessary to use
-    /// the HeapBigInt as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> HeapBigInt<'static> {
-        unsafe { core::mem::transmute::<Self, HeapBigInt<'static>>(self) }
-    }
-
-    // Bind this HeapBigInt to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your HeapBigInts cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let bigint = bigint.bind(&gc);
-    // ```
-    // to make sure that the unbound HeapBigInt cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<HeapBigInt<'_>, Self>(self) }
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BigIntIndex::from_u32_index(0))
     }
@@ -117,6 +97,21 @@ impl<'a> HeapBigInt<'a> {
             base += (part as f64) * multiplier;
         }
         BigIntMathematicalValue::Number(base)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapBigInt<'_> {
+    type Of<'a> = HeapBigInt<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -271,26 +266,6 @@ pub enum BigIntRootRepr {
 }
 
 impl<'a> BigInt<'a> {
-    /// Unbind this BigInt from its current lifetime. This is necessary to use
-    /// the BigInt as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BigInt<'static> {
-        unsafe { core::mem::transmute::<Self, BigInt<'static>>(self) }
-    }
-
-    // Bind this BigInt to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BigInts cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let bigint = bigint.bind(&gc);
-    // ```
-    // to make sure that the unbound BigInt cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BigInt<'gc> {
-        unsafe { core::mem::transmute::<Self, BigInt<'gc>>(self) }
-    }
-
     pub const fn zero() -> Self {
         Self::SmallBigInt(SmallBigInt::zero())
     }
@@ -660,6 +635,21 @@ impl<'a> BigInt<'a> {
             }
             BigInt::SmallBigInt(small_big_int) => small_big_int.into_i64() as f64,
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BigInt<'_> {
+    type Of<'a> = BigInt<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

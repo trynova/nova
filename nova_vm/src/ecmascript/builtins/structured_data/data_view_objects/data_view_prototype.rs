@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builtins::data_view::abstract_operations::{get_view_value, set_view_value};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     SmallInteger,
     ecmascript::{

@@ -13,7 +13,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -37,26 +37,6 @@ pub mod data;
 pub struct DataView<'a>(pub(crate) DataViewIndex<'a>);
 
 impl<'a> DataView<'a> {
-    /// Unbind this DataView from its current lifetime. This is necessary to use
-    /// the DataView as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> DataView<'static> {
-        unsafe { core::mem::transmute::<DataView<'a>, DataView<'static>>(self) }
-    }
-
-    // Bind this DataView to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your DataViews cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound DataView cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<DataView, Self>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -98,6 +78,21 @@ impl<'a> DataView<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for DataView<'_> {
+    type Of<'a> = DataView<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

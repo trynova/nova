@@ -37,26 +37,6 @@ use super::ArgumentsList;
 pub struct BoundFunction<'a>(BoundFunctionIndex<'a>);
 
 impl BoundFunction<'_> {
-    /// Unbind this BoundFunction from its current lifetime. This is necessary to use
-    /// the BoundFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BoundFunction<'static> {
-        unsafe { core::mem::transmute::<BoundFunction, BoundFunction<'static>>(self) }
-    }
-
-    // Bind this BoundFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BoundFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound BoundFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BoundFunction<'gc> {
-        unsafe { core::mem::transmute::<BoundFunction, BoundFunction<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -77,6 +57,21 @@ impl BoundFunction<'_> {
         // A bound function has the [[Construct]] method if the target function
         // does.
         agent[self].bound_target_function.is_constructor(agent)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BoundFunction<'_> {
+    type Of<'a> = BoundFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

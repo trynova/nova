@@ -30,26 +30,6 @@ use crate::{
 pub struct Generator<'a>(pub(crate) GeneratorIndex<'a>);
 
 impl Generator<'_> {
-    /// Unbind this Generator from its current lifetime. This is necessary to use
-    /// the Generator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Generator<'static> {
-        unsafe { core::mem::transmute::<Self, Generator<'static>>(self) }
-    }
-
-    // Bind this Generator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Generators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound Generator cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Generator<'gc> {
-        unsafe { core::mem::transmute::<Self, Generator<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -292,6 +272,21 @@ impl Generator<'_> {
             }
             ExecutionResult::Await { .. } => unreachable!(),
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Generator<'_> {
+    type Of<'a> = Generator<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

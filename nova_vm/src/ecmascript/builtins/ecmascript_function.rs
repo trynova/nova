@@ -289,26 +289,6 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>
 }
 
 impl ECMAScriptFunction<'_> {
-    /// Unbind this ECMAScriptFunction from its current lifetime. This is necessary to use
-    /// the ECMAScriptFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> ECMAScriptFunction<'static> {
-        unsafe { core::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'static>>(self) }
-    }
-
-    // Bind this ECMAScriptFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your ECMAScriptFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound ECMAScriptFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ECMAScriptFunction<'gc> {
-        unsafe { core::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -333,6 +313,21 @@ impl ECMAScriptFunction<'_> {
         // An ECMAScript function has the [[Construct]] slot if its constructor
         // status is something other than non-constructor.
         agent[self].ecmascript_function.constructor_status != ConstructorStatus::NonConstructor
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ECMAScriptFunction<'_> {
+    type Of<'a> = ECMAScriptFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

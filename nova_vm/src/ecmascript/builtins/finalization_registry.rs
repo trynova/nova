@@ -13,7 +13,7 @@ use crate::{
     },
     engine::{
         Scoped,
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -31,26 +31,6 @@ pub mod data;
 pub struct FinalizationRegistry<'a>(pub(crate) FinalizationRegistryIndex<'a>);
 
 impl FinalizationRegistry<'_> {
-    /// Unbind this FinalizationRegistry from its current lifetime. This is necessary to use
-    /// the FinalizationRegistry as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> FinalizationRegistry<'static> {
-        unsafe { core::mem::transmute::<Self, FinalizationRegistry<'static>>(self) }
-    }
-
-    // Bind this FinalizationRegistry to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your FinalizationRegistrys cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound FinalizationRegistry cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> FinalizationRegistry<'gc> {
-        unsafe { core::mem::transmute::<Self, FinalizationRegistry<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -65,6 +45,21 @@ impl FinalizationRegistry<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for FinalizationRegistry<'_> {
+    type Of<'a> = FinalizationRegistry<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

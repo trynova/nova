@@ -72,26 +72,6 @@ pub enum TypedArray<'a> {
 }
 
 impl TypedArray<'_> {
-    /// Unbind this TypedArray from its current lifetime. This is necessary to use
-    /// the TypedArray as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> TypedArray<'static> {
-        unsafe { core::mem::transmute::<Self, TypedArray<'static>>(self) }
-    }
-
-    // Bind this TypedArray to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your TypedArrays cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let typed_array = typed_array.bind(&gc);
-    // ```
-    // to make sure that the unbound TypedArray cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> TypedArray<'gc> {
-        unsafe { core::mem::transmute::<Self, TypedArray<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -159,6 +139,21 @@ impl TypedArray<'_> {
         _: NoGcScope<'a, '_>,
     ) -> ArrayBuffer<'a> {
         agent[self].viewed_array_buffer
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for TypedArray<'_> {
+    type Of<'a> = TypedArray<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

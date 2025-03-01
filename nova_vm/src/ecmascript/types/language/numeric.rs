@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::engine::Scoped;
-use crate::engine::context::NoGcScope;
+use crate::engine::context::{Bindable, NoGcScope};
 use crate::{
     SmallInteger,
     ecmascript::execution::Agent,
@@ -42,27 +42,7 @@ pub enum NumericRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl<'a> Numeric<'a> {
-    /// Unbind this Numeric from its current lifetime. This is necessary to use
-    /// the Numeric as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Numeric<'static> {
-        unsafe { core::mem::transmute::<Self, Numeric<'static>>(self) }
-    }
-
-    // Bind this Numeric to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your Numerics cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let numeric = numeric.bind(&gc);
-    // ```
-    // to make sure that the unbound Numeric cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<Numeric<'_>, Self>(self) }
-    }
-
+impl Numeric<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -107,6 +87,21 @@ impl<'a> Numeric<'a> {
         Number::try_from(self)
             .map(|n| n.is_nan(agent))
             .unwrap_or(false)
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Numeric<'_> {
+    type Of<'a> = Numeric<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

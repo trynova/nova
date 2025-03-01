@@ -48,26 +48,6 @@ pub struct Array<'a>(ArrayIndex<'a>);
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl<'a> Array<'a> {
-    /// Unbind this Array from its current lifetime. This is necessary to use
-    /// the Array as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Array<'static> {
-        unsafe { core::mem::transmute::<Array<'a>, Array<'static>>(self) }
-    }
-
-    // Bind this Array to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Arrays cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array = array.bind(&gc);
-    // ```
-    // to make sure that the unbound Array cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Array<'gc> {
-        unsafe { core::mem::transmute::<Array<'a>, Array<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -188,6 +168,21 @@ impl<'a> Array<'a> {
     pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
         let elements = agent[self].elements;
         &mut agent[elements]
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Array<'_> {
+    type Of<'a> = Array<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
