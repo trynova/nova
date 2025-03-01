@@ -29,7 +29,7 @@ mod utils;
 
 pub(crate) use utils::*;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn register_lints(sess: &rustc_session::Session, lint_store: &mut rustc_lint::LintStore) {
     agent_comes_first::register_lints(sess, lint_store);
     gc_scope_comes_last::register_lints(sess, lint_store);
