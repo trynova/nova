@@ -8,8 +8,8 @@ mod for_in_of_statement;
 mod function_declaration_instantiation;
 
 use super::{
-    executable::ArrowFunctionExpression, Executable, ExecutableHeapData, FunctionExpression,
-    Instruction, SendableRef,
+    Executable, ExecutableHeapData, FunctionExpression, Instruction, SendableRef,
+    executable::ArrowFunctionExpression,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::regexp::reg_exp_create_literal;
@@ -20,7 +20,7 @@ use crate::{
             function_definitions::{CompileFunctionBodyData, ContainsExpression},
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
-        types::{BigInt, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, PropertyKey, String, Value},
     },
     engine::context::{Bindable, NoGcScope},
     heap::CreateHeapData,

@@ -3,8 +3,8 @@ use std::{fs, path::PathBuf};
 use nova_vm::{
     ecmascript::{
         execution::{
-            agent::{GcAgent, Options},
             Agent, DefaultHostHooks,
+            agent::{GcAgent, Options},
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{Object, String, Value},
@@ -14,7 +14,7 @@ use nova_vm::{
 
 fn initialize_global_object(agent: &mut Agent, global: Object, gc: GcScope) {
     use nova_vm::ecmascript::{
-        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
+        builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
         execution::JsResult,
         types::{InternalMethods, IntoValue, PropertyDescriptor, PropertyKey},
     };

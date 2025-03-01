@@ -6,8 +6,8 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::ecmascript::{
     execution::{
-        agent::{GcAgent, Options},
         DefaultHostHooks,
+        agent::{GcAgent, Options},
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::String,

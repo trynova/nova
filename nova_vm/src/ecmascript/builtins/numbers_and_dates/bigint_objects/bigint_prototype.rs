@@ -7,9 +7,9 @@ use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{primitive_objects::PrimitiveObjectData, ArgumentsList, Builtin},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{BigInt, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{ArgumentsList, Builtin, primitive_objects::PrimitiveObjectData},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };

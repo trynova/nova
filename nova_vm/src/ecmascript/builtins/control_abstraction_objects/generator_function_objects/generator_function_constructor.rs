@@ -9,16 +9,16 @@ use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            ordinary::ordinary_object_create_with_intrinsics, ArgumentsList, Behaviour, Builtin,
-            BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            ordinary::ordinary_object_create_with_intrinsics,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
         fundamental_objects::function_objects::function_constructor::{
-            create_dynamic_function, DynamicFunctionKind,
+            DynamicFunctionKind, create_dynamic_function,
         },
         types::{
-            Function, IntoObject, IntoValue, Object, PropertyDescriptor, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
+            String, Value,
         },
     },
     heap::IntrinsicConstructorIndexes,

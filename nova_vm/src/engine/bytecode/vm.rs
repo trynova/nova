@@ -35,36 +35,37 @@ use crate::{
             },
         },
         builtins::{
-            array_create, create_builtin_constructor, create_unmapped_arguments_object,
-            global_object::perform_eval, make_constructor, make_method,
-            ordinary::ordinary_object_create_with_intrinsics, ordinary_function_create,
-            set_function_name, ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
-            OrdinaryFunctionCreateParams,
+            ArgumentsList, Array, BuiltinConstructorArgs, ConstructorStatus,
+            OrdinaryFunctionCreateParams, array_create, create_builtin_constructor,
+            create_unmapped_arguments_object, global_object::perform_eval, make_constructor,
+            make_method, ordinary::ordinary_object_create_with_intrinsics,
+            ordinary_function_create, set_function_name,
         },
         execution::{
-            agent::{resolve_binding, ExceptionType, JsError},
+            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, JsError, resolve_binding},
             get_this_environment, new_class_static_element_environment,
-            new_declarative_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            JsResult, ProtoIntrinsics,
+            new_declarative_environment,
         },
         types::{
-            get_this_value, get_value, initialize_referenced_binding, is_private_reference,
-            is_super_reference, put_value, try_initialize_referenced_binding, Base, BigInt,
-            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Number, Numeric,
-            Object, OrdinaryObject, Primitive, PropertyDescriptor, PropertyKey, Reference, String,
-            Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Base, BigInt, Function, InternalMethods, IntoFunction,
+            IntoObject, IntoValue, Number, Numeric, Object, OrdinaryObject, Primitive,
+            PropertyDescriptor, PropertyKey, Reference, String, Value, get_this_value, get_value,
+            initialize_referenced_binding, is_private_reference, is_super_reference, put_value,
+            try_initialize_referenced_binding,
         },
     },
     engine::{
+        TryResult,
         bytecode::{
+            Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
+            NamedEvaluationParameter,
             executable::{ArrowFunctionExpression, SendableRef},
             instructions::Instr,
             iterator::{ObjectPropertiesIterator, VmIterator},
-            Executable, FunctionExpression, IndexType, Instruction, InstructionIter,
-            NamedEvaluationParameter,
         },
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -1778,9 +1779,9 @@ impl<'a> Vm {
                         vm,
                         |agent, gc| {
                             format!(
-                            "The right-hand side of an `in` expression must be an object, got '{}'.",
-                            rval.string_repr(agent, gc).as_str(agent)
-                        )
+                                "The right-hand side of an `in` expression must be an object, got '{}'.",
+                                rval.string_repr(agent, gc).as_str(agent)
+                            )
                         },
                         gc.reborrow(),
                     );

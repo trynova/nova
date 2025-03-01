@@ -4,8 +4,8 @@
 
 use crate::{
     ecmascript::types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value, BIGINT_DISCRIMINANT,
-        NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
+        BIGINT_DISCRIMINANT, HeapNumber, HeapString, NUMBER_DISCRIMINANT, OrdinaryObject,
+        STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
     engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
@@ -16,7 +16,7 @@ use core::{
     hash::{Hash, Hasher},
     sync::atomic::{AtomicBool, Ordering},
 };
-use hashbrown::{hash_table::Entry, HashTable};
+use hashbrown::{HashTable, hash_table::Entry};
 
 #[derive(Debug, Default)]
 pub struct SetHeapData {

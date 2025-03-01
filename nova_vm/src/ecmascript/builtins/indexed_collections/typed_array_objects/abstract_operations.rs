@@ -3,37 +3,38 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{get, length_of_array_like, set, try_set},
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
+            ArrayBuffer,
             array_buffer::{
-                allocate_array_buffer, array_buffer_byte_length, clone_array_buffer,
-                get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
-                set_value_in_buffer, Ordering, ViewedArrayBufferByteLength,
+                Ordering, ViewedArrayBufferByteLength, allocate_array_buffer,
+                array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
+                is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
             typed_array::{
-                data::{TypedArrayArrayLength, TypedArrayHeapData},
                 TypedArray,
+                data::{TypedArrayArrayLength, TypedArrayHeapData},
             },
-            ArrayBuffer,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, Number,
             Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
     heap::indexes::TypedArrayIndex,
-    SmallInteger,
 };
 
 #[repr(transparent)]
@@ -66,11 +67,7 @@ impl CachedBufferByteLength {
 
 impl From<CachedBufferByteLength> for Option<usize> {
     fn from(val: CachedBufferByteLength) -> Self {
-        if val.is_detached() {
-            None
-        } else {
-            Some(val.0)
-        }
+        if val.is_detached() { None } else { Some(val.0) }
     }
 }
 

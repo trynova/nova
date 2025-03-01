@@ -7,27 +7,27 @@ mod data;
 use core::ops::{Index, IndexMut};
 
 use super::{
-    value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
+    value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
 };
 use crate::{
-    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::{
-        context::{Bindable, NoGcScope},
-        Scoped,
-    },
-};
-use crate::{
+    SmallInteger,
     ecmascript::execution::Agent,
     engine::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
     heap::{
-        indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        indexes::NumberIndex,
     },
-    SmallInteger,
+};
+use crate::{
+    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
+    engine::{
+        Scoped,
+        context::{Bindable, NoGcScope},
+    },
 };
 
 pub use data::NumberHeapData;
@@ -615,11 +615,7 @@ impl<'a> Number<'a> {
         match self {
             Number::Number(n) => {
                 let n = agent[n.unbind()];
-                if n > 0.0 {
-                    self
-                } else {
-                    agent.heap.create(-n)
-                }
+                if n > 0.0 { self } else { agent.heap.create(-n) }
             }
             Number::Integer(n) => {
                 let n = n.into_i64();

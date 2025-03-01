@@ -8,8 +8,8 @@ use ahash::AHasher;
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_abrupt_close_iterator;
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -19,18 +19,18 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array::ArrayHeap,
             keyed_collections::map_objects::map_prototype::{
-                canonicalize_keyed_collection_key, MapPrototypeSet,
+                MapPrototypeSet, canonicalize_keyed_collection_key,
             },
-            map::{data::MapData, Map},
+            map::{Map, data::MapData},
             ordinary::ordinary_create_from_constructor,
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, IntoFunction, IntoObject, IntoValue, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
+            PropertyKey, String, Value,
         },
     },
     heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},

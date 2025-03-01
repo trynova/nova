@@ -5,9 +5,9 @@
 use ahash::AHashMap;
 
 use super::{
+    CompactionLists, HeapMarkAndSweep, WorkQueues,
     indexes::ElementIndex,
     object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor},
-    CompactionLists, HeapMarkAndSweep, WorkQueues,
 };
 use crate::{
     ecmascript::{

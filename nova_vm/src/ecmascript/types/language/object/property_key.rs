@@ -3,10 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    SmallInteger, SmallString,
     ecmascript::{
         abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
+            String, Symbol, Value,
             language::{
                 string::HeapString,
                 value::{
@@ -14,16 +16,14 @@ use crate::{
                     SYMBOL_DISCRIMINANT,
                 },
             },
-            String, Symbol, Value,
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    SmallInteger, SmallString,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

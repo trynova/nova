@@ -14,34 +14,33 @@ use super::{
     },
 };
 use crate::{
-    ecmascript::types::scope_property_keys,
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Rootable,
-        unwrap_try, Scoped, TryResult,
-    },
-};
-use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::iterator_step_value,
         builtins::{
-            array_create,
+            ArgumentsList, Array, BuiltinConstructorFunction, array_create,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
-            ArgumentsList, Array, BuiltinConstructorFunction,
         },
         execution::{
-            agent::ExceptionType, new_class_field_initializer_environment, Agent,
-            ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
-            RealmIdentifier,
+            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
+            RealmIdentifier, agent::ExceptionType, new_class_field_initializer_environment,
         },
         types::{
-            Function, InternalMethods, IntoFunction, IntoObject, IntoValue, Number, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
+            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
-    engine::{instanceof_operator, Vm},
+    engine::{Vm, instanceof_operator},
     heap::{Heap, ObjectEntry},
-    SmallInteger,
+};
+use crate::{
+    ecmascript::types::scope_property_keys,
+    engine::{
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Rootable,
+        unwrap_try,
+    },
 };
 
 /// ### [7.3.1 MakeBasicObject ( internalSlotsList )](https://tc39.es/ecma262/#sec-makebasicobject)

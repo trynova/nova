@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use clap::{builder::ArgPredicate, Args, Parser as ClapParser, Subcommand};
+use clap::{Args, Parser as ClapParser, Subcommand, builder::ArgPredicate};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -10,10 +10,10 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     ffi::OsStr,
-    fs::{read_dir, File},
+    fs::{File, read_dir},
     io::{ErrorKind, Read, Write},
     num::NonZeroUsize,
-    path::{absolute, PathBuf},
+    path::{PathBuf, absolute},
     process::{Command, Stdio},
     time::Duration,
 };

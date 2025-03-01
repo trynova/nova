@@ -23,20 +23,22 @@ use crate::ecmascript::abstract_operations::type_conversion::to_object;
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 
-use crate::ecmascript::builtins::array_create;
-use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinGetter;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::builtins::array_create;
+use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
+use crate::ecmascript::execution::agent::ExceptionType;
 
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
 
+use crate::SmallInteger;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::InternalMethods;
 use crate::ecmascript::types::IntoFunction;
@@ -48,14 +50,12 @@ use crate::ecmascript::types::PropertyDescriptor;
 use crate::ecmascript::types::PropertyKey;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::engine::Scoped;
 use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::engine::unwrap_try;
-use crate::engine::Scoped;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
-use crate::SmallInteger;
 
 pub struct ArrayConstructor;
 

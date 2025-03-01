@@ -9,13 +9,13 @@ use crate::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_index},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            array_buffer::allocate_array_buffer, ArgumentsList, Behaviour, Builtin, BuiltinGetter,
-            BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            array_buffer::allocate_array_buffer,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            Value,
         },
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},

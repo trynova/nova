@@ -7,8 +7,8 @@ use crate::{
         builtins::{Builtin, BuiltinFunction, BuiltinGetter, BuiltinIntrinsic},
         execution::{Agent, RealmIdentifier},
         types::{
-            IntoFunction, IntoObject, IntoValue, ObjectHeapData, OrdinaryObject, PropertyKey,
-            Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, ObjectHeapData,
+            OrdinaryObject, PropertyKey, Value,
         },
     },
     heap::{element_array::ElementDescriptor, indexes::ObjectIndex},

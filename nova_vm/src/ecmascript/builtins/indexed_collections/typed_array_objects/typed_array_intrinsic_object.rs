@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{call_function, try_get},
@@ -17,26 +18,26 @@ use crate::{
             ordinary_object_builder::OrdinaryObjectBuilder,
         },
         builtins::{
-            array_buffer::{get_value_from_buffer, is_detached_buffer, Ordering},
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor,
+            array_buffer::{Ordering, get_value_from_buffer, is_detached_buffer},
             indexed_collections::array_objects::array_iterator_objects::array_iterator::{
                 ArrayIterator, CollectionIteratorKind,
             },
             typed_array::TypedArray,
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
-            BuiltinIntrinsicConstructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            IntoObject, IntoValue, Number, Object, PropertyKey, String, U8Clamped, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
+            U8Clamped, Value,
         },
     },
     engine::{
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
-    SmallInteger,
 };
 
 use super::abstract_operations::is_typed_array_out_of_bounds;
@@ -880,11 +881,7 @@ impl TypedArrayPrototype {
             // a. Let k be len + n.
             let k = len + n;
             // b. If k < 0, set k to 0.
-            if k < 0 {
-                0
-            } else {
-                k
-            }
+            if k < 0 { 0 } else { k }
         };
         // 11. Repeat, while k < len,
         while k < len {

@@ -6,17 +6,17 @@
 
 use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
 use crate::ecmascript::builtins::proxy::abstract_operations::{
-    validate_non_revoked_proxy, NonRevokedProxy,
+    NonRevokedProxy, validate_non_revoked_proxy,
 };
 use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            bigint::BigInt, Function, InternalMethods, IntoValue, Number, Object, String, Value,
+            Function, InternalMethods, IntoValue, Number, Object, String, Value, bigint::BigInt,
         },
     },
     heap::PrimitiveHeapIndexable,
@@ -24,7 +24,7 @@ use crate::{
 
 use super::operations_on_objects::get;
 use super::type_conversion::{
-    string_to_big_int, string_to_number, to_boolean, to_primitive, PreferredType,
+    PreferredType, string_to_big_int, string_to_number, to_boolean, to_primitive,
 };
 
 /// ### [7.2.1 RequireObjectCoercible ( argument )](https://tc39.es/ecma262/#sec-requireobjectcoercible)

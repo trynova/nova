@@ -5,6 +5,7 @@
 use core::ops::{Index, IndexMut};
 
 use crate::{
+    Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
@@ -12,15 +13,14 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
-        Scoped,
     },
     heap::{
-        indexes::{BaseIndex, SetIndex},
         CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+        indexes::{BaseIndex, SetIndex},
     },
-    Heap,
 };
 
 use self::data::SetHeapData;
@@ -126,10 +126,12 @@ impl<'a> InternalSlots<'a> for Set<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

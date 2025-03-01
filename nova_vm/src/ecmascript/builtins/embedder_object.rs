@@ -11,10 +11,10 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{Scoped, context::NoGcScope, rootable::HeapRootData},
     heap::{
-        indexes::{BaseIndex, EmbedderObjectIndex},
         HeapMarkAndSweep,
+        indexes::{BaseIndex, EmbedderObjectIndex},
     },
 };
 

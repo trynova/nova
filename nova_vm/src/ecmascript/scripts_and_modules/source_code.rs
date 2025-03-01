@@ -23,7 +23,7 @@ use crate::{
     },
     engine::context::{Bindable, NoGcScope},
     heap::{
-        indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
 };
 

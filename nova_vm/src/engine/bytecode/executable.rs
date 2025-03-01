@@ -8,7 +8,7 @@ use core::{
 };
 
 use super::{
-    instructions::Instr, CompileContext, CompileEvaluation, Instruction, NamedEvaluationParameter,
+    CompileContext, CompileEvaluation, Instruction, NamedEvaluationParameter, instructions::Instr,
 };
 use crate::{
     ecmascript::{

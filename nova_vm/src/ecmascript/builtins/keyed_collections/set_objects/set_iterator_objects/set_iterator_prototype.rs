@@ -12,11 +12,11 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             ArgumentsList, Builtin,
+            indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };

@@ -11,8 +11,9 @@ use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::types::{IntoObject, IntoValue};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::{unwrap_try, Scoped};
+use crate::engine::{Scoped, unwrap_try};
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
@@ -23,16 +24,15 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_create, ordinary::ordinary_object_create_with_intrinsics, ArgumentsList, Builtin,
+            ArgumentsList, Builtin, array_create, ordinary::ordinary_object_create_with_intrinsics,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, InternalMethods, Number, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, Number, Object, PropertyKey, String,
+            Value,
         },
     },
     heap::WellKnownSymbolIndexes,
-    SmallInteger,
 };
 
 pub(crate) struct JSONObject;

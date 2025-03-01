@@ -11,8 +11,9 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_integer_or_infinity, try_to_string,
 };
 use crate::engine::context::{Bindable, GcScope};
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
@@ -26,20 +27,19 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_create, array_species_create, ArgumentsList, ArrayHeapData, Behaviour, Builtin,
-            BuiltinIntrinsic,
+            ArgumentsList, ArrayHeapData, Behaviour, Builtin, BuiltinIntrinsic, array_create,
+            array_species_create,
         },
         execution::{
-            agent::{ExceptionType, JsError},
             Agent, JsResult, RealmIdentifier,
+            agent::{ExceptionType, JsError},
         },
         types::{
-            Function, IntoFunction, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Number, Object,
+            PropertyKey, String, Value,
         },
     },
     heap::{Heap, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
-    SmallInteger,
 };
 
 use super::array_iterator_objects::array_iterator::{ArrayIterator, CollectionIteratorKind};
@@ -1411,11 +1411,7 @@ impl ArrayPrototype {
                     n as usize
                 } else {
                     let result = len as i64 + n;
-                    if result < 0 {
-                        0
-                    } else {
-                        result as usize
-                    }
+                    if result < 0 { 0 } else { result as usize }
                 }
             } else {
                 0
@@ -1475,11 +1471,7 @@ impl ArrayPrototype {
             // a. Let k be len + n.
             let k = len + n;
             // b. If k < 0, set k to 0.
-            if k < 0 {
-                0
-            } else {
-                k
-            }
+            if k < 0 { 0 } else { k }
         };
         // 10. Repeat, while k < len,
         while k < len {
@@ -1541,11 +1533,7 @@ impl ArrayPrototype {
                     n as usize
                 } else {
                     let result = len as i64 + n;
-                    if result < 0 {
-                        0
-                    } else {
-                        result as usize
-                    }
+                    if result < 0 { 0 } else { result as usize }
                 }
             } else {
                 0
@@ -1605,11 +1593,7 @@ impl ArrayPrototype {
             // a. Let k be len + n.
             let k = len + n;
             // b. If k < 0, set k to 0.
-            if k < 0 {
-                0
-            } else {
-                k
-            }
+            if k < 0 { 0 } else { k }
         };
         // 10. Repeat, while k < len,
         while k < len {
@@ -1771,11 +1755,7 @@ impl ArrayPrototype {
                     (n as usize).min(last)
                 } else {
                     let result = len as i64 + n;
-                    if result < 0 {
-                        0
-                    } else {
-                        result as usize
-                    }
+                    if result < 0 { 0 } else { result as usize }
                 }
             } else if from_index == Some(Value::Undefined) {
                 0
@@ -3848,19 +3828,11 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
     // 3. If spreadable is not undefined, return ToBoolean(spreadable).
     if !spreadable.is_undefined() {
         let spreadable = to_boolean(agent, spreadable);
-        if spreadable {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        if spreadable { Ok(true) } else { Ok(false) }
     } else {
         // 4. Return ? IsArray(O).
         let o_is_array = is_array(agent, scoped_o.get(agent).into_value(), gc.nogc())?;
-        if o_is_array {
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+        if o_is_array { Ok(true) } else { Ok(false) }
     }
 }
 

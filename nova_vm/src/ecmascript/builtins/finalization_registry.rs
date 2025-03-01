@@ -12,13 +12,13 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::{BaseIndex, FinalizationRegistryIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{BaseIndex, FinalizationRegistryIndex},
     },
 };
 

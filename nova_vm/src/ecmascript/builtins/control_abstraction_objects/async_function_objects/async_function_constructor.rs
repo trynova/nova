@@ -9,9 +9,9 @@ use crate::{
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
         fundamental_objects::function_objects::function_constructor::{
-            create_dynamic_function, DynamicFunctionKind,
+            DynamicFunctionKind, create_dynamic_function,
         },
-        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
 };

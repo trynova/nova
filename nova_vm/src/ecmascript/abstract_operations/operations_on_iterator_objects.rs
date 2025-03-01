@@ -10,19 +10,19 @@ use crate::{
             operations_on_objects::{call, call_function, get, get_method, try_get_method},
             type_conversion::to_boolean,
         },
-        builtins::{ordinary::ordinary_object_create_with_intrinsics, ArgumentsList},
+        builtins::{ArgumentsList, ordinary::ordinary_object_create_with_intrinsics},
         execution::{
-            agent::{ExceptionType, JsError},
             Agent, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, JsError},
         },
         types::{
-            Function, IntoValue, Object, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoValue, Object, PropertyDescriptor, PropertyKey,
+            Value,
         },
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
         Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };

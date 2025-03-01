@@ -6,19 +6,19 @@ use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         execution::{
-            agent::ExceptionType, Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext,
-            GlobalEnvironmentIndex, JsResult, RealmIdentifier,
+            Agent, ECMAScriptCode, EnvironmentIndex, ExecutionContext, GlobalEnvironmentIndex,
+            JsResult, RealmIdentifier, agent::ExceptionType,
         },
         scripts_and_modules::ScriptOrModule,
         syntax_directed_operations::{
             miscellaneous::instantiate_function_object,
             scope_analysis::{
-                script_lexically_declared_names, script_lexically_scoped_declarations,
-                script_var_declared_names, script_var_scoped_declarations,
-                LexicallyScopedDeclaration, VarScopedDeclaration,
+                LexicallyScopedDeclaration, VarScopedDeclaration, script_lexically_declared_names,
+                script_lexically_scoped_declarations, script_var_declared_names,
+                script_var_scoped_declarations,
             },
         },
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
     engine::{Executable, Vm},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -579,18 +579,18 @@ mod test {
     use crate::engine::context::{Bindable, GcScope};
     use crate::engine::unwrap_try;
     use crate::{
+        SmallInteger,
         ecmascript::{
             abstract_operations::operations_on_objects::create_data_property_or_throw,
             builders::builtin_function_builder::BuiltinFunctionBuilder,
             builtins::{ArgumentsList, Behaviour, Builtin},
             execution::{
-                agent::Options, create_realm, initialize_default_realm, set_realm_global_object,
-                Agent, DefaultHostHooks, ExecutionContext,
+                Agent, DefaultHostHooks, ExecutionContext, agent::Options, create_realm,
+                initialize_default_realm, set_realm_global_object,
             },
             scripts_and_modules::script::{parse_script, script_evaluation},
             types::{InternalMethods, IntoValue, Number, Object, PropertyKey, String, Value},
         },
-        SmallInteger,
     };
 
     #[test]
@@ -839,10 +839,12 @@ mod test {
             .unwrap();
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
-        assert!(result
-            .internal_own_property_keys(&mut agent, gc)
-            .unwrap()
-            .is_empty());
+        assert!(
+            result
+                .internal_own_property_keys(&mut agent, gc)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]
@@ -869,9 +871,11 @@ mod test {
         assert!(foo.is_object());
         let result = Object::try_from(foo).unwrap();
         let key = PropertyKey::from_static_str(&mut agent, "a", gc.nogc()).unbind();
-        assert!(result
-            .internal_has_property(&mut agent, key, gc.reborrow())
-            .unwrap());
+        assert!(
+            result
+                .internal_has_property(&mut agent, key, gc.reborrow())
+                .unwrap()
+        );
         assert_eq!(
             result
                 .internal_get_own_property(&mut agent, key, gc)
@@ -1229,12 +1233,16 @@ mod test {
         let global_env = agent.get_realm(realm).global_env.unwrap();
         let a_key = String::from_static_str(&mut agent, "a", gc.nogc()).unbind();
         let i_key = String::from_static_str(&mut agent, "i", gc.nogc()).unbind();
-        assert!(global_env
-            .has_binding(&mut agent, a_key, gc.reborrow())
-            .unwrap());
-        assert!(global_env
-            .has_binding(&mut agent, i_key, gc.reborrow())
-            .unwrap());
+        assert!(
+            global_env
+                .has_binding(&mut agent, a_key, gc.reborrow())
+                .unwrap()
+        );
+        assert!(
+            global_env
+                .has_binding(&mut agent, i_key, gc.reborrow())
+                .unwrap()
+        );
         assert_eq!(
             global_env
                 .get_binding_value(&mut agent, a_key, true, gc.reborrow())

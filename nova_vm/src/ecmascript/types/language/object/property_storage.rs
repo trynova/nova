@@ -5,13 +5,13 @@
 use core::cell::Ref;
 
 use crate::{
+    Heap,
     ecmascript::{
         execution::{Agent, Realm},
-        types::{IntoValue, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, PropertyDescriptor, Value},
     },
     engine::context::Bindable,
     heap::element_array::ElementDescriptor,
-    Heap,
 };
 
 use super::{Object, ObjectHeapData, PropertyKey};

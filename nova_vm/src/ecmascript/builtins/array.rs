@@ -23,19 +23,20 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
     heap::{
+        CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         element_array::{ElementArrays, ElementDescriptor},
         indexes::ArrayIndex,
-        CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -251,10 +252,12 @@ impl<'a> InternalSlots<'a> for Array<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {

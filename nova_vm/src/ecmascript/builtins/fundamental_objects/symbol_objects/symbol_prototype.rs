@@ -8,9 +8,9 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Builtin, BuiltinGetter},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            IntoValue, PropertyKey, String, Symbol, SymbolHeapData, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoValue, PropertyKey, String, Symbol, SymbolHeapData, Value,
         },
     },
     heap::WellKnownSymbolIndexes,

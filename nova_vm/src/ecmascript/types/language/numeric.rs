@@ -2,25 +2,25 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::NoGcScope;
 use crate::engine::Scoped;
+use crate::engine::context::NoGcScope;
 use crate::{
+    SmallInteger,
     ecmascript::execution::Agent,
     engine::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
-    SmallInteger,
 };
 
 use super::{
+    IntoPrimitive, IntoValue, Number, Primitive, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     value::{
         BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
         SMALL_BIGINT_DISCRIMINANT,
     },
-    IntoPrimitive, IntoValue, Number, Primitive, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -5,8 +5,8 @@
 use crate::{
     ecmascript::{
         builtins::{
-            array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
             ArrayBuffer,
+            array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
         },
         types::OrdinaryObject,
     },

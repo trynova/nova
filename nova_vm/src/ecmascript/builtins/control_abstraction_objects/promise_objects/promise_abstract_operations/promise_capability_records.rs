@@ -5,20 +5,20 @@
 //! ## [27.2.1.1 PromiseCapability Records]()
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::get,
         builtins::promise::{
-            data::{PromiseHeapData, PromiseState},
             Promise,
+            data::{PromiseHeapData, PromiseState},
         },
         execution::{
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
             Agent, JsResult,
+            agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{Function, IntoValue, Object, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, Object, Value},
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues},
 };

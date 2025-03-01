@@ -33,10 +33,10 @@ use crate::{
         abstract_operations::operations_on_objects::{
             try_create_data_property_or_throw, try_define_property_or_throw,
         },
-        execution::{agent::Agent, ProtoIntrinsics},
+        execution::{ProtoIntrinsics, agent::Agent},
         types::{
-            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Number, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::WellKnownSymbolIndexes,

@@ -12,9 +12,9 @@ mod object_entry;
 use core::{cell::RefCell, ops::Index};
 
 pub(crate) use self::heap_constants::{
-    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, IntrinsicObjectIndexes,
-    IntrinsicPrimitiveObjectIndexes, WellKnownSymbolIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX,
+    IntrinsicPrimitiveObjectIndexes, LAST_WELL_KNOWN_SYMBOL_INDEX, WellKnownSymbolIndexes,
+    intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
 };
 #[cfg(test)]
 pub(crate) use self::heap_constants::{
@@ -23,8 +23,9 @@ pub(crate) use self::heap_constants::{
 pub(crate) use self::object_entry::{ObjectEntry, ObjectEntryPropertyDescriptor};
 use self::{
     element_array::{
-        ElementArray2Pow10, ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24,
-        ElementArray2Pow32, ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArrays,
+        ElementArray2Pow4, ElementArray2Pow6, ElementArray2Pow8, ElementArray2Pow10,
+        ElementArray2Pow12, ElementArray2Pow16, ElementArray2Pow24, ElementArray2Pow32,
+        ElementArrays,
     },
     indexes::{NumberIndex, ObjectIndex},
 };
@@ -36,9 +37,9 @@ use crate::ecmascript::builtins::regexp::RegExpHeapData;
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    data_view::{data::DataViewHeapData, DataView},
-    typed_array::{data::TypedArrayHeapData, TypedArray},
     ArrayBufferHeapData,
+    data_view::{DataView, data::DataViewHeapData},
+    typed_array::{TypedArray, data::TypedArrayHeapData},
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
@@ -53,6 +54,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
+            ArrayBuffer, ArrayHeapData,
             array_buffer::DetachKey,
             async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::{
@@ -73,7 +75,6 @@ use crate::{
             primitive_objects::PrimitiveObjectHeapData,
             promise::data::PromiseHeapData,
             proxy::data::ProxyHeapData,
-            ArrayBuffer, ArrayHeapData,
         },
         execution::{Environments, Realm, RealmIdentifier},
         scripts_and_modules::{
@@ -82,13 +83,13 @@ use crate::{
             source_code::SourceCodeHeapData,
         },
         types::{
-            bigint::HeapBigInt, BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,
-            BuiltinFunctionHeapData, ECMAScriptFunctionHeapData, HeapNumber, HeapString,
-            NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String, StringHeapData,
-            SymbolHeapData, BUILTIN_STRINGS_LIST,
+            BUILTIN_STRINGS_LIST, BigIntHeapData, BoundFunctionHeapData,
+            BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
+            HeapNumber, HeapString, NumberHeapData, Object, ObjectHeapData, OrdinaryObject, String,
+            StringHeapData, SymbolHeapData, bigint::HeapBigInt,
         },
     },
-    engine::{context::Bindable, rootable::HeapRootData, ExecutableHeapData},
+    engine::{ExecutableHeapData, context::Bindable, rootable::HeapRootData},
 };
 #[cfg(feature = "array-buffer")]
 use ahash::AHashMap;

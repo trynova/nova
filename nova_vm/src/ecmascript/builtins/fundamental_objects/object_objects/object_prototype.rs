@@ -13,11 +13,11 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            primitive_objects::PrimitiveObjectData, ArgumentsList, Behaviour, Builtin,
-            BuiltinIntrinsic,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
+            primitive_objects::PrimitiveObjectData,
         },
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{InternalMethods, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

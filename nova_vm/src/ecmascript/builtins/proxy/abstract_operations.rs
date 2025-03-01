@@ -4,7 +4,7 @@
 
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::Object,
     },
     engine::context::NoGcScope,

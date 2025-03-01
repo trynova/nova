@@ -6,7 +6,7 @@ use core::{cmp::max, iter::repeat, str::FromStr};
 use small_string::SmallString;
 use std::collections::VecDeque;
 use unicode_normalization::{
-    is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick, IsNormalized, UnicodeNormalization,
+    IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_reg_exp;
@@ -15,8 +15,8 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -29,11 +29,11 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -1094,7 +1094,7 @@ impl StringPrototype {
                         ExceptionType::RangeError,
                         "The normalization form should be one of NFC, NFD, NFKC, NFKD.",
                         gc.nogc(),
-                    ))
+                    ));
                 }
             }
         };
@@ -1536,11 +1536,7 @@ impl StringPrototype {
                 // 11. Else, let to be min(intEnd, len).
                 let len = s.get(agent).utf16_len(agent);
                 let int_end = int_end.into_i64() as usize;
-                if int_end >= len {
-                    None
-                } else {
-                    Some(int_end)
-                }
+                if int_end >= len { None } else { Some(int_end) }
             }
         };
 

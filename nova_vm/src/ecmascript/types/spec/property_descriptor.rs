@@ -12,9 +12,9 @@ use crate::{
             testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            Function, IntoObject, IntoValue, Object, OrdinaryObject, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     heap::ObjectEntry,

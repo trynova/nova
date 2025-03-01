@@ -11,19 +11,20 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
     heap::{
-        indexes::{BaseIndex, RegExpIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::{BaseIndex, RegExpIndex},
     },
 };
 pub(crate) use abstract_operations::*;
@@ -153,10 +154,12 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

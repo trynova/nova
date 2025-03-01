@@ -10,22 +10,23 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, Value, BIGINT_64_ARRAY_DISCRIMINANT,
-            BIGUINT_64_ARRAY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
-            FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
+            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+            INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
+            IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
             UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
     heap::{
-        indexes::{IntoBaseIndex, TypedArrayIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{IntoBaseIndex, TypedArrayIndex},
     },
 };
 
@@ -35,6 +36,7 @@ use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
 use self::data::TypedArrayHeapData;
 
 use super::{
+    ArrayBuffer,
     array_buffer::{Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     indexed_collections::typed_array_objects::abstract_operations::{
         is_typed_array_fixed_length, is_typed_array_out_of_bounds, is_valid_integer_index_generic,
@@ -46,7 +48,6 @@ use super::{
         ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
         ordinary_try_has_property_entry, ordinary_try_set,
     },
-    ArrayBuffer,
 };
 
 pub mod data;
@@ -323,10 +324,12 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {

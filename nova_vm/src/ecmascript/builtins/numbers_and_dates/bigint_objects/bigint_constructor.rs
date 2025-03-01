@@ -6,33 +6,33 @@ use num_bigint::ToBigInt;
 use num_traits::Pow;
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
+use crate::ecmascript::abstract_operations::type_conversion::PreferredType;
 use crate::ecmascript::abstract_operations::type_conversion::to_big_int;
 use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::abstract_operations::type_conversion::to_primitive;
-use crate::ecmascript::abstract_operations::type_conversion::PreferredType;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
-use crate::ecmascript::types::bigint::SmallBigInt;
+use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::BigInt;
 use crate::ecmascript::types::BigIntHeapData;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::ecmascript::types::bigint::SmallBigInt;
 use crate::ecmascript::types::{String, Value};
 
+use crate::SmallInteger;
 use crate::engine::context::{Bindable, GcScope};
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
-use crate::SmallInteger;
 
 /// ### [21.1.2.1 BigInt ( value )](https://tc39.es/ecma262/#sec-bigint-constructor)
 pub struct BigIntConstructor;

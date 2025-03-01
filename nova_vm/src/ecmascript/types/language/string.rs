@@ -11,21 +11,21 @@ use core::{
 };
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, PropertyKey, Value, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT,
+    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT, Value,
 };
 use crate::{
+    SmallInteger, SmallString,
     ecmascript::{execution::Agent, types::PropertyDescriptor},
     engine::{
+        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
     },
-    SmallInteger, SmallString,
 };
 
 pub use data::StringHeapData;

@@ -6,18 +6,18 @@
 
 use core::{
     mem::MaybeUninit,
-    ptr::{self, read_unaligned, write_unaligned, NonNull},
+    ptr::{self, NonNull, read_unaligned, write_unaligned},
 };
-use std::alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc, Layout};
+use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
 
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{
-            to_big_int64_big_int, to_big_uint64_big_int, to_int16_number, to_int32_number,
-            to_int8_number, to_uint16_number, to_uint32_number, to_uint8_clamp_number,
-            to_uint8_number,
+            to_big_int64_big_int, to_big_uint64_big_int, to_int8_number, to_int16_number,
+            to_int32_number, to_uint8_clamp_number, to_uint8_number, to_uint16_number,
+            to_uint32_number,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{BigInt, IntoNumeric, Number, Numeric},
     },
     engine::context::NoGcScope,

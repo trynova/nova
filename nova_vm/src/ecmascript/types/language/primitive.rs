@@ -5,17 +5,18 @@
 use small_string::SmallString;
 
 use crate::{
+    SmallInteger,
     ecmascript::execution::Agent,
     engine::{
+        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
-        Scoped,
     },
-    SmallInteger,
 };
 
 use super::{
+    IntoPrimitive, IntoValue, Symbol, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
@@ -25,7 +26,6 @@ use super::{
         SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         UNDEFINED_DISCRIMINANT,
     },
-    IntoPrimitive, IntoValue, Symbol, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]

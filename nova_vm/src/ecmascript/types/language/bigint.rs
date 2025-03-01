@@ -4,22 +4,22 @@
 
 mod data;
 use super::{
+    IntoPrimitive, IntoValue, Primitive, String, Value,
     into_numeric::IntoNumeric,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    IntoPrimitive, IntoValue, Primitive, String, Value,
 };
 use crate::{
-    ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
+    SmallInteger,
+    ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
     engine::{
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        indexes::BigIntIndex,
     },
-    SmallInteger,
 };
 use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;

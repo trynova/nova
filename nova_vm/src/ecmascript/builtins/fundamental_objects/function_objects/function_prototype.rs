@@ -6,8 +6,8 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_get, try_has_own_property,
 };
 use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity_number;
-use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -19,13 +19,13 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            bound_function::bound_function_create, set_function_name, ArgumentsList, Behaviour,
-            Builtin, BuiltinFunction, BuiltinIntrinsic, BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinIntrinsic,
+            BuiltinIntrinsicConstructor, bound_function::bound_function_create, set_function_name,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, InternalSlots, IntoFunction, IntoObject, IntoValue, Number, ObjectHeapData,
-            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalSlots, IntoFunction, IntoObject, IntoValue,
+            Number, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
         },
     },
     heap::{

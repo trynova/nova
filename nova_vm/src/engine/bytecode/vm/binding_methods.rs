@@ -12,10 +12,9 @@ use crate::{
     },
     engine::{
         bytecode::vm::{
-            array_create, copy_data_properties_into_object, initialize_referenced_binding,
-            iterator_close, put_value, resolve_binding, to_object,
-            try_create_data_property_or_throw, EnvironmentIndex, Executable, Instruction, Vm,
-            VmIterator,
+            EnvironmentIndex, Executable, Instruction, Vm, VmIterator, array_create,
+            copy_data_properties_into_object, initialize_referenced_binding, iterator_close,
+            put_value, resolve_binding, to_object, try_create_data_property_or_throw,
         },
         context::{Bindable, GcScope},
         unwrap_try,

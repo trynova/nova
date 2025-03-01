@@ -6,8 +6,8 @@ use crate::ecmascript::abstract_operations::type_conversion::{
     to_property_key_complex, to_property_key_simple,
 };
 use crate::ecmascript::builtins::Behaviour;
-use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -18,10 +18,10 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Builtin},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            InternalMethods, IntoValue, Object, PropertyDescriptor, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyDescriptor, String,
+            Value,
         },
     },
     heap::WellKnownSymbolIndexes,

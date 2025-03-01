@@ -6,11 +6,11 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Behaviour, Builtin,
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{GcScope, NoGcScope},
 };

@@ -4,8 +4,8 @@
 
 use nova_vm::{
     ecmascript::{
-        builtins::{create_builtin_function, ArgumentsList, Behaviour, BuiltinFunctionArgs},
-        execution::{agent::ExceptionType, Agent, JsResult},
+        builtins::{ArgumentsList, Behaviour, BuiltinFunctionArgs, create_builtin_function},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
             InternalMethods, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
             String, Value,
