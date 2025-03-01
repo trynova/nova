@@ -5,11 +5,11 @@
 use wtf8::Wtf8;
 
 use super::{
+    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
+    StringHeapData, Symbol,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringHeapData, Symbol,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -23,18 +23,15 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-#[cfg(feature = "array-buffer")]
 use crate::{
-    ecmascript::builtins::{data_view::DataView, ArrayBuffer},
-    heap::indexes::TypedArrayIndex,
-};
-use crate::{
+    SmallInteger, SmallString,
     ecmascript::{
         abstract_operations::type_conversion::{
             to_big_int, to_int16, to_int32, to_number, to_numeric, to_string, to_uint16, to_uint32,
             try_to_string,
         },
         builtins::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
@@ -51,19 +48,22 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
-        Scoped, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    SmallInteger, SmallString,
+};
+#[cfg(feature = "array-buffer")]
+use crate::{
+    ecmascript::builtins::{ArrayBuffer, data_view::DataView},
+    heap::indexes::TypedArrayIndex,
 };
 
 use core::{
@@ -1318,7 +1318,7 @@ impl Rootable for Value<'_> {
             #[cfg(feature = "array-buffer")]
             Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index.unbind())),
             Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
-            Self::AsyncGenerator(gen) => Err(HeapRootData::AsyncGenerator(gen.unbind())),
+            Self::AsyncGenerator(r#gen) => Err(HeapRootData::AsyncGenerator(r#gen.unbind())),
             Self::Iterator => Err(HeapRootData::Iterator),
             Self::ArrayIterator(array_iterator) => {
                 Err(HeapRootData::ArrayIterator(array_iterator.unbind()))
@@ -1444,7 +1444,7 @@ impl Rootable for Value<'_> {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncGenerator(gen) => Some(Self::AsyncGenerator(gen)),
+            HeapRootData::AsyncGenerator(r#gen) => Some(Self::AsyncGenerator(r#gen)),
             HeapRootData::Iterator => Some(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => {
                 Some(Self::ArrayIterator(array_iterator))

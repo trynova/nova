@@ -23,13 +23,14 @@ use super::value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 use super::value::{
     ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
     DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-    INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
-    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
-    UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+    UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+    UINT_32_ARRAY_DISCRIMINANT,
 };
 #[cfg(feature = "weak-refs")]
 use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
 use super::{
+    Function, IntoValue, Value,
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
         ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
@@ -42,7 +43,6 @@ use super::{
         MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
     },
-    Function, IntoValue, Value,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -61,13 +61,14 @@ use crate::ecmascript::{
 };
 #[cfg(feature = "array-buffer")]
 use crate::{
-    ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
-    engine::{context::NoGcScope, Scoped},
+    ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray},
+    engine::{Scoped, context::NoGcScope},
     heap::indexes::TypedArrayIndex,
 };
 use crate::{
     ecmascript::{
         builtins::{
+            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
@@ -85,18 +86,17 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
     },
     engine::{
+        TryResult,
         context::{Bindable, GcScope},
         rootable::HeapRootData,
-        TryResult,
     },
     heap::{
-        indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::ObjectIndex,
     },
 };
 
@@ -104,7 +104,7 @@ pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
-pub use property_key::{scope_property_keys, PropertyKey};
+pub use property_key::{PropertyKey, scope_property_keys};
 pub use property_storage::PropertyStorage;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
@@ -3888,7 +3888,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Ok(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncGenerator(gen) => Ok(Self::AsyncGenerator(gen)),
+            HeapRootData::AsyncGenerator(r#gen) => Ok(Self::AsyncGenerator(r#gen)),
             HeapRootData::Iterator => Ok(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
             #[cfg(feature = "set")]
