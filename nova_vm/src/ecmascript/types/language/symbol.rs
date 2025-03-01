@@ -11,17 +11,17 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
+        Scoped,
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::SymbolIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WellKnownSymbolIndexes, WorkQueues, LAST_WELL_KNOWN_SYMBOL_INDEX,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, LAST_WELL_KNOWN_SYMBOL_INDEX,
+        WellKnownSymbolIndexes, WorkQueues, indexes::SymbolIndex,
     },
 };
 
-use super::{IntoPrimitive, IntoValue, Primitive, Value, BUILTIN_STRING_MEMORY};
+use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, IntoValue, Primitive, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]

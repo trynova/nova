@@ -5,15 +5,15 @@
 use std::thread;
 
 use super::{
+    Heap, WellKnownSymbolIndexes,
     element_array::ElementArrays,
     heap_bits::{
-        mark_array_with_u32_length, mark_descriptors, sweep_heap_elements_vector_descriptors,
-        sweep_heap_u16_elements_vector_values, sweep_heap_u32_elements_vector_values,
-        sweep_heap_u8_elements_vector_values, sweep_heap_vector_values, sweep_lookup_table,
-        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, HeapBits, HeapMarkAndSweep, WorkQueues, mark_array_with_u32_length,
+        mark_descriptors, sweep_heap_elements_vector_descriptors,
+        sweep_heap_u8_elements_vector_values, sweep_heap_u16_elements_vector_values,
+        sweep_heap_u32_elements_vector_values, sweep_heap_vector_values, sweep_lookup_table,
     },
     indexes::{ElementIndex, StringIndex},
-    Heap, WellKnownSymbolIndexes,
 };
 #[cfg(feature = "array-buffer")]
 use super::{heap_bits::sweep_side_table_values, indexes::TypedArrayIndex};
@@ -24,7 +24,7 @@ use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -34,6 +34,7 @@ use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set
 use crate::{
     ecmascript::{
         builtins::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
@@ -54,7 +55,6 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{
             Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
@@ -62,11 +62,11 @@ use crate::{
         },
         scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
         types::{
-            bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol,
-            BUILTIN_STRINGS_LIST,
+            BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol,
+            bigint::HeapBigInt,
         },
     },
-    engine::{context::GcScope, Executable},
+    engine::{Executable, context::GcScope},
 };
 
 pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], gc: GcScope) {
@@ -1557,7 +1557,7 @@ fn sweep(
 fn test_heap_gc() {
     use crate::engine::context::GcScope;
     use crate::{
-        ecmascript::execution::{agent::Options, DefaultHostHooks},
+        ecmascript::execution::{DefaultHostHooks, agent::Options},
         engine::rootable::HeapRootData,
     };
 

@@ -10,8 +10,8 @@ use crate::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };

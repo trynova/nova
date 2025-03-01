@@ -10,8 +10,8 @@ use crate::{
         },
         execution::{Agent, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue,
+            Object, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
         },
     },
     engine::context::Bindable,

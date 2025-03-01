@@ -4,14 +4,15 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
         execution::{
+            EnvironmentIndex,
             agent::{self, ExceptionType},
-            get_global_object, EnvironmentIndex,
+            get_global_object,
         },
         types::{InternalMethods, Object, PropertyKey, String, Value},
     },

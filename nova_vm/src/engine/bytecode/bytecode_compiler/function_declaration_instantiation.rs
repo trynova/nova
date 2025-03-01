@@ -12,17 +12,17 @@ use crate::{
         syntax_directed_operations::{
             function_definitions::ContainsExpression,
             scope_analysis::{
+                LexicallyScopedDeclaration, VarScopedDeclaration,
                 function_body_lexically_declared_names, function_body_lexically_scoped_decarations,
                 function_body_var_declared_names, function_body_var_scoped_declarations,
-                LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
-    engine::{bytecode::bytecode_compiler::CompileContext, Instruction},
+    engine::{Instruction, bytecode::bytecode_compiler::CompileContext},
 };
 
-use super::{complex_array_pattern, simple_array_pattern, CompileEvaluation};
+use super::{CompileEvaluation, complex_array_pattern, simple_array_pattern};
 
 pub(crate) fn instantiation(
     ctx: &mut CompileContext,

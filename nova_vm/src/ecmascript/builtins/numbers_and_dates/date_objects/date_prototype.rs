@@ -6,15 +6,15 @@ use std::time::SystemTime;
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
+    SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::{ordinary_to_primitive, PreferredType},
+        abstract_operations::type_conversion::{PreferredType, ordinary_to_primitive},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{date::Date, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
-    SmallInteger,
 };
 
 pub(crate) struct DatePrototype;

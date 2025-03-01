@@ -14,7 +14,7 @@ use crate::{
         types::Function,
     },
     engine::rootable::{HeapRootData, HeapRootRef, Rootable},
-    heap::{indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep},
+    heap::{CreateHeapData, Heap, HeapMarkAndSweep, indexes::BaseIndex},
 };
 
 use super::promise_capability_records::PromiseCapability;

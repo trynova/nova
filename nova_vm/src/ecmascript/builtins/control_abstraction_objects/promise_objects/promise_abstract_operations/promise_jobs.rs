@@ -4,15 +4,15 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::engine::context::{Bindable, GcScope};
 use crate::engine::Global;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{call_function, get_function_realm},
-        builtins::{promise::Promise, ArgumentsList},
+        builtins::{ArgumentsList, promise::Promise},
         execution::{
-            agent::{InnerJob, Job, JsError},
             Agent, JsResult,
+            agent::{InnerJob, Job, JsError},
         },
         types::{Function, IntoValue, Object, Value},
     },

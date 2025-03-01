@@ -14,12 +14,12 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::DateIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::DateIndex,
     },
 };
 

@@ -7,7 +7,7 @@ use core::ops::{Index, IndexMut};
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -16,17 +16,17 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, BoundFunctionHeapData, Function, FunctionInternalProperties,
-            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
+            InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, function_create_backing_object,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set,
         },
     },
     heap::{
-        indexes::BoundFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::BoundFunctionIndex,
     },
 };
 
@@ -180,10 +180,12 @@ impl<'a> InternalSlots<'a> for BoundFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {

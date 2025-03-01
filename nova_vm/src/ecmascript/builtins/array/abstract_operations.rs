@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -13,13 +13,13 @@ use crate::{
             type_conversion::{to_number, to_uint32},
         },
         builtins::ArgumentsList,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, Number, Object, PropertyDescriptor, Value},
     },
-    heap::{indexes::ArrayIndex, Heap, WellKnownSymbolIndexes},
+    heap::{Heap, WellKnownSymbolIndexes, indexes::ArrayIndex},
 };
 
-use super::{data::SealableElementsVector, Array, ArrayHeapData};
+use super::{Array, ArrayHeapData, data::SealableElementsVector};
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
 ///

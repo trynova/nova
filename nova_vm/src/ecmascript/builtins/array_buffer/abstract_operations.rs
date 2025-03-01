@@ -7,13 +7,13 @@ use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::types::{Numeric, Viewable};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
+    Heap,
     ecmascript::{
         abstract_operations::operations_on_objects::get,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{DataBlock, Function, IntoFunction, Number, Object, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, DataBlock, Function, IntoFunction, Number, Object, Value},
     },
     heap::indexes::ArrayBufferIndex,
-    Heap,
 };
 
 // TODO: Implement the contents of the `DetachKey` struct?

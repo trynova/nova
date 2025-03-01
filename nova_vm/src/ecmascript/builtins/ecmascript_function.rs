@@ -15,32 +15,33 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
         execution::{
+            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext,
+            FunctionEnvironmentIndex, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics,
+            RealmIdentifier, ThisBindingStatus,
             agent::{
-                get_active_script_or_module,
                 ExceptionType::{self, SyntaxError},
+                get_active_script_or_module,
             },
-            new_function_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            ExecutionContext, FunctionEnvironmentIndex, JsResult, PrivateEnvironmentIndex,
-            ProtoIntrinsics, RealmIdentifier, ThisBindingStatus,
+            new_function_environment,
         },
-        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+        scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
         syntax_directed_operations::function_definitions::{
             evaluate_async_function_body, evaluate_function_body, evaluate_generator_body,
         },
         types::{
+            BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
+            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, ECMAScriptFunctionHeapData, Function,
-            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            function_internal_set,
         },
     },
     engine::Executable,
     heap::{
-        indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::ECMAScriptFunctionIndex,
     },
 };
 use crate::{
@@ -49,15 +50,15 @@ use crate::{
         types::{function_try_get, function_try_has_property, function_try_set},
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped, TryResult,
     },
 };
 
 use super::{
-    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
     ArgumentsList,
+    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -344,10 +345,12 @@ impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {

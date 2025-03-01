@@ -33,17 +33,17 @@ mod module_environment;
 mod object_environment;
 mod private_environment;
 
-pub(crate) use declarative_environment::{new_declarative_environment, DeclarativeEnvironment};
+pub(crate) use declarative_environment::{DeclarativeEnvironment, new_declarative_environment};
 pub(crate) use function_environment::{
-    new_class_field_initializer_environment, new_class_static_element_environment,
-    new_function_environment, FunctionEnvironment, ThisBindingStatus,
+    FunctionEnvironment, ThisBindingStatus, new_class_field_initializer_environment,
+    new_class_static_element_environment, new_function_environment,
 };
 pub(crate) use global_environment::GlobalEnvironment;
 pub(crate) use object_environment::ObjectEnvironment;
 pub(crate) use private_environment::PrivateEnvironment;
 
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::types::{Base, Object, Reference, String, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

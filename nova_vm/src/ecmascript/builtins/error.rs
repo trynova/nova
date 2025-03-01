@@ -10,18 +10,18 @@ pub(crate) use data::ErrorHeapData;
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     heap::{
-        indexes::ErrorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::ErrorIndex,
     },
 };
 
@@ -122,10 +122,12 @@ impl<'a> InternalSlots<'a> for Error<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {

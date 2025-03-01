@@ -6,6 +6,7 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builtins::{
+            ECMAScriptFunction,
             promise::Promise,
             promise_objects::{
                 promise_abstract_operations::{
@@ -14,17 +15,17 @@ use crate::{
                 },
                 promise_prototype::inner_promise_then,
             },
-            ECMAScriptFunction,
         },
         execution::{
-            agent::{ExceptionType, JsError},
             Agent, JsResult, RealmIdentifier,
+            agent::{ExceptionType, JsError},
         },
         types::{IntoValue, Value},
     },
     engine::{
+        ExecutionResult, Scoped, SuspendedVm, Vm,
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, ExecutionResult, Scoped, SuspendedVm, Vm,
+        unwrap_try,
     },
 };
 

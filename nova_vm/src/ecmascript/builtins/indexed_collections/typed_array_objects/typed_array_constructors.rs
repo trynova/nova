@@ -7,17 +7,17 @@ use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
 };
 use crate::ecmascript::abstract_operations::operations_on_objects::get_method;
 use crate::ecmascript::abstract_operations::type_conversion::{to_index, try_to_index};
+use crate::ecmascript::builtins::ArrayBuffer;
 use crate::ecmascript::builtins::indexed_collections::typed_array_objects::abstract_operations::{
     allocate_typed_array, initialize_typed_array_from_array_buffer,
     initialize_typed_array_from_array_like, initialize_typed_array_from_list,
     initialize_typed_array_from_typed_array,
 };
 use crate::ecmascript::builtins::typed_array::TypedArray;
-use crate::ecmascript::builtins::ArrayBuffer;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::{Function, IntoValue, PropertyKey, U8Clamped, Viewable};
-use crate::engine::context::{Bindable, GcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope};
 use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{
@@ -27,7 +27,7 @@ use crate::{
         },
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
 };

@@ -8,11 +8,11 @@ use crate::{
         abstract_operations::type_conversion::to_string,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            error::Error, ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour,
-            Builtin, BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
+            ordinary::ordinary_create_from_constructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
-        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
 };

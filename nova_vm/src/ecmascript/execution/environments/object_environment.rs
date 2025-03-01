@@ -7,15 +7,15 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
     try_define_property_or_throw, try_get, try_has_property, try_set,
 };
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{define_property_or_throw, get, has_property, set},
             type_conversion::to_boolean,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -285,7 +285,9 @@ impl ObjectEnvironmentIndex {
 
     /// ### [9.1.1.2.3 CreateImmutableBinding ( N, S )](https://tc39.es/ecma262/#sec-object-environment-records-createimmutablebinding-n-s)
     pub(crate) fn create_immutable_binding(self, _: &mut Agent, _: String, _: bool) {
-        unreachable!("The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification.")
+        unreachable!(
+            "The CreateImmutableBinding concrete method of an Object Environment Record is never used within this specification."
+        )
     }
 
     /// ### Try [9.1.1.2.4 InitializeBinding ( N, V )](https://tc39.es/ecma262/#sec-object-environment-records-initializebinding-n-v)

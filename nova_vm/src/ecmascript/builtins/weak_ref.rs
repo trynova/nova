@@ -12,13 +12,13 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
-        Scoped,
     },
     heap::{
-        indexes::{BaseIndex, WeakRefIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{BaseIndex, WeakRefIndex},
     },
 };
 
@@ -101,10 +101,12 @@ impl<'a> InternalSlots<'a> for WeakRef<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

@@ -4,9 +4,9 @@
 
 use core::ops::{Index, IndexMut};
 
+use crate::engine::Scoped;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::Scoped;
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -15,8 +15,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::{BaseIndex, PromiseIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{BaseIndex, PromiseIndex},
     },
 };
 
@@ -119,10 +119,12 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

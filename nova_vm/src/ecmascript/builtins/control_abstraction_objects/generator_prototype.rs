@@ -8,8 +8,8 @@ use crate::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -112,7 +112,7 @@ impl GeneratorPrototype {
                     ExceptionType::TypeError,
                     "The generator is currently running",
                     gc,
-                ))
+                ));
             }
             GeneratorState::Completed => {}
         };

@@ -8,16 +8,16 @@ use crate::{
         syntax_directed_operations::{
             function_definitions::CompileFunctionBodyData,
             scope_analysis::{
+                LexicallyScopedDeclaration, VarScopedDeclaration,
                 class_static_block_lexically_scoped_declarations,
                 class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
-                LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::{
-        is_reference, CompileContext, CompileEvaluation, FunctionExpression, Instruction,
-        NamedEvaluationParameter, SendableRef,
+        CompileContext, CompileEvaluation, FunctionExpression, Instruction,
+        NamedEvaluationParameter, SendableRef, is_reference,
     },
 };
 use ahash::{AHashMap, AHashSet};

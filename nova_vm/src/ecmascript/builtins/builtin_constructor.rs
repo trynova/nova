@@ -13,27 +13,27 @@ use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{
-            agent::ExceptionType, Agent, EnvironmentIndex, ExecutionContext, JsResult,
-            PrivateEnvironmentIndex, ProtoIntrinsics,
+            Agent, EnvironmentIndex, ExecutionContext, JsResult, PrivateEnvironmentIndex,
+            ProtoIntrinsics, agent::ExceptionType,
         },
         scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::class_definitions::{
             base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
+            BUILTIN_STRING_MEMORY, BuiltinConstructorHeapData, Function,
+            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, BuiltinConstructorHeapData, Function,
-            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            function_internal_set,
         },
     },
     engine::Executable,
     heap::{
-        indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinConstructorIndex,
     },
 };
 

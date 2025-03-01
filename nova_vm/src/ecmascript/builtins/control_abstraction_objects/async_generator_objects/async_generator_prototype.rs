@@ -17,11 +17,11 @@ use crate::{
     heap::WellKnownSymbolIndexes,
 };
 
+use super::AsyncGeneratorRequestCompletion;
 use super::async_generator_abstract_operations::{
     async_generator_await_return, async_generator_enqueue, async_generator_resume,
     async_generator_validate,
 };
-use super::AsyncGeneratorRequestCompletion;
 
 pub(crate) struct AsyncGeneratorPrototype;
 

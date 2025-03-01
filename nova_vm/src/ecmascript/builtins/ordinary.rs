@@ -8,8 +8,9 @@ use std::vec;
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
 };
 use crate::{
@@ -19,11 +20,11 @@ use crate::{
             testing_and_comparison::same_value,
         },
         builtins::ArgumentsList,
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object,
-            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            String, Symbol, Value,
         },
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -35,18 +36,18 @@ use super::date::data::DateHeapData;
 use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::data::SharedArrayBufferHeapData;
+#[cfg(feature = "array-buffer")]
 use super::{
-    async_generator_objects::AsyncGeneratorHeapData,
+    ArrayBufferHeapData, data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData,
+};
+use super::{
+    ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
     control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
     keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
     map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectHeapData,
-    promise::data::PromiseHeapData, ArrayHeapData,
-};
-#[cfg(feature = "array-buffer")]
-use super::{
-    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+    promise::data::PromiseHeapData,
 };
 #[cfg(feature = "set")]
 use super::{

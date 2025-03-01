@@ -13,8 +13,8 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::IteratorRecord,
         builtins::Array,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyKey, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };

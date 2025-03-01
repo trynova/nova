@@ -6,7 +6,7 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         execution::{Agent, RealmIdentifier},
-        types::{IntoValue, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoValue},
     },
     heap::WellKnownSymbolIndexes,
 };

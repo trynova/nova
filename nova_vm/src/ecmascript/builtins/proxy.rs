@@ -5,7 +5,7 @@
 use core::ops::{Index, IndexMut};
 use std::collections::VecDeque;
 
-use abstract_operations::{validate_non_revoked_proxy, NonRevokedProxy};
+use abstract_operations::{NonRevokedProxy, validate_non_revoked_proxy};
 use data::ProxyHeapData;
 
 use crate::{
@@ -19,21 +19,21 @@ use crate::{
             type_conversion::to_boolean,
         },
         builtins::ArgumentsList,
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            scope_property_keys, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
             Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            scope_property_keys,
         },
     },
     engine::{
+        Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
-        Scoped, TryResult,
     },
     heap::{
-        indexes::{BaseIndex, ProxyIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{BaseIndex, ProxyIndex},
     },
 };
 
@@ -923,7 +923,10 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                     let property_key = scoped_property_key.get(agent).bind(gc.nogc());
                     let message = String::from_string(
                         agent,
-                        format!("proxy can't report a non-configurable own property '{}' as non-existent", property_key.as_display(agent)),
+                        format!(
+                            "proxy can't report a non-configurable own property '{}' as non-existent",
+                            property_key.as_display(agent)
+                        ),
                         gc.into_nogc(),
                     );
                     return Err(

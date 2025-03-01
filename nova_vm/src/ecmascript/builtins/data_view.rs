@@ -12,21 +12,21 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::NoGcScope,
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::{DataViewIndex, IntoBaseIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{DataViewIndex, IntoBaseIndex},
     },
 };
 
 use self::data::DataViewHeapData;
 
 use super::{
-    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     ArrayBuffer,
+    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
 };
 
 pub(crate) mod abstract_operations;

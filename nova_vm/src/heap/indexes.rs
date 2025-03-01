@@ -10,7 +10,7 @@ use crate::ecmascript::builtins::regexp::RegExpHeapData;
 use crate::ecmascript::builtins::shared_array_buffer::data::SharedArrayBufferHeapData;
 #[cfg(feature = "array-buffer")]
 use crate::ecmascript::builtins::{
-    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+    ArrayBufferHeapData, data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData,
 };
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
@@ -25,14 +25,14 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
-            async_generator_objects::AsyncGeneratorHeapData,
+            ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
             control_abstraction_objects::generator_objects::GeneratorHeapData,
             embedder_object::data::EmbedderObjectHeapData, error::ErrorHeapData,
             finalization_registry::data::FinalizationRegistryHeapData,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
             map::data::MapHeapData, primitive_objects::PrimitiveObjectHeapData,
-            promise::data::PromiseHeapData, proxy::data::ProxyHeapData, ArrayHeapData,
+            promise::data::PromiseHeapData, proxy::data::ProxyHeapData,
         },
         types::{
             BigIntHeapData, BoundFunctionHeapData, BuiltinConstructorHeapData,

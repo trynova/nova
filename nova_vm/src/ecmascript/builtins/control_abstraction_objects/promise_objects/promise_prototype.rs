@@ -8,17 +8,17 @@ use crate::{
         abstract_operations::operations_on_objects::invoke,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            promise::{
-                data::{PromiseReactions, PromiseState},
-                Promise,
-            },
             ArgumentsList, Behaviour, Builtin,
+            promise::{
+                Promise,
+                data::{PromiseReactions, PromiseState},
+            },
         },
         execution::{
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
             Agent, JsResult, RealmIdentifier,
+            agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, String, Value},
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
 };

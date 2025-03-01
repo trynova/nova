@@ -14,20 +14,20 @@ use crate::{
         },
     },
     engine::{
+        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::{ArrayBufferIndex, IntoBaseIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::{ArrayBufferIndex, IntoBaseIndex},
     },
 };
 
 use abstract_operations::detach_array_buffer;
 pub(crate) use abstract_operations::{
-    allocate_array_buffer, array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
-    is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer, DetachKey, Ordering,
+    DetachKey, Ordering, allocate_array_buffer, array_buffer_byte_length, clone_array_buffer,
+    get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer,
 };
 use core::ops::{Index, IndexMut};
 pub use data::*;
@@ -242,10 +242,12 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

@@ -8,7 +8,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };

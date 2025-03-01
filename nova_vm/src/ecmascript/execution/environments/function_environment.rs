@@ -11,7 +11,7 @@ use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},

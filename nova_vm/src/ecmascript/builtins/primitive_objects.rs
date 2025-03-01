@@ -6,8 +6,9 @@ use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
+    SmallInteger,
     ecmascript::{
         builtins::ordinary::{
             is_compatible_property_descriptor, ordinary_define_own_property, ordinary_delete,
@@ -15,20 +16,20 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
+            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
+            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
+            InternalSlots, IntoObject, IntoValue, NUMBER_DISCRIMINANT, Number, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT,
+            SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, String, Symbol,
+            Value,
             bigint::{HeapBigInt, SmallBigInt},
-            BigInt, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
-            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, FLOAT_DISCRIMINANT,
-            INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
-            SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         },
     },
     engine::small_f64::SmallF64,
     heap::{
-        indexes::PrimitiveObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::PrimitiveObjectIndex,
     },
-    SmallInteger,
 };
 use small_string::SmallString;
 
@@ -198,10 +199,12 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {

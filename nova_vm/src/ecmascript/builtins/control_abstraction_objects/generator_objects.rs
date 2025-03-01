@@ -9,20 +9,20 @@ use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         execution::{
-            agent::{ExceptionType, JsError},
             Agent, ExecutionContext, JsResult, ProtoIntrinsics,
+            agent::{ExceptionType, JsError},
         },
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     engine::{
-        rootable::{HeapRootData, Scoped},
         Executable, ExecutionResult, SuspendedVm, Vm,
+        rootable::{HeapRootData, Scoped},
     },
     heap::{
-        indexes::{BaseIndex, GeneratorIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::{BaseIndex, GeneratorIndex},
     },
 };
 
@@ -85,7 +85,7 @@ impl Generator<'_> {
                     ExceptionType::TypeError,
                     "The generator is currently running",
                     gc.nogc(),
-                ))
+                ));
             }
             GeneratorState::Completed => {
                 // 2. If state is completed, return CreateIterResultObject(undefined, true).

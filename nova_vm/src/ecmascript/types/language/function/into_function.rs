@@ -10,13 +10,14 @@ use crate::{
         },
         execution::{Agent, JsResult},
         types::{
-            language::IntoObject, InternalMethods, InternalSlots, IntoValue, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoValue, ObjectHeapData,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, language::IntoObject,
         },
     },
     engine::{
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        unwrap_try,
     },
     heap::{CreateHeapData, ObjectEntry, ObjectEntryPropertyDescriptor},
 };

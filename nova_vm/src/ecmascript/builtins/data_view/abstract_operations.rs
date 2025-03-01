@@ -3,17 +3,17 @@ use crate::{
         abstract_operations::type_conversion::{to_big_int, to_index, to_number, try_to_index},
         builtins::{
             array_buffer::{
-                array_buffer_byte_length, get_value_from_buffer, is_fixed_length_array_buffer,
-                set_value_in_buffer, Ordering,
+                Ordering, array_buffer_byte_length, get_value_from_buffer,
+                is_fixed_length_array_buffer, set_value_in_buffer,
             },
             structured_data::data_view_objects::data_view_prototype::require_internal_slot_data_view,
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{BigInt, IntoNumeric, Number, Numeric, Value, Viewable},
     },
     engine::{
-        context::{GcScope, NoGcScope},
         TryResult,
+        context::{GcScope, NoGcScope},
     },
 };
 

@@ -5,17 +5,17 @@
 use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::type_conversion::to_integer_or_infinity,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Builtin,
+            primitive_objects::{PrimitiveObject, PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, String, Value},
     },
-    SmallInteger,
 };
 
 pub(crate) struct NumberPrototype;

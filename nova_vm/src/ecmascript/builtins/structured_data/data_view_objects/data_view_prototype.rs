@@ -6,24 +6,24 @@ use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builtins::data_view::abstract_operations::{get_view_value, set_view_value};
 use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
+    SmallInteger,
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
             array_buffer::Ordering,
             data_view::{
+                DataView,
                 abstract_operations::{
                     get_view_byte_length, is_view_out_of_bounds,
                     make_data_view_with_buffer_witness_record,
                 },
-                DataView,
             },
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
     heap::WellKnownSymbolIndexes,
-    SmallInteger,
 };
 
 pub(crate) struct DataViewPrototype;

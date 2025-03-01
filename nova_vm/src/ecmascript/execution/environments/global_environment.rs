@@ -14,18 +14,18 @@ use crate::{
             testing_and_comparison::{is_extensible, try_is_extensible},
         },
         execution::{
+            Agent, JsResult,
             agent::ExceptionType,
             environments::{
                 DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex,
                 ObjectEnvironment, ObjectEnvironmentIndex,
             },
-            Agent, JsResult,
         },
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
     engine::{
-        context::{Bindable, GcScope, NoGcScope},
         TryResult,
+        context::{Bindable, GcScope, NoGcScope},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };

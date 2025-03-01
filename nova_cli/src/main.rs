@@ -14,8 +14,8 @@ use helper::{
 use nova_vm::{
     ecmascript::{
         execution::{
-            agent::{GcAgent, HostHooks, Job, Options},
             Agent, JsResult,
+            agent::{GcAgent, HostHooks, Job, Options},
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
         types::{Object, String as JsString, Value},

@@ -20,19 +20,19 @@ use crate::{
             generator_objects::VmOrArguments,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics},
+        execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     engine::{
+        Executable, ExecutionResult, Scoped, SuspendedVm,
         context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Executable, ExecutionResult, Scoped, SuspendedVm,
     },
     heap::{
-        indexes::{AsyncGeneratorIndex, BaseIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::{AsyncGeneratorIndex, BaseIndex},
     },
 };
 
@@ -378,10 +378,12 @@ impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

@@ -6,12 +6,12 @@ use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::HeapRootData;
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
         builtins::ordinary::ordinary_get_own_property,
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         scripts_and_modules::module::ModuleIdentifier,
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -148,10 +148,12 @@ impl<'a> InternalSlots<'a> for Module<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {

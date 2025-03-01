@@ -15,17 +15,17 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
             keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator,
             set::{
-                data::{SetData, SetHeapData},
                 Set,
+                data::{SetData, SetHeapData},
             },
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
     heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };

@@ -5,15 +5,15 @@
 mod intrinsics;
 
 use super::{
-    environments::GlobalEnvironmentIndex, Agent, ExecutionContext, GlobalEnvironment, JsResult,
+    Agent, ExecutionContext, GlobalEnvironment, JsResult, environments::GlobalEnvironmentIndex,
 };
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::define_property_or_throw,
         types::{
-            IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoValue, Number, Object, OrdinaryObject, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -1209,7 +1209,7 @@ mod test {
     #[cfg(feature = "regexp")]
     fn test_default_realm_sanity() {
         use super::initialize_default_realm;
-        use crate::ecmascript::execution::{agent::Options, Agent, DefaultHostHooks};
+        use crate::ecmascript::execution::{Agent, DefaultHostHooks, agent::Options};
         use crate::heap::indexes::BuiltinFunctionIndex;
         use crate::heap::indexes::ObjectIndex;
 

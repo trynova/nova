@@ -7,7 +7,7 @@ use ahash::AHashMap;
 use super::{DeclarativeEnvironmentIndex, OuterEnv};
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{Object, String, Value},
     },
     engine::context::{Bindable, NoGcScope},

@@ -96,7 +96,7 @@ impl<'a, 'b> GcScope<'a, 'b> {
     /// JavaScript call stack is initialized.
     #[inline]
     pub(crate) unsafe fn create_root() -> (GcToken, ScopeToken) {
-        (GcToken::new(), ScopeToken::new())
+        (unsafe { GcToken::new() }, unsafe { ScopeToken::new() })
     }
 
     #[inline]

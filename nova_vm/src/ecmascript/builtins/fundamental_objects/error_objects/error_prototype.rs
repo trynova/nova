@@ -7,8 +7,8 @@ use crate::{
         abstract_operations::{operations_on_objects::get, type_conversion::to_string},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
     },
     engine::context::{Bindable, GcScope},
 };

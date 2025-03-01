@@ -11,7 +11,7 @@ use crate::{
     ecmascript::{
         builtins::ordinary::ordinary_create_from_constructor,
         execution::{Agent, JsResult, ProtoIntrinsics},
-        types::{Function, String, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Function, String},
     },
     heap::CreateHeapData,
 };

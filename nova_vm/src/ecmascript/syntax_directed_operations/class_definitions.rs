@@ -9,9 +9,9 @@ use crate::{
             testing_and_comparison::is_constructor,
         },
         builtins::{
-            ordinary::ordinary_create_from_constructor, ArgumentsList, BuiltinConstructorFunction,
+            ArgumentsList, BuiltinConstructorFunction, ordinary::ordinary_create_from_constructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{Function, InternalMethods, Object},
     },
     engine::{

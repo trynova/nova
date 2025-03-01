@@ -17,22 +17,22 @@
 use num_bigint::Sign;
 
 use crate::ecmascript::types::IntoPrimitive;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
+    SmallInteger,
     ecmascript::{
         builtins::{
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList,
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{
-            BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric, Object, Primitive,
-            PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, BigInt, IntoNumeric, IntoObject, IntoValue, Number, Numeric,
+            Object, Primitive, PropertyKey, String, Value,
         },
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
-    SmallInteger,
 };
 
 use super::{

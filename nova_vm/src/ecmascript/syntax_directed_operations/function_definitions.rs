@@ -12,6 +12,7 @@ use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{
+            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::GeneratorState,
@@ -28,16 +29,15 @@ use crate::{
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ordinary_function_create,
             promise::Promise,
-            set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
-            ThisMode,
+            set_function_name,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
             PrivateEnvironmentIndex, ProtoIntrinsics,
         },
         types::{
-            IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     engine::{Executable, ExecutionResult, FunctionExpression, Vm},
