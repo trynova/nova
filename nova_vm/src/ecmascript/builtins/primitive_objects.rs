@@ -128,26 +128,6 @@ impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
 }
 
 impl<'a> PrimitiveObject<'a> {
-    /// Unbind this PrimitiveObject from its current lifetime. This is necessary to use
-    /// the PrimitiveObject as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> PrimitiveObject<'static> {
-        unsafe { core::mem::transmute::<PrimitiveObject, PrimitiveObject<'static>>(self) }
-    }
-
-    // Bind this PrimitiveObject to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your PrimitiveObjects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound PrimitiveObject cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> PrimitiveObject<'a> {
-        unsafe { core::mem::transmute::<PrimitiveObject, PrimitiveObject<'a>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -189,6 +169,21 @@ impl<'a> PrimitiveObject<'a> {
 
     pub fn is_symbol_object(self, agent: &Agent) -> bool {
         matches!(agent[self].data, PrimitiveObjectData::Symbol(_))
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PrimitiveObject<'_> {
+    type Of<'a> = PrimitiveObject<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

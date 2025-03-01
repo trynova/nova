@@ -32,26 +32,6 @@ pub mod data;
 pub struct Set<'a>(pub(crate) SetIndex<'a>);
 
 impl Set<'_> {
-    /// Unbind this Set from its current lifetime. This is necessary to use
-    /// the Set as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Set<'static> {
-        unsafe { core::mem::transmute::<Self, Set<'static>>(self) }
-    }
-
-    // Bind this Set to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Sets cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let set = set.bind(&gc);
-    // ```
-    // to make sure that the unbound Set cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Set<'gc> {
-        unsafe { core::mem::transmute::<Self, Set<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -66,6 +46,21 @@ impl Set<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Set<'_> {
+    type Of<'a> = Set<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

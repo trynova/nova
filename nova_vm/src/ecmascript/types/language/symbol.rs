@@ -12,7 +12,7 @@ use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
         Scoped,
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
@@ -40,26 +40,6 @@ enum SymbolRootReprInner {
 pub struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
-    /// Unbind this Symbol from its current lifetime. This is necessary to use
-    /// the Symbol as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Symbol<'static> {
-        unsafe { core::mem::transmute::<Self, Symbol<'static>>(self) }
-    }
-
-    // Bind this Symbol to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Symbols cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let symbol = symbol.bind(&gc);
-    // ```
-    // to make sure that the unbound Symbol cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<Symbol<'_>, Self>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -91,6 +71,21 @@ impl<'a> Symbol<'a> {
         } else {
             BUILTIN_STRING_MEMORY.Symbol__
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Symbol<'_> {
+    type Of<'a> = Symbol<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

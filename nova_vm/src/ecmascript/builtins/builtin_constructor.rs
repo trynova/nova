@@ -43,34 +43,6 @@ use super::ArgumentsList;
 pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
 
 impl BuiltinConstructorFunction<'_> {
-    /// Unbind this BuiltinConstructorFunction from its current lifetime. This is necessary to use
-    /// the BuiltinConstructorFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BuiltinConstructorFunction<'static> {
-        unsafe {
-            core::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'static>>(
-                self,
-            )
-        }
-    }
-
-    // Bind this BuiltinConstructorFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BuiltinConstructorFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound BuiltinConstructorFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinConstructorFunction<'gc> {
-        unsafe {
-            core::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'gc>>(
-                self,
-            )
-        }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -89,6 +61,21 @@ impl BuiltinConstructorFunction<'_> {
 
     pub const fn is_constructor(self) -> bool {
         true
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BuiltinConstructorFunction<'_> {
+    type Of<'a> = BuiltinConstructorFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

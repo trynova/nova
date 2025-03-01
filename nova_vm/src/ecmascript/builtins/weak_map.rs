@@ -32,26 +32,6 @@ pub mod data;
 pub struct WeakMap<'a>(pub(crate) WeakMapIndex<'a>);
 
 impl WeakMap<'_> {
-    /// Unbind this WeakMap from its current lifetime. This is necessary to use
-    /// the WeakMap as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> WeakMap<'static> {
-        unsafe { core::mem::transmute::<Self, WeakMap<'static>>(self) }
-    }
-
-    // Bind this WeakMap to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your WeakMaps cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound WeakMap cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> WeakMap<'gc> {
-        unsafe { core::mem::transmute::<Self, WeakMap<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -66,6 +46,21 @@ impl WeakMap<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for WeakMap<'_> {
+    type Of<'a> = WeakMap<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

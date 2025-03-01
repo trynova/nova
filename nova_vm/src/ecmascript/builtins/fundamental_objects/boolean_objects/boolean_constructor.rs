@@ -21,6 +21,7 @@ use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 

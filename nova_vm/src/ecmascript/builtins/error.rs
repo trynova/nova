@@ -30,26 +30,6 @@ use crate::{
 pub struct Error<'a>(pub(crate) ErrorIndex<'a>);
 
 impl<'a> Error<'a> {
-    /// Unbind this Error from its current lifetime. This is necessary to use
-    /// the Error as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Error<'static> {
-        unsafe { core::mem::transmute::<Error<'a>, Error<'static>>(self) }
-    }
-
-    // Bind this Error to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Errors cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let error = error.bind(&gc);
-    // ```
-    // to make sure that the unbound Error cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { core::mem::transmute::<Error, Self>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -64,6 +44,21 @@ impl<'a> Error<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Error<'_> {
+    type Of<'a> = Error<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

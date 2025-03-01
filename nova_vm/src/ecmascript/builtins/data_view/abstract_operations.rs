@@ -13,7 +13,7 @@ use crate::{
     },
     engine::{
         TryResult,
-        context::{GcScope, NoGcScope},
+        context::{Bindable, GcScope, NoGcScope},
     },
 };
 

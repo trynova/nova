@@ -47,26 +47,6 @@ pub mod data;
 pub struct Proxy<'a>(pub(crate) ProxyIndex<'a>);
 
 impl Proxy<'_> {
-    /// Unbind this Proxy from its current lifetime. This is necessary to use
-    /// the Proxy as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Proxy<'static> {
-        unsafe { core::mem::transmute::<Self, Proxy<'static>>(self) }
-    }
-
-    // Bind this Proxy to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Proxys cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let proxy = proxy.bind(&gc);
-    // ```
-    // to make sure that the unbound Proxy cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Proxy<'gc> {
-        unsafe { core::mem::transmute::<Self, Proxy<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -81,6 +61,21 @@ impl Proxy<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Proxy<'_> {
+    type Of<'a> = Proxy<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

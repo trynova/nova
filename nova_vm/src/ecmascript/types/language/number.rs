@@ -38,32 +38,27 @@ use num_traits::{PrimInt, Zero};
 pub struct HeapNumber<'a>(pub(crate) NumberIndex<'a>);
 
 impl<'a> HeapNumber<'a> {
-    /// Unbind this HeapNumber from its current lifetime. This is necessary to use
-    /// the HeapNumber as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> HeapNumber<'static> {
-        unsafe { core::mem::transmute::<HeapNumber<'_>, HeapNumber<'static>>(self) }
-    }
-
-    // Bind this HeapNumber to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your HeapNumbers cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound HeapNumber cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapNumber<'gc> {
-        unsafe { core::mem::transmute::<HeapNumber<'a>, HeapNumber<'gc>>(self) }
-    }
-
     pub(crate) const fn _def() -> Self {
         HeapNumber(NumberIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapNumber<'_> {
+    type Of<'a> = HeapNumber<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -300,26 +295,6 @@ impl<'a> TryFrom<Numeric<'a>> for Number<'a> {
 }
 
 impl<'a> Number<'a> {
-    /// Unbind this Number from its current lifetime. This is necessary to use
-    /// the Number as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Number<'static> {
-        unsafe { core::mem::transmute::<Number<'_>, Number<'static>>(self) }
-    }
-
-    // Bind this Number to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Numbers cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound Number cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Number<'gc> {
-        unsafe { core::mem::transmute::<Number<'a>, Number<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -1381,6 +1356,21 @@ impl<'a> Number<'a> {
             Self::Integer(i) => i.into_i64() as f64,
             Self::SmallF64(f) => f.into_f64(),
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Number<'_> {
+    type Of<'a> = Number<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 

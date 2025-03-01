@@ -56,25 +56,18 @@ pub struct Reference<'a> {
     pub(crate) this_value: Option<Value<'a>>,
 }
 
-impl<'a> Reference<'a> {
-    /// Unbind this Reference from its current lifetime. This is necessary to use
-    /// the Reference as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Reference<'static> {
-        unsafe { core::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Reference<'_> {
+    type Of<'a> = Reference<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
-    // Bind this Reference to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your References cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound Reference cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Reference<'gc> {
-        unsafe { core::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -611,6 +604,21 @@ pub(crate) enum Base<'a> {
     Value(Value<'a>),
     Environment(EnvironmentIndex),
     Unresolvable,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Base<'_> {
+    type Of<'a> = Base<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 impl HeapMarkAndSweep for Reference<'static> {

@@ -42,26 +42,6 @@ use super::promise_objects::promise_abstract_operations::promise_reaction_record
 pub struct AsyncGenerator<'a>(pub(crate) AsyncGeneratorIndex<'a>);
 
 impl AsyncGenerator<'_> {
-    /// Unbind this AsyncGenerator from its current lifetime. This is necessary to use
-    /// the AsyncGenerator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> AsyncGenerator<'static> {
-        unsafe { core::mem::transmute::<AsyncGenerator, AsyncGenerator<'static>>(self) }
-    }
-
-    // Bind this AsyncGenerator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your AsyncGenerators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let gen = gen.bind(&gc);
-    // ```
-    // to make sure that the unbound AsyncGenerator cannot be used after binding.
-    pub const fn bind<'a>(self, _: NoGcScope<'a, '_>) -> AsyncGenerator<'a> {
-        unsafe { core::mem::transmute::<AsyncGenerator, AsyncGenerator<'a>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -319,6 +299,21 @@ impl AsyncGenerator<'_> {
             }
         };
         resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGenerator<'_> {
+    type Of<'a> = AsyncGenerator<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
