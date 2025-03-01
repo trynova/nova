@@ -122,7 +122,7 @@ impl BuiltinFunctionArgs<'static> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinFunction<'a>(pub(crate) BuiltinFunctionIndex<'a>);
 
-impl<'a> BuiltinFunction<'a> {
+impl BuiltinFunction<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

@@ -42,7 +42,7 @@ pub enum NumericRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl<'a> Numeric<'a> {
+impl Numeric<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

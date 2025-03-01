@@ -29,7 +29,7 @@ use crate::{
 #[repr(transparent)]
 pub struct Error<'a>(pub(crate) ErrorIndex<'a>);
 
-impl<'a> Error<'a> {
+impl Error<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

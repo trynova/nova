@@ -175,12 +175,12 @@ unsafe impl Bindable for VmIterator {
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+        self
     }
 
     #[inline(always)]
     fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+        self
     }
 }
 

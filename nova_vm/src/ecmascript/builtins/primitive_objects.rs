@@ -127,7 +127,7 @@ impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl<'a> PrimitiveObject<'a> {
+impl PrimitiveObject<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

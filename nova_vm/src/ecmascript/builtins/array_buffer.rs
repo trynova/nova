@@ -36,7 +36,7 @@ pub use data::*;
 #[repr(transparent)]
 pub struct ArrayBuffer<'a>(ArrayBufferIndex<'a>);
 
-impl<'a> ArrayBuffer<'a> {
+impl ArrayBuffer<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

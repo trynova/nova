@@ -154,7 +154,7 @@ impl<'a> IntoValue<'a> for Primitive<'a> {
     }
 }
 
-impl<'a> Primitive<'a> {
+impl Primitive<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,

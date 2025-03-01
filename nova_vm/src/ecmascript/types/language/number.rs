@@ -37,7 +37,7 @@ use num_traits::{PrimInt, Zero};
 #[repr(transparent)]
 pub struct HeapNumber<'a>(pub(crate) NumberIndex<'a>);
 
-impl<'a> HeapNumber<'a> {
+impl HeapNumber<'_> {
     pub(crate) const fn _def() -> Self {
         HeapNumber(NumberIndex::from_u32_index(0))
     }
