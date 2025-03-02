@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::IteratorRecord;
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_iterator_from_method;
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_abrupt_close_iterator;
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close;
@@ -13,6 +14,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::get;
 use crate::ecmascript::abstract_operations::operations_on_objects::get_method;
 use crate::ecmascript::abstract_operations::operations_on_objects::length_of_array_like;
 use crate::ecmascript::abstract_operations::operations_on_objects::set;
+use crate::ecmascript::abstract_operations::operations_on_objects::throw_not_callable;
 use crate::ecmascript::abstract_operations::operations_on_objects::try_create_data_property_or_throw;
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
 
@@ -311,15 +313,27 @@ impl ArrayConstructor {
             let a = a.scope(agent, gc.nogc());
 
             // c. Let iteratorRecord be ? GetIteratorFromMethod(items, usingIterator).
-            let mut iterator_record = get_iterator_from_method(
+            let Some(IteratorRecord {
+                iterator,
+                next_method,
+                ..
+            }) = get_iterator_from_method(
                 agent,
                 scoped_items.get(agent),
                 using_iterator.unbind(),
                 gc.reborrow(),
-            )?;
+            )?
+            .unbind()
+            .bind(gc.nogc())
+            else {
+                return Err(throw_not_callable(agent, gc.into_nogc()));
+            };
 
             // d. Let k be 0.
             let mut k = 0;
+
+            let next_method = next_method.scope(agent, gc.nogc());
+            let iterator = iterator.scope(agent, gc.nogc());
 
             // e. Repeat,
             loop {
@@ -333,7 +347,7 @@ impl ArrayConstructor {
                         gc.nogc(),
                     );
                     // 2. Return ? IteratorClose(iteratorRecord, error).
-                    return iterator_close(agent, &iterator_record, Err(error), gc.reborrow());
+                    return iterator_close(agent, iterator.get(agent), Err(error), gc.reborrow());
                 }
 
                 let sk = SmallInteger::from(k as u32);
@@ -344,8 +358,16 @@ impl ArrayConstructor {
                 let pk = PropertyKey::from(sk);
 
                 // iii. Let next be ? IteratorStepValue(iteratorRecord).
-                let Some(next) = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?
-                else {
+                let Some(next) = iterator_step_value(
+                    agent,
+                    IteratorRecord {
+                        iterator: iterator.get(agent),
+                        next_method: next_method.get(agent),
+                    },
+                    gc.reborrow(),
+                )?
+                .unbind()
+                .bind(gc.nogc()) else {
                     // iv. If next is done, then
                     // 1. Perform ? Set(A, "length", 𝔽(k), true).
                     set(
@@ -370,9 +392,15 @@ impl ArrayConstructor {
                         scoped_this_arg.get(agent),
                         Some(ArgumentsList(&[next.unbind(), fk])),
                         gc.reborrow(),
-                    );
+                    )
+                    .unbind()
+                    .bind(gc.nogc());
 
                     // 2. IfAbruptCloseIterator(mappedValue, iteratorRecord).
+                    let iterator_record = IteratorRecord {
+                        iterator: iterator.get(agent).bind(gc.nogc()),
+                        next_method: next_method.get(agent).bind(gc.nogc()),
+                    };
                     if_abrupt_close_iterator!(agent, mapped_value, iterator_record, gc)
                 } else {
                     // vi. Else,
@@ -389,6 +417,10 @@ impl ArrayConstructor {
                     gc.reborrow(),
                 );
 
+                let iterator_record = IteratorRecord {
+                    iterator: iterator.get(agent).bind(gc.nogc()),
+                    next_method: next_method.get(agent).bind(gc.nogc()),
+                };
                 // viii. IfAbruptCloseIterator(defineStatus, iteratorRecord).
                 if_abrupt_close_iterator!(agent, define_status, iterator_record, gc);
 

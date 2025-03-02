@@ -6,6 +6,8 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::IteratorRecord;
+use crate::ecmascript::abstract_operations::operations_on_objects::throw_not_callable;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
@@ -193,12 +195,30 @@ impl SetConstructor {
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record =
-            get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())?;
+        let Some(IteratorRecord {
+            iterator,
+            next_method,
+        }) = get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
+        };
+
+        let iterator = iterator.scope(agent, gc.nogc());
+        let next_method = next_method.scope(agent, gc.nogc());
+
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
+            let next = iterator_step_value(
+                agent,
+                IteratorRecord {
+                    iterator: iterator.get(agent),
+                    next_method: next_method.get(agent),
+                },
+                gc.reborrow(),
+            )?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(scoped_set.get(agent).into_value());
@@ -212,6 +232,10 @@ impl SetConstructor {
                 gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
+            let iterator_record = IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            };
             let _ = if_abrupt_close_iterator!(agent, status, iterator_record, gc);
         }
     }

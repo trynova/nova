@@ -6,15 +6,16 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
+                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close,
+                iterator_step_value,
             },
             operations_on_objects::{
                 create_array_from_list, create_array_from_scoped_list, define_property_or_throw,
                 enumerable_own_properties, enumerable_properties_kind, get, get_method,
                 group_by_property, has_own_property,
                 integrity::{Frozen, Sealed},
-                set, set_integrity_level, test_integrity_level, try_create_data_property,
-                try_define_property_or_throw, try_get,
+                set, set_integrity_level, test_integrity_level, throw_not_callable,
+                try_create_data_property, try_define_property_or_throw, try_get,
             },
             testing_and_comparison::{require_object_coercible, same_value},
             type_conversion::{to_object, to_property_key, to_property_key_simple},
@@ -1270,14 +1271,33 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     let target = target.scope(agent, gc.nogc());
     let iterable = iterable.scope(agent, gc.nogc());
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable.get(agent), false, gc.reborrow())?;
+    let Some(IteratorRecord {
+        iterator,
+        next_method,
+        ..
+    }) = get_iterator(agent, iterable.get(agent), false, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc())
+    else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let iterator = iterator.scope(agent, gc.nogc());
+    let next_method = next_method.scope(agent, gc.nogc());
 
     // 2. Repeat,
     let mut scoped_k = Value::Undefined.scope_static();
     let mut scoped_v = Value::Undefined.scope_static();
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
+        let next = iterator_step_value(
+            agent,
+            IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            },
+            gc.reborrow(),
+        )?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target.get(agent).bind(gc.into_nogc()));
@@ -1293,7 +1313,7 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             );
             let error = agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc());
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            iterator_close(agent, &iterator_record, Err(error), gc.reborrow())?;
+            iterator_close(agent, iterator.get(agent), Err(error), gc.reborrow())?;
             return Ok(target.get(agent).bind(gc.into_nogc()));
         };
         // SAFETY: scoped_next is its own Scoped value, not a clone from target
@@ -1302,12 +1322,20 @@ pub fn add_entries_from_iterable_from_entries<'a>(
         // d. Let k be Completion(Get(next, "0")).
         let k = get(agent, next.unbind(), 0.into(), gc.reborrow());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let k = if_abrupt_close_iterator!(agent, k, iterator_record, gc);
         // SAFETY: scoped_k is never shared.
         unsafe { scoped_k.replace(agent, k.unbind()) };
         // f. Let v be Completion(Get(next, "1")).
         let v = get(agent, scoped_next.get(agent), 1.into(), gc.reborrow());
         // g. IfAbruptCloseIterator(v, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let v = if_abrupt_close_iterator!(agent, v, iterator_record, gc);
         // SAFETY: scoped_v is never shared.
         unsafe { scoped_v.replace(agent, v.unbind()) };
@@ -1316,6 +1344,10 @@ pub fn add_entries_from_iterable_from_entries<'a>(
             // a. Let propertyKey be ? ToPropertyKey(key).
             let property_key = to_property_key(agent, scoped_k.get(agent), gc.reborrow());
             // i. IfAbruptCloseIterator(status, iteratorRecord).
+            let iterator_record = IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            };
             let property_key = if_abrupt_close_iterator!(agent, property_key, iterator_record, gc);
             // b. Perform ! CreateDataPropertyOrThrow(obj, propertyKey, value).
             unwrap_try(target.get(agent).try_define_own_property(

@@ -121,7 +121,12 @@ pub(super) fn execute_simple_array_binding(
     // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
     if !iterator_is_done {
         if let VmIterator::GenericIterator(iterator_record) = iterator {
-            iterator_close(agent, &iterator_record, Ok(Value::Undefined), gc.reborrow())?;
+            iterator_close(
+                agent,
+                iterator_record.iterator,
+                Ok(Value::Undefined),
+                gc.reborrow(),
+            )?;
         }
     }
 

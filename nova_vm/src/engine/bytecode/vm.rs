@@ -2370,7 +2370,7 @@ impl<'a> Vm {
                     with_vm_gc(
                         agent,
                         vm,
-                        |agent, gc| iterator_close(agent, &iterator_record, Ok(result), gc),
+                        |agent, gc| iterator_close(agent, iterator_record.iterator, Ok(result), gc),
                         gc,
                     )?;
                 }

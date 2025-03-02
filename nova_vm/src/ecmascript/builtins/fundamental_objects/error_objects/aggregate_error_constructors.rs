@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::operations_on_objects::create_array_from_scoped_list;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    create_array_from_scoped_list, throw_not_callable,
+};
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
@@ -84,8 +86,11 @@ impl AggregateErrorConstructor {
         heap_data.message = message;
         heap_data.cause = cause.map(|c| c.unbind());
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
-        let iterator_record = get_iterator(agent, errors.unbind(), false, gc.reborrow())?;
-        let errors_list = iterator_to_list(agent, &iterator_record, gc.reborrow())?;
+        let Some(iterator_record) = get_iterator(agent, errors.unbind(), false, gc.reborrow())?
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
+        };
+        let errors_list = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
         // 6. Perform ! DefinePropertyOrThrow(O, "errors", PropertyDescriptor {
         let property_descriptor = PropertyDescriptor {
             // [[Configurable]]: true,
