@@ -3890,7 +3890,7 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
         ));
     };
     // SAFETY: We're only ever called in a way that gives ownership of
-    // predicate to us. TODO: Make this fn unsafe.
+    // predicate to us.
     let predicate = unsafe { predicate.replace_self(agent, stack_predicate.unbind()) };
     // 4. For each integer k of indices, do
     fn check<'gc, T: 'static + Rootable + InternalMethods<'static>>(
@@ -3908,7 +3908,8 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
         // c. Let kValue be ? Get(O, Pk).
         let k_value = get(agent, o.get(agent), pk, gc.reborrow())?
             .unbind()
-            .scope(agent, gc.nogc());
+            .bind(gc.nogc());
+        let scoped_k_value = k_value.scope(agent, gc.nogc());
 
         // d. Let testResult be ? Call(predicate, thisArg, « kValue, 𝔽(k), O »).
         let test_result = call_function(
@@ -3916,6 +3917,7 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
             predicate.get(agent),
             this_arg.get(agent),
             Some(ArgumentsList(&[
+                k_value.unbind(),
                 Number::try_from(k).unwrap().into_value(),
                 o.get(agent).into_value(),
             ])),
@@ -3923,7 +3925,8 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
         )?;
         // e. If ToBoolean(testResult) is true, return the Record { [[Index]]: 𝔽(k), [[Value]]: kValue }.
         if to_boolean(agent, test_result) {
-            Ok(Some((k, k_value.get(agent))))
+            // SAFETY: scoped_k_value is never shared.
+            Ok(Some((k, unsafe { scoped_k_value.take(agent) })))
         } else {
             Ok(None)
         }
