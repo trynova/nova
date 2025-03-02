@@ -1618,13 +1618,29 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        use crate::ecmascript::abstract_operations::{
+            operations_on_iterator_objects::IteratorRecord,
+            operations_on_objects::throw_not_callable,
+        };
+
         let items = arguments.get(0);
 
         // 1. Perform ? RequireObjectCoercible(items).
         require_object_coercible(agent, items, gc.nogc())?;
 
         // 2. Let iteratorRecord be ? GetIterator(items, sync).
-        let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;
+        let Some(IteratorRecord {
+            iterator,
+            next_method,
+        }) = get_iterator(agent, items, false, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
+        };
+
+        let iterator = iterator.scope(agent, gc.nogc());
+        let next_method = next_method.scope(agent, gc.nogc());
 
         // 3. Let state be minus-zero.
         let mut state = -0.0f64;
@@ -1637,7 +1653,14 @@ impl MathObject {
         // 7. Repeat, while next is not done,
         // a. Set next to ? IteratorStepValue(iteratorRecord).
         // b. If next is not done, then
-        while let Some(next) = iterator_step_value(agent, &mut iterator_record, gc.reborrow())? {
+        while let Some(next) = iterator_step_value(
+            agent,
+            IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            },
+            gc.reborrow(),
+        )? {
             // i. Set count to count + 1.
             count += 1;
             // ii. If count ≥ 2**53, then
@@ -1650,7 +1673,7 @@ impl MathObject {
                     gc.nogc(),
                 );
                 // 2. Return ? IteratorClose(iteratorRecord, error).
-                return iterator_close(agent, &iterator_record, Err(error), gc);
+                return iterator_close(agent, iterator.get(agent), Err(error), gc);
             }
 
             // v. Let n be next.
@@ -1696,7 +1719,7 @@ impl MathObject {
                     gc.nogc(),
                 );
                 // 2. Return ? IteratorClose(iteratorRecord, error).
-                return iterator_close(agent, &iterator_record, Err(error), gc);
+                return iterator_close(agent, iterator.get(agent), Err(error), gc);
             }
         }
 
