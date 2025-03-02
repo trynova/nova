@@ -930,23 +930,33 @@ impl DataBlock {
     pub fn realloc(&mut self, new_byte_length: usize) {
         // Max byte length should be within safe integer length.
         debug_assert!(new_byte_length < 2usize.pow(53));
-        let ptr = self
-            .as_mut_ptr(0)
-            .expect("Tried to realloc a detached DataBlock");
-        let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
-        if new_byte_length == 0 {
-            // When resizing to zero, we just drop the data instead.
-            if let Some(ptr) = self.ptr {
-                unsafe { dealloc(ptr.as_ptr(), layout) };
+        let ptr = if self.ptr.is_none() {
+            // We have no existing allocation.
+            if new_byte_length == 0 {
+                // Resizing from zero to zero, no-op.
+                return;
             }
-            self.ptr = None;
-            self.byte_length = 0;
+            *self = Self::new(new_byte_length);
             return;
-        }
-        // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
-        // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
-        // size is non-zero, and cannot overflow isize (on a 64-bit machine).
-        let ptr = unsafe { realloc(ptr, layout, new_byte_length) };
+        } else {
+            let ptr = self
+                .as_mut_ptr(0)
+                .expect("Tried to realloc a detached DataBlock");
+            let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
+            if new_byte_length == 0 {
+                // When resizing to zero, we just drop the data instead.
+                if let Some(ptr) = self.ptr {
+                    unsafe { dealloc(ptr.as_ptr(), layout) };
+                }
+                self.ptr = None;
+                self.byte_length = 0;
+                return;
+            }
+            // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
+            // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
+            // size is non-zero, and cannot overflow isize (on a 64-bit machine).
+            unsafe { realloc(ptr, layout, new_byte_length) }
+        };
         self.ptr = NonNull::new(ptr);
         if new_byte_length > self.byte_length {
             // Need to zero out the new data.

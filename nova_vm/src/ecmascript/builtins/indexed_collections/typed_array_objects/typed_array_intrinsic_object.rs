@@ -964,9 +964,9 @@ impl TypedArrayPrototype {
         if from_index_is_undefined {
             assert_eq!(n.into_i64(), 0);
         }
-        // 7. If n = +∞, return false.
+        // 7. If n = +∞, return -1F.
         let n = if n.is_pos_infinity() {
-            return Ok(false.into());
+            return Ok((-1).into());
         } else if n.is_neg_infinity() {
             // 8. Else if n = -∞, set n to 0.
             0
@@ -980,9 +980,8 @@ impl TypedArrayPrototype {
         } else {
             // 10. Else,
             // a. Let k be len + n.
-            let k = len + n;
             // b. If k < 0, set k to 0.
-            if k < 0 { 0 } else { k }
+            (len + n).max(0)
         };
 
         let k = k as usize;
@@ -1780,17 +1779,23 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
-    let data_block = array_buffer.as_slice(agent);
-    if data_block.is_empty() {
+    let byte_slice = array_buffer.as_slice(agent);
+    if byte_slice.is_empty() {
         return Ok(None);
     }
-    if k >= data_block.len() {
+    if byte_offset > byte_slice.len() {
+        // Start index is out of bounds.
         return Ok(None);
     }
     let byte_slice = if let Some(byte_length) = byte_length {
-        &data_block[byte_offset..byte_offset + byte_length]
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            // End index is out of bounds.
+            return Ok(None);
+        }
+        &byte_slice[byte_offset..end_index]
     } else {
-        &data_block[byte_offset..]
+        &byte_slice[byte_offset..]
     };
     // SAFETY: All bytes in byte_slice are initialized, and all bitwise
     // combinations of T are valid values. Alignment of T's is
@@ -1803,6 +1808,10 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
             gc,
         ));
     }
+    // Length of the TypedArray may have changed between when we measured it
+    // and here: We'll never try to access past the boundary of the slice if
+    // the backing ArrayBuffer shrank.
+    let len = len.min(slice.len());
     if k >= len {
         return Ok(None);
     }
