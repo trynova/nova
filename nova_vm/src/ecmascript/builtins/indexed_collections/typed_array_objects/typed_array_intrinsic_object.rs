@@ -731,7 +731,7 @@ impl TypedArrayPrototype {
                 typed_array_length::<u64>(agent, &ta_record, gc.nogc())
             }
         } as i64;
-        let o = o.into_object().scope(agent, gc.nogc());
+        let o = o.scope(agent, gc.nogc());
         // 4. Let findRec be ? FindViaPredicate(O, len, ascending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, true, predicate, this_arg, gc)?;
         // 5. Return findRec.[[Value]].
