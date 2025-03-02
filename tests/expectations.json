@@ -1948,7 +1948,6 @@
   "built-ins/JSON/stringify/value-tojson-not-function.js": "FAIL",
   "built-ins/JSON/stringify/value-tojson-object-circular.js": "CRASH",
   "built-ins/JSON/stringify/value-tojson-result.js": "FAIL",
-  "built-ins/Map/groupBy/length.js": "FAIL",
   "built-ins/Map/groupBy/string.js": "CRASH",
   "built-ins/Map/proto-from-ctor-realm.js": "FAIL",
   "built-ins/Map/prototype/clear/context-is-weakmap-object-throws.js": "CRASH",
