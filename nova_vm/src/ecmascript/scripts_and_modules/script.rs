@@ -980,7 +980,25 @@ mod test {
         let source_text = String::from_static_str(&mut agent, "function foo() {}", gc.nogc());
         let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
         let result = script_evaluation(&mut agent, script, gc.reborrow()).unwrap();
-        assert!(result.is_function());
+        assert!(result.is_undefined());
+        let source_text =
+            String::from_static_str(&mut agent, "let i = 0; const a = 'foo'; i = 3;", gc.nogc());
+        let script = parse_script(&mut agent, source_text, realm, false, None, gc.nogc()).unwrap();
+        script_evaluation(&mut agent, script, gc.reborrow()).unwrap();
+
+        let global_env = agent.get_realm(realm).global_env.unwrap();
+        let foo_key = String::from_static_str(&mut agent, "foo", gc.nogc()).unbind();
+        assert!(
+            global_env
+                .has_binding(&mut agent, foo_key, gc.reborrow())
+                .unwrap()
+        );
+        assert!(
+            global_env
+                .get_binding_value(&mut agent, foo_key, true, gc.reborrow())
+                .unwrap()
+                .is_function(),
+        );
     }
 
     #[test]
