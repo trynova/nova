@@ -10,8 +10,9 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 use crate::ecmascript::abstract_operations::type_conversion::{
     try_to_integer_or_infinity, try_to_string,
 };
+use crate::ecmascript::types::InternalMethods;
 use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
+use crate::engine::rootable::{Rootable, Scopable};
 use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
     SmallInteger,
@@ -3871,9 +3872,9 @@ fn is_concat_spreadable(agent: &mut Agent, o: Value, mut gc: GcScope) -> JsResul
 /// the time that this operation visits them. Elements that are deleted after
 /// traversal begins and before being visited are still visited and are either
 /// looked up from the prototype or are undefined.
-fn find_via_predicate<'gc, 'scope>(
+pub(crate) fn find_via_predicate<'gc, 'scope, T: 'static + Rootable + InternalMethods<'static>>(
     agent: &mut Agent,
-    o: Scoped<'_, Object<'static>>,
+    o: Scoped<'_, T>,
     len: i64,
     ascending: bool,
     predicate: Scoped<'scope, Value<'static>>,
@@ -3892,9 +3893,9 @@ fn find_via_predicate<'gc, 'scope>(
     // predicate to us. TODO: Make this fn unsafe.
     let predicate = unsafe { predicate.replace_self(agent, stack_predicate.unbind()) };
     // 4. For each integer k of indices, do
-    fn check<'gc>(
+    fn check<'gc, T: 'static + Rootable + InternalMethods<'static>>(
         agent: &mut Agent,
-        o: Scoped<'_, Object<'static>>,
+        o: Scoped<'_, T>,
         predicate: Scoped<'_, Function<'static>>,
         this_arg: Scoped<'_, Value<'static>>,
         k: i64,
