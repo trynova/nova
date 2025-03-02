@@ -7,7 +7,8 @@
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call, call_function, get, get_method, try_get_method},
+            operations_on_objects::{call_function, get, get_method, try_get_method},
+            testing_and_comparison::is_callable,
             type_conversion::to_boolean,
         },
         builtins::{ArgumentsList, ordinary::ordinary_object_create_with_intrinsics},
@@ -33,9 +34,37 @@ use crate::{
 /// An Iterator Record is a Record value used to encapsulate an Iterator or
 /// AsyncIterator along with the next method.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct IteratorRecord {
-    pub(crate) iterator: Object<'static>,
-    pub(crate) next_method: Value<'static>,
+pub(crate) struct IteratorRecord<'a> {
+    pub(crate) iterator: Object<'a>,
+    pub(crate) next_method: Function<'a>,
+    // Note: The done field doesn't seem to be used anywhere.
+    // pub(crate) done: bool,
+}
+
+/// SAFETY: Properly implemented as recursive binding.
+unsafe impl Bindable for IteratorRecord<'_> {
+    type Of<'a> = IteratorRecord<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        Self::Of {
+            iterator: self.iterator.unbind(),
+            next_method: self.next_method.unbind(),
+            // done: self.done,
+        }
+    }
+
+    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        Self::Of {
+            iterator: self.iterator.bind(gc),
+            next_method: self.next_method.bind(gc),
+            // done: self.done,
+        }
+    }
+}
+
+pub(crate) struct ScopedIteratorRecord<'a> {
+    pub(crate) iterator: Object<'a>,
+    pub(crate) next_method: Value<'a>,
     pub(crate) done: bool,
 }
 
@@ -45,12 +74,15 @@ pub(crate) struct IteratorRecord {
 /// ECMAScript language value) and method (a function object) and returns
 /// either a normal completion containing an Iterator Record or a throw
 /// completion.
-pub(crate) fn get_iterator_from_method(
+///
+/// Note: Different from the spec, this method returns None if the iterator
+/// object's next method isn't callable.
+pub(crate) fn get_iterator_from_method<'a>(
     agent: &mut Agent,
     obj: Value,
     method: Function,
-    mut gc: GcScope,
-) -> JsResult<IteratorRecord> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Option<IteratorRecord<'a>>> {
     let obj = obj.bind(gc.nogc());
     let method = method.bind(gc.nogc());
     // 1. Let iterator be ? Call(method, obj).
@@ -74,15 +106,21 @@ pub(crate) fn get_iterator_from_method(
         iterator.unbind(),
         BUILTIN_STRING_MEMORY.next.into(),
         gc.reborrow(),
-    )?;
+    )?
+    .unbind();
+    let gc = gc.into_nogc();
+
+    let Some(next_method) = is_callable(next_method, gc) else {
+        return Ok(None);
+    };
 
     // 4. Let iteratorRecord be the Iterator Record { [[Iterator]]: iterator, [[NextMethod]]: nextMethod, [[Done]]: false }.
     // 5. Return iteratorRecord.
-    Ok(IteratorRecord {
-        iterator: scoped_iterator.get(agent).unbind(),
-        next_method: next_method.unbind(),
-        done: false,
-    })
+    Ok(Some(IteratorRecord {
+        iterator: scoped_iterator.get(agent).bind(gc),
+        next_method,
+        // done: false,
+    }))
 }
 
 /// ### [7.4.3 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
@@ -90,12 +128,12 @@ pub(crate) fn get_iterator_from_method(
 /// The abstract operation GetIterator takes arguments obj (an ECMAScript
 /// language value) and kind (sync or async) and returns either a normal
 /// completion containing an Iterator Record or a throw completion.
-pub(crate) fn get_iterator(
+pub(crate) fn get_iterator<'a>(
     agent: &mut Agent,
     obj: Value,
     is_async: bool,
-    mut gc: GcScope,
-) -> JsResult<IteratorRecord> {
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<Option<IteratorRecord<'a>>> {
     let obj = obj.bind(gc.nogc());
     let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. If kind is async, then
@@ -160,7 +198,7 @@ pub(crate) fn get_iterator(
     };
 
     // 4. Return ? GetIteratorFromMethod(obj, method).
-    get_iterator_from_method(agent, scoped_obj.get(agent), method.unbind(), gc.reborrow())
+    get_iterator_from_method(agent, scoped_obj.get(agent), method.unbind(), gc)
 }
 
 /// ### [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
@@ -171,7 +209,7 @@ pub(crate) fn get_iterator(
 /// completion.
 pub(crate) fn iterator_next<'a>(
     agent: &mut Agent,
-    iterator_record: &IteratorRecord,
+    iterator_record: IteratorRecord,
     // SAFETY: The value is immediately passed to Call and never used again:
     // We don't need to bind/unbind/worry about its lifetime.
     value: Option<Value<'static>>,
@@ -181,7 +219,7 @@ pub(crate) fn iterator_next<'a>(
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]]).
     // 2. Else,
     // a. Let result be ? Call(iteratorRecord.[[NextMethod]], iteratorRecord.[[Iterator]], « value »).
-    let result = call(
+    let result = call_function(
         agent,
         iterator_record.next_method,
         iterator_record.iterator.into(),
@@ -210,11 +248,7 @@ pub(crate) fn iterator_next<'a>(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-pub(crate) fn iterator_complete(
-    agent: &mut Agent,
-    iter_result: Object,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+fn iterator_complete(agent: &mut Agent, iter_result: Object, mut gc: GcScope) -> JsResult<bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(
         agent,
@@ -253,7 +287,7 @@ pub(crate) fn iterator_value<'a>(
 /// > where the false state is None. That way we can pass the Object as is.
 pub(crate) fn iterator_step<'a>(
     agent: &mut Agent,
-    iterator_record: &IteratorRecord,
+    iterator_record: IteratorRecord,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Option<Object<'a>>> {
     // 1. Let result be ? IteratorNext(iteratorRecord).
@@ -271,7 +305,10 @@ pub(crate) fn iterator_step<'a>(
     }
 
     // 4. Return result.
-    Ok(Some(scoped_result.get(agent).bind(gc.into_nogc())))
+    // SAFETY: scoped_result is never shared.
+    Ok(Some(unsafe {
+        scoped_result.take(agent).bind(gc.into_nogc())
+    }))
 }
 
 /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
@@ -284,7 +321,7 @@ pub(crate) fn iterator_step<'a>(
 /// a next value is available.
 pub(crate) fn iterator_step_value<'a>(
     agent: &mut Agent,
-    iterator_record: &mut IteratorRecord,
+    iterator_record: IteratorRecord,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Option<Value<'a>>> {
     // 1. Let result be Completion(IteratorNext(iteratorRecord)).
@@ -294,7 +331,6 @@ pub(crate) fn iterator_step_value<'a>(
     let result = match result {
         Err(err) => {
             // a. Set iteratorRecord.[[Done]] to true.
-            iterator_record.done = true;
 
             // b. Return ? result.
             return Err(err);
@@ -306,13 +342,13 @@ pub(crate) fn iterator_step_value<'a>(
 
     // 4. Let done be Completion(IteratorComplete(result)).
     let done = iterator_complete(agent, result.unbind(), gc.reborrow());
+    // SAFETY: scoped_result is never shared.
+    let result = unsafe { scoped_result.take(agent) }.bind(gc.nogc());
 
     // 5. If done is a throw completion, then
     let done = match done {
         Err(err) => {
             // a. Set iteratorRecord.[[Done]] to true.
-            iterator_record.done = true;
-
             // b. Return ? done.
             return Err(err);
         }
@@ -323,8 +359,6 @@ pub(crate) fn iterator_step_value<'a>(
     // 7. If done is true, then
     if done {
         // a. Set iteratorRecord.[[Done]] to true.
-        iterator_record.done = true;
-
         // b. Return done.
         return Ok(None);
     }
@@ -332,17 +366,13 @@ pub(crate) fn iterator_step_value<'a>(
     // 8. Let value be Completion(Get(result, "value")).
     let value = get(
         agent,
-        scoped_result.get(agent),
+        result.unbind(),
         BUILTIN_STRING_MEMORY.value.into(),
         gc,
     );
 
     // 9. If value is a throw completion, then
-    if value.is_err() {
-        // a. Set iteratorRecord.[[Done]] to true.
-        iterator_record.done = true;
-    }
-
+    // a. Set iteratorRecord.[[Done]] to true.
     // 10. Return ? value.
     value.map(Some)
 }
@@ -356,13 +386,12 @@ pub(crate) fn iterator_step_value<'a>(
 /// state.
 pub(crate) fn iterator_close<T>(
     agent: &mut Agent,
-    iterator_record: &IteratorRecord,
+    iterator: Object,
     completion: JsResult<T>,
     mut gc: GcScope,
 ) -> JsResult<T> {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
-    let iterator = iterator_record.iterator;
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
     let inner_result = get_method(
         agent,
@@ -407,13 +436,12 @@ pub(crate) fn iterator_close<T>(
 
 pub(crate) fn iterator_close_with_error(
     agent: &mut Agent,
-    iterator_record: &IteratorRecord,
+    iterator: Object,
     completion: JsError,
     mut gc: GcScope,
 ) -> JsError {
     // 1. Assert: iteratorRecord.[[Iterator]] is an Object.
     // 2. Let iterator be iteratorRecord.[[Iterator]].
-    let iterator = iterator_record.iterator;
     // 3. Let innerResult be Completion(GetMethod(iterator, "return")).
     let inner_result = get_method(
         agent,
@@ -495,7 +523,7 @@ macro_rules! if_abrupt_close_iterator {
             return Err(
                 crate::ecmascript::abstract_operations::operations_on_iterator_objects::iterator_close_with_error(
                     $agent,
-                    &$iterator_record,
+                    $iterator_record.iterator.unbind(),
                     err,
                     $gc
                 )
@@ -596,7 +624,7 @@ pub(crate) fn create_list_iterator_record<'a>(
 /// of ECMAScript language values or a throw completion.
 pub(crate) fn iterator_to_list<'b>(
     agent: &mut Agent,
-    iterator_record: &IteratorRecord,
+    iterator_record: IteratorRecord,
     mut gc: GcScope<'_, 'b>,
 ) -> JsResult<Vec<Scoped<'b, Value<'static>>>> {
     // 1. Let values be a new empty List.
@@ -621,12 +649,12 @@ pub(crate) fn iterator_to_list<'b>(
     Ok(values)
 }
 
-impl HeapMarkAndSweep for IteratorRecord {
+impl HeapMarkAndSweep for IteratorRecord<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             iterator,
             next_method,
-            done: _,
+            // done: _,
         } = self;
         iterator.mark_values(queues);
         next_method.mark_values(queues);
@@ -636,7 +664,7 @@ impl HeapMarkAndSweep for IteratorRecord {
         let Self {
             iterator,
             next_method,
-            done: _,
+            // done: _,
         } = self;
         iterator.sweep_values(compactions);
         next_method.sweep_values(compactions);

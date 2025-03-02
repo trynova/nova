@@ -5,7 +5,9 @@
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
     get_iterator_from_method, iterator_to_list,
 };
-use crate::ecmascript::abstract_operations::operations_on_objects::get_method;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    get_method, throw_not_callable,
+};
 use crate::ecmascript::abstract_operations::type_conversion::{to_index, try_to_index};
 use crate::ecmascript::builtins::ArrayBuffer;
 use crate::ecmascript::builtins::indexed_collections::typed_array_objects::abstract_operations::{
@@ -877,13 +879,16 @@ fn typed_array_constructor<'gc, T: Viewable>(
             // 3. If usingIterator is not undefined, then
             if let Some(using_iterator) = using_iterator {
                 // a. Let values be ? IteratorToList(? GetIteratorFromMethod(firstArgument, usingIterator)).
-                let iterator_record = &get_iterator_from_method(
+                let Some(iterator_record) = get_iterator_from_method(
                     agent,
                     scoped_first_argument.get(agent),
                     using_iterator.unbind(),
                     gc.reborrow(),
-                )?;
-                let values = iterator_to_list(agent, iterator_record, gc.reborrow())?;
+                )?
+                else {
+                    return Err(throw_not_callable(agent, gc.into_nogc()));
+                };
+                let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
                 // b. Perform ? InitializeTypedArrayFromList(O, values).
                 initialize_typed_array_from_list::<T>(
                     agent,

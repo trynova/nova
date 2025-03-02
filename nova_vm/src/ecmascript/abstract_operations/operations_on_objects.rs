@@ -7,7 +7,9 @@
 use ahash::AHashSet;
 
 use super::{
-    operations_on_iterator_objects::{get_iterator, if_abrupt_close_iterator, iterator_close},
+    operations_on_iterator_objects::{
+        IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close,
+    },
     testing_and_comparison::{is_callable, require_object_coercible, same_value},
     type_conversion::{
         to_length, to_object, to_property_key, to_property_key_simple, try_to_length,
@@ -23,7 +25,9 @@ use crate::{
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
-            RealmIdentifier, agent::ExceptionType, new_class_field_initializer_environment,
+            RealmIdentifier,
+            agent::{ExceptionType, JsError},
+            new_class_field_initializer_environment,
         },
         types::{
             BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoFunction, IntoObject, IntoValue,
@@ -665,11 +669,7 @@ pub(crate) fn call<'gc>(
     let arguments_list = arguments_list.unwrap_or_default();
     // 2. If IsCallable(F) is false, throw a TypeError exception.
     match is_callable(f, gc.nogc()) {
-        None => Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Not a callable object",
-            gc.into_nogc(),
-        )),
+        None => Err(throw_not_callable(agent, gc.into_nogc())),
         // 3. Return ? F.[[Call]](V, argumentsList).
         Some(f) => {
             let current_stack_size = agent.stack_refs.borrow().len();
@@ -678,6 +678,12 @@ pub(crate) fn call<'gc>(
             result
         }
     }
+}
+
+#[cold]
+#[inline(never)]
+pub(crate) fn throw_not_callable(agent: &mut Agent, gc: NoGcScope) -> JsError {
+    agent.throw_exception_with_static_message(ExceptionType::TypeError, "Not a callable object", gc)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2157,7 +2163,19 @@ pub(crate) fn group_by_property<'gc, 'scope>(
     let mut groups: Vec<GroupByRecord<'scope, PropertyKey<'static>>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
-    let mut iterator_record = get_iterator(agent, items.unbind(), false, gc.reborrow())?;
+    let Some(IteratorRecord {
+        iterator,
+        next_method,
+        ..
+    }) = get_iterator(agent, items.unbind(), false, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc())
+    else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let iterator = iterator.scope(agent, gc.nogc());
+    let next_method = next_method.scope(agent, gc.nogc());
 
     // 5. Let k be 0.
     let mut k = 0;
@@ -2175,11 +2193,18 @@ pub(crate) fn group_by_property<'gc, 'scope>(
             );
 
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error), gc);
+            return iterator_close(agent, iterator.get(agent), Err(error), gc);
         }
 
         // b. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
+        let next = iterator_step_value(
+            agent,
+            IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            },
+            gc.reborrow(),
+        )?;
 
         // c. If next is DONE, then
         //   i. Return groups.
@@ -2204,6 +2229,10 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         );
 
         // f. IfAbruptCloseIterator(key, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
         // g. If keyCoercion is property, then
@@ -2211,6 +2240,10 @@ pub(crate) fn group_by_property<'gc, 'scope>(
         let key = to_property_key(agent, key.unbind(), gc.reborrow()).map(|pk| pk.unbind());
 
         // ii. IfAbruptCloseIterator(key, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
         // i. Perform AddValueToKeyedGroup(groups, key, value).
@@ -2254,7 +2287,19 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
     let mut groups: Vec<GroupByRecord<'scope, Value<'static>>> = vec![];
 
     // 4. Let iteratorRecord be ? GetIterator(iterable).
-    let mut iterator_record = get_iterator(agent, items.unbind(), false, gc.reborrow())?;
+    let Some(IteratorRecord {
+        iterator,
+        next_method,
+        ..
+    }) = get_iterator(agent, items.unbind(), false, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc())
+    else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let iterator = iterator.scope(agent, gc.nogc());
+    let next_method = next_method.scope(agent, gc.nogc());
 
     // 5. Let k be 0.
     let mut k = 0;
@@ -2272,11 +2317,18 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
             );
 
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error), gc);
+            return iterator_close(agent, iterator.get(agent), Err(error), gc);
         }
 
         // b. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
+        let next = iterator_step_value(
+            agent,
+            IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            },
+            gc.reborrow(),
+        )?;
 
         // c. If next is DONE, then
         //   i. Return groups.
@@ -2299,9 +2351,14 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
             Some(ArgumentsList(&[value.unbind(), fk])),
             gc.reborrow(),
         )
-        .map(|key| key.unbind());
+        .unbind()
+        .bind(gc.nogc());
 
         // f. IfAbruptCloseIterator(key, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let key = if_abrupt_close_iterator!(agent, key, iterator_record, gc);
 
         // h. Else,

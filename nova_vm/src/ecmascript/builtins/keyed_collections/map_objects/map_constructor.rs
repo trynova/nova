@@ -10,11 +10,12 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{
-                get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
+                IteratorRecord, get_iterator, if_abrupt_close_iterator, iterator_close,
+                iterator_step_value,
             },
             operations_on_objects::{
                 call_function, create_array_from_scoped_list, get, get_method, group_by_collection,
-                try_get,
+                throw_not_callable, try_get,
             },
             testing_and_comparison::{is_callable, same_value},
         },
@@ -439,11 +440,31 @@ pub(crate) fn add_entries_from_iterable<'a>(
     let iterable = iterable.bind(nogc);
     let adder = adder.bind(nogc).scope(agent, nogc);
     // 1. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-    let mut iterator_record = get_iterator(agent, iterable.unbind(), false, gc.reborrow())?;
+    let Some(IteratorRecord {
+        iterator,
+        next_method,
+        ..
+    }) = get_iterator(agent, iterable.unbind(), false, gc.reborrow())?
+        .unbind()
+        .bind(gc.nogc())
+    else {
+        return Err(throw_not_callable(agent, gc.into_nogc()));
+    };
+
+    let iterator = iterator.scope(agent, gc.nogc());
+    let next_method = next_method.scope(agent, gc.nogc());
+
     // 2. Repeat,
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
-        let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
+        let next = iterator_step_value(
+            agent,
+            IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            },
+            gc.reborrow(),
+        )?;
         // b. If next is DONE, return target.
         let Some(next) = next else {
             return Ok(target.get(agent).bind(gc.into_nogc()));
@@ -457,17 +478,25 @@ pub(crate) fn add_entries_from_iterable<'a>(
                 gc.nogc(),
             );
             // ii. Return ? IteratorClose(iteratorRecord, error).
-            return iterator_close(agent, &iterator_record, Err(error), gc.reborrow());
+            return iterator_close(agent, iterator.get(agent), Err(error), gc.reborrow());
         };
         let next = next.unbind().bind(gc.nogc());
         let scoped_next = next.scope(agent, gc.nogc());
         // d. Let k be Completion(Get(next, "0")).
         let k = get(agent, next.unbind(), 0.into(), gc.reborrow());
         // e. IfAbruptCloseIterator(k, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let k = if_abrupt_close_iterator!(agent, k, iterator_record, gc).scope(agent, gc.nogc());
         // f. Let v be Completion(Get(next, "1")).
         let v = get(agent, scoped_next.get(agent), 1.into(), gc.reborrow());
         // g. IfAbruptCloseIterator(v, iteratorRecord).
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
         let v = if_abrupt_close_iterator!(agent, v, iterator_record, gc);
         // h. Let status be Completion(Call(adder, target, « k, v »)).
         let status = call_function(
@@ -477,6 +506,11 @@ pub(crate) fn add_entries_from_iterable<'a>(
             Some(ArgumentsList(&[k.get(agent), v.unbind()])),
             gc.reborrow(),
         );
+        let iterator_record = IteratorRecord {
+            iterator: iterator.get(agent),
+            next_method: next_method.get(agent),
+        };
+        // i. IfAbruptCloseIterator(status, iteratorRecord).
         let _ = if_abrupt_close_iterator!(agent, status, iterator_record, gc);
     }
 }

@@ -4,18 +4,20 @@
 
 use std::collections::VecDeque;
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_iterator_from_method;
-use crate::ecmascript::abstract_operations::operations_on_objects::{call, get, get_method};
-use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::ecmascript::types::IntoValue;
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::IteratorRecord,
+        abstract_operations::{
+            operations_on_iterator_objects::{IteratorRecord, get_iterator_from_method},
+            operations_on_objects::{call_function, get, get_method, throw_not_callable},
+            type_conversion::to_boolean,
+        },
         builtins::Array,
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, InternalMethods, Object, PropertyKey, Value},
+        types::{BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyKey, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -24,9 +26,11 @@ use super::executable::SendableRef;
 
 #[derive(Debug)]
 pub(super) enum VmIterator {
+    /// Special type for iterators that do not have a callable next method.
+    InvalidIterator,
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
-    GenericIterator(IteratorRecord),
+    GenericIterator(IteratorRecord<'static>),
     SliceIterator(SendableRef<[Value<'static>]>),
 }
 
@@ -43,6 +47,7 @@ impl VmIterator {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Option<Value<'gc>>> {
         match self {
+            VmIterator::InvalidIterator => Err(throw_not_callable(agent, gc.into_nogc())),
             VmIterator::ObjectProperties(iter) => {
                 let result = iter.next(agent, gc.reborrow())?;
                 if let Some(result) = result {
@@ -63,7 +68,7 @@ impl VmIterator {
             }
             VmIterator::ArrayValues(iter) => iter.next(agent, gc),
             VmIterator::GenericIterator(iter) => {
-                let result = call(
+                let result = call_function(
                     agent,
                     iter.next_method,
                     iter.iterator.into_value(),
@@ -115,6 +120,7 @@ impl VmIterator {
 
     pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
         match self {
+            VmIterator::InvalidIterator => None,
             VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
             VmIterator::ArrayValues(iter) => {
                 Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
@@ -163,8 +169,13 @@ impl VmIterator {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, value, method.unbind(), gc)?;
-                Ok(VmIterator::GenericIterator(js_iterator))
+                if let Some(js_iterator) =
+                    get_iterator_from_method(agent, value, method.unbind(), gc)?
+                {
+                    Ok(VmIterator::GenericIterator(js_iterator.unbind()))
+                } else {
+                    Ok(VmIterator::InvalidIterator)
+                }
             }
         }
     }
@@ -343,6 +354,7 @@ impl HeapMarkAndSweep for ArrayValuesIterator {
 impl HeapMarkAndSweep for VmIterator {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
+            VmIterator::InvalidIterator => {}
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),
             VmIterator::GenericIterator(iter) => iter.mark_values(queues),
@@ -352,6 +364,7 @@ impl HeapMarkAndSweep for VmIterator {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
+            VmIterator::InvalidIterator => {}
             VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),
