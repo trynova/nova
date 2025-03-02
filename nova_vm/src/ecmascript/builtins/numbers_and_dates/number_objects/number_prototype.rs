@@ -4,6 +4,7 @@
 
 use crate::ecmascript::builtins::Behaviour;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     SmallInteger,
     ecmascript::{

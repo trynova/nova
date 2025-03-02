@@ -10,7 +10,7 @@ pub(crate) use data::ErrorHeapData;
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult, unwrap_try};
+use crate::engine::{TryResult, unwrap_try};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
@@ -30,14 +30,6 @@ use crate::{
 pub struct Error<'a>(pub(crate) ErrorIndex<'a>);
 
 impl Error<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Error<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(ErrorIndex::from_u32_index(0))
     }

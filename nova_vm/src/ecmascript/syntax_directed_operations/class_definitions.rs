@@ -16,6 +16,7 @@ use crate::{
     },
     engine::{
         context::{Bindable, GcScope},
+        rootable::Scopable,
         unwrap_try,
     },
 };

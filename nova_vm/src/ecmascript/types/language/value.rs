@@ -366,14 +366,6 @@ pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
 impl<'a> Value<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Value<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     /// Scope a stack-only Value. Stack-only Values are primitives that do not
     /// need to store any data on the heap, hence scoping them is effectively a
     /// no-op. These Values are also not concerned with the garbage collector.

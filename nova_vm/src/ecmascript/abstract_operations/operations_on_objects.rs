@@ -30,7 +30,7 @@ use crate::{
             Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
-    engine::{Vm, instanceof_operator},
+    engine::{Vm, instanceof_operator, rootable::Scopable},
     heap::{Heap, ObjectEntry},
 };
 use crate::{
@@ -1321,8 +1321,8 @@ pub(crate) fn is_prototype_of_loop(
         let proto = v
             .unbind()
             .internal_get_prototype_of(agent, gc.reborrow())?
-            .map(|f| f.unbind())
-            .map(|f| f.bind(gc.nogc()));
+            .unbind()
+            .bind(gc.nogc());
         if let Some(proto) = proto {
             v = proto;
             if o.get(agent) == v {

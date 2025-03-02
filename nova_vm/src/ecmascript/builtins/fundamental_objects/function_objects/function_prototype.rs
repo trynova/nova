@@ -8,6 +8,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::{
 use crate::ecmascript::abstract_operations::type_conversion::to_integer_or_infinity_number;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{

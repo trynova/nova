@@ -254,14 +254,6 @@ impl IntoPrimitive<'static> for SmallString {
 impl<'a> String<'a> {
     pub const EMPTY_STRING: String<'static> = String::from_small_string("");
 
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, String<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     /// Scope a stack-only String. Stack-only Strings do not need to store any
     /// data on the heap, hence scoping them is effectively a no-op. These
     /// Strings are also not concerned with the garbage collector.
@@ -615,13 +607,13 @@ impl HeapMarkAndSweep for HeapString<'static> {
     }
 }
 
-impl Rootable for String<'static> {
+impl Rootable for String<'_> {
     type RootRepr = StringRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
             Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
         }
     }

@@ -11,7 +11,6 @@ pub use data::SymbolHeapData;
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -40,14 +39,6 @@ enum SymbolRootReprInner {
 pub struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Symbol<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(SymbolIndex::from_u32_index(0))
     }

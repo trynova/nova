@@ -4,6 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_objects::{try_get, try_has_property};
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{

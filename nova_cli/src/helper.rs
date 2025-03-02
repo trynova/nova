@@ -11,7 +11,10 @@ use nova_vm::{
             String, Value,
         },
     },
-    engine::context::{Bindable, GcScope},
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
 };
 use oxc_diagnostics::OxcDiagnostic;
 

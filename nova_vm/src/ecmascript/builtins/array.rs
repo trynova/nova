@@ -725,11 +725,11 @@ impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl Rootable for Array<'static> {
+impl Rootable for Array<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Array(value))
+        Err(HeapRootData::Array(value.unbind()))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {

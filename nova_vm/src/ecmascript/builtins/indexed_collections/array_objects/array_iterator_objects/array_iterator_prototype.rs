@@ -27,7 +27,10 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Object, String, Value},
     },
-    engine::context::{Bindable, GcScope},
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
     heap::WellKnownSymbolIndexes,
 };
 

@@ -4,7 +4,6 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::engine::Scoped;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::{
@@ -31,14 +30,6 @@ pub mod data;
 pub struct Promise<'a>(pub(crate) PromiseIndex<'a>);
 
 impl<'a> Promise<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Promise<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

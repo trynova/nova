@@ -248,11 +248,11 @@ impl<'a> InternalSlots<'a> for ArrayBuffer<'a> {
 
 impl<'a> InternalMethods<'a> for ArrayBuffer<'a> {}
 
-impl Rootable for ArrayBuffer<'static> {
+impl Rootable for ArrayBuffer<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::ArrayBuffer(value))
+        Err(HeapRootData::ArrayBuffer(value.unbind()))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {

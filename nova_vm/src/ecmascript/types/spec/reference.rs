@@ -6,6 +6,7 @@ use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
 use crate::ecmascript::types::IntoValue;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},

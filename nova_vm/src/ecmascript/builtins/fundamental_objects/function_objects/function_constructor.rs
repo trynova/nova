@@ -23,7 +23,10 @@ use crate::{
             Value,
         },
     },
-    engine::context::{Bindable, GcScope},
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
     heap::IntrinsicConstructorIndexes,
 };
 

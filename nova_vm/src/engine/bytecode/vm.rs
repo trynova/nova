@@ -65,6 +65,7 @@ use crate::{
             iterator::{ObjectPropertiesIterator, VmIterator},
         },
         context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
         unwrap_try,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},

@@ -11,6 +11,7 @@ use crate::ecmascript::builtins::proxy::abstract_operations::{
 use crate::ecmascript::types::{InternalSlots, Numeric, Primitive, PropertyKey};
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::WellKnownSymbolIndexes;
 use crate::{
     ecmascript::{

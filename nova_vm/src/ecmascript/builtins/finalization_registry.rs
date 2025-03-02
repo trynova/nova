@@ -12,7 +12,6 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
@@ -31,14 +30,6 @@ pub mod data;
 pub struct FinalizationRegistry<'a>(pub(crate) FinalizationRegistryIndex<'a>);
 
 impl FinalizationRegistry<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, FinalizationRegistry<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

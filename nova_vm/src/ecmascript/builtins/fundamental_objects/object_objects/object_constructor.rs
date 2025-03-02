@@ -33,6 +33,7 @@ use crate::{
     engine::{
         Scoped, TryResult,
         context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
         unwrap_try,
     },
     heap::{IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},

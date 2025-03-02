@@ -17,6 +17,7 @@ use crate::{
             put_value, resolve_binding, to_object, try_create_data_property_or_throw,
         },
         context::{Bindable, GcScope},
+        rootable::Scopable,
         unwrap_try,
     },
 };

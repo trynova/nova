@@ -6,7 +6,7 @@ use core::ops::{Index, IndexMut};
 
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult, unwrap_try};
+use crate::engine::{TryResult, unwrap_try};
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -128,14 +128,6 @@ impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
 }
 
 impl PrimitiveObject<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, PrimitiveObject<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         PrimitiveObject(PrimitiveObjectIndex::from_u32_index(0))
     }
@@ -669,11 +661,11 @@ impl PrimitiveObjectHeapData {
     }
 }
 
-impl Rootable for PrimitiveObject<'static> {
+impl Rootable for PrimitiveObject<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PrimitiveObject(value))
+        Err(HeapRootData::PrimitiveObject(value.unbind()))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {

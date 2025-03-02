@@ -577,6 +577,7 @@ pub(crate) fn global_declaration_instantiation(
 mod test {
     use crate::ecmascript::builtins::Array;
     use crate::engine::context::{Bindable, GcScope};
+    use crate::engine::rootable::Scopable;
     use crate::engine::unwrap_try;
     use crate::{
         SmallInteger,

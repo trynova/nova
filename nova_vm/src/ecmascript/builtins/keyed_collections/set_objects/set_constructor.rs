@@ -7,6 +7,7 @@ use core::hash::Hasher;
 use ahash::AHasher;
 
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{

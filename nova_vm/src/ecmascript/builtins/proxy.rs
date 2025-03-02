@@ -27,9 +27,9 @@ use crate::{
         },
     },
     engine::{
-        Scoped, TryResult,
+        TryResult,
         context::{Bindable, GcScope, NoGcScope},
-        rootable::HeapRootData,
+        rootable::{HeapRootData, Scopable},
     },
     heap::{
         CreateHeapData, Heap, HeapMarkAndSweep,
@@ -47,14 +47,6 @@ pub mod data;
 pub struct Proxy<'a>(pub(crate) ProxyIndex<'a>);
 
 impl Proxy<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Proxy<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }

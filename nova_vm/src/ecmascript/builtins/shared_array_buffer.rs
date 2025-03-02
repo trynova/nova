@@ -12,7 +12,6 @@ use crate::{
         },
     },
     engine::{
-        Scoped,
         context::{Bindable, NoGcScope},
         rootable::HeapRootData,
     },
@@ -31,14 +30,6 @@ pub mod data;
 pub struct SharedArrayBuffer<'a>(pub(crate) SharedArrayBufferIndex<'a>);
 
 impl SharedArrayBuffer<'_> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, SharedArrayBuffer<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0))
     }

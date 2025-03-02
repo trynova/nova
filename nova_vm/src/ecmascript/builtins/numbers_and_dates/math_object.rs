@@ -12,7 +12,10 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, String, Value},
     },
-    engine::context::{Bindable, GcScope, NoGcScope},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
     heap::WellKnownSymbolIndexes,
 };
 

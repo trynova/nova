@@ -62,7 +62,7 @@ use crate::ecmascript::{
 #[cfg(feature = "array-buffer")]
 use crate::{
     ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray},
-    engine::{Scoped, context::NoGcScope},
+    engine::context::NoGcScope,
     heap::indexes::TypedArrayIndex,
 };
 use crate::{
@@ -391,14 +391,6 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
 }
 
 impl<'a> OrdinaryObject<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, OrdinaryObject<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(ObjectIndex::from_u32_index(0))
     }
@@ -604,14 +596,6 @@ impl<'a> TryFrom<Value<'a>> for Object<'a> {
 }
 
 impl<'a> Object<'a> {
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Object<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub fn property_storage(self) -> PropertyStorage<'a> {
         PropertyStorage::new(self)
     }
@@ -3789,7 +3773,7 @@ impl CreateHeapData<ObjectHeapData, OrdinaryObject<'static>> for Heap {
     }
 }
 
-impl TryFrom<HeapRootData> for OrdinaryObject<'static> {
+impl TryFrom<HeapRootData> for OrdinaryObject<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, ()> {

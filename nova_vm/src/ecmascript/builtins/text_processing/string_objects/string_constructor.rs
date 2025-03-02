@@ -30,6 +30,7 @@ use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::IntrinsicConstructorIndexes;
 
 pub struct StringConstructor;

@@ -4,10 +4,6 @@
 
 use core::ops::{Index, IndexMut};
 
-use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult, unwrap_try};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -21,8 +17,15 @@ use crate::{
             PropertyDescriptor, PropertyKey, String, Value, function_create_backing_object,
             function_internal_define_own_property, function_internal_delete, function_internal_get,
             function_internal_get_own_property, function_internal_has_property,
-            function_internal_own_property_keys, function_internal_set,
+            function_internal_own_property_keys, function_internal_set, function_try_get,
+            function_try_has_property, function_try_set,
         },
+    },
+    engine::{
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        unwrap_try,
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,

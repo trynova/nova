@@ -31,6 +31,7 @@ use crate::ecmascript::types::Primitive;
 use crate::ecmascript::types::{String, Value};
 use crate::engine::context::NoGcScope;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 
