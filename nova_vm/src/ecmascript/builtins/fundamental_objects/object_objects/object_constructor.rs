@@ -85,7 +85,7 @@ struct ObjectDefineProperty;
 impl Builtin for ObjectDefineProperty {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.defineProperty;
 
-    const LENGTH: u8 = 2;
+    const LENGTH: u8 = 3;
 
     const BEHAVIOUR: Behaviour = Behaviour::Regular(ObjectConstructor::define_property);
 }
