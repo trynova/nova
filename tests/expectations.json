@@ -9782,7 +9782,6 @@
   "built-ins/TypedArray/prototype/forEach/resizable-buffer.js": "CRASH",
   "built-ins/TypedArray/prototype/includes/resizable-buffer.js": "CRASH",
   "built-ins/TypedArray/prototype/indexOf/BigInt/fromIndex-infinity.js": "CRASH",
-  "built-ins/TypedArray/prototype/indexOf/coerced-searchelement-fromindex-grow.js": "FAIL",
   "built-ins/TypedArray/prototype/indexOf/coerced-searchelement-fromindex-shrink.js": "CRASH",
   "built-ins/TypedArray/prototype/indexOf/fromIndex-infinity.js": "CRASH",
   "built-ins/TypedArray/prototype/indexOf/resizable-buffer.js": "CRASH",
