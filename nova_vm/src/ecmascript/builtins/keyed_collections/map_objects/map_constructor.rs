@@ -6,17 +6,17 @@ use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::if_abrupt_close_iterator;
-use crate::ecmascript::abstract_operations::operations_on_objects::try_get;
-use crate::engine::TryResult;
-use crate::engine::context::{Bindable, GcScope};
-use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
-            operations_on_iterator_objects::{get_iterator, iterator_close, iterator_step_value},
-            operations_on_objects::{call_function, get, get_method},
-            testing_and_comparison::is_callable,
+            operations_on_iterator_objects::{
+                get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
+            },
+            operations_on_objects::{
+                call_function, create_array_from_scoped_list, get, get_method, group_by_collection,
+                try_get,
+            },
+            testing_and_comparison::{is_callable, same_value},
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
@@ -25,7 +25,10 @@ use crate::{
             keyed_collections::map_objects::map_prototype::{
                 MapPrototypeSet, canonicalize_keyed_collection_key,
             },
-            map::{Map, data::MapData},
+            map::{
+                Map,
+                data::{MapData, MapHeapData},
+            },
             ordinary::ordinary_create_from_constructor,
         },
         execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
@@ -34,7 +37,14 @@ use crate::{
             PropertyKey, String, Value,
         },
     },
-    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::{
+        CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes,
+    },
 };
 
 pub(crate) struct MapConstructor;
@@ -51,7 +61,7 @@ impl BuiltinIntrinsicConstructor for MapConstructor {
 struct MapGroupBy;
 impl Builtin for MapGroupBy {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::group_by);
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.groupBy;
 }
 struct MapGetSpecies;
@@ -156,13 +166,84 @@ impl MapConstructor {
         .map(|result| result.into_value())
     }
 
+    /// ### [24.1.2.1 Map.groupBy ( items, callback )](https://tc39.es/ecma262/multipage/keyed-collections.html#sec-map.groupby)
     fn group_by<'gc>(
-        _agent: &mut Agent,
+        agent: &mut Agent,
         _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let items = arguments.get(0).bind(gc.nogc());
+        let callback_fn = arguments.get(1).bind(gc.nogc());
+        // 1. Let groups be ? GroupBy(items, callback, collection).
+        let groups =
+            group_by_collection(agent, items.unbind(), callback_fn.unbind(), gc.reborrow())?;
+        // 2. Let map be ! Construct(%Map%).
+        let gc = gc.into_nogc();
+        let map_data = MapHeapData::with_capacity(groups.len());
+        let map = agent.heap.create(map_data).bind(gc);
+
+        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
+        let keys_and_elements = groups
+            .into_iter()
+            .map(|g| {
+                let key = g.key.get(agent); // Get the key BEFORE mutable borrow
+                // a. Let elements be CreateArrayFromList(g.[[Elements]]).
+                let elements = create_array_from_scoped_list(agent, g.elements, gc);
+                (key, elements)
+            })
+            .collect::<Vec<_>>();
+
+        let Heap {
+            maps,
+            bigints,
+            numbers,
+            strings,
+            ..
+        } = &mut agent.heap;
+        let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
+
+        let map_entry = &mut maps[map];
+        let MapData {
+            keys,
+            values,
+            map_data,
+            ..
+        } = &mut map_entry.borrow_mut(&primitive_heap);
+        let map_data = map_data.get_mut();
+        let hasher = |value: Value| {
+            let mut hasher = AHasher::default();
+            value.hash(&primitive_heap, &mut hasher);
+            hasher.finish()
+        };
+
+        for (key, elements) in keys_and_elements {
+            let key_hash = hasher(key);
+            let entry = map_data.entry(
+                key_hash,
+                |hash_equal_index| {
+                    let found_key = keys[*hash_equal_index as usize].unwrap();
+                    found_key == key || same_value(&primitive_heap, found_key, key)
+                },
+                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
+            );
+            match entry {
+                hashbrown::hash_table::Entry::Occupied(occupied) => {
+                    let index = *occupied.get();
+                    values[index as usize] = Some(elements.into_value().unbind());
+                }
+                hashbrown::hash_table::Entry::Vacant(vacant) => {
+                    // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
+                    // c. Append entry to map.[[MapData]].
+                    let index = u32::try_from(values.len()).unwrap();
+                    vacant.insert(index);
+                    keys.push(Some(key.unbind()));
+                    values.push(Some(elements.into_value().unbind()));
+                }
+            }
+        }
+        // 4. Return map
+        Ok(map.into_value())
     }
 
     fn get_species<'gc>(

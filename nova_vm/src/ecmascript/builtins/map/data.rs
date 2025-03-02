@@ -85,6 +85,18 @@ impl MapHeapData {
         self.map_data.rehash_if_needed_mut(arena);
         &mut self.map_data
     }
+
+    pub fn with_capacity(new_len: usize) -> Self {
+        Self {
+            map_data: MapData {
+                keys: Vec::with_capacity(new_len),
+                values: Vec::with_capacity(new_len),
+                map_data: RefCell::new(HashTable::with_capacity(new_len)),
+                needs_primitive_rehashing: AtomicBool::new(false),
+            },
+            object_index: None,
+        }
+    }
 }
 
 impl MapData {
