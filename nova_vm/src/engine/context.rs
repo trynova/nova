@@ -193,7 +193,7 @@ impl<'a, 'b> NoGcScope<'a, 'b> {
 /// ```rust,compile_fail
 /// let result = unsafe { core::mem::transmute::<Value<'a>, Value<'b>(value) };
 /// ```
-pub unsafe trait Bindable: Sized + core::fmt::Debug {
+pub unsafe trait Bindable: Sized {
     /// Bound representation of self. This must always be effectively equal to
     /// `Self<'a>`. Note that we cannot write `Self<'a>` directly because
     /// `Self` cannot have lifetime parameters attached to it.
@@ -224,7 +224,7 @@ pub unsafe trait Bindable: Sized + core::fmt::Debug {
     ///   }
     /// }
     /// ```
-    type Of<'a>: core::fmt::Debug;
+    type Of<'a>;
 
     /// Unbind this value from the garbage collector lifetime. This is
     /// necessary for eg. when using the value as a parameter in a call that
