@@ -248,11 +248,7 @@ pub(crate) fn iterator_next<'a>(
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
 /// throw completion.
-pub(crate) fn iterator_complete(
-    agent: &mut Agent,
-    iter_result: Object,
-    mut gc: GcScope,
-) -> JsResult<bool> {
+fn iterator_complete(agent: &mut Agent, iter_result: Object, mut gc: GcScope) -> JsResult<bool> {
     // 1. Return ToBoolean(? Get(iterResult, "done")).
     let done = get(
         agent,
@@ -309,7 +305,10 @@ pub(crate) fn iterator_step<'a>(
     }
 
     // 4. Return result.
-    Ok(Some(scoped_result.get(agent).bind(gc.into_nogc())))
+    // SAFETY: scoped_result is never shared.
+    Ok(Some(unsafe {
+        scoped_result.take(agent).bind(gc.into_nogc())
+    }))
 }
 
 /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
@@ -343,6 +342,8 @@ pub(crate) fn iterator_step_value<'a>(
 
     // 4. Let done be Completion(IteratorComplete(result)).
     let done = iterator_complete(agent, result.unbind(), gc.reborrow());
+    // SAFETY: scoped_result is never shared.
+    let result = unsafe { scoped_result.take(agent) }.bind(gc.nogc());
 
     // 5. If done is a throw completion, then
     let done = match done {
@@ -365,7 +366,7 @@ pub(crate) fn iterator_step_value<'a>(
     // 8. Let value be Completion(Get(result, "value")).
     let value = get(
         agent,
-        scoped_result.get(agent),
+        result.unbind(),
         BUILTIN_STRING_MEMORY.value.into(),
         gc,
     );
