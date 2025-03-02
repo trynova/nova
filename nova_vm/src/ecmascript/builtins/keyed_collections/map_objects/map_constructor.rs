@@ -13,7 +13,7 @@ use crate::{
                 get_iterator, if_abrupt_close_iterator, iterator_close, iterator_step_value,
             },
             operations_on_objects::{
-                call_function, create_array_from_scoped_list, get, get_method, group_by_property,
+                call_function, create_array_from_scoped_list, get, get_method, group_by_collection,
                 try_get,
             },
             testing_and_comparison::{is_callable, same_value},
@@ -43,8 +43,7 @@ use crate::{
         rootable::Scopable,
     },
     heap::{
-        CreateHeapData, Heap, IntrinsicConstructorIndexes, ObjectEntry, PrimitiveHeap,
-        WellKnownSymbolIndexes,
+        CreateHeapData, Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes,
     },
 };
 
@@ -62,7 +61,7 @@ impl BuiltinIntrinsicConstructor for MapConstructor {
 struct MapGroupBy;
 impl Builtin for MapGroupBy {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(MapConstructor::group_by);
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 2;
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.groupBy;
 }
 struct MapGetSpecies;
@@ -174,24 +173,26 @@ impl MapConstructor {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let items = arguments.get(0);
-        let callback_fn = arguments.get(1);
+        let items = arguments.get(0).bind(gc.nogc());
+        let callback_fn = arguments.get(1).bind(gc.nogc());
         // 1. Let groups be ? GroupBy(items, callback, collection).
-        let groups = group_by_property(agent, items, callback_fn, gc.reborrow())?;
-        // 2. Let map be ! Construct(%Map%).
+        let groups =
+            group_by_collection(agent, items.unbind(), callback_fn.unbind(), gc.reborrow())?;
+        // 2. Let map be ! Construct(%Map%).
         let gc = gc.into_nogc();
         let map_data = MapHeapData::with_capacity(groups.len());
         let map = agent.heap.create(map_data).bind(gc);
 
-        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
-        let mut keys_and_elements = Vec::with_capacity(groups.len());
-        for g in groups {
-            let key = g.key.get(agent); // Get the key BEFORE mutable borrow
-            let key = key.convert_to_value(agent, gc);
-            // a. Let elements be CreateArrayFromList(g.[[Elements]]).
-            let elements = create_array_from_scoped_list(agent, g.elements, gc);
-            keys_and_elements.push((key, elements));
-        }
+        // 3. For each Record { [[Key]], [[Elements]] } g of groups, do
+        let keys_and_elements = groups
+            .into_iter()
+            .map(|g| {
+                let key = g.key.get(agent); // Get the key BEFORE mutable borrow
+                // a. Let elements be CreateArrayFromList(g.[[Elements]]).
+                let elements = create_array_from_scoped_list(agent, g.elements, gc);
+                (key, elements)
+            })
+            .collect::<Vec<_>>();
 
         let Heap {
             maps,
@@ -232,7 +233,7 @@ impl MapConstructor {
                     values[index as usize] = Some(elements.into_value().unbind());
                 }
                 hashbrown::hash_table::Entry::Vacant(vacant) => {
-                    // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
+                    // b. Let entry be the Record { [[Key]]: g.[[Key]], [[Value]]: elements }.
                     // c. Append entry to map.[[MapData]].
                     let index = u32::try_from(values.len()).unwrap();
                     vacant.insert(index);
