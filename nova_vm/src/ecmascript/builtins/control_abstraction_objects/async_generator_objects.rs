@@ -366,7 +366,7 @@ impl<'a> TryFrom<Object<'a>> for AsyncGenerator<'a> {
 }
 
 impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
-    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::AsyncGeneratorFunction;
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::AsyncGenerator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
