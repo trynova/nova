@@ -133,7 +133,7 @@ fn async_generator_complete_step(
     assert!(!generator.queue_is_empty(agent));
     // 2. Let next be the first element of generator.[[AsyncGeneratorQueue]].
     // 3. Remove the first element from generator.[[AsyncGeneratorQueue]].
-    let next = generator.pop_first(agent);
+    let next = generator.pop_first(agent, gc);
     // 4. Let promiseCapability be next.[[Capability]].
     let promise_capability = next.capability;
     // 5. Let value be completion.[[Value]].
@@ -407,11 +407,17 @@ pub(super) fn async_generator_yield(
     if !generator.get(agent).queue_is_empty(agent) {
         // a. NOTE: Execution continues without suspending the generator.
         // b. Let toYield be the first element of queue.
-        let to_yield = generator.get(agent).peek_first(agent);
+        let to_yield = generator.get(agent).peek_first(agent, gc.nogc());
         // c. Let resumptionValue be Completion(toYield.[[Completion]]).
         let resumption_value = to_yield.completion;
         // d. Return ? AsyncGeneratorUnwrapYieldResumption(resumptionValue).
-        async_generator_unwrap_yield_resumption(agent, vm, generator, resumption_value, gc);
+        async_generator_unwrap_yield_resumption(
+            agent,
+            vm,
+            generator,
+            resumption_value.unbind(),
+            gc,
+        );
     } else {
         // 12. Else,
         // a. Set generator.[[AsyncGeneratorState]] to suspended-yield.
@@ -458,7 +464,7 @@ pub(super) fn async_generator_await_return(
     // 3. Assert: queue is not empty.
     assert!(!generator.queue_is_empty(agent));
     // 4. Let next be the first element of queue.
-    let next = generator.peek_first(agent);
+    let next = generator.peek_first(agent, gc.nogc());
     // 5. Let completion be Completion(next.[[Completion]]).
     let completion = next.completion;
     // 6. Assert: completion is a return completion.
@@ -472,7 +478,7 @@ pub(super) fn async_generator_await_return(
     //         c. Return unused.
     // 9. Assert: promiseCompletion is a normal completion.
     // 10. Let promise be promiseCompletion.[[Value]].
-    let promise = Promise::resolve(agent, value, gc.reborrow());
+    let promise = Promise::resolve(agent, value.unbind(), gc.reborrow());
     // 11. ... onFulfilled ...
     // 12. Let onFulfilled be CreateBuiltinFunction(fulfilledClosure, 1, "", « »).
     // 13. ... onRejected ...
@@ -574,7 +580,7 @@ fn async_generator_drain_queue(
     // 5. Repeat, while done is false,
     loop {
         // a. Let next be the first element of queue.
-        let next = generator.peek_first(agent);
+        let next = generator.peek_first(agent, gc.nogc());
         // b. Let completion be Completion(next.[[Completion]]).
         let completion = next.completion;
         // c. If completion is a return completion, then

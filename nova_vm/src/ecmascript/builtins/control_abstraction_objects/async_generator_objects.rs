@@ -113,7 +113,11 @@ impl AsyncGenerator<'_> {
         }
     }
 
-    pub(crate) fn peek_first(self, agent: &mut Agent) -> &AsyncGeneratorRequest {
+    pub(crate) fn peek_first<'a, 'gc>(
+        self,
+        agent: &'a mut Agent,
+        _gc: NoGcScope<'gc, '_>,
+    ) -> &'a AsyncGeneratorRequest<'gc> {
         match agent[self].async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -124,24 +128,28 @@ impl AsyncGenerator<'_> {
         }
     }
 
-    pub(crate) fn pop_first(self, agent: &mut Agent) -> AsyncGeneratorRequest {
+    pub(crate) fn pop_first<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> AsyncGeneratorRequest<'gc> {
         match agent[self].async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap(),
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap().bind(gc),
             AsyncGeneratorState::Completed => unreachable!(),
         }
     }
 
-    pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest) {
+    pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest<'_>) {
         match agent[self].async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request),
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request.unbind()),
             AsyncGeneratorState::Completed => unreachable!(),
         }
     }
@@ -428,7 +436,7 @@ impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
 #[derive(Debug, Default)]
 pub struct AsyncGeneratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) async_generator_state: Option<AsyncGeneratorState>,
+    pub(crate) async_generator_state: Option<AsyncGeneratorState<'static>>,
     pub(crate) executable: Option<Executable>,
 }
 
@@ -443,29 +451,29 @@ pub(crate) enum AsyncGeneratorAwaitKind {
 }
 
 #[derive(Debug)]
-pub(crate) enum AsyncGeneratorState {
+pub(crate) enum AsyncGeneratorState<'a> {
     SuspendedStart {
         arguments: Box<[Value<'static>]>,
         execution_context: ExecutionContext,
-        queue: VecDeque<AsyncGeneratorRequest>,
+        queue: VecDeque<AsyncGeneratorRequest<'a>>,
     },
     SuspendedYield {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
-        queue: VecDeque<AsyncGeneratorRequest>,
+        queue: VecDeque<AsyncGeneratorRequest<'a>>,
     },
-    Executing(VecDeque<AsyncGeneratorRequest>),
+    Executing(VecDeque<AsyncGeneratorRequest<'a>>),
     Awaiting {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
-        queue: VecDeque<AsyncGeneratorRequest>,
+        queue: VecDeque<AsyncGeneratorRequest<'a>>,
         kind: AsyncGeneratorAwaitKind,
     },
-    DrainingQueue(VecDeque<AsyncGeneratorRequest>),
+    DrainingQueue(VecDeque<AsyncGeneratorRequest<'a>>),
     Completed,
 }
 
-impl AsyncGeneratorState {
+impl AsyncGeneratorState<'_> {
     pub(crate) fn is_completed(&self) -> bool {
         matches!(self, Self::Completed)
     }
@@ -507,11 +515,24 @@ impl AsyncGeneratorState {
 /// how an async generator should be resumed and contains capabilities for
 /// fulfilling or rejecting the corresponding promise.
 #[derive(Debug)]
-pub(crate) struct AsyncGeneratorRequest {
+pub(crate) struct AsyncGeneratorRequest<'a> {
     /// \[\[Completion]]
-    pub(crate) completion: AsyncGeneratorRequestCompletion<'static>,
+    pub(crate) completion: AsyncGeneratorRequestCompletion<'a>,
     /// \[\[Capability]]
     pub(crate) capability: PromiseCapability,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGeneratorRequest<'_> {
+    type Of<'a> = AsyncGeneratorRequest<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -527,20 +548,12 @@ unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
 
     #[inline(always)]
     fn unbind(self) -> Self::Of<'static> {
-        match self {
-            Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.unbind()),
-            Self::Err(js_error) => AsyncGeneratorRequestCompletion::Err(js_error),
-            Self::Return(value) => AsyncGeneratorRequestCompletion::Return(value.unbind()),
-        }
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
     #[inline(always)]
-    fn bind<'a>(self, gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
-        match self {
-            Self::Ok(value) => AsyncGeneratorRequestCompletion::Ok(value.bind(gc)),
-            Self::Err(js_error) => AsyncGeneratorRequestCompletion::Err(js_error),
-            Self::Return(value) => AsyncGeneratorRequestCompletion::Return(value.bind(gc)),
-        }
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -577,7 +590,7 @@ impl HeapMarkAndSweep for AsyncGenerator<'static> {
     }
 }
 
-impl HeapMarkAndSweep for AsyncGeneratorRequest {
+impl HeapMarkAndSweep for AsyncGeneratorRequest<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             completion,

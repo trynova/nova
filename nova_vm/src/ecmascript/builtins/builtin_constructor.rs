@@ -429,8 +429,8 @@ fn builtin_call_or_construct<'a>(
 pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) is_derived: bool,
     pub(crate) class_name: String<'a>,
-    pub(crate) prototype: Option<Object<'static>>,
-    pub(crate) prototype_property: Object<'static>,
+    pub(crate) prototype: Option<Object<'a>>,
+    pub(crate) prototype_property: Object<'a>,
     pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: EnvironmentIndex,
     pub(crate) private_env: Option<PrivateEnvironmentIndex>,
