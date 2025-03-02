@@ -2148,7 +2148,6 @@
   "built-ins/Object/defineProperties/15.2.3.7-6-a-231.js": "FAIL",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-242.js": "FAIL",
   "built-ins/Object/defineProperties/15.2.3.7-6-a-245.js": "FAIL",
-  "built-ins/Object/defineProperty/15.2.3.6-0-2.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-3-1.js": "FAIL",
   "built-ins/Object/defineProperty/15.2.3.6-3-117.js": "CRASH",
   "built-ins/Object/defineProperty/15.2.3.6-3-118.js": "CRASH",
