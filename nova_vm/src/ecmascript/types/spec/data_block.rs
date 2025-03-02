@@ -183,7 +183,7 @@ impl Viewable for u8 {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(0);
             }
             return None;
@@ -219,7 +219,7 @@ impl Viewable for U8Clamped {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(U8Clamped(0));
             }
             return None;
@@ -255,7 +255,7 @@ impl Viewable for i8 {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(0);
             }
             return None;
@@ -291,7 +291,7 @@ impl Viewable for u16 {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(0);
             }
             return None;
@@ -327,7 +327,7 @@ impl Viewable for i16 {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(0);
             }
             return None;
@@ -363,7 +363,7 @@ impl Viewable for u32 {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(0);
             }
             return None;
@@ -399,7 +399,7 @@ impl Viewable for i32 {
 
     fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
         let Value::Integer(value) = value else {
-            if value == Value::SmallF64((-0.0).into()) {
+            if value == Value::SmallF64((-0.0f32).into()) {
                 return Some(0);
             }
             return None;

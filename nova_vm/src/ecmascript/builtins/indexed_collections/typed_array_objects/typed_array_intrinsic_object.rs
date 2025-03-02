@@ -928,6 +928,8 @@ impl TypedArrayPrototype {
             | TypedArray::Uint8ClampedArray(_) => {
                 typed_array_length::<u8>(agent, &ta_record, gc.nogc())
             }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
             TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
                 typed_array_length::<u16>(agent, &ta_record, gc.nogc())
             }
@@ -1015,6 +1017,10 @@ impl TypedArrayPrototype {
             }
             TypedArray::BigUint64Array(_) => {
                 search_typed_element::<u64>(agent, o, search_element, k, len, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                search_typed_element::<f16>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Float32Array(_) => {
                 search_typed_element::<f32>(agent, o, search_element, k, len, gc.nogc())
