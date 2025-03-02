@@ -2942,7 +2942,10 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
             ast::Statement::IfStatement(x) => x.compile(ctx),
             ast::Statement::VariableDeclaration(x) => x.compile(ctx),
-            ast::Statement::FunctionDeclaration(x) => x.compile(ctx),
+            ast::Statement::FunctionDeclaration(_) => {
+                // Note: Function declaration statements are always hoisted.
+                // There is no work left to do here.
+            }
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),
