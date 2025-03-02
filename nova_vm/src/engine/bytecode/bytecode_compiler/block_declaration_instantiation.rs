@@ -72,17 +72,17 @@ pub fn handle_block_lexically_scoped_declaration(
             // b. If d is either a FunctionDeclaration,
             // a GeneratorDeclaration, an AsyncFunctionDeclaration,
             // or an AsyncGeneratorDeclaration, then
-            decl.bound_names(&mut |identifier| {
-                // 1. Perform ! env.CreateMutableBinding(dn, false).
-                // NOTE: This step is replaced in section B.3.2.6.
-                let dn = String::from_str(ctx.agent, &identifier.name, ctx.gc);
-                ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
-                ctx.add_instruction_with_constant(Instruction::StoreConstant, dn);
-            });
             // i. Let fn be the sole element of the BoundNames of d.
+            let Some(r#fn) = &decl.id else { unreachable!() };
+            let dn = String::from_str(ctx.agent, &r#fn.name, ctx.gc);
+            // 1. Perform ! env.CreateMutableBinding(dn, false).
+            // NOTE: This step is replaced in section B.3.2.6.
+            ctx.add_instruction_with_identifier(Instruction::CreateMutableBinding, dn);
             // ii. Let fo be InstantiateFunctionObject of d with arguments env and privateEnv.
-            // iii. Perform ! env.InitializeBinding(fn, fo).
             decl.compile(ctx);
+            // iii. Perform ! env.InitializeBinding(fn, fo).
+            ctx.add_instruction_with_identifier(Instruction::ResolveBinding, dn);
+            ctx.add_instruction(Instruction::InitializeReferencedBinding);
             // NOTE: This step is replaced in section B.3.2.6.
         }
         LexicallyScopedDeclaration::Class(decl) => {
