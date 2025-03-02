@@ -964,16 +964,6 @@ impl TypedArrayPrototype {
         if from_index_is_undefined {
             assert_eq!(n.into_i64(), 0);
         }
-        if matches!(
-            o,
-            TypedArray::BigInt64Array(_) | TypedArray::BigUint64Array(_)
-        ) {
-            if !search_element.is_bigint() {
-                return Ok((-1).into());
-            }
-        } else if !search_element.is_number() {
-            return Ok((-1).into());
-        }
         // 7. If n = +∞, return false.
         let n = if n.is_pos_infinity() {
             return Ok(false.into());
@@ -996,41 +986,42 @@ impl TypedArrayPrototype {
         };
 
         let k = k as usize;
+        let len = len as usize;
 
         // 11. Repeat, while k < len,
         let result = match o {
             TypedArray::Int8Array(_) => {
-                search_typed_element::<i8>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<i8>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint8Array(_) => {
-                search_typed_element::<u8>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<u8>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint8ClampedArray(_) => {
-                search_typed_element::<U8Clamped>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<U8Clamped>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Int16Array(_) => {
-                search_typed_element::<i16>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<i16>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint16Array(_) => {
-                search_typed_element::<u16>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<u16>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Int32Array(_) => {
-                search_typed_element::<i32>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<i32>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint32Array(_) => {
-                search_typed_element::<u32>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<u32>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::BigInt64Array(_) => {
-                search_typed_element::<i64>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<i64>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::BigUint64Array(_) => {
-                search_typed_element::<u64>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<u64>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Float32Array(_) => {
-                search_typed_element::<f32>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<f32>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Float64Array(_) => {
-                search_typed_element::<f64>(agent, o, search_element, k, gc.nogc())
+                search_typed_element::<f64>(agent, o, search_element, k, len, gc.nogc())
             }
         };
         Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
@@ -1779,6 +1770,7 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
     ta: TypedArray,
     search_element: Value,
     k: usize,
+    len: usize,
     gc: NoGcScope,
 ) -> JsResult<Option<usize>> {
     let search_element = T::try_from_value(agent, search_element);
@@ -1811,10 +1803,10 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
             gc,
         ));
     }
-    if k >= slice.len() {
+    if k >= len {
         return Ok(None);
     }
-    Ok(slice[k..]
+    Ok(slice[k..len]
         .iter()
         .position(|&r| r == search_element)
         .map(|pos| pos + k))

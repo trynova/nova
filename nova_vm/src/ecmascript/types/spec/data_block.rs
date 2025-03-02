@@ -99,9 +99,15 @@ impl DerefMut for DataBlock {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub(crate) struct U8Clamped(pub u8);
+
+impl core::fmt::Debug for U8Clamped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 mod private {
     use super::U8Clamped;
@@ -135,6 +141,17 @@ pub trait Viewable: private::Sealed + Copy + PartialEq {
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a>;
     fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
+    /// Try reinterpret a Value to Viewable.
+    ///
+    /// This method is intended for cases where the ECMAScript specification
+    /// requires repeatedly converting existing Viewable values to Value and
+    /// comparing them with a search element. In this case, the Viewable to
+    /// Value conversion is lossless and the comparison function is the only
+    /// place where some value coercion may happen; this is generally the -0.0
+    /// value being coerced to 0.
+    ///
+    /// Thus, this method must not do conversion, rounding, or clamping of
+    /// numeric values.
     fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self>;
 }
 
