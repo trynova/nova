@@ -29,7 +29,7 @@ use crate::{
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
             BUILTIN_STRING_MEMORY, IntoObject, IntoValue, Number, Object, PropertyKey, String,
-            U8Clamped, Value,
+            U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -41,11 +41,10 @@ use crate::{
     heap::{IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
-use super::abstract_operations::is_typed_array_out_of_bounds;
-use super::abstract_operations::make_typed_array_with_buffer_witness_record;
-use super::abstract_operations::typed_array_byte_length;
-use super::abstract_operations::typed_array_length;
-use super::abstract_operations::validate_typed_array;
+use super::abstract_operations::{
+    is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
+    typed_array_byte_length, typed_array_length, validate_typed_array,
+};
 
 pub struct TypedArrayIntrinsicObject;
 
@@ -904,13 +903,133 @@ impl TypedArrayPrototype {
         Ok(false.into())
     }
 
+    /// ### [23.2.3.17 %TypedArray%.prototype.indexOf ( searchElement \[ , fromIndex \] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.indexof)
+    ///
+    /// The interpretation and use of the arguments of this method are the same
+    /// as for Array.prototype.indexOf as defined in 23.1.3.17.
     fn index_of<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let this_value = this_value.bind(gc.nogc());
+        let mut search_element = arguments.get(0).bind(gc.nogc());
+        let from_index = arguments.get(1).bind(gc.nogc());
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc.nogc())?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let mut o = ta_record.object;
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<u8>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => {
+                typed_array_length::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+        } as i64;
+        // 4. If len = 0, return -1𝔽.
+        if len == 0 {
+            return Ok((-1).into());
+        };
+        // 5. Let n be ? ToIntegerOrInfinity(fromIndex).
+        let from_index_is_undefined = from_index.is_undefined();
+        let n = if let TryResult::Continue(n) =
+            try_to_integer_or_infinity(agent, from_index, gc.nogc())
+        {
+            n?
+        } else {
+            let scoped_o = o.scope(agent, gc.nogc());
+            let scoped_search_element = search_element.scope(agent, gc.nogc());
+            let result = to_integer_or_infinity(agent, from_index.unbind(), gc.reborrow());
+            o = scoped_o.get(agent).bind(gc.nogc());
+            search_element = scoped_search_element.get(agent).bind(gc.nogc());
+            result?
+        };
+        // 6. Assert: If fromIndex is undefined, then n is 0.
+        if from_index_is_undefined {
+            assert_eq!(n.into_i64(), 0);
+        }
+        // 7. If n = +∞, return -1F.
+        let n = if n.is_pos_infinity() {
+            return Ok((-1).into());
+        } else if n.is_neg_infinity() {
+            // 8. Else if n = -∞, set n to 0.
+            0
+        } else {
+            n.into_i64()
+        };
+        // 9. If n ≥ 0, then
+        let k = if n >= 0 {
+            // a. Let k be n.
+            n
+        } else {
+            // 10. Else,
+            // a. Let k be len + n.
+            // b. If k < 0, set k to 0.
+            (len + n).max(0)
+        };
+
+        let k = k as usize;
+        let len = len as usize;
+
+        // 11. Repeat, while k < len,
+        let result = match o {
+            TypedArray::Int8Array(_) => {
+                search_typed_element::<i8>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Uint8Array(_) => {
+                search_typed_element::<u8>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                search_typed_element::<U8Clamped>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Int16Array(_) => {
+                search_typed_element::<i16>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Uint16Array(_) => {
+                search_typed_element::<u16>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Int32Array(_) => {
+                search_typed_element::<i32>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Uint32Array(_) => {
+                search_typed_element::<u32>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_) => {
+                search_typed_element::<i64>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::BigUint64Array(_) => {
+                search_typed_element::<u64>(agent, o, search_element, k, len, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                search_typed_element::<f16>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Float32Array(_) => {
+                search_typed_element::<f32>(agent, o, search_element, k, len, gc.nogc())
+            }
+            TypedArray::Float64Array(_) => {
+                search_typed_element::<f64>(agent, o, search_element, k, len, gc.nogc())
+            }
+        };
+        Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
     }
 
     /// ### [23.2.3.18 %TypedArray%.prototype.join ( separator )](https://tc39.es/ecma262/#sec-%typedarray%.prototype.join)
@@ -1649,4 +1768,61 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
             gc,
         )
     })
+}
+
+fn search_typed_element<T: Viewable + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    search_element: Value,
+    k: usize,
+    len: usize,
+    gc: NoGcScope,
+) -> JsResult<Option<usize>> {
+    let search_element = T::try_from_value(agent, search_element);
+    let Some(search_element) = search_element else {
+        return Ok(None);
+    };
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(None);
+    }
+    if byte_offset > byte_slice.len() {
+        // Start index is out of bounds.
+        return Ok(None);
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            // End index is out of bounds.
+            return Ok(None);
+        }
+        &byte_slice[byte_offset..end_index]
+    } else {
+        &byte_slice[byte_offset..]
+    };
+    // SAFETY: All bytes in byte_slice are initialized, and all bitwise
+    // combinations of T are valid values. Alignment of T's is
+    // guaranteed by align_to itself.
+    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    // Length of the TypedArray may have changed between when we measured it
+    // and here: We'll never try to access past the boundary of the slice if
+    // the backing ArrayBuffer shrank.
+    let len = len.min(slice.len());
+    if k >= len {
+        return Ok(None);
+    }
+    Ok(slice[k..len]
+        .iter()
+        .position(|&r| r == search_element)
+        .map(|pos| pos + k))
 }

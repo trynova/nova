@@ -460,7 +460,7 @@ impl<'a> Number<'a> {
     pub fn into_f64(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f64 {
         match self {
             Number::Number(n) => agent[n.unbind()],
-            Number::Integer(n) => Into::<i64>::into(n) as f64,
+            Number::Integer(n) => n.into_i64() as f64,
             Number::SmallF64(n) => n.into_f64(),
         }
     }

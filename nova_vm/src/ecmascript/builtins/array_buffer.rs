@@ -93,6 +93,31 @@ impl ArrayBuffer<'_> {
         agent[self].resize(new_byte_length);
     }
 
+    /// Get temporary access to an ArrayBuffer's backing data block as a slice
+    /// of bytes. The access can only be held while all JavaScript is paused.
+    ///
+    /// ## Safety
+    ///
+    /// The function itself has no safety implications, but the caller should
+    /// keep in mind that if JavaScript is called into the contents of the
+    /// ArrayBuffer may be rewritten or reallocated.
+    pub fn as_slice(self, agent: &Agent) -> &[u8] {
+        agent[self].get_data_block()
+    }
+
+    /// Get temporary exclusive access to an ArrayBuffer's backing data block
+    /// as a slice of bytes. The access can only be held while all JavaScript
+    /// is paused.
+    ///
+    /// ## Safety
+    ///
+    /// The function itself has no safety implications, but the caller should
+    /// keep in mind that if JavaScript is called into the contents of the
+    /// ArrayBuffer may be rewritten or reallocated.
+    pub fn as_mut_slice(self, agent: &mut Agent) -> &mut [u8] {
+        &mut *agent[self].get_data_block_mut()
+    }
+
     /// Copy data from `source` ArrayBuffer to this ArrayBuffer.
     ///
     /// `self` and `source` must be different ArrayBuffers.

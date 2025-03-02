@@ -6,9 +6,12 @@
 
 use core::{
     mem::MaybeUninit,
+    ops::{Deref, DerefMut},
     ptr::{self, NonNull, read_unaligned, write_unaligned},
 };
 use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error, realloc};
+
+use num_bigint::Sign;
 
 use crate::{
     ecmascript::{
@@ -18,7 +21,7 @@ use crate::{
             to_uint32_number,
         },
         execution::{Agent, JsResult, agent::ExceptionType},
-        types::{BigInt, IntoNumeric, Number, Numeric},
+        types::{BigInt, IntoNumeric, Number, Numeric, Value},
     },
     engine::context::NoGcScope,
 };
@@ -62,9 +65,49 @@ impl Drop for DataBlock {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+impl Deref for DataBlock {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        if let Some(ptr) = self.ptr {
+            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
+                // Detached.
+                return &[];
+            }
+            // SAFETY: DataBlock has a non-null, non-detached pointer. We guarantee
+            // it points to a valid allocation of byte_length initialized bytes.
+            unsafe { std::slice::from_raw_parts(ptr.as_ptr(), self.byte_length) }
+        } else {
+            &[]
+        }
+    }
+}
+
+impl DerefMut for DataBlock {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        if let Some(mut ptr) = self.ptr {
+            if ptr::eq(ptr.as_ptr(), DETACHED_DATA_BLOCK_POINTER) {
+                // Detached.
+                return &mut [];
+            }
+            // SAFETY: DataBlock has a non-null, non-detached pointer. We guarantee
+            // it points to a valid allocation of byte_length initialized bytes.
+            unsafe { std::slice::from_raw_parts_mut(ptr.as_mut(), self.byte_length) }
+        } else {
+            &mut []
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub(crate) struct U8Clamped(pub u8);
+
+impl core::fmt::Debug for U8Clamped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 mod private {
     use super::U8Clamped;
@@ -85,7 +128,7 @@ mod private {
     impl Sealed for f64 {}
 }
 
-pub trait Viewable: private::Sealed + Copy {
+pub trait Viewable: private::Sealed + Copy + PartialEq {
     /// Functions as the \[\[ContentType\]\] internal slot of the TypedArray and
     /// as a marker for data views. Used to determine that the viewable type is
     /// a BigInt.
@@ -98,6 +141,18 @@ pub trait Viewable: private::Sealed + Copy {
     fn into_le_value<'a>(self, agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Numeric<'a>;
     fn from_le_value(agent: &mut Agent, value: Numeric) -> Self;
     fn from_be_value(agent: &mut Agent, value: Numeric) -> Self;
+    /// Try reinterpret a Value to Viewable.
+    ///
+    /// This method is intended for cases where the ECMAScript specification
+    /// requires repeatedly converting existing Viewable values to Value and
+    /// comparing them with a search element. In this case, the Viewable to
+    /// Value conversion is lossless and the comparison function is the only
+    /// place where some value coercion may happen; this is generally the -0.0
+    /// value being coerced to 0.
+    ///
+    /// Thus, this method must not do conversion, rounding, or clamping of
+    /// numeric values.
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self>;
 }
 
 impl Viewable for u8 {
@@ -125,6 +180,16 @@ impl Viewable for u8 {
         };
         to_uint8_number(agent, value).to_le()
     }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(0);
+            }
+            return None;
+        };
+        u8::try_from(value.into_i64()).ok()
+    }
 }
 impl Viewable for U8Clamped {
     #[cfg(feature = "array-buffer")]
@@ -150,6 +215,16 @@ impl Viewable for U8Clamped {
             unreachable!()
         };
         Self(to_uint8_clamp_number(agent, value).to_le())
+    }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(U8Clamped(0));
+            }
+            return None;
+        };
+        u8::try_from(value.into_i64()).ok().map(U8Clamped)
     }
 }
 impl Viewable for i8 {
@@ -177,6 +252,16 @@ impl Viewable for i8 {
         };
         to_int8_number(agent, value).to_le()
     }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(0);
+            }
+            return None;
+        };
+        i8::try_from(value.into_i64()).ok()
+    }
 }
 impl Viewable for u16 {
     #[cfg(feature = "array-buffer")]
@@ -202,6 +287,16 @@ impl Viewable for u16 {
             unreachable!()
         };
         to_uint16_number(agent, value).to_le()
+    }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(0);
+            }
+            return None;
+        };
+        u16::try_from(value.into_i64()).ok()
     }
 }
 impl Viewable for i16 {
@@ -229,6 +324,16 @@ impl Viewable for i16 {
         };
         to_int16_number(agent, value).to_le()
     }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(0);
+            }
+            return None;
+        };
+        i16::try_from(value.into_i64()).ok()
+    }
 }
 impl Viewable for u32 {
     #[cfg(feature = "array-buffer")]
@@ -255,6 +360,16 @@ impl Viewable for u32 {
         };
         to_uint32_number(agent, value).to_le()
     }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(0);
+            }
+            return None;
+        };
+        u32::try_from(value.into_i64()).ok()
+    }
 }
 impl Viewable for i32 {
     #[cfg(feature = "array-buffer")]
@@ -280,6 +395,16 @@ impl Viewable for i32 {
             unreachable!()
         };
         to_int32_number(agent, value).to_le()
+    }
+
+    fn try_from_value(_: &mut Agent, value: Value) -> Option<Self> {
+        let Value::Integer(value) = value else {
+            if value == Value::SmallF64((-0.0f32).into()) {
+                return Some(0);
+            }
+            return None;
+        };
+        i32::try_from(value.into_i64()).ok()
     }
 }
 impl Viewable for u64 {
@@ -308,6 +433,27 @@ impl Viewable for u64 {
         };
         to_big_uint64_big_int(agent, value).to_le()
     }
+
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
+        if let Value::SmallBigInt(value) = value {
+            let value = value.into_i64();
+            return u64::try_from(value).ok();
+        };
+        if let Value::BigInt(value) = value {
+            let data = &agent[value];
+            let mut iter = data.data.iter_u64_digits();
+            let sign = data.data.sign();
+            if sign == Sign::Minus {
+                return None;
+            }
+            if iter.len() > 1 {
+                return None;
+            }
+            let value = iter.next().unwrap();
+            return Some(value);
+        };
+        None
+    }
 }
 impl Viewable for i64 {
     const IS_BIGINT: bool = true;
@@ -335,6 +481,33 @@ impl Viewable for i64 {
         };
         to_big_int64_big_int(agent, value).to_le()
     }
+
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
+        if let Value::SmallBigInt(value) = value {
+            return Some(value.into_i64());
+        };
+        if let Value::BigInt(value) = value {
+            let data = &agent[value];
+            let mut iter = data.data.iter_u64_digits();
+            if iter.len() > 1 {
+                return None;
+            }
+            let sign = data.data.sign();
+            let value = iter.next().unwrap();
+            if sign == Sign::Minus {
+                if value <= i64::MIN.unsigned_abs() {
+                    return Some(value.wrapping_neg() as i64);
+                } else {
+                    return None;
+                }
+            } else if value <= i64::MAX as u64 {
+                return Some(value as i64);
+            } else {
+                return None;
+            }
+        };
+        None
+    }
 }
 #[cfg(feature = "proposal-float16array")]
 impl Viewable for f16 {
@@ -360,6 +533,21 @@ impl Viewable for f16 {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
+    }
+
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
+        let Ok(value) = Number::try_from(value) else {
+            return None;
+        };
+        let value = value.into_f64(agent);
+        if value.is_nan() {
+            return Some(f16::NAN);
+        }
+        if value as f16 as f64 == value {
+            Some(value as f16)
+        } else {
+            None
+        }
     }
 }
 impl Viewable for f32 {
@@ -387,6 +575,21 @@ impl Viewable for f32 {
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
     }
+
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
+        let Ok(value) = Number::try_from(value) else {
+            return None;
+        };
+        let value = value.into_f64(agent);
+        if value.is_nan() {
+            return Some(f32::NAN);
+        }
+        if value as f32 as f64 == value {
+            Some(value as f32)
+        } else {
+            None
+        }
+    }
 }
 impl Viewable for f64 {
     #[cfg(feature = "array-buffer")]
@@ -412,6 +615,13 @@ impl Viewable for f64 {
             unreachable!()
         };
         Self::from_ne_bytes((value.to_real(agent) as Self).to_le_bytes())
+    }
+
+    fn try_from_value(agent: &mut Agent, value: Value) -> Option<Self> {
+        let Ok(value) = Number::try_from(value) else {
+            return None;
+        };
+        Some(value.into_f64(agent))
     }
 }
 
@@ -720,23 +930,33 @@ impl DataBlock {
     pub fn realloc(&mut self, new_byte_length: usize) {
         // Max byte length should be within safe integer length.
         debug_assert!(new_byte_length < 2usize.pow(53));
-        let ptr = self
-            .as_mut_ptr(0)
-            .expect("Tried to realloc a detached DataBlock");
-        let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
-        if new_byte_length == 0 {
-            // When resizing to zero, we just drop the data instead.
-            if let Some(ptr) = self.ptr {
-                unsafe { dealloc(ptr.as_ptr(), layout) };
+        let ptr = if self.ptr.is_none() {
+            // We have no existing allocation.
+            if new_byte_length == 0 {
+                // Resizing from zero to zero, no-op.
+                return;
             }
-            self.ptr = None;
-            self.byte_length = 0;
+            *self = Self::new(new_byte_length);
             return;
-        }
-        // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
-        // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
-        // size is non-zero, and cannot overflow isize (on a 64-bit machine).
-        let ptr = unsafe { realloc(ptr, layout, new_byte_length) };
+        } else {
+            let ptr = self
+                .as_mut_ptr(0)
+                .expect("Tried to realloc a detached DataBlock");
+            let layout = Layout::from_size_align(self.byte_length, 8).unwrap();
+            if new_byte_length == 0 {
+                // When resizing to zero, we just drop the data instead.
+                if let Some(ptr) = self.ptr {
+                    unsafe { dealloc(ptr.as_ptr(), layout) };
+                }
+                self.ptr = None;
+                self.byte_length = 0;
+                return;
+            }
+            // SAFETY: `ptr` can currently only come from GlobalAllocator, it was
+            // allocated with `Layout::from_size_align(self.byte_length, 8)`, new
+            // size is non-zero, and cannot overflow isize (on a 64-bit machine).
+            unsafe { realloc(ptr, layout, new_byte_length) }
+        };
         self.ptr = NonNull::new(ptr);
         if new_byte_length > self.byte_length {
             // Need to zero out the new data.
