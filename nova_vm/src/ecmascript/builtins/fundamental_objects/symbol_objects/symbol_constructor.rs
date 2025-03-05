@@ -8,19 +8,19 @@ use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::IntoObject;
 
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::SymbolHeapData;
 use crate::ecmascript::types::Value;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 use crate::heap::WellKnownSymbolIndexes;
@@ -59,13 +59,13 @@ impl Builtin for SymbolKeyFor {
 }
 
 impl SymbolConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if new_target.is_some() {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -88,22 +88,22 @@ impl SymbolConstructor {
             .into_value())
     }
 
-    fn r#for(
+    fn r#for<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        Ok(arguments.get(0).unbind())
     }
 
-    fn key_for(
+    fn key_for<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        Ok(arguments.get(0))
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        Ok(arguments.get(0).unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

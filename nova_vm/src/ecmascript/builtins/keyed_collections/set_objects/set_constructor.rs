@@ -2,11 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::hash::Hasher;
+use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_iterator_objects::IteratorRecord;
+use crate::ecmascript::abstract_operations::operations_on_objects::throw_not_callable;
+use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -18,15 +21,15 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             array::ArrayHeap,
             ordinary::ordinary_create_from_constructor,
-            set::{data::SetData, Set},
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
+            set::{Set, data::SetData},
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, IntoFunction, IntoObject, IntoValue, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object,
+            PropertyKey, String, Value,
         },
     },
     heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
@@ -55,14 +58,16 @@ impl BuiltinGetter for SetGetSpecies {}
 
 impl SetConstructor {
     /// ### [24.2.2.1 Set ( \[ iterable \] )](https://tc39.es/ecma262/#sec-set-iterable)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let iterable = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let iterable = arguments.get(0).bind(nogc);
+        let new_target = new_target.bind(nogc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -73,9 +78,20 @@ impl SetConstructor {
         };
         // 2. Let set be ? OrdinaryCreateFromConstructor(NewTarget, "%Set.prototype%", « [[SetData]] »).
         let new_target = Function::try_from(new_target).unwrap();
+        // 4. If iterable is either undefined or null, return set.
+        if iterable.is_undefined() || iterable.is_null() {
+            return ordinary_create_from_constructor(
+                agent,
+                new_target.unbind(),
+                ProtoIntrinsics::Set,
+                gc,
+            )
+            .map(|o| o.into_value());
+        }
+        let scoped_iterable = iterable.scope(agent, nogc);
         let set = Set::try_from(ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::Set,
             gc.reborrow(),
         )?)
@@ -84,10 +100,7 @@ impl SetConstructor {
         .bind(gc.nogc());
         let scoped_set = set.scope(agent, gc.nogc());
         // 3. Set set.[[SetData]] to a new empty List.
-        // 4. If iterable is either undefined or null, return set.
-        if iterable.is_undefined() || iterable.is_null() {
-            return Ok(set.into_value());
-        }
+
         // 5. Let adder be ? Get(set, "add").
         let adder = get(
             agent,
@@ -96,7 +109,7 @@ impl SetConstructor {
             gc.reborrow(),
         )?;
         // 6. If IsCallable(adder) is false, throw a TypeError exception.
-        let Some(adder) = is_callable(adder, gc.nogc()) else {
+        let Some(adder) = is_callable(adder.unbind(), gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Invalid adder function",
@@ -104,9 +117,8 @@ impl SetConstructor {
             ));
         };
         let adder = adder.scope(agent, gc.nogc());
-        if let Value::Array(iterable) = iterable {
+        if let Value::Array(iterable) = scoped_iterable.get(agent) {
             let iterable = iterable.bind(gc.nogc());
-            let scoped_iterable = iterable.scope(agent, gc.nogc());
             if iterable.is_trivial(agent)
                 && iterable.is_dense(agent)
                 && get_method(
@@ -125,7 +137,9 @@ impl SetConstructor {
                 // Accessorless, holeless array with standard Array values
                 // iterator. We can fast-path this.
                 let set = scoped_set.get(agent).bind(gc.nogc());
-                let iterable = scoped_iterable.get(agent).bind(gc.nogc());
+                let Value::Array(iterable) = scoped_iterable.get(agent).bind(gc.nogc()) else {
+                    unreachable!()
+                };
                 let Heap {
                     elements,
                     arrays,
@@ -169,23 +183,42 @@ impl SetConstructor {
                             // We have duplicates in the array. Latter
                             // ones overwrite earlier ones.
                             let index = *occupied.get();
-                            values[index as usize] = Some(value);
+                            values[index as usize] = Some(value.unbind());
                         }
                         hashbrown::hash_table::Entry::Vacant(vacant) => {
                             vacant.insert(next_index);
-                            values.push(Some(value));
+                            values.push(Some(value.unbind()));
                         }
                     }
                 });
-                return Ok(set.into_value());
+                return Ok(set.into_value().unbind());
             }
         }
         // 7. Let iteratorRecord be ? GetIterator(iterable, SYNC).
-        let mut iterator_record = get_iterator(agent, iterable, false, gc.reborrow())?;
+        let Some(IteratorRecord {
+            iterator,
+            next_method,
+        }) = get_iterator(agent, scoped_iterable.get(agent), false, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
+        };
+
+        let iterator = iterator.scope(agent, gc.nogc());
+        let next_method = next_method.scope(agent, gc.nogc());
+
         // 8. Repeat,
         loop {
             // a. Let next be ? IteratorStepValue(iteratorRecord).
-            let next = iterator_step_value(agent, &mut iterator_record, gc.reborrow())?;
+            let next = iterator_step_value(
+                agent,
+                IteratorRecord {
+                    iterator: iterator.get(agent),
+                    next_method: next_method.get(agent),
+                },
+                gc.reborrow(),
+            )?;
             // b. If next is DONE, return set.
             let Some(next) = next else {
                 return Ok(scoped_set.get(agent).into_value());
@@ -195,21 +228,25 @@ impl SetConstructor {
                 agent,
                 adder.get(agent),
                 scoped_set.get(agent).into_value(),
-                Some(ArgumentsList(&[next])),
+                Some(ArgumentsList(&[next.unbind()])),
                 gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).
-            let _ = if_abrupt_close_iterator(agent, status, &iterator_record, gc.reborrow())?;
+            let iterator_record = IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            };
+            let _ = if_abrupt_close_iterator!(agent, status, iterator_record, gc);
         }
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        Ok(this_value)
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        Ok(this_value.unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

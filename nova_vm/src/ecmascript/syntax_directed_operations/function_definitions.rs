@@ -7,11 +7,13 @@ use std::collections::VecDeque;
 use crate::ecmascript::abstract_operations::operations_on_objects::try_define_property_or_throw;
 use crate::ecmascript::builtins::async_generator_objects::AsyncGeneratorState;
 use crate::ecmascript::builtins::generator_objects::SuspendedGeneratorState;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{
+            ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams, ThisMode,
             control_abstraction_objects::{
                 async_function_objects::await_reaction::AwaitReaction,
                 generator_objects::GeneratorState,
@@ -28,16 +30,15 @@ use crate::{
             ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
             ordinary_function_create,
             promise::Promise,
-            set_function_name, ArgumentsList, ECMAScriptFunction, OrdinaryFunctionCreateParams,
-            ThisMode,
+            set_function_name,
         },
         execution::{
             Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult,
             PrivateEnvironmentIndex, ProtoIntrinsics,
         },
         types::{
-            IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     engine::{Executable, ExecutionResult, FunctionExpression, Vm},
@@ -175,7 +176,7 @@ pub(crate) fn instantiate_ordinary_function_object<'a>(
             BUILTIN_STRING_MEMORY.prototype.to_property_key(),
             PropertyDescriptor {
                 // [[Value]]: prototype,
-                value: Some(prototype.into_value()),
+                value: Some(prototype.into_value().unbind()),
                 // [[Writable]]: true,
                 writable: Some(true),
                 // [[Enumerable]]: false,
@@ -285,12 +286,12 @@ impl CompileFunctionBodyData<'static> {
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn evaluate_function_body(
+pub(crate) fn evaluate_function_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -343,7 +344,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined »).
             //    f. Else if result is a return completion, then
             //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
-            promise_capability.resolve(agent, result, gc.reborrow());
+            promise_capability.resolve(agent, result.unbind(), gc.reborrow());
         }
         ExecutionResult::Throw(err) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -365,7 +366,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
                 return_promise_capability: promise_capability,
             }));
             // 2. Let promise be ? PromiseResolve(%Promise%, value).
-            let promise = Promise::resolve(agent, awaited_value, gc.reborrow());
+            let promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow());
             // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).
             inner_promise_then(agent, promise.unbind(), handler, handler, None);
         }
@@ -382,12 +383,12 @@ pub(crate) fn evaluate_async_function_body<'a>(
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns a throw completion or a return
 /// completion.
-pub(crate) fn evaluate_generator_body(
+pub(crate) fn evaluate_generator_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -434,12 +435,12 @@ pub(crate) fn evaluate_generator_body(
 /// functionObject (an ECMAScript function object) and argumentsList (a List of
 /// ECMAScript language values) and returns a throw completion or a return
 /// completion.
-pub(crate) fn evaluate_async_generator_body(
+pub(crate) fn evaluate_async_generator_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    mut gc: GcScope<'_, '_>,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
 
@@ -457,16 +458,19 @@ pub(crate) fn evaluate_async_generator_body(
     let Object::AsyncGenerator(generator) = generator else {
         unreachable!()
     };
+    let generator = generator.unbind();
+    let gc = gc.into_nogc();
+    let generator = generator.bind(gc);
 
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
-    let function_object = scoped_function_object.get(agent).bind(gc.nogc());
+    let function_object = scoped_function_object.get(agent).bind(gc);
     let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe
     } else {
         let data = CompileFunctionBodyData::new(agent, function_object);
-        let exe = Executable::compile_function_body(agent, data, gc.nogc());
+        let exe = Executable::compile_function_body(agent, data, gc);
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };

@@ -2,23 +2,27 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::ecmascript::abstract_operations::operations_on_objects::{
+    create_array_from_scoped_list, throw_not_callable,
+};
+use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_iterator_objects::{get_iterator, iterator_to_list},
-            operations_on_objects::{create_array_from_list, define_property_or_throw},
+            operations_on_objects::define_property_or_throw,
             type_conversion::to_string,
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            error::Error, ordinary::ordinary_create_from_constructor, ArgumentsList, Behaviour,
-            Builtin, BuiltinIntrinsicConstructor,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, error::Error,
+            ordinary::ordinary_create_from_constructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, IntoObject, IntoValue, Object, PropertyDescriptor, PropertyKey, String,
-            Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyDescriptor,
+            PropertyKey, String, Value,
         },
     },
     heap::IntrinsicConstructorIndexes,
@@ -39,13 +43,13 @@ impl BuiltinIntrinsicConstructor for AggregateErrorConstructor {
 }
 
 impl AggregateErrorConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let errors = arguments.get(0);
         let message = arguments.get(1);
         let options = arguments.get(2);
@@ -82,8 +86,11 @@ impl AggregateErrorConstructor {
         heap_data.message = message;
         heap_data.cause = cause.map(|c| c.unbind());
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
-        let iterator_record = get_iterator(agent, errors.unbind(), false, gc.reborrow())?;
-        let errors_list = iterator_to_list(agent, &iterator_record, gc.reborrow())?;
+        let Some(iterator_record) = get_iterator(agent, errors.unbind(), false, gc.reborrow())?
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
+        };
+        let errors_list = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
         // 6. Perform ! DefinePropertyOrThrow(O, "errors", PropertyDescriptor {
         let property_descriptor = PropertyDescriptor {
             // [[Configurable]]: true,
@@ -93,7 +100,11 @@ impl AggregateErrorConstructor {
             // [[Writable]]: true,
             writable: Some(true),
             // [[Value]]: CreateArrayFromList(errorsList)
-            value: Some(create_array_from_list(agent, &errors_list, gc.nogc()).into_value()),
+            value: Some(
+                create_array_from_scoped_list(agent, errors_list, gc.nogc())
+                    .into_value()
+                    .unbind(),
+            ),
             ..Default::default()
         };
         define_property_or_throw(

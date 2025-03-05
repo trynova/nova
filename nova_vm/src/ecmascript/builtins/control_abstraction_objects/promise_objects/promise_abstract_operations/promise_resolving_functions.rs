@@ -2,10 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{ Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{Scoped, TryResult};
 use crate::{
@@ -47,36 +47,6 @@ pub(crate) type BuiltinPromiseResolvingFunctionIndex<'a> =
 pub struct BuiltinPromiseResolvingFunction<'a>(pub(crate) BuiltinPromiseResolvingFunctionIndex<'a>);
 
 impl BuiltinPromiseResolvingFunction<'_> {
-    /// Unbind this BuiltinPromiseResolvingFunction from its current lifetime. This is necessary to use
-    /// the BuiltinPromiseResolvingFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BuiltinPromiseResolvingFunction<'static> {
-        unsafe {
-            std::mem::transmute::<
-                BuiltinPromiseResolvingFunction,
-                BuiltinPromiseResolvingFunction<'static>,
-            >(self)
-        }
-    }
-
-    // Bind this BuiltinPromiseResolvingFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BuiltinPromiseResolvingFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound BuiltinPromiseResolvingFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinPromiseResolvingFunction<'gc> {
-        unsafe {
-            std::mem::transmute::<
-                BuiltinPromiseResolvingFunction,
-                BuiltinPromiseResolvingFunction<'gc>,
-            >(self)
-        }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -91,6 +61,21 @@ impl BuiltinPromiseResolvingFunction<'_> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BuiltinPromiseResolvingFunction<'_> {
+    type Of<'a> = BuiltinPromiseResolvingFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -118,14 +103,14 @@ impl<'a> IntoObject<'a> for BuiltinPromiseResolvingFunction<'a> {
     }
 }
 
-impl From<BuiltinPromiseResolvingFunction<'_>> for Value {
-    fn from(value: BuiltinPromiseResolvingFunction) -> Self {
-        Self::BuiltinPromiseResolvingFunction(value.unbind())
+impl<'a> From<BuiltinPromiseResolvingFunction<'a>> for Value<'a> {
+    fn from(value: BuiltinPromiseResolvingFunction<'a>) -> Self {
+        Self::BuiltinPromiseResolvingFunction(value)
     }
 }
 
-impl IntoValue for BuiltinPromiseResolvingFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BuiltinPromiseResolvingFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -149,10 +134,7 @@ impl<'a> InternalSlots<'a> for BuiltinPromiseResolvingFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -208,23 +190,23 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -267,13 +249,13 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         TryResult::Continue(function_internal_own_property_keys(self, agent, gc))
     }
 
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let arg = args.get(0);
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {

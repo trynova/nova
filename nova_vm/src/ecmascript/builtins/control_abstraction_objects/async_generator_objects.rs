@@ -5,10 +5,8 @@
 mod async_generator_abstract_operations;
 mod async_generator_prototype;
 
-use std::{
-    collections::VecDeque,
-    ops::{Index, IndexMut},
-};
+use core::ops::{Index, IndexMut};
+use std::collections::VecDeque;
 
 use async_generator_abstract_operations::{
     async_generator_await_return_on_fulfilled, async_generator_await_return_on_rejected,
@@ -22,19 +20,19 @@ use crate::{
             generator_objects::VmOrArguments,
             promise_objects::promise_abstract_operations::promise_capability_records::PromiseCapability,
         },
-        execution::{agent::JsError, Agent, ExecutionContext, ProtoIntrinsics},
+        execution::{Agent, ExecutionContext, ProtoIntrinsics, agent::JsError},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
-        rootable::{HeapRootData, HeapRootRef, Rootable},
         Executable, ExecutionResult, Scoped, SuspendedVm,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        indexes::{AsyncGeneratorIndex, BaseIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::{AsyncGeneratorIndex, BaseIndex},
     },
 };
 
@@ -44,26 +42,6 @@ use super::promise_objects::promise_abstract_operations::promise_reaction_record
 pub struct AsyncGenerator<'a>(pub(crate) AsyncGeneratorIndex<'a>);
 
 impl AsyncGenerator<'_> {
-    /// Unbind this AsyncGenerator from its current lifetime. This is necessary to use
-    /// the AsyncGenerator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> AsyncGenerator<'static> {
-        unsafe { std::mem::transmute::<AsyncGenerator, AsyncGenerator<'static>>(self) }
-    }
-
-    // Bind this AsyncGenerator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your AsyncGenerators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let gen = gen.bind(&gc);
-    // ```
-    // to make sure that the unbound AsyncGenerator cannot be used after binding.
-    pub const fn bind<'a>(self, _: NoGcScope<'a, '_>) -> AsyncGenerator<'a> {
-        unsafe { std::mem::transmute::<AsyncGenerator, AsyncGenerator<'a>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -135,7 +113,11 @@ impl AsyncGenerator<'_> {
         }
     }
 
-    pub(crate) fn peek_first(self, agent: &mut Agent) -> &AsyncGeneratorRequest {
+    pub(crate) fn peek_first<'a, 'gc>(
+        self,
+        agent: &'a mut Agent,
+        _gc: NoGcScope<'gc, '_>,
+    ) -> &'a AsyncGeneratorRequest<'gc> {
         match agent[self].async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
@@ -146,24 +128,28 @@ impl AsyncGenerator<'_> {
         }
     }
 
-    pub(crate) fn pop_first(self, agent: &mut Agent) -> AsyncGeneratorRequest {
+    pub(crate) fn pop_first<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> AsyncGeneratorRequest<'gc> {
         match agent[self].async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap(),
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.pop_front().unwrap().bind(gc),
             AsyncGeneratorState::Completed => unreachable!(),
         }
     }
 
-    pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest) {
+    pub(crate) fn append_to_queue(self, agent: &mut Agent, request: AsyncGeneratorRequest<'_>) {
         match agent[self].async_generator_state.as_mut().unwrap() {
             AsyncGeneratorState::Awaiting { queue, .. }
             | AsyncGeneratorState::SuspendedStart { queue, .. }
             | AsyncGeneratorState::SuspendedYield { queue, .. }
             | AsyncGeneratorState::Executing(queue)
-            | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request),
+            | AsyncGeneratorState::DrainingQueue(queue) => queue.push_back(request.unbind()),
             AsyncGeneratorState::Completed => unreachable!(),
         }
     }
@@ -249,15 +235,16 @@ impl AsyncGenerator<'_> {
         value: Value,
         mut gc: GcScope,
     ) {
+        let value = value.bind(gc.nogc());
         if self.is_draining_queue(agent) {
             // We're coming here because return was called.
             match reaction_type {
                 PromiseReactionType::Fulfill => {
                     // AsyncGeneratorAwaitReturn onFulfilled
-                    async_generator_await_return_on_fulfilled(agent, self, value, gc);
+                    async_generator_await_return_on_fulfilled(agent, self, value.unbind(), gc);
                 }
                 PromiseReactionType::Reject => {
-                    async_generator_await_return_on_rejected(agent, self, value, gc);
+                    async_generator_await_return_on_rejected(agent, self, value.unbind(), gc);
                 }
             }
             return;
@@ -280,10 +267,10 @@ impl AsyncGenerator<'_> {
                 let executable = agent[self].executable.unwrap();
                 match reaction_type {
                     PromiseReactionType::Fulfill => {
-                        vm.resume(agent, executable, value, gc.reborrow())
+                        vm.resume(agent, executable, value.unbind(), gc.reborrow())
                     }
                     PromiseReactionType::Reject => {
-                        vm.resume_throw(agent, executable, value, gc.reborrow())
+                        vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                     }
                 }
             }
@@ -293,11 +280,11 @@ impl AsyncGenerator<'_> {
                     // ? Yield ( ? Await ( Value ) ), so Yield doesn't get
                     // performed at all and value is just thrown.
                     let executable = agent[self].executable.unwrap();
-                    vm.resume_throw(agent, executable, value, gc.reborrow())
+                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     async_generator_yield(
                         agent,
-                        value,
+                        value.unbind(),
                         scoped_generator.clone(),
                         vm,
                         gc.reborrow(),
@@ -310,7 +297,7 @@ impl AsyncGenerator<'_> {
                 // 3. If awaited is a throw completion, return ? awaited.
                 if reaction_type == PromiseReactionType::Reject {
                     let executable = agent[self].executable.unwrap();
-                    vm.resume_throw(agent, executable, value, gc.reborrow())
+                    vm.resume_throw(agent, executable, value.unbind(), gc.reborrow())
                 } else {
                     // TODO: vm.resume_return(agent, executable, value, gc.reborrow())
                     // 4. Assert: awaited is a normal completion.
@@ -319,12 +306,27 @@ impl AsyncGenerator<'_> {
                 }
             }
         };
-        resume_handle_result(agent, execution_result, scoped_generator, gc);
+        resume_handle_result(agent, execution_result.unbind(), scoped_generator, gc);
     }
 }
 
-impl IntoValue for AsyncGenerator<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGenerator<'_> {
+    type Of<'a> = AsyncGenerator<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for AsyncGenerator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -335,9 +337,9 @@ impl<'a> IntoObject<'a> for AsyncGenerator<'a> {
     }
 }
 
-impl From<AsyncGenerator<'_>> for Value {
-    fn from(val: AsyncGenerator) -> Self {
-        Value::AsyncGenerator(val.unbind())
+impl<'a> From<AsyncGenerator<'a>> for Value<'a> {
+    fn from(value: AsyncGenerator<'a>) -> Self {
+        Value::AsyncGenerator(value)
     }
 }
 
@@ -347,10 +349,10 @@ impl<'a> From<AsyncGenerator<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for AsyncGenerator<'_> {
+impl<'a> TryFrom<Value<'a>> for AsyncGenerator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::AsyncGenerator(value) = value {
             Ok(value)
         } else {
@@ -364,7 +366,7 @@ impl<'a> TryFrom<Object<'a>> for AsyncGenerator<'a> {
 
     fn try_from(value: Object) -> Result<Self, Self::Error> {
         if let Object::AsyncGenerator(value) = value {
-            Ok(value)
+            Ok(value.unbind())
         } else {
             Err(())
         }
@@ -372,17 +374,19 @@ impl<'a> TryFrom<Object<'a>> for AsyncGenerator<'a> {
 }
 
 impl<'a> InternalSlots<'a> for AsyncGenerator<'a> {
-    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::AsyncGeneratorFunction;
+    const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::AsyncGenerator;
 
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 
@@ -432,7 +436,7 @@ impl IndexMut<AsyncGenerator<'_>> for Vec<Option<AsyncGeneratorHeapData>> {
 #[derive(Debug, Default)]
 pub struct AsyncGeneratorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    pub(crate) async_generator_state: Option<AsyncGeneratorState>,
+    pub(crate) async_generator_state: Option<AsyncGeneratorState<'static>>,
     pub(crate) executable: Option<Executable>,
 }
 
@@ -447,29 +451,29 @@ pub(crate) enum AsyncGeneratorAwaitKind {
 }
 
 #[derive(Debug)]
-pub(crate) enum AsyncGeneratorState {
+pub(crate) enum AsyncGeneratorState<'a> {
     SuspendedStart {
-        arguments: Box<[Value]>,
+        arguments: Box<[Value<'static>]>,
         execution_context: ExecutionContext,
-        queue: VecDeque<AsyncGeneratorRequest>,
+        queue: VecDeque<AsyncGeneratorRequest<'a>>,
     },
     SuspendedYield {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
-        queue: VecDeque<AsyncGeneratorRequest>,
+        queue: VecDeque<AsyncGeneratorRequest<'a>>,
     },
-    Executing(VecDeque<AsyncGeneratorRequest>),
+    Executing(VecDeque<AsyncGeneratorRequest<'a>>),
     Awaiting {
         vm: SuspendedVm,
         execution_context: ExecutionContext,
-        queue: VecDeque<AsyncGeneratorRequest>,
+        queue: VecDeque<AsyncGeneratorRequest<'a>>,
         kind: AsyncGeneratorAwaitKind,
     },
-    DrainingQueue(VecDeque<AsyncGeneratorRequest>),
+    DrainingQueue(VecDeque<AsyncGeneratorRequest<'a>>),
     Completed,
 }
 
-impl AsyncGeneratorState {
+impl AsyncGeneratorState<'_> {
     pub(crate) fn is_completed(&self) -> bool {
         matches!(self, Self::Completed)
     }
@@ -511,18 +515,46 @@ impl AsyncGeneratorState {
 /// how an async generator should be resumed and contains capabilities for
 /// fulfilling or rejecting the corresponding promise.
 #[derive(Debug)]
-pub(crate) struct AsyncGeneratorRequest {
+pub(crate) struct AsyncGeneratorRequest<'a> {
     /// \[\[Completion]]
-    pub(crate) completion: AsyncGeneratorRequestCompletion,
+    pub(crate) completion: AsyncGeneratorRequestCompletion<'a>,
     /// \[\[Capability]]
     pub(crate) capability: PromiseCapability,
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGeneratorRequest<'_> {
+    type Of<'a> = AsyncGeneratorRequest<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum AsyncGeneratorRequestCompletion {
-    Ok(Value),
+pub(crate) enum AsyncGeneratorRequestCompletion<'a> {
+    Ok(Value<'a>),
     Err(JsError),
-    Return(Value),
+    Return(Value<'a>),
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for AsyncGeneratorRequestCompletion<'_> {
+    type Of<'a> = AsyncGeneratorRequestCompletion<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 impl Rootable for AsyncGenerator<'_> {
@@ -558,7 +590,7 @@ impl HeapMarkAndSweep for AsyncGenerator<'static> {
     }
 }
 
-impl HeapMarkAndSweep for AsyncGeneratorRequest {
+impl HeapMarkAndSweep for AsyncGeneratorRequest<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             completion,

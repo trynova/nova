@@ -2,17 +2,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::f64::consts;
+use core::f64::consts;
 
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::{to_number, to_number_primitive, to_uint32},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Builtin},
+        builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, Primitive, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Primitive, String, Value},
     },
-    engine::context::{GcScope, NoGcScope},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+    },
     heap::WellKnownSymbolIndexes,
 };
 
@@ -33,8 +36,7 @@ impl Builtin for MathObjectAbs {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::abs);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::abs);
 }
 
 struct MathObjectAcos;
@@ -43,8 +45,7 @@ impl Builtin for MathObjectAcos {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::acos);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::acos);
 }
 struct MathObjectAcosh;
 impl Builtin for MathObjectAcosh {
@@ -52,8 +53,7 @@ impl Builtin for MathObjectAcosh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::acosh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::acosh);
 }
 struct MathObjectAsin;
 impl Builtin for MathObjectAsin {
@@ -61,8 +61,7 @@ impl Builtin for MathObjectAsin {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::asin);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::asin);
 }
 struct MathObjectAsinh;
 impl Builtin for MathObjectAsinh {
@@ -70,8 +69,7 @@ impl Builtin for MathObjectAsinh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::asinh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::asinh);
 }
 struct MathObjectAtan;
 impl Builtin for MathObjectAtan {
@@ -79,8 +77,7 @@ impl Builtin for MathObjectAtan {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::atan);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::atan);
 }
 struct MathObjectAtanh;
 impl Builtin for MathObjectAtanh {
@@ -88,8 +85,7 @@ impl Builtin for MathObjectAtanh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::atanh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::atanh);
 }
 struct MathObjectAtan2;
 impl Builtin for MathObjectAtan2 {
@@ -97,8 +93,7 @@ impl Builtin for MathObjectAtan2 {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::atan2);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::atan2);
 }
 struct MathObjectCbrt;
 impl Builtin for MathObjectCbrt {
@@ -106,8 +101,7 @@ impl Builtin for MathObjectCbrt {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::cbrt);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::cbrt);
 }
 struct MathObjectCeil;
 impl Builtin for MathObjectCeil {
@@ -115,8 +109,7 @@ impl Builtin for MathObjectCeil {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::ceil);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::ceil);
 }
 struct MathObjectClz32;
 impl Builtin for MathObjectClz32 {
@@ -124,8 +117,7 @@ impl Builtin for MathObjectClz32 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::clz32);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::clz32);
 }
 struct MathObjectCos;
 impl Builtin for MathObjectCos {
@@ -133,8 +125,7 @@ impl Builtin for MathObjectCos {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::cos);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::cos);
 }
 struct MathObjectCosh;
 impl Builtin for MathObjectCosh {
@@ -142,8 +133,7 @@ impl Builtin for MathObjectCosh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::cosh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::cosh);
 }
 struct MathObjectExp;
 impl Builtin for MathObjectExp {
@@ -151,8 +141,7 @@ impl Builtin for MathObjectExp {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::exp);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::exp);
 }
 struct MathObjectExpm1;
 impl Builtin for MathObjectExpm1 {
@@ -160,8 +149,7 @@ impl Builtin for MathObjectExpm1 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::expm1);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::expm1);
 }
 struct MathObjectFloor;
 impl Builtin for MathObjectFloor {
@@ -169,8 +157,7 @@ impl Builtin for MathObjectFloor {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::floor);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::floor);
 }
 struct MathObjectFround;
 impl Builtin for MathObjectFround {
@@ -178,8 +165,7 @@ impl Builtin for MathObjectFround {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::fround);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::fround);
 }
 struct MathObjectHypot;
 impl Builtin for MathObjectHypot {
@@ -187,8 +173,7 @@ impl Builtin for MathObjectHypot {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::hypot);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::hypot);
 }
 struct MathObjectImul;
 impl Builtin for MathObjectImul {
@@ -196,8 +181,7 @@ impl Builtin for MathObjectImul {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::imul);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::imul);
 }
 struct MathObjectLog;
 impl Builtin for MathObjectLog {
@@ -205,8 +189,7 @@ impl Builtin for MathObjectLog {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log);
 }
 struct MathObjectLog1p;
 impl Builtin for MathObjectLog1p {
@@ -214,8 +197,7 @@ impl Builtin for MathObjectLog1p {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log1p);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log1p);
 }
 struct MathObjectLog10;
 impl Builtin for MathObjectLog10 {
@@ -223,8 +205,7 @@ impl Builtin for MathObjectLog10 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log10);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log10);
 }
 struct MathObjectLog2;
 impl Builtin for MathObjectLog2 {
@@ -232,8 +213,7 @@ impl Builtin for MathObjectLog2 {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::log2);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::log2);
 }
 struct MathObjectMax;
 impl Builtin for MathObjectMax {
@@ -241,8 +221,7 @@ impl Builtin for MathObjectMax {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::max);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::max);
 }
 struct MathObjectMin;
 impl Builtin for MathObjectMin {
@@ -250,8 +229,7 @@ impl Builtin for MathObjectMin {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::min);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::min);
 }
 struct MathObjectPow;
 impl Builtin for MathObjectPow {
@@ -259,8 +237,7 @@ impl Builtin for MathObjectPow {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::pow);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::pow);
 }
 struct MathObjectRandom;
 impl Builtin for MathObjectRandom {
@@ -268,8 +245,7 @@ impl Builtin for MathObjectRandom {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::random);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::random);
 }
 struct MathObjectRound;
 impl Builtin for MathObjectRound {
@@ -277,8 +253,7 @@ impl Builtin for MathObjectRound {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::round);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::round);
 }
 struct MathObjectSign;
 impl Builtin for MathObjectSign {
@@ -286,8 +261,7 @@ impl Builtin for MathObjectSign {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sign);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sign);
 }
 struct MathObjectSin;
 impl Builtin for MathObjectSin {
@@ -295,8 +269,7 @@ impl Builtin for MathObjectSin {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sin);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sin);
 }
 struct MathObjectSinh;
 impl Builtin for MathObjectSinh {
@@ -304,8 +277,7 @@ impl Builtin for MathObjectSinh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sinh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sinh);
 }
 struct MathObjectSqrt;
 impl Builtin for MathObjectSqrt {
@@ -313,8 +285,7 @@ impl Builtin for MathObjectSqrt {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sqrt);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sqrt);
 }
 struct MathObjectTan;
 impl Builtin for MathObjectTan {
@@ -322,8 +293,7 @@ impl Builtin for MathObjectTan {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::tan);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::tan);
 }
 struct MathObjectTanh;
 impl Builtin for MathObjectTanh {
@@ -331,8 +301,7 @@ impl Builtin for MathObjectTanh {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::tanh);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::tanh);
 }
 struct MathObjectTrunc;
 impl Builtin for MathObjectTrunc {
@@ -340,8 +309,7 @@ impl Builtin for MathObjectTrunc {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::trunc);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::trunc);
 }
 
 #[cfg(feature = "proposal-float16array")]
@@ -352,8 +320,7 @@ impl Builtin for MathObjectF16round {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::f16round);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::f16round);
 }
 
 #[cfg(feature = "proposal-math-sum")]
@@ -364,27 +331,26 @@ impl Builtin for MathObjectSumPrecise {
 
     const LENGTH: u8 = 1;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(MathObject::sum_precise);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(MathObject::sum_precise);
 }
 
 impl MathObject {
-    fn abs(
+    fn abs<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
-        Ok(n.abs(agent).into_value())
+        Ok(n.abs(agent).into_value().unbind())
     }
 
-    fn acos(
+    fn acos<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
         // 2. If n is NaN, n > 1𝔽, or n < -1𝔽, return NaN.
@@ -393,18 +359,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.acos(), gc.into_nogc()))
     }
 
-    fn acosh(
+    fn acosh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
@@ -419,18 +385,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.acosh(), gc.into_nogc()))
     }
 
-    fn asin(
+    fn asin<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -444,18 +410,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.asin(), gc.into_nogc()))
     }
 
-    fn asinh(
+    fn asinh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 3. Return an implementation-approximated Number value representing the result of the inverse hyperbolic sine of ℝ(n).
@@ -463,18 +429,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
-    fn atan(
+    fn atan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 3. If n is +∞𝔽, return an implementation-approximated Number value representing π / 2.
@@ -492,18 +458,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
-    fn atanh(
+    fn atanh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 4. If n is 1𝔽, return +∞𝔽.
@@ -527,12 +493,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.atanh(), gc.into_nogc()))
     }
 
-    fn atan2(
+    fn atan2<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let ny be ? ToNumber(y).
         let ny = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
         // 2. Let nx be ? ToNumber(x).
@@ -670,12 +636,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, r, gc.into_nogc()))
     }
 
-    fn cbrt(
+    fn cbrt<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.unbind();
         let gc = gc.into_nogc();
@@ -690,16 +656,16 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.into_f64(agent).cbrt(), gc))
     }
 
-    fn ceil(
+    fn ceil<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = arguments.get(0);
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
-            return Ok(n);
+            return Ok(n.unbind());
         }
 
         // 1. Let n be ? ToNumber(x).
@@ -707,12 +673,12 @@ impl MathObject {
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -726,12 +692,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.ceil(), gc.into_nogc()))
     }
 
-    fn clz32(
+    fn clz32<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToUint32(x).
         let n = to_uint32(agent, arguments.get(0), gc.reborrow())?;
 
@@ -742,12 +708,12 @@ impl MathObject {
         Ok(Value::from(p))
     }
 
-    fn cos(
+    fn cos<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
 
@@ -765,12 +731,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.cos(), gc.into_nogc()))
     }
 
-    fn cosh(
+    fn cosh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
 
@@ -793,18 +759,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.cosh(), gc.into_nogc()))
     }
 
-    fn exp(
+    fn exp<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         //1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
         //2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan(agent) || n.is_pos_infinity(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -823,12 +789,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.exp(), gc.into_nogc()))
     }
 
-    fn expm1(
+    fn expm1<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -838,7 +804,7 @@ impl MathObject {
             || n.is_neg_zero(agent)
             || n.is_pos_infinity(agent)
         {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -852,17 +818,17 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.exp_m1(), gc.into_nogc()))
     }
 
-    fn floor(
+    fn floor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = arguments.get(0);
 
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 1. Let n be ? ToNumber(x).
@@ -870,12 +836,12 @@ impl MathObject {
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -889,12 +855,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.floor(), gc.into_nogc()))
     }
 
-    fn fround(
+    fn fround<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -909,7 +875,7 @@ impl MathObject {
             || n.is_pos_infinity(agent)
             || n.is_neg_infinity(agent)
         {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 4. Let n32 be the result of converting n to IEEE 754-2019 binary32 format using roundTiesToEven mode.
@@ -922,12 +888,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n64, gc.into_nogc()))
     }
 
-    fn hypot(
+    fn hypot<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let coerced be a new empty List.
 
         // 2. For each element arg of args, do
@@ -973,19 +939,19 @@ impl MathObject {
         }
 
         // 7. Return an implementation-approximated Number value representing the square root of the sum of squares of the mathematical values of the elements of coerced.
-        return Ok(Value::from_f64(
+        Ok(Value::from_f64(
             agent,
             sum_of_squares.sqrt(),
             gc.into_nogc(),
-        ));
+        ))
     }
 
-    fn imul(
+    fn imul<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let a be ℝ(? ToUint32(x)).
         let a = to_uint32(agent, arguments.get(0), gc.reborrow())?;
 
@@ -999,19 +965,19 @@ impl MathObject {
         Ok(Value::from(product as i32))
     }
 
-    fn log(
+    fn log<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
 
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
 
         // 3. If n is 1𝔽, return +0𝔽.
@@ -1033,18 +999,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.ln(), gc.into_nogc()))
     }
 
-    fn log1p(
+    fn log1p<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n is -1𝔽, return -∞𝔽.
         if n == -1.0 {
@@ -1058,18 +1024,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.ln_1p(), gc.into_nogc()))
     }
 
-    fn log10(
+    fn log10<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n is 1𝔽, return +0𝔽.
         if n == 1.0 {
@@ -1088,18 +1054,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.log10(), gc.into_nogc()))
     }
 
-    fn log2(
+    fn log2<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is either NaN or +∞𝔽, return n.
         if n.is_nan() || n == f64::INFINITY {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n is 1𝔽, return +0𝔽.
         if n == 1.0 {
@@ -1117,12 +1083,12 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.log2(), gc.into_nogc()))
     }
 
-    fn max(
+    fn max<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if arguments.is_empty() {
             return Ok(Value::neg_inf());
         }
@@ -1180,11 +1146,11 @@ impl MathObject {
 
             let slow_nan = max_slow_path(
                 agent,
-                gc.reborrow(),
                 &mut only_ints,
                 &mut highest_i64,
                 &mut highest_f64,
                 &arguments[i..],
+                gc.reborrow(),
             )?;
             if slow_nan {
                 contained_nan = true;
@@ -1212,16 +1178,16 @@ impl MathObject {
                 highest_f64 = (highest_i64 as f64).max(highest_f64);
             }
             let result = Number::from_f64(agent, highest_f64, gc.nogc());
-            Ok(result.into_value())
+            Ok(result.into_value().unbind())
         }
     }
 
-    fn min(
+    fn min<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         if arguments.is_empty() {
             return Ok(Value::pos_inf());
         }
@@ -1281,11 +1247,11 @@ impl MathObject {
 
             let slow_nan = min_slow_path(
                 agent,
-                gc.reborrow(),
                 &mut only_ints,
                 &mut lowest_i64,
                 &mut lowest_f64,
                 &arguments[i..],
+                gc.reborrow(),
             )?;
             if slow_nan {
                 contained_nan = true;
@@ -1313,16 +1279,18 @@ impl MathObject {
                     lowest_f64 = lowest_f64.min(lowest_i64 as f64);
                 }
             }
-            Ok(Number::from_f64(agent, lowest_f64, gc.nogc()).into_value())
+            Ok(Number::from_f64(agent, lowest_f64, gc.nogc())
+                .into_value()
+                .unbind())
         }
     }
 
-    fn pow(
+    fn pow<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let base = arguments.get(0);
         let exponent = arguments.get(1);
         let (base, exponent) = if let (Ok(base), Ok(exponent)) =
@@ -1352,34 +1320,34 @@ impl MathObject {
                     if let Ok(result) = Number::try_from(result) {
                         return Ok(result.into_value());
                     } else {
-                        return Ok(Value::from_f64(agent, result as f64, gc));
+                        return Ok(Value::from_f64(agent, result as f64, gc).unbind());
                     }
                 } else if let Some(result) = (base as i128).checked_pow(exponent) {
-                    return Ok(Value::from_f64(agent, result as f64, gc));
+                    return Ok(Value::from_f64(agent, result as f64, gc).unbind());
                 } else {
-                    return Ok(Value::from_f64(
-                        agent,
-                        (base as f64).powf(exponent as f64),
-                        gc,
-                    ));
+                    return Ok(
+                        Value::from_f64(agent, (base as f64).powf(exponent as f64), gc).unbind(),
+                    );
                 }
             } else if let Ok(exponent) = i32::try_from(exponent) {
                 let result = (base as f64).powi(exponent);
-                return Ok(Value::from_f64(agent, result, gc));
+                return Ok(Value::from_f64(agent, result, gc).unbind());
             } else {
                 let result = (base as f64).powf(exponent as f64);
-                return Ok(Value::from_f64(agent, result, gc));
+                return Ok(Value::from_f64(agent, result, gc).unbind());
             }
         }
-        Ok(Number::exponentiate(agent, base, exponent).into_value())
+        Ok(Number::exponentiate(agent, base, exponent)
+            .into_value()
+            .unbind())
     }
 
-    fn random(
+    fn random<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         Ok(Value::from_f64(
             agent,
             rand::random::<f64>(),
@@ -1387,22 +1355,22 @@ impl MathObject {
         ))
     }
 
-    fn round(
+    fn round<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let n = arguments.get(0);
         if n.is_integer() {
-            return Ok(n);
+            return Ok(n.unbind());
         }
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, n, gc.reborrow())?;
 
         // 2. If n is not finite or n is an integral Number, return n.
         if !n.is_finite(agent) || n.is_integer(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         let n = n.into_f64(agent);
@@ -1421,17 +1389,17 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.round(), gc.into_nogc()))
     }
 
-    fn sign(
+    fn sign<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan(agent) || n.is_pos_zero(agent) || n.is_neg_zero(agent) {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
         // 3. If n < -0𝔽, return -1𝔽.
         if n.is_sign_negative(agent) {
@@ -1441,18 +1409,18 @@ impl MathObject {
         Ok(Value::from(1))
     }
 
-    fn sin(
+    fn sin<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
         if n.is_infinite() {
@@ -1462,35 +1430,35 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.sin(), gc.into_nogc()))
     }
 
-    fn sinh(
+    fn sinh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. Return an implementation-approximated Number value representing the hyperbolic sine of ℝ(n).
         Ok(Value::from_f64(agent, n.sinh(), gc.into_nogc()))
     }
 
-    fn sqrt(
+    fn sqrt<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, -0𝔽, or +∞𝔽, return n.
         if n.is_nan() || n == 0.0 || n == f64::INFINITY {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n < -0𝔽, return NaN.
         if n < -0.0 {
@@ -1500,18 +1468,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.sqrt(), gc.into_nogc()))
     }
 
-    fn tan(
+    fn tan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n is either +∞𝔽 or -∞𝔽, return NaN.
         if n.is_infinite() {
@@ -1521,18 +1489,18 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.tan(), gc.into_nogc()))
     }
 
-    fn tanh(
+    fn tanh<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
         // 2. If n is one of NaN, +0𝔽, or -0𝔽, return n.
         if n.is_nan() || n == 0.0 {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
         // 3. If n is +∞𝔽, return 1𝔽.
         if n == f64::INFINITY {
@@ -1546,19 +1514,19 @@ impl MathObject {
         Ok(Value::from_f64(agent, n.tanh(), gc.into_nogc()))
     }
 
-    fn trunc(
+    fn trunc<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n_number = to_number(agent, arguments.get(0), gc.reborrow())?;
         let n = n_number.into_f64(agent);
 
         // 2. If n is not finite or n is either +0𝔽 or -0𝔽, return n.
         if !n.is_finite() || n == 0.0 {
-            return Ok(n_number.into_value());
+            return Ok(n_number.into_value().unbind());
         }
 
         // 3. If n < 1𝔽 and n > +0𝔽, return +0𝔽.
@@ -1596,12 +1564,12 @@ impl MathObject {
     /// > adjusted value to binary16 under roundTiesToEven then produces the
     /// > correct value.
     #[cfg(feature = "proposal-float16array")]
-    fn f16round(
+    fn f16round<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let n be ? ToNumber(x).
         let n = to_number(agent, arguments.get(0), gc.reborrow())?;
 
@@ -1616,7 +1584,7 @@ impl MathObject {
             || n.is_pos_infinity(agent)
             || n.is_neg_infinity(agent)
         {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         }
 
         // 4. Let n16 be the result of converting n to IEEE 754-2019 binary16 format using roundTiesToEven mode.
@@ -1644,19 +1612,35 @@ impl MathObject {
     /// > recent algorithm is given in "Fast exact summation using small and large superaccumulators",
     /// > code for which is available at https://gitlab.com/radfordneal/xsum.
     #[cfg(feature = "proposal-math-sum")]
-    fn sum_precise(
+    fn sum_precise<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        use crate::ecmascript::abstract_operations::{
+            operations_on_iterator_objects::IteratorRecord,
+            operations_on_objects::throw_not_callable,
+        };
+
         let items = arguments.get(0);
 
         // 1. Perform ? RequireObjectCoercible(items).
         require_object_coercible(agent, items, gc.nogc())?;
 
         // 2. Let iteratorRecord be ? GetIterator(items, sync).
-        let mut iterator_record = get_iterator(agent, items, false, gc.reborrow())?;
+        let Some(IteratorRecord {
+            iterator,
+            next_method,
+        }) = get_iterator(agent, items, false, gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc())
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
+        };
+
+        let iterator = iterator.scope(agent, gc.nogc());
+        let next_method = next_method.scope(agent, gc.nogc());
 
         // 3. Let state be minus-zero.
         let mut state = -0.0f64;
@@ -1669,7 +1653,14 @@ impl MathObject {
         // 7. Repeat, while next is not done,
         // a. Set next to ? IteratorStepValue(iteratorRecord).
         // b. If next is not done, then
-        while let Some(next) = iterator_step_value(agent, &mut iterator_record, gc.reborrow())? {
+        while let Some(next) = iterator_step_value(
+            agent,
+            IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            },
+            gc.reborrow(),
+        )? {
             // i. Set count to count + 1.
             count += 1;
             // ii. If count ≥ 2**53, then
@@ -1682,7 +1673,7 @@ impl MathObject {
                     gc.nogc(),
                 );
                 // 2. Return ? IteratorClose(iteratorRecord, error).
-                return iterator_close(agent, &iterator_record, Err(error), gc);
+                return iterator_close(agent, iterator.get(agent), Err(error), gc);
             }
 
             // v. Let n be next.
@@ -1728,7 +1719,7 @@ impl MathObject {
                     gc.nogc(),
                 );
                 // 2. Return ? IteratorClose(iteratorRecord, error).
-                return iterator_close(agent, &iterator_record, Err(error), gc);
+                return iterator_close(agent, iterator.get(agent), Err(error), gc);
             }
         }
 
@@ -1737,10 +1728,11 @@ impl MathObject {
         // 10. If state is minus-infinity, return -∞𝔽.
         // 11. If state is minus-zero, return -0𝔽.
         if state.is_nan() || state.is_infinite() || state == -0.0 {
-            return Ok(Value::from_f64(agent, state, gc.into_nogc()));
+            Ok(Value::from_f64(agent, state, gc.into_nogc()))
+        } else {
+            // 12. Return 𝔽(sum).
+            Ok(Value::from_f64(agent, sum, gc.into_nogc()))
         }
-        // 12. Return 𝔽(sum).
-        Ok(Value::from_f64(agent, sum, gc.into_nogc()))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier, gc: NoGcScope) {
@@ -1763,7 +1755,7 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::E, gc).into_value()
+                        Number::from_f64(agent, consts::E, gc).into_value().unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1773,7 +1765,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN10.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_10, gc).into_value()
+                        Number::from_f64(agent, consts::LN_10, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1783,7 +1777,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LN2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LN_2, gc).into_value()
+                        Number::from_f64(agent, consts::LN_2, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1793,7 +1789,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG10E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG10_E, gc).into_value()
+                        Number::from_f64(agent, consts::LOG10_E, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1803,7 +1801,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.LOG2E.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::LOG2_E, gc).into_value()
+                        Number::from_f64(agent, consts::LOG2_E, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1813,7 +1813,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.PI.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::PI, gc).into_value()
+                        Number::from_f64(agent, consts::PI, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1823,7 +1825,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT1_2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::FRAC_1_SQRT_2, gc).into_value()
+                        Number::from_f64(agent, consts::FRAC_1_SQRT_2, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1833,7 +1837,9 @@ impl MathObject {
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.SQRT2.into())
                     .with_value_creator_readonly(|agent| {
-                        Number::from_f64(agent, consts::SQRT_2, gc).into_value()
+                        Number::from_f64(agent, consts::SQRT_2, gc)
+                            .into_value()
+                            .unbind()
                     })
                     .with_enumerable(false)
                     .with_configurable(false)
@@ -1898,11 +1904,11 @@ impl MathObject {
 #[inline(never)]
 fn max_slow_path(
     agent: &mut Agent,
-    mut gc: GcScope,
     only_ints: &mut bool,
     highest_i64: &mut i64,
     highest_f64: &mut f64,
     arguments: &[Value],
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     // First gather remaining arguments into Vec and scope each one to
     // make them safe from GC.
@@ -1942,11 +1948,11 @@ fn max_slow_path(
 #[inline(never)]
 fn min_slow_path(
     agent: &mut Agent,
-    mut gc: GcScope,
     only_ints: &mut bool,
     lowest_i64: &mut i64,
     lowest_f64: &mut f64,
     arguments: &[Value],
+    mut gc: GcScope,
 ) -> JsResult<bool> {
     // First gather remaining arguments into Vec and scope each one to
     // make them safe from GC.

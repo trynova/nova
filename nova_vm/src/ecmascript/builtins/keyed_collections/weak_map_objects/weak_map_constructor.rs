@@ -2,32 +2,39 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::hash::Hasher;
+use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{get, get_method, try_get};
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
-use crate::ecmascript::builtins::array::ArrayHeap;
-use crate::ecmascript::builtins::keyed_collections::map_objects::map_constructor::add_entries_from_iterable;
-use crate::ecmascript::builtins::keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::weak_map::data::WeakMapData;
-use crate::ecmascript::builtins::weak_map::WeakMap;
-use crate::ecmascript::execution::agent::ExceptionType;
-use crate::ecmascript::execution::ProtoIntrinsics;
-use crate::ecmascript::types::{Function, IntoFunction, IntoValue};
-use crate::engine::context::GcScope;
-use crate::engine::TryResult;
-use crate::heap::{Heap, PrimitiveHeap, WellKnownSymbolIndexes};
 use crate::{
     ecmascript::{
+        abstract_operations::{
+            operations_on_objects::{get, get_method, try_get},
+            testing_and_comparison::is_callable,
+        },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
-        execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
+            array::ArrayHeap,
+            keyed_collections::map_objects::{
+                map_constructor::add_entries_from_iterable,
+                map_prototype::canonicalize_keyed_collection_key,
+            },
+            ordinary::ordinary_create_from_constructor,
+            weak_map::{WeakMap, data::WeakMapData},
+        },
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        types::{
+            BUILTIN_STRING_MEMORY, Function, IntoFunction, IntoObject, IntoValue, Object, String,
+            Value,
+        },
     },
-    heap::IntrinsicConstructorIndexes,
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
+    heap::{Heap, IntrinsicConstructorIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
 
 use super::weak_map_prototype::WeakMapPrototypeSet;
@@ -46,13 +53,18 @@ impl BuiltinIntrinsicConstructor for WeakMapConstructor {
 }
 
 impl WeakMapConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let iterable = arguments.get(0).bind(nogc);
+        let no_iterable = iterable.is_undefined() || iterable.is_null();
+        let new_target = new_target.bind(nogc);
+
         // If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(
@@ -63,66 +75,72 @@ impl WeakMapConstructor {
         };
         let new_target = Function::try_from(new_target).unwrap();
         // 2. Let map be ? OrdinaryCreateFromConstructor(NewTarget, "%WeakMap.prototype%", « [[WeakMapData]] »).
+        // 4. If iterable is either undefined or null, return map.
+        if no_iterable {
+            return Ok(ordinary_create_from_constructor(
+                agent,
+                new_target.unbind(),
+                ProtoIntrinsics::WeakMap,
+                gc,
+            )?
+            .into_value());
+        }
+        let iterable = iterable.scope(agent, nogc);
         let mut map = WeakMap::try_from(ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::WeakMap,
             gc.reborrow(),
         )?)
         .unwrap()
         .unbind()
         .bind(gc.nogc());
-        // 3. Set map.[[WeakMapData]] to a new empty List.
-        let iterable = arguments.get(0);
-        // 4. If iterable is either undefined or null, return map.
-        if iterable.is_undefined() || iterable.is_null() {
-            Ok(map.into_value())
-        } else {
-            // Note
-            // If the parameter iterable is present, it is expected to be an
-            // object that implements an @@iterator method that returns an
-            // iterator object that produces a two element array-like object
-            // whose first element is a value that will be used as a WeakMap key
-            // and whose second element is the value to associate with that
-            // key.
+        // Note
+        // If the parameter iterable is present, it is expected to be an
+        // object that implements an @@iterator method that returns an
+        // iterator object that produces a two element array-like object
+        // whose first element is a value that will be used as a WeakMap key
+        // and whose second element is the value to associate with that
+        // key.
 
-            // 5. Let adder be ? Get(map, "set").
-            let adder = if let TryResult::Continue(adder) = try_get(
+        // 5. Let adder be ? Get(map, "set").
+        let adder = if let TryResult::Continue(adder) = try_get(
+            agent,
+            map.into_object().unbind(),
+            BUILTIN_STRING_MEMORY.set.to_property_key(),
+            gc.nogc(),
+        ) {
+            adder
+        } else {
+            let scoped_map = map.scope(agent, gc.nogc());
+            let adder = get(
                 agent,
                 map.into_object().unbind(),
                 BUILTIN_STRING_MEMORY.set.to_property_key(),
-                gc.nogc(),
-            ) {
-                adder
-            } else {
-                let scoped_map = map.scope(agent, gc.nogc());
-                let adder = get(
-                    agent,
-                    map.into_object().unbind(),
-                    BUILTIN_STRING_MEMORY.set.to_property_key(),
-                    gc.reborrow(),
-                )?;
-                map = scoped_map.get(agent).bind(gc.nogc());
-                adder
-            };
-            // 6. If IsCallable(adder) is false, throw a TypeError exception.
-            let Some(adder) = is_callable(adder, gc.nogc()) else {
-                return Err(agent.throw_exception_with_static_message(
-                    ExceptionType::TypeError,
-                    "WeakMap.prototype.set is not callable",
-                    gc.nogc(),
-                ));
-            };
-            // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
-            add_entries_from_iterable_weak_map_constructor(
-                agent,
-                map.unbind(),
-                iterable,
-                adder.unbind(),
                 gc.reborrow(),
-            )
-            .map(|result| result.into_value())
-        }
+            )?
+            .unbind();
+            let gc = gc.nogc();
+            map = scoped_map.get(agent).bind(gc);
+            adder
+        };
+        // 6. If IsCallable(adder) is false, throw a TypeError exception.
+        let Some(adder) = is_callable(adder, gc.nogc()) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "WeakMap.prototype.set is not callable",
+                gc.nogc(),
+            ));
+        };
+        // 7. Return ? AddEntriesFromIterable(map, iterable, adder).
+        add_entries_from_iterable_weak_map_constructor(
+            agent,
+            map.unbind(),
+            iterable.get(agent),
+            adder.unbind(),
+            gc,
+        )
+        .map(|result| result.into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -149,16 +167,18 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<WeakMap<'a>> {
     let mut target = target.bind(gc.nogc());
+    let mut iterable = iterable.bind(gc.nogc());
     let mut adder = adder.bind(gc.nogc());
     if let Function::BuiltinFunction(bf) = adder {
         if agent[bf].behaviour == WeakMapPrototypeSet::BEHAVIOUR {
             // Normal WeakMap.prototype.set
-            if let Value::Array(iterable) = iterable {
-                let scoped_adder = bf.scope(agent, gc.nogc());
+            if let Value::Array(arr_iterable) = iterable {
                 let scoped_target = target.scope(agent, gc.nogc());
+                let scoped_iterable = arr_iterable.scope(agent, gc.nogc());
+                let scoped_adder = bf.scope(agent, gc.nogc());
                 let using_iterator = get_method(
                     agent,
-                    iterable.into_value(),
+                    arr_iterable.into_value().unbind(),
                     WellKnownSymbolIndexes::Iterator.into(),
                     gc.reborrow(),
                 )?
@@ -174,6 +194,7 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
                             .into_function(),
                     )
                 {
+                    let arr_iterable = scoped_iterable.get(agent).bind(gc.nogc());
                     let Heap {
                         elements,
                         arrays,
@@ -187,12 +208,12 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
                     let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
                     // Iterable uses the normal Array iterator of this realm.
-                    if iterable.len(&array_heap) == 0 {
+                    if arr_iterable.len(&array_heap) == 0 {
                         // Array iterator does not iterate empty arrays.
                         return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
                     }
-                    if iterable.is_trivial(&array_heap)
-                        && iterable.as_slice(&array_heap).iter().all(|entry| {
+                    if arr_iterable.is_trivial(&array_heap)
+                        && arr_iterable.as_slice(&array_heap).iter().all(|entry| {
                             if let Some(Value::Array(entry)) = *entry {
                                 entry.len(&array_heap) == 2
                                     && entry.is_trivial(&array_heap)
@@ -203,7 +224,12 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
                         })
                     {
                         // Trivial, dense array of trivial, dense arrays of two elements.
-                        let length = iterable.len(&array_heap);
+                        let target = target.unbind();
+                        let arr_iterable = arr_iterable.unbind();
+                        let gc = gc.into_nogc();
+                        let target = target.bind(gc);
+                        let arr_iterable = arr_iterable.bind(gc);
+                        let length = arr_iterable.len(&array_heap);
                         let WeakMapData {
                             keys,
                             values,
@@ -223,52 +249,43 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
                             value.hash(&primitive_heap, &mut hasher);
                             hasher.finish()
                         };
-                        for entry in iterable.as_slice(&array_heap).iter() {
+                        for entry in arr_iterable.as_slice(&array_heap).iter() {
                             let Some(Value::Array(entry)) = *entry else {
                                 unreachable!()
                             };
                             let slice = entry.as_slice(&array_heap);
-                            if let Some(value) = slice[0] {
-                                if value.is_object() || value.is_symbol() {
-                                    let key = canonicalize_keyed_collection_key(numbers, value);
-                                    let key_hash = hasher(key);
-                                    let value = slice[1].unwrap();
-                                    let next_index = keys.len() as u32;
-                                    let entry = map_data.entry(
-                                        key_hash,
-                                        |hash_equal_index| {
-                                            keys[*hash_equal_index as usize].unwrap() == key
-                                        },
-                                        |index_to_hash| {
-                                            hasher(keys[*index_to_hash as usize].unwrap())
-                                        },
-                                    );
-                                    match entry {
-                                        hashbrown::hash_table::Entry::Occupied(occupied) => {
-                                            // We have duplicates in the array. Latter
-                                            // ones overwrite earlier ones.
-                                            let index = *occupied.get();
-                                            values[index as usize] = Some(value);
-                                        }
-                                        hashbrown::hash_table::Entry::Vacant(vacant) => {
-                                            vacant.insert(next_index);
-                                            keys.push(Some(key));
-                                            values.push(Some(value));
-                                        }
-                                    }
-                                } else {
-                                    return Err(agent.throw_exception_with_static_message(
-                                        ExceptionType::TypeError,
-                                        "WeakMap key must be an Object or Symbol",
-                                        gc.nogc(),
-                                    ));
+                            let key = canonicalize_keyed_collection_key(
+                                numbers,
+                                slice[0].unwrap().bind(gc),
+                            );
+                            let key_hash = hasher(key);
+                            let value = slice[1].unwrap().bind(gc);
+                            let next_index = keys.len() as u32;
+                            let entry = map_data.entry(
+                                key_hash,
+                                |hash_equal_index| keys[*hash_equal_index as usize].unwrap() == key,
+                                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
+                            );
+                            match entry {
+                                hashbrown::hash_table::Entry::Occupied(occupied) => {
+                                    // We have duplicates in the array. Latter
+                                    // ones overwrite earlier ones.
+                                    let index = *occupied.get();
+                                    values[index as usize] = Some(value.unbind());
+                                }
+                                hashbrown::hash_table::Entry::Vacant(vacant) => {
+                                    vacant.insert(next_index);
+                                    keys.push(Some(key.unbind()));
+                                    values.push(Some(value.unbind()));
                                 }
                             }
                         }
-                        return Ok(scoped_target.get(agent).bind(gc.into_nogc()));
+                        return Ok(scoped_target.get(agent).bind(gc));
                     }
                 }
-                adder = scoped_adder.get(agent).bind(gc.nogc()).into_function();
+                let gc = gc.nogc();
+                iterable = scoped_iterable.get(agent).bind(gc).into_value();
+                adder = scoped_adder.get(agent).bind(gc).into_function();
             }
         }
     }
@@ -276,7 +293,7 @@ pub fn add_entries_from_iterable_weak_map_constructor<'a>(
     Ok(WeakMap::try_from(add_entries_from_iterable(
         agent,
         target.into_object().unbind(),
-        iterable,
+        iterable.unbind(),
         adder.unbind(),
         gc,
     )?)

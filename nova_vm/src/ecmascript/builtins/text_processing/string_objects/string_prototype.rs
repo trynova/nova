@@ -2,21 +2,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{cmp::max, collections::VecDeque, iter::repeat, str::FromStr};
-
+use core::{cmp::max, iter::repeat, str::FromStr};
 use small_string::SmallString;
+use std::collections::VecDeque;
 use unicode_normalization::{
-    is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick, IsNormalized, UnicodeNormalization,
+    IsNormalized, UnicodeNormalization, is_nfc_quick, is_nfd_quick, is_nfkc_quick, is_nfkd_quick,
 };
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_reg_exp;
 use crate::ecmascript::abstract_operations::type_conversion::{
-    to_integer_or_infinity_number, to_string_primitive, try_to_integer_or_infinity, try_to_string,
+    to_integer_or_infinity_number, to_string_primitive, try_to_integer_or_infinity, try_to_length,
+    try_to_string,
 };
 use crate::ecmascript::types::Primitive;
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
-use crate::SmallInteger;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -29,11 +30,11 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
             ArgumentsList, Array, Behaviour, Builtin, BuiltinIntrinsic,
+            primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -386,27 +387,33 @@ impl Builtin for StringPrototypeSup {
 }
 
 impl StringPrototype {
-    fn at(
+    /// ### [22.1.3.1 String.prototype.at ( index )](https://tc39.es/ecma262/#sec-string.prototype.at)
+    fn at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let pos = args.get(0);
-        let (s, relative_index) =
-            if let (Ok(s), Value::Integer(relative_index)) = (String::try_from(this_value), pos) {
-                (s.bind(gc.nogc()), relative_index.into_i64())
-            } else {
-                // 1. Let O be ? RequireObjectCoercible(this value).
-                let o = require_object_coercible(agent, this_value, gc.nogc())?;
-                // 2. Let S be ? ToString(O).
-                let s = to_string(agent, o, gc.reborrow())?
-                    .unbind()
-                    .scope(agent, gc.nogc());
-                // 4. Let relativeIndex be ? ToIntegerOrInfinity(pos).
-                let relative_index = to_integer_or_infinity(agent, pos, gc.reborrow())?.into_i64();
-                (s.get(agent).bind(gc.nogc()), relative_index)
-            };
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let index = args.get(0).bind(nogc);
+        let (s, relative_index) = if let (Ok(s), Value::Integer(relative_index)) =
+            (String::try_from(this_value), index)
+        {
+            (s, relative_index.into_i64())
+        } else {
+            let index = index.scope(agent, nogc);
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, this_value, nogc)?;
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
+                .unbind()
+                .scope(agent, gc.nogc());
+            // 4. Let relativeIndex be ? ToIntegerOrInfinity(pos).
+            let relative_index =
+                to_integer_or_infinity(agent, index.get(agent), gc.reborrow())?.into_i64();
+            (s.get(agent).bind(gc.nogc()), relative_index)
+        };
         // 3. Let len be the length of S.
         let len = i64::try_from(s.utf16_len(agent)).unwrap();
         // 5. If relativeIndex ≥ 0, then
@@ -428,26 +435,30 @@ impl StringPrototype {
         }
     }
 
-    fn char_at(
+    /// ### [22.1.3.2 String.prototype.charAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.charat)
+    fn char_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let pos = args.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let pos = args.get(0).bind(nogc);
         let (s, position) = if let (Ok(s), Value::Integer(position)) =
             (String::try_from(this_value), pos)
         {
-            (s.bind(gc.nogc()), position.into_i64())
+            (s, position.into_i64())
         } else {
+            let pos = pos.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
             // 3. Let position be ? ToIntegerOrInfinity(pos).
-            let position = to_integer_or_infinity(agent, args.get(0), gc.reborrow())?.into_i64();
+            let position = to_integer_or_infinity(agent, pos.get(agent), gc.reborrow())?.into_i64();
             (s.get(agent).bind(gc.nogc()), position)
         };
         // 4. Let size be the length of S.
@@ -462,26 +473,30 @@ impl StringPrototype {
         }
     }
 
-    fn char_code_at(
+    /// ### [22.1.3.3 String.prototype.charCodeAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.charcodeat)
+    fn char_code_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let pos = args.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let pos = args.get(0).bind(nogc);
         let (s, position) = if let (Ok(s), Value::Integer(position)) =
             (String::try_from(this_value), pos)
         {
-            (s.bind(gc.nogc()), position.into_i64())
+            (s, position.into_i64())
         } else {
+            let pos = pos.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
             // 3. Let position be ? ToIntegerOrInfinity(pos).
-            let position = to_integer_or_infinity(agent, args.get(0), gc.reborrow())?.into_i64();
+            let position = to_integer_or_infinity(agent, pos.get(agent), gc.reborrow())?.into_i64();
             (s.get(agent).bind(gc.nogc()), position)
         };
         // 4. Let size be the length of S.
@@ -497,26 +512,30 @@ impl StringPrototype {
         }
     }
 
-    fn code_point_at(
+    /// ### [22.1.3.4 String.prototype.codePointAt ( pos )](https://tc39.es/ecma262/#sec-string.prototype.codepointat)
+    fn code_point_at<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let pos = args.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let pos = args.get(0).bind(nogc);
         let (s, position) = if let (Ok(s), Value::Integer(position)) =
             (String::try_from(this_value), pos)
         {
-            (s.bind(gc.nogc()), position.into_i64())
+            (s, position.into_i64())
         } else {
+            let pos = pos.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
             // 3. Let position be ? ToIntegerOrInfinity(pos).
-            let position = to_integer_or_infinity(agent, args.get(0), gc.reborrow())?.into_i64();
+            let position = to_integer_or_infinity(agent, pos.get(agent), gc.reborrow())?.into_i64();
             (s.get(agent).bind(gc.nogc()), position)
         };
         // 4. Let size be the length of S.
@@ -536,12 +555,13 @@ impl StringPrototype {
         }
     }
 
-    fn concat(
+    /// ### [22.1.3.5 String.prototype.concat ( ...args )](https://tc39.es/ecma262/#sec-string.prototype.concat)
+    fn concat<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let nogc = gc.nogc();
         let (s, args) = if let Ok(s) = String::try_from(this_value) {
             (s, &args[..])
@@ -551,19 +571,38 @@ impl StringPrototype {
             if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
                 (s?, &args[..])
             } else {
+                let scoped_args = args
+                    .iter()
+                    .map(|arg| arg.scope(agent, nogc))
+                    .collect::<Vec<_>>();
                 // 2. Let S be ? ToString(O).
-                // TODO: args should be rooted here.
-                (
-                    to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc()),
-                    &args[..],
-                )
+                let s = to_string(agent, o.unbind(), gc.reborrow())?
+                    .unbind()
+                    .scope(agent, gc.nogc());
+                let mut scoped_string_args = scoped_args
+                    .into_iter()
+                    .map(|arg| {
+                        let stack_arg = arg.get(agent);
+                        let stack_arg = to_string(agent, stack_arg, gc.reborrow())?;
+                        // SAFETY: args are never shared
+                        Ok(unsafe { arg.replace_self(agent, stack_arg.unbind()) })
+                    })
+                    .collect::<JsResult<Vec<_>>>()?;
+                scoped_string_args.insert(0, s);
+                let nogc = gc.into_nogc();
+                let string_args = scoped_string_args
+                    .into_iter()
+                    .map(|arg| arg.get(agent).bind(nogc))
+                    .collect::<Vec<_>>();
+                return Ok(String::concat(agent, &string_args, nogc).into_value());
             }
         };
         // 3. Let R be S.
-        let strings = if args.iter().all(|arg| arg.is_primitive()) {
+        let (strings, nogc) = if args.iter().all(|arg| arg.is_primitive()) {
             let mut strings = Vec::with_capacity(args.len() + 1);
-            strings.push(s);
-            let nogc = gc.nogc();
+            let s = s.unbind();
+            let nogc = gc.into_nogc();
+            strings.push(s.bind(nogc));
             for next in args.iter() {
                 strings.push(to_string_primitive(
                     agent,
@@ -571,7 +610,7 @@ impl StringPrototype {
                     nogc,
                 )?);
             }
-            strings
+            (strings, nogc)
         } else {
             let mut string_roots = Vec::with_capacity(args.len() + 1);
             string_roots.push(s.scope(agent, gc.nogc()));
@@ -582,27 +621,30 @@ impl StringPrototype {
                         .scope(agent, gc.nogc()),
                 );
             }
-            let nogc = gc.nogc();
-            string_roots
+            let nogc = gc.into_nogc();
+            let strings = string_roots
                 .into_iter()
                 .map(|string_root| string_root.get(agent).bind(nogc))
-                .collect::<Vec<_>>()
+                .collect::<Vec<_>>();
+            (strings, nogc)
         };
         // 4. For each element next of args, do
         //     a. Let nextString be ? ToString(next).
         //     b. Set R to the string-concatenation of R and nextString.
         // 5. Return R.
-        Ok(String::concat(agent, &strings, gc.nogc()).into_value())
+        Ok(String::concat(agent, &strings, nogc).into_value())
     }
 
-    fn ends_with(
+    fn ends_with<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let search_string = args.get(0);
-        let end_position = args.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_string = args.get(0).bind(nogc);
+        let end_position = args.get(1).bind(nogc);
 
         let (s, search_str, pos) = if let (Ok(s), Ok(search_str), Value::Undefined) = (
             String::try_from(this_value),
@@ -617,16 +659,18 @@ impl StringPrototype {
         ) {
             (s, search_str, position.into_i64().max(0) as usize)
         } else {
+            let search_string = search_string.scope(agent, nogc);
+            let end_position = end_position.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
             let o = require_object_coercible(agent, this_value, gc.nogc())?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            if is_reg_exp(agent, search_string, gc.reborrow())? {
+            if is_reg_exp(agent, search_string.get(agent), gc.reborrow())? {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "searchString is RegExp",
@@ -635,12 +679,13 @@ impl StringPrototype {
             }
 
             // 5. Let searchStr be ? ToString(searchString).
-            let search_str = to_string(agent, search_string, gc.reborrow())?
-                .unbind()
-                .scope(agent, gc.nogc());
+            let search_str = to_string(agent, search_string.get(agent), gc.reborrow())?.unbind();
+            // SAFETY: search_string is not shared.
+            let search_str = unsafe { search_string.replace_self(agent, search_str) };
 
             // 6. Let len be the length of S.
             // 7. If endPosition is undefined, let pos be len;
+            let end_position = end_position.get(agent);
             let pos = if end_position.is_undefined() {
                 usize::MAX
             } else {
@@ -650,9 +695,10 @@ impl StringPrototype {
                     .max(0) as usize
             };
 
+            let nogc = gc.nogc();
             (
-                s.get(agent).bind(gc.nogc()),
-                search_str.get(agent).bind(gc.nogc()),
+                s.get(agent).bind(nogc),
+                search_str.get(agent).bind(nogc),
                 pos,
             )
         };
@@ -684,14 +730,16 @@ impl StringPrototype {
         ))
     }
 
-    fn includes(
+    fn includes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let search_string = args.get(0);
-        let position = args.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_string = args.get(0).bind(nogc);
+        let position = args.get(1).bind(nogc);
 
         let (s, search_str, pos) = if let (Ok(s), Ok(search_str), Value::Undefined) = (
             String::try_from(this_value),
@@ -706,16 +754,18 @@ impl StringPrototype {
         ) {
             (s, search_str, position.into_i64().max(0) as usize)
         } else {
+            let position = position.scope(agent, nogc);
+            let search_string = search_string.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
             let o = require_object_coercible(agent, this_value, gc.nogc())?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
 
             // 3. Let isRegExp be ? IsRegExp(searchString).
             // 4. If isRegExp is true, throw a TypeError exception.
-            if is_reg_exp(agent, search_string, gc.reborrow())? {
+            if is_reg_exp(agent, search_string.get(agent), gc.reborrow())? {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "searchString is RegExp",
@@ -724,20 +774,27 @@ impl StringPrototype {
             }
 
             // 5. Let searchStr be ? ToString(searchString).
-            let search_str = to_string(agent, search_string, gc.reborrow())?
-                .unbind()
-                .scope(agent, gc.nogc());
+            let search_str = to_string(agent, search_string.get(agent), gc.reborrow())?.unbind();
+
+            // SAFETY: search_string is not shared.
+            let search_str = unsafe { search_string.replace_self(agent, search_str) };
             // 6. Let pos be ? ToIntegerOrInfinity(position).
+            let position = position.get(agent);
+            let position_is_undefined = position.is_undefined();
             let pos = to_integer_or_infinity(agent, position, gc.reborrow())?
                 .into_i64()
                 .max(0) as usize;
             // 7. Assert: If position is undefined, then pos is 0.
-            assert!(!position.is_undefined() || pos == 0);
+            assert!(!position_is_undefined || pos == 0);
 
-            (s.get(agent), search_str.get(agent), pos)
+            let nogc = gc.nogc();
+            (
+                s.get(agent).bind(nogc),
+                search_str.get(agent).bind(nogc),
+                pos,
+            )
         };
 
-        let s = s.bind(gc.nogc());
         let search_str = search_str.bind(gc.nogc());
 
         // 8. Let len be the length of S.
@@ -758,14 +815,17 @@ impl StringPrototype {
         Ok(Value::from(haystack_str.contains(search_str.as_str(agent))))
     }
 
-    fn index_of(
+    /// ### [22.1.3.9 String.prototype.indexOf ( searchString \[ , position \] )](https://tc39.es/ecma262/#sec-string.prototype.indexof)
+    fn index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let search_string = args.get(0);
-        let position = args.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_string = args.get(0).bind(nogc);
+        let position = args.get(1).bind(nogc);
 
         let (s, search_str, pos) = if let (Ok(s), Ok(search_str), Value::Undefined) = (
             String::try_from(this_value),
@@ -780,23 +840,32 @@ impl StringPrototype {
         ) {
             (s, search_str, position.into_i64().max(0) as usize)
         } else {
+            let search_string = search_string.scope(agent, nogc);
+            let position = position.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
             // 3. Let searchStr be ? ToString(searchString).
-            let search_str = to_string(agent, search_string, gc.reborrow())?
+            let search_str = to_string(agent, search_string.get(agent), gc.reborrow())?
                 .unbind()
-                .scope(agent, gc.nogc());
+                .bind(gc.nogc());
+            // SAFETY: search_str is not shared.
+            let search_str = unsafe { search_string.replace_self(agent, search_str.unbind()) };
             // 4. Let pos be ? ToIntegerOrInfinity(position).
             // 5. Assert: If position is undefined, then pos is 0.
-            let pos = to_integer_or_infinity(agent, position, gc.reborrow())?
+            let pos = to_integer_or_infinity(agent, position.get(agent), gc.reborrow())?
                 .into_i64()
                 .max(0) as usize;
 
-            (s.get(agent), search_str.get(agent), pos)
+            let nogc = gc.nogc();
+            (
+                s.get(agent).bind(nogc),
+                search_str.get(agent).bind(nogc),
+                pos,
+            )
         };
 
         // 6. Let len be the length of S.
@@ -824,16 +893,17 @@ impl StringPrototype {
         }
     }
 
-    fn is_well_formed(
+    /// ### [22.1.3.10 String.prototype.isWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.iswellformed)
+    fn is_well_formed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
         // 2. Let S be ? ToString(O).
-        let s = to_string(agent, o, gc.reborrow())?;
+        let s = to_string(agent, o.unbind(), gc.reborrow())?;
 
         // 3. Return IsStringWellFormedUnicode(S).
         // TODO: For now, all strings are well-formed Unicode. In the future, `.as_str()` will
@@ -852,14 +922,16 @@ impl StringPrototype {
     /// > otherwise, **`-1𝔽`** is returned. If position is **undefined**, the
     /// > length of the String value is assumed, so as to search all of the
     /// > String.
-    fn last_index_of(
+    fn last_index_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let search_string = args.get(0);
-        let position = args.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_string = args.get(0).bind(nogc);
+        let position = args.get(1).bind(nogc);
 
         let (s, search_str, pos) = if let (Ok(s), Ok(search_str), Value::Undefined) = (
             String::try_from(this_value),
@@ -874,17 +946,20 @@ impl StringPrototype {
         ) {
             (s, search_str, position.into_i64().max(0) as usize)
         } else {
+            let search_string = search_string.scope(agent, nogc);
+            let position = position.scope(agent, nogc);
             // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            let s = to_string(agent, o, gc.reborrow())?
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
             // 3. Let searchStr be ? ToString(searchString).
-            let search_str = to_string(agent, search_string, gc.reborrow())?
+            let mut search_str = to_string(agent, search_string.get(agent), gc.reborrow())?
                 .unbind()
-                .scope(agent, gc.nogc());
+                .bind(gc.nogc());
 
+            let position = position.get(agent).bind(gc.nogc());
             let pos = if position.is_undefined() {
                 // 5. Assert: If position is undefined, then numPos is NaN.
                 // 6. If numPos is NaN, let pos be +∞;
@@ -893,9 +968,11 @@ impl StringPrototype {
                 position.into_i64().max(0) as usize
             } else {
                 // 4. Let numPos be ? ToNumber(position).
-                let num_pos = to_number(agent, position, gc.reborrow())?
+                let scoped_search_str = search_str.scope(agent, gc.nogc());
+                let num_pos = to_number(agent, position.unbind(), gc.reborrow())?
                     .unbind()
                     .bind(gc.nogc());
+                search_str = scoped_search_str.get(agent).bind(gc.nogc());
                 if num_pos.is_nan(agent) {
                     // 6. If numPos is NaN, let pos be +∞;
                     usize::MAX
@@ -907,11 +984,8 @@ impl StringPrototype {
                 }
             };
 
-            (s.get(agent), search_str.get(agent), pos)
+            (s.get(agent).bind(gc.nogc()), search_str, pos)
         };
-
-        let s = s.bind(gc.nogc());
-        let search_str = search_str.bind(gc.nogc());
 
         // 7. Let len be the length of S.
         // 8. Let searchLen be the length of searchStr.
@@ -945,50 +1019,56 @@ impl StringPrototype {
         }
     }
 
-    fn locale_compare(
+    fn locale_compare<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn r#match(
+    fn r#match<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn match_all(
+    fn match_all<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
     /// ### [22.1.3.15 String.prototype.normalize ( \[ form \] )](https://tc39.es/ecma262/#sec-string.prototype.normalize)
-    fn normalize(
+    fn normalize<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let form = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let mut form = arguments.get(0).bind(nogc);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?;
 
         // 2. Let S be ? ToString(O).
-        let mut s = if let TryResult::Continue(s) = try_to_string(agent, o, gc.nogc()) {
+        let mut s = if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
             s?
         } else {
-            to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc())
+            let scoped_form = form.scope(agent, nogc);
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            form = scoped_form.get(agent).bind(gc.nogc());
+            s
         };
 
         // 3. If form is undefined, let f be "NFC".
@@ -996,11 +1076,16 @@ impl StringPrototype {
             NormalizeForm::Nfc
         } else {
             // 4. Else, let f be ? ToString(form).
-            let s_root = s.scope(agent, gc.nogc());
-            let f = to_string(agent, form, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc());
-            s = s_root.get(agent).bind(gc.nogc());
+            let f = if let TryResult::Continue(f) = try_to_string(agent, form, gc.nogc()) {
+                f?
+            } else {
+                let scoped_s = s.scope(agent, gc.nogc());
+                let f = to_string(agent, form.unbind(), gc.reborrow())?
+                    .unbind()
+                    .bind(gc.nogc());
+                s = scoped_s.get(agent).bind(gc.nogc());
+                f
+            };
             let form_result = NormalizeForm::from_str(f.as_str(agent));
             match form_result {
                 Ok(form) => form,
@@ -1010,7 +1095,7 @@ impl StringPrototype {
                         ExceptionType::RangeError,
                         "The normalization form should be one of NFC, NFD, NFKC, NFKD.",
                         gc.nogc(),
-                    ))
+                    ));
                 }
             }
         };
@@ -1018,68 +1103,89 @@ impl StringPrototype {
         // 6. Let ns be the String value that is the result of normalizing S into the normalization form named by f as specified in the latest Unicode Standard, Normalization Forms.
         match unicode_normalize(s.as_str(agent), f) {
             // 7. Return ns.
-            None => Ok(s.into_value()),
-            Some(ns) => Ok(Value::from_string(agent, ns, gc.nogc()).into_value()),
+            None => Ok(s.into_value().unbind()),
+            Some(ns) => Ok(Value::from_string(agent, ns, gc.into_nogc()).into_value()),
         }
     }
 
     /// ### [22.1.3.16 String.prototype.padEnd ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padend)
-    fn pad_end(
+    fn pad_end<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let max_length = arguments.get(0);
-        let fill_string = arguments.get(1);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let max_length = arguments.get(0).bind(nogc);
+        let fill_string = arguments.get(1).bind(nogc);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?;
 
         // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, end).
-        string_padding_builtins_impl(agent, o, max_length, fill_string, false, gc.reborrow())
+        string_padding_builtins_impl(
+            agent,
+            o.unbind(),
+            max_length.unbind(),
+            fill_string.unbind(),
+            false,
+            gc,
+        )
     }
 
     /// ### [22.1.3.17 String.prototype.padStart ( maxLength \[ , fillString \] )](https://tc39.es/ecma262/#sec-string.prototype.padstart)
-    fn pad_start(
+    fn pad_start<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let max_length = arguments.get(0);
-        let fill_string = arguments.get(1);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let max_length = arguments.get(0).bind(nogc);
+        let fill_string = arguments.get(1).bind(nogc);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?;
 
         // 2. Return ? StringPaddingBuiltinsImpl(O, maxLength, fillString, start).
-        string_padding_builtins_impl(agent, o, max_length, fill_string, true, gc.reborrow())
+        string_padding_builtins_impl(
+            agent,
+            o.unbind(),
+            max_length.unbind(),
+            fill_string.unbind(),
+            true,
+            gc,
+        )
     }
 
     /// ### [22.1.3.18 String.prototype.repeat ( count )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.repeat)
-    fn repeat(
+    fn repeat<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let count = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let count = arguments.get(0).scope(agent, nogc);
 
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?;
 
         // 2. Let S be ? ToString(O).
-        let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
+        let mut s = to_string(agent, o.unbind(), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
 
         // 3. Let n be ? ToIntegerOrInfinity(count).
+        let count = count.get(agent);
         let n = if let TryResult::Continue(n) = try_to_integer_or_infinity(agent, count, gc.nogc())
         {
             n?
         } else {
-            let s_root = s.scope(agent, gc.nogc());
+            let scoped_s = s.scope(agent, gc.nogc());
             let result = to_integer_or_infinity(agent, count, gc.reborrow())?;
-            s = s_root.get(agent).bind(gc.nogc());
+            s = scoped_s.get(agent).bind(gc.nogc());
             result
         };
 
@@ -1108,61 +1214,63 @@ impl StringPrototype {
         }
 
         if n == 1 {
-            return Ok(s.into_value());
+            return Ok(s.into_value().unbind());
         }
 
         // 6. Return the String value that is made from n copies of S appended together.
         Ok(Value::from_string(
             agent,
             s.as_str(agent).repeat(n as usize),
-            gc.nogc(),
+            gc.into_nogc(),
         ))
     }
 
     /// ### [22.1.3.19 String.prototype.replace ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replace)
-    fn replace(
+    fn replace<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_value = args.get(0).bind(nogc);
+        let replace_value = args.get(1).scope(agent, nogc);
+
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?.scope(agent, nogc);
 
-        let search_value = args.get(0);
-        let replace_value = args.get(1);
-
+        let scoped_search_value = search_value.scope(agent, nogc);
         // 2. If searchValue is neither undefined nor null, then
         if !search_value.is_null() && !search_value.is_undefined() {
             // a. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value, symbol, gc.reborrow())?;
+            let replacer = get_method(agent, search_value.unbind(), symbol, gc.reborrow())?;
 
             // b. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
             if let Some(replacer) = replacer {
                 return call_function(
                     agent,
                     replacer.unbind(),
-                    search_value,
-                    Some(ArgumentsList(&[o, replace_value])),
-                    gc.reborrow(),
+                    scoped_search_value.get(agent),
+                    Some(ArgumentsList(&[o.get(agent), replace_value.get(agent)])),
+                    gc,
                 );
             }
         }
 
         // 3. Let s be ? ToString(O).
-        let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
-        let s_root = s.scope(agent, gc.nogc());
+        let s = to_string(agent, o.get(agent), gc.reborrow())?
+            .unbind()
+            .scope(agent, gc.nogc());
 
         // 4. Let searchString be ? ToString(searchValue).
-        let search_string = to_string(agent, search_value, gc.reborrow())?
+        let search_string = to_string(agent, scoped_search_value.get(agent), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
 
-        s = s_root.get(agent).bind(gc.nogc());
-
         // 5. Let functionalReplace be IsCallable(replaceValue).
-        if let Some(functional_replace) = is_callable(replace_value, gc.nogc()) {
+        if let Some(functional_replace) = is_callable(replace_value.get(agent), gc.nogc()) {
             // 7. Let searchLength be the length of searchString.
             let search_length = search_string.len(agent);
 
@@ -1172,14 +1280,14 @@ impl StringPrototype {
                 position
             } else {
                 // 9. If position is not-found, return s.
-                return Ok(s.into_value());
+                return Ok(s.get(agent).into_value());
             };
 
             // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
             let args = &[
                 search_string.unbind().into_value(),
                 Number::from(position as u32).into_value(),
-                s.into_value().unbind(),
+                s.get(agent).into_value().unbind(),
             ];
             let result = call_function(
                 agent,
@@ -1189,11 +1297,9 @@ impl StringPrototype {
                 gc.reborrow(),
             )?;
 
-            let result = to_string(agent, result, gc.reborrow())?
+            let result = to_string(agent, result.unbind(), gc.reborrow())?
                 .unbind()
                 .bind(gc.nogc());
-
-            s = s_root.get(agent).bind(gc.nogc());
 
             // 10. Let preceding be the substring of s from 0 to position.
             // 11. Let following be the substring of s from position + searchLength.
@@ -1203,38 +1309,42 @@ impl StringPrototype {
 
             // 14. Return the string-concatenation of preceding, replacement, and following.
             let concatenated_result = format!("{}{}{}", preceding, result.as_str(agent), following);
-            return Ok(String::from_string(agent, concatenated_result, gc.nogc()).into_value());
+            return Ok(
+                String::from_string(agent, concatenated_result, gc.into_nogc()).into_value(),
+            );
         }
 
         let search_string_root = search_string.scope(agent, gc.nogc());
 
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
-        let replace_string = to_string(agent, replace_value, gc.reborrow())?
+        let replace_string = to_string(agent, replace_value.get(agent), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
-        s = s_root.get(agent).bind(gc.nogc());
-
-        let search_string = search_string_root.get(agent).bind(gc.nogc());
 
         // Everything are strings: `"foo".replace("o", "a")` => use rust's replace
-        let result =
-            s.as_str(agent)
-                .replacen(search_string.as_str(agent), replace_string.as_str(agent), 1);
-        Ok(String::from_string(agent, result, gc.nogc()).into_value())
+        let result = s.as_str(agent).replacen(
+            search_string_root.as_str(agent),
+            replace_string.as_str(agent),
+            1,
+        );
+        Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
     /// ### [22.1.3.20 String.prototype.replaceAll ( searchValue, replaceValue )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.replaceall)
-    fn replace_all(
+    fn replace_all<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_value = args.get(0).bind(nogc);
+        let replace_value = args.get(1).scope(agent, nogc);
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?.scope(agent, nogc);
 
-        let search_value = args.get(0);
-        let replace_value = args.get(1);
+        let scoped_search_value = search_value.scope(agent, nogc);
 
         // 2. If searchValue is neither undefined nor null, then
         if !search_value.is_null() && !search_value.is_undefined() {
@@ -1251,34 +1361,33 @@ impl StringPrototype {
 
             // c. Let replacer be ? GetMethod(searchValue, %Symbol.replace%).
             let symbol = WellKnownSymbolIndexes::Replace.into();
-            let replacer = get_method(agent, search_value, symbol, gc.reborrow())?;
+            let replacer = get_method(agent, search_value.unbind(), symbol, gc.reborrow())?;
 
             // d. If replacer is not undefined, Return ? Call(replacer, searchValue, « O, replaceValue »).
             if let Some(replacer) = replacer {
                 return call_function(
                     agent,
                     replacer.unbind(),
-                    search_value,
-                    Some(ArgumentsList(&[o, replace_value])),
-                    gc.reborrow(),
+                    scoped_search_value.get(agent),
+                    Some(ArgumentsList(&[o.get(agent), replace_value.get(agent)])),
+                    gc,
                 );
             }
         }
 
         // 3. Let s be ? ToString(O).
-        let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
-        let s_root = s.scope(agent, gc.nogc());
+        let s = to_string(agent, o.get(agent), gc.reborrow())?
+            .unbind()
+            .scope(agent, gc.nogc());
 
         // 4. Let searchString be ? ToString(searchValue).
-        let mut search_string = to_string(agent, search_value, gc.reborrow())?
+        let mut search_string = to_string(agent, scoped_search_value.get(agent), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
         let search_string_root = search_string.scope(agent, gc.nogc());
 
-        s = s_root.get(agent).bind(gc.nogc());
-
         // 5. Let functionalReplace be IsCallable(replaceValue).
-        if let Some(functional_replace) = is_callable(replace_value, gc.nogc()) {
+        if let Some(functional_replace) = is_callable(replace_value.get(agent), gc.nogc()) {
             // 7. Let searchLength be the length of searchString.
             let search_length = search_string.len(agent);
 
@@ -1301,7 +1410,7 @@ impl StringPrototype {
 
             // If none has found, return s.
             if match_positions.is_empty() {
-                return Ok(s.into_value());
+                return Ok(s.get(agent).into_value());
             }
 
             // 12. Let endOfLastMatch be 0.
@@ -1313,26 +1422,24 @@ impl StringPrototype {
             // 14. For each element p of matchPositions, do
             let functional_replace = functional_replace.scope(agent, gc.nogc());
             for p in match_positions {
-                search_string = search_string_root.get(agent);
-                s = s_root.get(agent);
                 // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
                     functional_replace.get(agent),
                     Value::Undefined,
                     Some(ArgumentsList(&[
-                        search_string.into_value(),
+                        search_string_root.get(agent).into_value(),
                         Number::from(position as u32).into_value(),
-                        s.into_value(),
+                        s.get(agent).into_value(),
                     ])),
                     gc.reborrow(),
                 )?;
+                let replacement = to_string(agent, replacement.unbind(), gc.reborrow())?;
 
                 // a. Let preserved be the substring of string from endOfLastMatch to p.
                 let preserved = &subject[end_of_last_match..p];
                 // d. Set result to the string-concatenation of result, preserved, and replacement.
-                let replacement_str = replacement.to_string(agent, gc.reborrow())?;
-                let replacement_str = replacement_str.as_str(agent);
+                let replacement_str = replacement.as_str(agent);
                 result.reserve(preserved.len() + replacement_str.len());
                 result.push_str(preserved);
                 result.push_str(replacement_str);
@@ -1346,59 +1453,63 @@ impl StringPrototype {
             }
 
             // 16. Return result.
-            return Ok(String::from_string(agent, result, gc.nogc()).into_value());
+            return Ok(String::from_string(agent, result, gc.into_nogc()).into_value());
         }
 
         // 6. If functionalReplace is false, Set replaceValue to ? ToString(replaceValue).
-        let replace_string = to_string(agent, replace_value, gc.reborrow())?
+        let replace_string = to_string(agent, replace_value.get(agent), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
         // Everything are strings: `"foo".replaceAll("o", "a")` => use rust's replace
         search_string = search_string_root.get(agent).bind(gc.nogc());
-        s = s_root.get(agent).bind(gc.nogc());
+        let s = s.get(agent).bind(gc.nogc());
         let result = s
             .as_str(agent)
             .replace(search_string.as_str(agent), replace_string.as_str(agent));
-        Ok(String::from_string(agent, result, gc.nogc()).into_value())
+        Ok(String::from_string(agent, result, gc.into_nogc()).into_value())
     }
 
-    fn search(
+    fn search<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn slice(
+    fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let start = args.get(0).scope(agent, nogc);
+        let end = args.get(1).scope(agent, nogc);
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?;
         // 2. Let S be ? ToString(O).
-        let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
-        let s_root = s.scope(agent, gc.nogc());
+        let s = to_string(agent, o.unbind(), gc.reborrow())?
+            .unbind()
+            .scope(agent, gc.nogc());
 
         // 3. Let len be the length of S.
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
-        let int_start = to_integer_or_infinity(agent, args.get(0), gc.reborrow())?;
-        s = s_root.get(agent).bind(gc.nogc());
+        let int_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())?;
         // 5. If intStart = -∞, let from be 0.
         // NOTE: We use `None` when `from` would be `len` in the spec.
         let from = if int_start.is_neg_infinity() {
             Some(0)
         } else if int_start.is_negative() {
             // 6. Else if intStart < 0, let from be max(len + intStart, 0).
-            let len = i64::try_from(s.utf16_len(agent)).unwrap();
+            let len = i64::try_from(s.get(agent).utf16_len(agent)).unwrap();
             let int_start = int_start.into_i64();
             Some((len + int_start).max(0) as usize)
         } else {
             // 7. Else, let from be min(intStart, len).
-            let len = s.utf16_len(agent);
+            let len = s.get(agent).utf16_len(agent);
             let int_start = int_start.into_i64() as usize;
             if int_start >= len {
                 None
@@ -1409,30 +1520,29 @@ impl StringPrototype {
 
         // 8. If end is undefined, let intEnd be len; else let intEnd be ? ToIntegerOrInfinity(end).
         // NOTE: We use `None` when `to` would be `len` in the spec.
-        let to = if args.get(1).is_undefined() {
+        let end = end.get(agent).bind(gc.nogc());
+        let to = if end.is_undefined() {
             None
         } else {
-            let int_end = to_integer_or_infinity(agent, args.get(1), gc.reborrow())?;
-            s = s_root.get(agent).bind(gc.nogc());
+            let int_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow())?;
             // 9. If intEnd = -∞, let to be 0.
             if int_end.is_neg_infinity() {
                 Some(0)
             } else if int_end.is_negative() {
                 // 10. Else if intEnd < 0, let to be max(len + intEnd, 0).
-                let len = i64::try_from(s.utf16_len(agent)).unwrap();
+                let len = i64::try_from(s.get(agent).utf16_len(agent)).unwrap();
                 let int_end = int_end.into_i64();
                 Some((len + int_end).max(0) as usize)
             } else {
                 // 11. Else, let to be min(intEnd, len).
-                let len = s.utf16_len(agent);
+                let len = s.get(agent).utf16_len(agent);
                 let int_end = int_end.into_i64() as usize;
-                if int_end >= len {
-                    None
-                } else {
-                    Some(int_end)
-                }
+                if int_end >= len { None } else { Some(int_end) }
             }
         };
+
+        let gc = gc.into_nogc();
+        let s = s.get(agent).bind(gc);
 
         // 12. If from ≥ to, return the empty String.
         // 13. Return the substring of S from from to to.
@@ -1452,78 +1562,83 @@ impl StringPrototype {
         };
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
-        let substring: &'static str = unsafe { std::mem::transmute(substring) };
-        Ok(String::from_str(agent, substring, gc.nogc()).into_value())
+        let substring: &'static str = unsafe { core::mem::transmute(substring) };
+        Ok(String::from_str(agent, substring, gc).into_value())
     }
 
     /// ### [22.1.3.23 String.prototype.split ( separator, limit )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.prototype.split)
-    fn split(
+    fn split<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let separator = args.get(0).scope(agent, nogc);
+        let limit = args.get(1).scope(agent, nogc);
         // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
+        let o = require_object_coercible(agent, this_value, nogc)?.scope(agent, nogc);
 
         // 2. If separator is neither undefined nor null, then
-        let separator = args.get(0);
 
-        if matches!(separator, Value::Undefined | Value::Null) {
+        let stack_separator = separator.get(agent).bind(gc.nogc());
+        if matches!(stack_separator, Value::Undefined | Value::Null) {
             let symbol = WellKnownSymbolIndexes::Split.into();
 
             // If splitter is not undefined, then return ? Call(splitter, separator, « O, limit »).
-            if let Ok(Some(splitter)) = get_method(agent, separator, symbol, gc.reborrow()) {
+            if let Ok(Some(splitter)) =
+                get_method(agent, stack_separator.unbind(), symbol, gc.reborrow())
+            {
                 return call_function(
                     agent,
                     splitter.unbind(),
-                    separator,
-                    Some(ArgumentsList(&[o, args.get(1)])),
-                    gc.reborrow(),
+                    separator.get(agent),
+                    Some(ArgumentsList(&[o.get(agent), limit.get(agent)])),
+                    gc,
                 );
             }
         }
 
         // 3. Let S be ? ToString(O).
-        let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
-        let s_root = s.scope(agent, gc.nogc());
+        let s = to_string(agent, o.get(agent), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        let scoped_s = s.scope(agent, gc.nogc());
 
-        let limit = args.get(1);
-        let lim = match limit {
+        let lim = limit.get(agent).bind(gc.nogc());
+        let lim = match limit.get(agent) {
             // 4. If limit is undefined, lim is 2**32 - 1.
             Value::Undefined => u32::MAX,
             // else let lim be ℝ(? ToUint32(limit)).
             // Note: Fast path for integer parameter.
             Value::Integer(value) => value.into_i64() as u32,
-            _ => to_uint32(agent, limit, gc.reborrow())?,
+            _ => to_uint32(agent, lim.unbind(), gc.reborrow())?,
         };
 
         // 5. Let R be ? ToString(separator).
-        let r = to_string(agent, separator, gc.reborrow())?
-            .unbind()
-            .bind(gc.nogc());
+        let r = to_string(agent, separator.get(agent), gc.reborrow())?.unbind();
+
+        let gc = gc.into_nogc();
+
+        let s = scoped_s.get(agent).bind(gc);
+        let r = r.bind(gc);
 
         // 6. If lim is zero, return an empty array
         if lim == 0 {
-            return Ok(create_array_from_list(agent, &[], gc.nogc()).into_value());
+            return Ok(create_array_from_list(agent, &[], gc).into_value());
         }
 
         // 7. If separator is undefined, return an array with the whole string
-        if separator.is_undefined() {
-            return Ok(create_array_from_list(
-                agent,
-                &[s_root.get(agent).bind(gc.nogc()).into_value()],
-                gc.nogc(),
-            )
-            .into_value());
+        if separator.get(agent).is_undefined() {
+            return Ok(create_array_from_list(agent, &[s.into_value()], gc).into_value());
         }
 
         // 8. Let separatorLength be the length of R.
         let separator_length = r.len(agent);
 
-        // 9. If separatorLength = 0, the split by characters
+        // 9. If separatorLength = 0, then split into characters
         if separator_length == 0 {
-            s = s_root.get(agent).bind(gc.nogc());
             let subject = s.as_str(agent);
             let head = subject.split("");
 
@@ -1539,15 +1654,15 @@ impl StringPrototype {
                 results.pop();
             }
 
-            let results = Array::from_slice(agent, results.as_slice(), gc.nogc());
+            let results = Array::from_slice(agent, results.as_slice(), gc);
             return Ok(results.into_value());
         }
 
         // 10. If S is the empty String, return CreateArrayFromList(« S »).
-        let s = s_root.get(agent).bind(gc.nogc());
+        let s = scoped_s.get(agent).bind(gc);
         if s.is_empty_string() {
-            let list: [Value; 1] = [s.into_value()];
-            return Ok(create_array_from_list(agent, &list, gc.nogc()).into_value());
+            let list: [Value; 1] = [s.into_value().unbind()];
+            return Ok(create_array_from_list(agent, &list, gc).into_value());
         }
 
         // 11-17. Normal split
@@ -1560,108 +1675,161 @@ impl StringPrototype {
             if lim as usize == i {
                 break;
             }
-            results.push(Value::from_str(agent, part, gc.nogc()));
+            results.push(Value::from_str(agent, part, gc));
         }
 
-        let results = Array::from_slice(agent, results.as_slice(), gc.nogc());
+        let results = Array::from_slice(agent, results.as_slice(), gc);
         Ok(results.into_value())
     }
 
-    fn starts_with(
+    /// ### [22.1.3.24 String.prototype.startsWith ( searchString \[ , position \] )]
+    fn starts_with<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        // 1. Let O be ? RequireObjectCoercible(this value).
-        let o = require_object_coercible(agent, this_value, gc.nogc())?;
-        // 2. Let S be ? ToString(O).
-        let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let search_string = args.get(0).bind(nogc);
+        let position = args.get(1).bind(nogc);
 
-        let s_root = s.scope(agent, gc.nogc());
-
-        // 3. Let isRegExp be ? IsRegExp(searchString).
-        // 4. If isRegExp is true, throw a TypeError exception.
-        if is_reg_exp(agent, args.get(0), gc.reborrow())? {
-            return Err(agent.throw_exception_with_static_message(
-                ExceptionType::TypeError,
-                "searchString is RegExp",
-                gc.nogc(),
-            ));
-        }
-
-        // 5. Let searchStr be ? ToString(searchString).
-        let search_str = to_string(agent, args.get(0), gc.reborrow())?
-            .unbind()
-            .scope(agent, gc.nogc());
-
-        // 6. Let len be the length of S.
-        // 7. If position is undefined, let pos be 0; else let pos be ? ToIntegerOrInfinity(endPosition).
-        // 8. Let start be the result of clamping pos between 0 and len.
-        let position = args.get(1);
-        let haystack_str = if position.is_undefined() {
-            s = s_root.get(agent).bind(gc.nogc());
-            s.as_str(agent)
+        let position_option = if position.is_undefined() {
+            Some(0)
+        } else if let Value::Integer(position) = position {
+            Some(position.into_i64().max(0) as usize)
         } else {
-            let pos = to_integer_or_infinity(agent, position, gc.reborrow())?;
-            s = s_root.get(agent).bind(gc.nogc());
-            if pos.is_negative() {
-                s.as_str(agent)
-            } else {
-                let len = s.utf16_len(agent);
-                let pos = pos.into_i64() as usize;
-                if pos >= len {
-                    ""
-                } else {
-                    let u8_idx = s.utf8_index(agent, pos).unwrap();
-                    &s.as_str(agent)[u8_idx..]
-                }
+            None
+        };
+
+        let (s, search_str, start) = if let (Ok(s), Ok(search_string), Some(position)) = (
+            String::try_from(this_value),
+            String::try_from(search_string),
+            position_option,
+        ) {
+            (s, search_string, position)
+        } else {
+            let search_string = search_string.scope(agent, nogc);
+            let position = position.scope(agent, nogc);
+
+            // 1. Let O be ? RequireObjectCoercible(this value).
+            let o = require_object_coercible(agent, this_value, nogc)?;
+            // 2. Let S be ? ToString(O).
+            let s = to_string(agent, o.unbind(), gc.reborrow())?
+                .unbind()
+                .scope(agent, gc.nogc());
+
+            // 3. Let isRegExp be ? IsRegExp(searchString).
+            // 4. If isRegExp is true, throw a TypeError exception.
+            if is_reg_exp(agent, search_string.get(agent), gc.reborrow())? {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "searchString is RegExp",
+                    gc.nogc(),
+                ));
             }
+
+            // 5. Let searchStr be ? ToString(searchString).
+            let search_str = to_string(agent, search_string.get(agent), gc.reborrow())?
+                .unbind()
+                .scope(agent, gc.nogc());
+
+            // 6. Let len be the length of S.
+            // 7. If position is undefined, let pos be 0; else let pos be
+            //    ? ToIntegerOrInfinity(endPosition).
+            // 8. Let start be the result of clamping pos between 0 and len.
+            let position = position.get(agent);
+            let start = if position.is_undefined() {
+                0
+            } else {
+                to_integer_or_infinity(agent, position, gc.reborrow())?
+                    .into_i64()
+                    .max(0) as usize
+            };
+
+            (
+                s.get(agent).bind(gc.nogc()),
+                search_str.get(agent).bind(gc.nogc()),
+                start,
+            )
         };
 
         // 9. Let searchLength be the length of searchStr.
         // 10. If searchLength = 0, return true.
-        // 11. Let start be end - searchLength.
-        // 12. If start < 0, return false.
+        if search_str.len(agent) == 0 {
+            return Ok(true.into());
+        }
+        // 11. Let end be start + searchLength.
+        // 12. If end > len, return false.
         // 13. Let substring be the substring of S from start to end.
         // 14. If substring is searchStr, return true.
         // 15. Return false.
-        Ok(Value::from(
-            haystack_str.starts_with(search_str.get(agent).as_str(agent)),
-        ))
+        let haystack_str = if start == 0 {
+            s.as_str(agent)
+        } else {
+            let len = s.utf16_len(agent);
+            if start >= len {
+                ""
+            } else {
+                let start = s.utf8_index(agent, start).unwrap();
+                &s.as_str(agent)[start..]
+            }
+        };
+        Ok(haystack_str.starts_with(search_str.as_str(agent)).into())
     }
 
-    fn substring(
+    fn substring<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let nogc = gc.nogc();
-        let start = args.get(0).bind(nogc);
-        let end = args.get(1).bind(nogc);
-        let s = if let Ok(s) = String::try_from(this_value) {
+        let this_value = this_value.bind(nogc);
+        let start = args.get(0).scope(agent, nogc);
+        let end = args.get(1).scope(agent, nogc);
+        let mut s = if let Ok(s) = String::try_from(this_value) {
             s.bind(nogc)
         } else {
             // 1. Let O be ? RequireObjectCoercible(this value).
             let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc())
+            to_string(agent, o.unbind(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc())
         };
 
-        let s = s.scope(agent, gc.nogc());
+        let mut scoped_s = None;
 
         // 3. Let len be the length of S.
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
-        let int_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
+        // SAFETY: Never shared.
+        let start = unsafe { start.take(agent) }.bind(gc.nogc());
+        let int_start = if let TryResult::Continue(int_start) =
+            try_to_integer_or_infinity(agent, start, gc.nogc())
+        {
+            int_start?
+        } else {
+            let local_scoped_s = s.scope(agent, gc.nogc());
+            let int_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())?;
+            s = local_scoped_s.get(agent).bind(gc.nogc());
+            scoped_s = Some(local_scoped_s);
+            int_start
+        };
         // 5. If end is undefined, let intEnd be len; else let intEnd be ? ToIntegerOrInfinity(end).
+        let end = end.get(agent).bind(gc.nogc());
         let int_end = if end.is_undefined() {
             None
+        } else if let TryResult::Continue(int_end) =
+            try_to_integer_or_infinity(agent, end, gc.nogc())
+        {
+            Some(int_end?)
         } else {
-            Some(to_integer_or_infinity(agent, end, gc.reborrow())?)
+            let local_scoped_s = scoped_s.unwrap_or_else(|| s.scope(agent, gc.nogc()));
+            let int_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow())?;
+            s = local_scoped_s.get(agent).bind(gc.nogc());
+            Some(int_end)
         };
-
-        let s = s.get(agent).bind(gc.nogc());
 
         // Fast path: can we return `s` without computing the UTF-16 length?
         // We can if int_start <= 0 and we know int_end must be >= len
@@ -1671,7 +1839,7 @@ impl StringPrototype {
                 .map(|int_end| int_end.into_i64() >= s.len(agent) as i64)
                 .unwrap_or(true)
         {
-            return Ok(s.into_value());
+            return Ok(s.into_value().unbind());
         }
 
         let len = s.utf16_len(agent);
@@ -1703,98 +1871,105 @@ impl StringPrototype {
         let substring = &s.as_str(agent)[u8_from..u8_to];
         // SAFETY: The memory for `substring` (and for the WTF-8 representation
         // of `s`) won't be moved or deallocated before this function returns.
-        let substring: &'static str = unsafe { std::mem::transmute(substring) };
-        Ok(String::from_str(agent, substring, gc.nogc()).into_value())
+        let substring: &'static str = unsafe { core::mem::transmute(substring) };
+        Ok(String::from_str(agent, substring, gc.into_nogc()).into_value())
     }
 
-    fn to_locale_lower_case(
+    /// ### [22.1.3.26 String.prototype.toLocaleLowerCase ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-string.prototype.tolocalelowercase)
+    fn to_locale_lower_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o: Value = require_object_coercible(agent, this_value, gc.nogc())?;
         // 2. Let S be ? ToString(O).
-        let s = to_string(agent, o, gc.reborrow())?;
+        let s = to_string(agent, o.unbind(), gc.reborrow())?;
 
         // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
         // 4. Let lowerText be toLowercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
         let lower_case_string: std::string::String = s.as_str(agent).to_lowercase();
-        Ok(String::from_string(agent, lower_case_string, gc.nogc()).into_value())
+        Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
     }
 
-    fn to_locale_upper_case(
+    /// ### [22.1.3.27 String.prototype.toLocaleUpperCase ( \[ reserved1 \[ , reserved2 \] \] )](https://tc39.es/ecma262/#sec-string.prototype.tolocaleuppercase)
+    fn to_locale_upper_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
         // 2. Let S be ? ToString(O).
-        let s = to_string(agent, o, gc.reborrow())?;
+        let s = to_string(agent, o.unbind(), gc.reborrow())?;
 
         // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
         // 4. Let upperText be toUppercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
         let upper_case_string = s.as_str(agent).to_uppercase();
-        Ok(String::from_string(agent, upper_case_string, gc.nogc()).into_value())
+        Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
     }
 
+    /// ### [22.1.3.28 String.prototype.toLowerCase ( )](https://tc39.es/ecma262/#sec-string.prototype.tolowercase)
+    ///
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_lower_case(
+    fn to_lower_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
         // 2. Let S be ? ToString(O).
-        let s = to_string(agent, o, gc.reborrow())?;
+        let s = to_string(agent, o.unbind(), gc.reborrow())?;
 
         // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
         // 4. Let lowerText be toLowercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(lowerText).
         // 6. Return L.
         let lower_case_string = s.as_str(agent).to_lowercase();
-        Ok(String::from_string(agent, lower_case_string, gc.nogc()).into_value())
+        Ok(String::from_string(agent, lower_case_string, gc.into_nogc()).into_value())
     }
 
+    /// ### [22.1.3.30 String.prototype.toUpperCase ( )](https://tc39.es/ecma262/#sec-string.prototype.touppercase)
+    ///
     /// > NOTE: The implementation might not reflect the spec.
-    fn to_upper_case(
+    fn to_upper_case<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
         // 2. Let S be ? ToString(O).
-        let s = to_string(agent, o, gc.reborrow())?;
+        let s = to_string(agent, o.unbind(), gc.reborrow())?;
 
         // 3. Let sText be [StringToCodePoints](https://tc39.es/ecma262/#sec-stringtocodepoints)(S).
         // 4. Let upperText be toUppercase(sText), according to the Unicode Default Case Conversion algorithm.
         // 5. Let L be [CodePointsToString](https://tc39.es/ecma262/#sec-codepointstostring)(upperText).
         // 6. Return L.
         let upper_case_string = s.as_str(agent).to_uppercase();
-        Ok(String::from_string(agent, upper_case_string, gc.nogc()).into_value())
+        Ok(String::from_string(agent, upper_case_string, gc.into_nogc()).into_value())
     }
 
-    fn to_well_formed(
+    /// ### [22.1.3.31 String.prototype.toWellFormed ( )](https://tc39.es/ecma262/#sec-string.prototype.towellformed)
+    fn to_well_formed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be ? RequireObjectCoercible(this value).
         let o = require_object_coercible(agent, this_value, gc.nogc())?;
         // 2. Let S be ? ToString(O).
-        let s = to_string(agent, o, gc.reborrow())?;
+        let s = to_string(agent, o.unbind(), gc.reborrow())?;
 
         // 3. Let strLen be the length of S.
         // 4. Let k be 0.
@@ -1811,34 +1986,34 @@ impl StringPrototype {
         // TODO: For now, all strings are well-formed Unicode. In the future, `.as_str()` will
         // return None for WTF-8 strings.
         let _: &str = s.as_str(agent);
-        Ok(s.into_value())
+        Ok(s.into_value().unbind())
     }
 
     /// ### [22.1.3.32 String.prototype.trim ( )](https://tc39.es/ecma262/#sec-string.prototype.trim)
-    fn trim(
+    fn trim<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, start+end).
         Self::trim_string(agent, this_value, TrimWhere::StartAndEnd, gc)
     }
 
     /// #### [22.1.3.32.1 String.prototype.trimString ( )](https://tc39.es/ecma262/#sec-trimstring)
-    fn trim_string(
+    fn trim_string<'gc>(
         agent: &mut Agent,
         value: Value,
         trim_where: TrimWhere,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let str be ? RequireObjectCoercible(string).
         let str = require_object_coercible(agent, value, gc.nogc())?;
 
         // 2. Let S be ? ToString(str)
-        let s = to_string(agent, str, gc.reborrow())?.unbind();
-        let gc = gc.nogc();
+        let s = to_string(agent, str.unbind(), gc.reborrow())?.unbind();
+        let gc = gc.into_nogc();
         let s = s.bind(gc);
 
         let s_str = s.as_str(agent);
@@ -1866,24 +2041,24 @@ impl StringPrototype {
     }
 
     /// ### [22.1.3.33 String.prototype.trimEnd ( )](https://tc39.es/ecma262/#sec-string.prototype.trimend)
-    fn trim_end(
+    fn trim_end<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, end).
         Self::trim_string(agent, this_value, TrimWhere::End, gc)
     }
 
     /// ### [22.1.3.34 String.prototype.trimStart ( )](https://tc39.es/ecma262/#sec-string.prototype.trimstart)
-    fn trim_start(
+    fn trim_start<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? TrimString(S, start).
         Self::trim_string(agent, this_value, TrimWhere::Start, gc)
@@ -1894,23 +2069,50 @@ impl StringPrototype {
     ///
     /// > NOTE: `String.prototype.toString` and `String.prototype.valueOf` are
     /// > different functions but have the exact same steps.
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Return ? ThisStringValue(this value).
-        this_string_value(agent, this_value, gc.nogc()).map(|string| string.into_value())
+        this_string_value(agent, this_value, gc.into_nogc())
+            .map(|string| string.into_value().unbind())
     }
 
-    fn iterator(
-        _agent: &mut Agent,
-        _this_value: Value,
+    /// ### [22.1.3.36 String.prototype \[ %Symbol.iterator% \] ( )](https://tc39.es/ecma262/#sec-string.prototype-%symbol.iterator%)
+    fn iterator<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        todo!()
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        // 1. Let O be ? RequireObjectCoercible(this value).
+        let o = require_object_coercible(agent, this_value, nogc)?;
+        // 2. Let s be ? ToString(O).
+        let _s = to_string(agent, o.unbind(), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        // 3. Let closure be a new Abstract Closure with no parameters that
+        //    captures s and performs the following steps when called:
+        fn closure<'gc>(agent: &mut Agent, s: String, gc: GcScope) -> JsResult<Value<'gc>> {
+            let s = s.bind(gc.nogc());
+            // a. Let len be the length of s.
+            let _len = s.utf16_len(agent);
+            // b. Let position be 0.
+            // c. Repeat, while position < len,
+            // i. Let cp be CodePointAt(s, position).
+            // ii. Let nextIndex be position + cp.[[CodeUnitCount]].
+            // iii. Let resultString be the substring of s from position to nextIndex.
+            // iv. Set position to nextIndex.
+            // v. Perform ? GeneratorYield(CreateIteratorResultObject(resultString, false)).
+            todo!()
+        }
+        // d. Return undefined.
+        // 4. Return CreateIteratorFromClosure(closure, "%StringIteratorPrototype%", %StringIteratorPrototype%).
+        Ok(Value::Iterator)
     }
 
     /// ### [B.2.2.1 String.prototype.substr ( start, length )](https://tc39.es/ecma262/#sec-string.prototype.substr)
@@ -1922,22 +2124,26 @@ impl StringPrototype {
     /// sourceLength is the length of the String. The result is a String value,
     /// not a String object.
     #[cfg(feature = "annex-b-string")]
-    fn substr(
+    fn substr<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let start = args.get(0).bind(gc.nogc());
-        let length = args.get(1).bind(gc.nogc());
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let start = args.get(0).scope(agent, nogc);
+        let length = args.get(1).scope(agent, nogc);
 
         let s = if let Ok(s) = String::try_from(this_value) {
-            s.bind(gc.nogc())
+            s.bind(nogc)
         } else {
             // 1. Let O be ? RequireObjectCoercible(this value).
-            let o = require_object_coercible(agent, this_value, gc.nogc())?;
+            let o = require_object_coercible(agent, this_value, nogc)?;
             // 2. Let S be ? ToString(O).
-            to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc())
+            to_string(agent, o.unbind(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc())
         };
         let scoped_s = s.scope(agent, gc.nogc());
 
@@ -1945,7 +2151,7 @@ impl StringPrototype {
         let size = s.utf16_len(agent) as i64;
 
         // 4. Let intStart be ? ToIntegerOrInfinity(start).
-        let int_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
+        let int_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())?;
 
         // 5. If intStart = -∞, set intStart to 0.
         let int_start = if int_start.is_neg_infinity() {
@@ -1959,10 +2165,10 @@ impl StringPrototype {
         };
 
         // 8. If length is undefined, let intLength be size; otherwise let intLength be ? ToIntegerOrInfinity(length).
-        let int_length = if length.is_undefined() {
+        let int_length = if length.get(agent).is_undefined() {
             size
         } else {
-            to_integer_or_infinity(agent, length, gc.reborrow())?.into_i64()
+            to_integer_or_infinity(agent, length.get(agent), gc.reborrow())?.into_i64()
         };
 
         // 9. Set intLength to the result of clamping intLength between 0 and size.
@@ -1972,161 +2178,196 @@ impl StringPrototype {
         let int_end = (int_start + int_length).min(size);
 
         // 11. Return the substring of S from intStart to intEnd.
-        let s = scoped_s.get(agent).bind(gc.nogc());
+        let gc = gc.into_nogc();
+        let s = scoped_s.get(agent).bind(gc);
         let s_str = s.as_str(agent);
         Ok(String::from_string(
             agent,
             s_str[int_start as usize..int_end as usize].to_string(),
-            gc.nogc(),
+            gc,
         )
         .into_value())
     }
 
     /// ### [B.2.2.2 String.prototype.anchor ( name )](https://tc39.es/ecma262/#sec-string.prototype.anchor)
     #[cfg(feature = "annex-b-string")]
-    fn anchor(
+    fn anchor<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let name = args.get(0).bind(gc.nogc());
 
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "a", "name", name).
-        create_html(agent, this_value, "a", Some(("name", name)), gc).map(Value::from)
+        create_html(agent, this_value, "a", Some(("name", name.unbind())), gc).map(Value::from)
     }
 
     /// ### [B.2.2.3 String.prototype.big ( )](https://tc39.es/ecma262/#sec-string.prototype.big)
-    fn big(agent: &mut Agent, this_value: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+    #[cfg(feature = "annex-b-string")]
+    fn big<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "big", "", "").
         create_html(agent, this_value, "big", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.4 String.prototype.blink ( )](https://tc39.es/ecma262/#sec-string.prototype.blink)
-    fn blink(
+    #[cfg(feature = "annex-b-string")]
+    fn blink<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "blink", "", "").
         create_html(agent, this_value, "blink", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.5 String.prototype.bold ( )](https://tc39.es/ecma262/#sec-string.prototype.bold)
-    fn bold(
+    #[cfg(feature = "annex-b-string")]
+    fn bold<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "b", "", "").
         create_html(agent, this_value, "b", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.6 String.prototype.fixed ( )](https://tc39.es/ecma262/#sec-string.prototype.fixed)
-    fn fixed(
+    #[cfg(feature = "annex-b-string")]
+    fn fixed<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "tt", "", "").
         create_html(agent, this_value, "tt", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.7 String.prototype.fontcolor ( colour )](https://tc39.es/ecma262/#sec-string.prototype.fontcolor)
-    fn fontcolor(
+    #[cfg(feature = "annex-b-string")]
+    fn fontcolor<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let colour = args.get(0).bind(gc.nogc());
 
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "font", "colour", colour).
-        create_html(agent, this_value, "font", Some(("colour", colour)), gc).map(Value::from)
+        create_html(
+            agent,
+            this_value,
+            "font",
+            Some(("colour", colour.unbind())),
+            gc,
+        )
+        .map(Value::from)
     }
 
     /// ### [B.2.2.8 String.prototype.fontsize ( size )](https://tc39.es/ecma262/#sec-string.prototype.fontsize)
-    fn fontsize(
+    #[cfg(feature = "annex-b-string")]
+    fn fontsize<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let size = args.get(0).bind(gc.nogc());
 
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "font", "size", size).
-        create_html(agent, this_value, "font", Some(("size", size)), gc).map(Value::from)
+        create_html(agent, this_value, "font", Some(("size", size.unbind())), gc).map(Value::from)
     }
 
     /// ### [B.2.2.9 String.prototype.italics ( )](https://tc39.es/ecma262/#sec-string.prototype.italics)
-    fn italics(
+    #[cfg(feature = "annex-b-string")]
+    fn italics<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "tt", "", "").
         create_html(agent, this_value, "i", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.10 String.prototype.link ( url )](https://tc39.es/ecma262/#sec-string.prototype.link)
-    fn link(
+    #[cfg(feature = "annex-b-string")]
+    fn link<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let url = args.get(0).bind(gc.nogc());
 
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "a", "href", url).
-        create_html(agent, this_value, "a", Some(("href", url)), gc).map(Value::from)
+        create_html(agent, this_value, "a", Some(("href", url.unbind())), gc).map(Value::from)
     }
 
     /// ### [B.2.2.11 String.prototype.small ( )](https://tc39.es/ecma262/#sec-string.prototype.small)
-    fn small(
+    #[cfg(feature = "annex-b-string")]
+    fn small<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "small", "", "").
         create_html(agent, this_value, "small", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.12 String.prototype.strike ( )](https://tc39.es/ecma262/#sec-string.prototype.strike)
-    fn strike(
+    #[cfg(feature = "annex-b-string")]
+    fn strike<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "strike", "", "").
         create_html(agent, this_value, "strike", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.13 String.prototype.sub ( )](https://tc39.es/ecma262/#sec-string.prototype.sub)
-    fn sub(agent: &mut Agent, this_value: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+    #[cfg(feature = "annex-b-string")]
+    fn sub<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "sub", "", "").
         create_html(agent, this_value, "sub", None, gc).map(Value::from)
     }
 
     /// ### [B.2.2.14 String.prototype.sup ( )](https://tc39.es/ecma262/#sec-string.prototype.sup)
-    fn sup(agent: &mut Agent, this_value: Value, _: ArgumentsList, gc: GcScope) -> JsResult<Value> {
+    #[cfg(feature = "annex-b-string")]
+    fn sup<'gc>(
+        agent: &mut Agent,
+        this_value: Value,
+        _: ArgumentsList,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let S be the this value.
         // 2. Return ? CreateHTML(S, "sup", "", "").
         create_html(agent, this_value, "sup", None, gc).map(Value::from)
@@ -2240,34 +2481,63 @@ impl StringPrototype {
 /// fillString (an ECMAScript language value), and placement (start or end)
 /// and returns either a normal completion containing a String or a throw
 /// completion.
-fn string_padding_builtins_impl(
+fn string_padding_builtins_impl<'gc>(
     agent: &mut Agent,
     o: Value,
     max_length: Value,
     fill_string: Value,
     placement_start: bool,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
+    let nogc = gc.nogc();
+    let o = o.bind(nogc);
+    let mut max_length = max_length.bind(nogc);
+    let mut fill_string = fill_string.bind(nogc);
+    let mut scoped_fill_string = None;
     // 1. Let S be ? ToString(O).
-    let mut s = to_string(agent, o, gc.reborrow())?.unbind().bind(gc.nogc());
-    let mut s_root = None;
+    let mut s = if let TryResult::Continue(s) = try_to_string(agent, o, nogc) {
+        s?
+    } else {
+        scoped_fill_string = Some(fill_string.scope(agent, nogc));
+        let scoped_max_length = max_length.scope(agent, nogc);
+        let s = to_string(agent, o.unbind(), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        // SAFETY: never leaked outside this call path.
+        max_length = unsafe { scoped_max_length.take(agent).bind(gc.nogc()) };
+        fill_string = scoped_fill_string
+            .as_ref()
+            .unwrap()
+            .get(agent)
+            .bind(gc.nogc());
+        s
+    };
+    let mut scoped_s = None;
 
     // 2. Let intMaxLength be ℝ(? ToLength(maxLength)).
-    let int_max_length = if let Value::Integer(int_max_length) = max_length {
-        int_max_length.into_i64().clamp(0, SmallInteger::MAX_NUMBER)
-    } else {
-        s_root = Some(s.scope(agent, gc.nogc()));
-        let result = to_length(agent, max_length, gc.reborrow())?;
-        s = s_root.as_ref().unwrap().get(agent).bind(gc.nogc());
-        result
-    };
+    let int_max_length =
+        if let TryResult::Continue(int_max_length) = try_to_length(agent, max_length, gc.nogc()) {
+            int_max_length?
+        } else {
+            scoped_s = Some(s.scope(agent, gc.nogc()));
+            scoped_fill_string =
+                scoped_fill_string.or_else(|| Some(fill_string.scope(agent, gc.nogc())));
+            let int_max_length = to_length(agent, max_length.unbind(), gc.reborrow())?;
+            s = scoped_s.as_ref().unwrap().get(agent).bind(gc.nogc());
+            fill_string = scoped_fill_string
+                .as_ref()
+                .unwrap()
+                .get(agent)
+                .bind(gc.nogc());
+            int_max_length
+        };
 
     // 3. Let stringLength be the length of S.
     let string_length = s.utf16_len(agent) as i64;
 
     // 4. If intMaxLength ≤ stringLength, return S.
     if int_max_length <= string_length {
-        return Ok(s.into());
+        return Ok(s.unbind().into());
     }
 
     // 5. If fillString is undefined, set fillString to the String value consisting solely of the code unit 0x0020 (SPACE).
@@ -2276,26 +2546,25 @@ fn string_padding_builtins_impl(
     } else if let Ok(fill_string) = String::try_from(fill_string) {
         fill_string
     } else {
-        if s_root.is_none() {
-            s_root = Some(s.scope(agent, gc.nogc()));
+        if scoped_s.is_none() {
+            scoped_s = Some(s.scope(agent, gc.nogc()));
         }
         // 6. Else, set fillString to ? ToString(fillString).
-        let result = to_string(agent, fill_string, gc.reborrow())?
+        let result = to_string(agent, fill_string.unbind(), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
-        s = s_root.unwrap().get(agent).bind(gc.nogc());
+        s = scoped_s.unwrap().get(agent).bind(gc.nogc());
         result
     };
 
+    let s = s.unbind();
+    let fill_string = fill_string.unbind();
+    let gc = gc.into_nogc();
+    let s = s.bind(gc);
+    let fill_string = fill_string.bind(gc);
+
     // 7. Return StringPad(S, intMaxLength, fillString, placement).
-    string_pad(
-        agent,
-        s,
-        int_max_length,
-        fill_string,
-        placement_start,
-        gc.nogc(),
-    )
+    string_pad(agent, s, int_max_length, fill_string, placement_start, gc)
 }
 
 /// ### [22.1.3.17.2 StringPad ( S, maxLength, fillString, placement )](https://tc39.es/ecma262/#sec-stringpad)
@@ -2303,14 +2572,14 @@ fn string_padding_builtins_impl(
 /// The abstract operation StringPad takes arguments S (a String),
 /// maxLength (a non-negative integer), fillString (a String), and
 /// placement (start or end) and returns a String.
-fn string_pad(
+fn string_pad<'gc>(
     agent: &mut Agent,
-    s: String,
+    s: String<'gc>,
     max_len: i64,
-    fill_string: String,
+    fill_string: String<'gc>,
     placement_start: bool,
-    gc: NoGcScope,
-) -> JsResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. Let stringLength be the length of S.
     let string_len = s.utf16_len(agent) as i64;
 
@@ -2346,7 +2615,7 @@ fn string_pad(
                 .utf16_char(agent, i as usize)
                 .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i as usize).unwrap()..]);
         }
-        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        let sub_string = core::str::from_utf8(&sub_string).unwrap();
         // let sub_string = &fill_string.as_str(agent)[..fill_len as usize];
         vec.push_back(String::from_string(agent, sub_string.to_owned(), gc));
         vec
@@ -2361,7 +2630,7 @@ fn string_pad(
                 .utf16_char(agent, i)
                 .encode_utf8(&mut sub_string[fill_string.utf8_index(agent, i).unwrap()..]);
         }
-        let sub_string = std::str::from_utf8(&sub_string).unwrap();
+        let sub_string = core::str::from_utf8(&sub_string).unwrap();
         vec.push_back(String::from_string(agent, sub_string.to_owned(), gc));
         vec
     };
@@ -2384,7 +2653,7 @@ fn string_pad(
 /// or a throw completion.
 fn this_string_value<'gc>(
     agent: &mut Agent,
-    value: Value,
+    value: Value<'gc>,
     gc: NoGcScope<'gc, '_>,
 ) -> JsResult<String<'gc>> {
     match value {
@@ -2427,14 +2696,28 @@ fn create_html<'gc>(
     attribute_and_value: Option<(&str, Value)>,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<String<'gc>> {
+    use crate::engine::rootable::Scopable;
+
+    let nogc = gc.nogc();
     // 1. Let str be ? RequireObjectCoercible(string).
-    let str = require_object_coercible(agent, string, gc.nogc())?;
+    let string = string.bind(nogc);
+    let mut attribute_and_value =
+        attribute_and_value.map(|(attribute, value)| (attribute, value.bind(nogc)));
+    let str = require_object_coercible(agent, string, nogc)?;
 
     // 2. Let S be ? ToString(str)
-    let s = to_string(agent, str, gc.reborrow())?
-        .unbind()
-        .bind(gc.nogc());
-    let scoped_s = s.scope(agent, gc.nogc());
+    let mut s = if let TryResult::Continue(s) = try_to_string(agent, str.unbind(), nogc) {
+        s?
+    } else {
+        let attribute_and_scoped_value =
+            attribute_and_value.map(|(attribute, value)| (attribute, value.scope(agent, nogc)));
+        let s = to_string(agent, str.unbind(), gc.reborrow())?
+            .unbind()
+            .bind(gc.nogc());
+        attribute_and_value = attribute_and_scoped_value
+            .map(|(attribute, scoped_value)| (attribute, scoped_value.get(agent).bind(gc.nogc())));
+        s
+    };
 
     // 3. Let p1 be the string-concatenation of "<" and tag.
     // 4. If attribute is not the empty String, then
@@ -2452,13 +2735,19 @@ fn create_html<'gc>(
     // 8. Return p4.
     if let Some((attribute, value)) = attribute_and_value {
         // a. Let V be ? ToString(value).
-        let v = to_string(agent, value, gc.reborrow())?
-            .unbind()
-            .bind(gc.nogc());
+        let v = if let TryResult::Continue(v) = try_to_string(agent, value, gc.nogc()) {
+            v?
+        } else {
+            let scoped_s = s.scope(agent, gc.nogc());
+            let v = to_string(agent, value.unbind(), gc.reborrow())?
+                .unbind()
+                .bind(gc.nogc());
+            s = scoped_s.get(agent).bind(gc.nogc());
+            v
+        };
         // b. Let escapedV be the String value that is the same as V except that each occurrence of the code unit 0x0022 (QUOTATION MARK) in V has been replaced with the six code unit sequence "&quot;".
         let escaped_v = v.as_str(agent).replace('"', "&quot;");
 
-        let s = scoped_s.get(agent).bind(gc.nogc());
         let s_str = s.as_str(agent);
         Ok(String::from_string(
             agent,
@@ -2466,7 +2755,6 @@ fn create_html<'gc>(
             gc.into_nogc(),
         ))
     } else {
-        let s = scoped_s.get(agent).bind(gc.nogc());
         let s_str = s.as_str(agent);
         Ok(String::from_string(
             agent,

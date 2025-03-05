@@ -12,12 +12,12 @@ use crate::{
     },
     engine::{
         bytecode::vm::{
-            array_create, copy_data_properties_into_object, initialize_referenced_binding,
-            iterator_close, put_value, resolve_binding, to_object,
-            try_create_data_property_or_throw, EnvironmentIndex, Executable, Instruction, Vm,
-            VmIterator,
+            EnvironmentIndex, Executable, Instruction, Vm, VmIterator, array_create,
+            copy_data_properties_into_object, initialize_referenced_binding, iterator_close,
+            put_value, resolve_binding, to_object, try_create_data_property_or_throw,
         },
-        context::GcScope,
+        context::{Bindable, GcScope},
+        rootable::Scopable,
         unwrap_try,
     },
 };
@@ -46,7 +46,7 @@ pub(super) fn execute_simple_array_binding(
                 if instr.kind == Instruction::BindingPatternSkip {
                     continue;
                 }
-                result.unwrap_or(Value::Undefined)
+                result.unwrap_or(Value::Undefined).unbind().bind(gc.nogc())
             }
             Instruction::BindingPatternBindRest | Instruction::BindingPatternGetRestValue => {
                 break_after_bind = true;
@@ -65,7 +65,7 @@ pub(super) fn execute_simple_array_binding(
                             agent,
                             rest.get(agent),
                             PropertyKey::from(idx),
-                            result,
+                            result.unbind(),
                             gc.nogc(),
                         ))
                         .unwrap();
@@ -84,15 +84,17 @@ pub(super) fn execute_simple_array_binding(
             Instruction::BindingPatternBind | Instruction::BindingPatternBindRest => {
                 let binding_id =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
-                let lhs = {
-                    resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
-                        .unbind()
-                        .bind(gc.nogc())
-                };
+                let value = value.scope(agent, gc.nogc());
+                let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?;
                 if environment.is_none() {
-                    put_value(agent, &lhs.unbind(), value, gc.reborrow())?;
+                    put_value(agent, &lhs.unbind(), value.get(agent), gc.reborrow())?;
                 } else {
-                    initialize_referenced_binding(agent, lhs.unbind(), value, gc.reborrow())?;
+                    initialize_referenced_binding(
+                        agent,
+                        lhs.unbind(),
+                        value.get(agent),
+                        gc.reborrow(),
+                    )?;
                 }
             }
             Instruction::BindingPatternGetValue | Instruction::BindingPatternGetRestValue => {
@@ -100,7 +102,7 @@ pub(super) fn execute_simple_array_binding(
                     agent,
                     vm,
                     executable,
-                    value,
+                    value.unbind(),
                     environment,
                     gc.reborrow(),
                 )?;
@@ -119,7 +121,12 @@ pub(super) fn execute_simple_array_binding(
     // NOTE: `result` here seems to be UNUSED, which isn't a Value. This seems to be a spec bug.
     if !iterator_is_done {
         if let VmIterator::GenericIterator(iterator_record) = iterator {
-            iterator_close(agent, &iterator_record, Ok(Value::Undefined), gc.reborrow())?;
+            iterator_close(
+                agent,
+                iterator_record.iterator,
+                Ok(Value::Undefined),
+                gc.reborrow(),
+            )?;
         }
     }
 
@@ -146,8 +153,11 @@ pub(super) fn execute_simple_object_binding(
                 let property_key = if instr.kind == Instruction::BindingPatternBind {
                     binding_id.into()
                 } else {
-                    let key_value =
-                        executable.fetch_constant(agent, instr.args[1].unwrap() as usize);
+                    let key_value = executable.fetch_constant(
+                        agent,
+                        instr.args[1].unwrap() as usize,
+                        gc.nogc(),
+                    );
                     // SAFETY: It should be impossible for binding pattern
                     // names to be integer strings.
                     unsafe { PropertyKey::from_value_unchecked(key_value) }
@@ -166,9 +176,9 @@ pub(super) fn execute_simple_object_binding(
                     gc.reborrow(),
                 )?;
                 if environment.is_none() {
-                    put_value(agent, &lhs, v, gc.reborrow())?;
+                    put_value(agent, &lhs, v.unbind(), gc.reborrow())?;
                 } else {
-                    initialize_referenced_binding(agent, lhs, v, gc.reborrow())?;
+                    initialize_referenced_binding(agent, lhs, v.unbind(), gc.reborrow())?;
                 }
             }
             Instruction::BindingPatternGetValueNamed => {
@@ -176,9 +186,11 @@ pub(super) fn execute_simple_object_binding(
                 // which checks for integer-ness, and then converted to Value
                 // without conversion, or is a floating point number string.
                 let property_key = unsafe {
-                    PropertyKey::from_value_unchecked(
-                        executable.fetch_constant(agent, instr.args[0].unwrap() as usize),
-                    )
+                    PropertyKey::from_value_unchecked(executable.fetch_constant(
+                        agent,
+                        instr.args[0].unwrap() as usize,
+                        gc.nogc(),
+                    ))
                 };
 
                 excluded_names.insert(property_key.unbind());
@@ -192,7 +204,7 @@ pub(super) fn execute_simple_object_binding(
                     agent,
                     vm,
                     executable,
-                    v,
+                    v.unbind(),
                     environment,
                     gc.reborrow(),
                 )?;
@@ -201,10 +213,9 @@ pub(super) fn execute_simple_object_binding(
                 // 1. Let lhs be ? ResolveBinding(StringValue of BindingIdentifier, environment).
                 let binding_id =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
-                let lhs = {
-                    resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
-                        .unbind()
-                };
+                // TODO: Properly handle potential GC.
+                let lhs = resolve_binding(agent, binding_id.unbind(), environment, gc.reborrow())?
+                    .unbind();
                 // 2. Let restObj be OrdinaryObjectCreate(%Object.prototype%).
                 // 3. Perform ? CopyDataProperties(restObj, value, excludedNames).
                 let rest_obj = copy_data_properties_into_object(
@@ -217,9 +228,9 @@ pub(super) fn execute_simple_object_binding(
                 // 4. If environment is undefined, return ? PutValue(lhs, restObj).
                 // 5. Return ? InitializeReferencedBinding(lhs, restObj).
                 if environment.is_none() {
-                    put_value(agent, &lhs, rest_obj, gc.reborrow())?;
+                    put_value(agent, &lhs, rest_obj.unbind(), gc.reborrow())?;
                 } else {
-                    initialize_referenced_binding(agent, lhs, rest_obj, gc.reborrow())?;
+                    initialize_referenced_binding(agent, lhs, rest_obj.unbind(), gc.reborrow())?;
                 }
                 break;
             }

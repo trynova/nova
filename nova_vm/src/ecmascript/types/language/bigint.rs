@@ -4,29 +4,29 @@
 
 mod data;
 use super::{
+    IntoPrimitive, IntoValue, Primitive, String, Value,
     into_numeric::IntoNumeric,
     numeric::Numeric,
     value::{BIGINT_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT},
-    IntoPrimitive, IntoValue, Primitive, String, Value,
 };
 use crate::{
-    ecmascript::execution::{agent::ExceptionType, Agent, JsResult},
+    SmallInteger,
+    ecmascript::execution::{Agent, JsResult, agent::ExceptionType},
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        indexes::BigIntIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        indexes::BigIntIndex,
     },
-    SmallInteger,
 };
+use core::ops::{Index, IndexMut, Neg};
 pub use data::BigIntHeapData;
 use num_bigint::Sign;
-use std::ops::{Index, IndexMut, Neg};
 
-impl IntoValue for BigInt<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BigInt<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             BigInt::BigInt(data) => Value::BigInt(data.unbind()),
             BigInt::SmallBigInt(data) => Value::SmallBigInt(data),
@@ -57,26 +57,6 @@ pub enum BigIntMathematicalValue {
 }
 
 impl<'a> HeapBigInt<'a> {
-    /// Unbind this HeapBigInt from its current lifetime. This is necessary to use
-    /// the HeapBigInt as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> HeapBigInt<'static> {
-        unsafe { std::mem::transmute::<Self, HeapBigInt<'static>>(self) }
-    }
-
-    // Bind this HeapBigInt to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your HeapBigInts cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let bigint = bigint.bind(&gc);
-    // ```
-    // to make sure that the unbound HeapBigInt cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<HeapBigInt<'_>, Self>(self) }
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BigIntIndex::from_u32_index(0))
     }
@@ -120,8 +100,23 @@ impl<'a> HeapBigInt<'a> {
     }
 }
 
-impl IntoValue for HeapBigInt<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapBigInt<'_> {
+    type Of<'a> = HeapBigInt<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for HeapBigInt<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::BigInt(self.unbind())
     }
 }
@@ -132,10 +127,10 @@ impl<'a> IntoPrimitive<'a> for HeapBigInt<'a> {
     }
 }
 
-impl TryFrom<Value> for HeapBigInt<'_> {
+impl<'a> TryFrom<Value<'a>> for HeapBigInt<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::BigInt(x) = value {
             Ok(x)
         } else {
@@ -176,7 +171,7 @@ impl SmallBigInt {
     }
 }
 
-impl std::ops::Not for SmallBigInt {
+impl core::ops::Not for SmallBigInt {
     type Output = Self;
     #[inline(always)]
     fn not(self) -> Self::Output {
@@ -184,7 +179,7 @@ impl std::ops::Not for SmallBigInt {
     }
 }
 
-impl std::ops::Neg for SmallBigInt {
+impl core::ops::Neg for SmallBigInt {
     type Output = Self;
     #[inline(always)]
     fn neg(self) -> Self::Output {
@@ -204,13 +199,13 @@ impl From<SmallBigInt> for BigInt<'static> {
     }
 }
 
-impl From<HeapBigInt<'_>> for Value {
-    fn from(value: HeapBigInt<'_>) -> Self {
-        Self::BigInt(value.unbind())
+impl<'a> From<HeapBigInt<'a>> for Value<'a> {
+    fn from(value: HeapBigInt<'a>) -> Self {
+        Self::BigInt(value)
     }
 }
 
-impl From<SmallBigInt> for Value {
+impl From<SmallBigInt> for Value<'static> {
     fn from(value: SmallBigInt) -> Self {
         Self::SmallBigInt(value)
     }
@@ -271,26 +266,6 @@ pub enum BigIntRootRepr {
 }
 
 impl<'a> BigInt<'a> {
-    /// Unbind this BigInt from its current lifetime. This is necessary to use
-    /// the BigInt as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BigInt<'static> {
-        unsafe { std::mem::transmute::<Self, BigInt<'static>>(self) }
-    }
-
-    // Bind this BigInt to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BigInts cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let bigint = bigint.bind(&gc);
-    // ```
-    // to make sure that the unbound BigInt cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BigInt<'gc> {
-        unsafe { std::mem::transmute::<Self, BigInt<'gc>>(self) }
-    }
-
     pub const fn zero() -> Self {
         Self::SmallBigInt(SmallBigInt::zero())
     }
@@ -663,6 +638,21 @@ impl<'a> BigInt<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BigInt<'_> {
+    type Of<'a> = BigInt<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 // Note: SmallInteger can be a number or BigInt.
 // Hence there are no further impls here.
 impl From<SmallInteger> for BigInt<'static> {
@@ -671,9 +661,9 @@ impl From<SmallInteger> for BigInt<'static> {
     }
 }
 
-impl TryFrom<Value> for BigInt<'_> {
+impl<'a> TryFrom<Value<'a>> for BigInt<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::BigInt(x) => Ok(BigInt::BigInt(x)),
             Value::SmallBigInt(x) => Ok(BigInt::SmallBigInt(x)),
@@ -704,8 +694,8 @@ impl<'a> TryFrom<Numeric<'a>> for BigInt<'a> {
     }
 }
 
-impl From<BigInt<'_>> for Value {
-    fn from(value: BigInt<'_>) -> Value {
+impl<'a> From<BigInt<'a>> for Value<'a> {
+    fn from(value: BigInt<'a>) -> Self {
         match value {
             BigInt::BigInt(x) => Value::BigInt(x.unbind()),
             BigInt::SmallBigInt(x) => Value::SmallBigInt(x),
@@ -807,13 +797,13 @@ impl HeapMarkAndSweep for HeapBigInt<'static> {
     }
 }
 
-impl Rootable for BigInt<'static> {
+impl Rootable for BigInt<'_> {
     type RootRepr = BigIntRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
         }
     }

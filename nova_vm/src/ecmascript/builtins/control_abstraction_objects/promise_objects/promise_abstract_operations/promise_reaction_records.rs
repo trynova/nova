@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -14,7 +14,7 @@ use crate::{
         types::Function,
     },
     engine::rootable::{HeapRootData, HeapRootRef, Rootable},
-    heap::{indexes::BaseIndex, CreateHeapData, Heap, HeapMarkAndSweep},
+    heap::{CreateHeapData, Heap, HeapMarkAndSweep, indexes::BaseIndex},
 };
 
 use super::promise_capability_records::PromiseCapability;

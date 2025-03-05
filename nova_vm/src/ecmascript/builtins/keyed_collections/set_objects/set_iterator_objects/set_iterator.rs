@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -15,10 +15,13 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+    },
     heap::{
-        indexes::SetIteratorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::SetIteratorIndex,
     },
 };
 
@@ -26,34 +29,6 @@ use crate::{
 pub struct SetIterator<'a>(SetIteratorIndex<'a>);
 
 impl SetIterator<'_> {
-    /// Unbind this SetIterator from its current lifetime. This is necessary to use
-    /// the SetIterator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> SetIterator<'static> {
-        unsafe { std::mem::transmute::<Self, SetIterator<'static>>(self) }
-    }
-
-    // Bind this SetIterator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your SetIterators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let set_iterator = set_iterator.bind(&gc);
-    // ```
-    // to make sure that the unbound SetIterator cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> SetIterator<'gc> {
-        unsafe { std::mem::transmute::<Self, SetIterator<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, SetIterator<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     /// # Do not use this
     /// This is only for Value discriminant creation.
     pub(crate) const fn _def() -> Self {
@@ -74,8 +49,23 @@ impl SetIterator<'_> {
     }
 }
 
-impl IntoValue for SetIterator<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SetIterator<'_> {
+    type Of<'a> = SetIterator<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for SetIterator<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -92,16 +82,16 @@ impl<'a> From<SetIterator<'a>> for Object<'a> {
     }
 }
 
-impl From<SetIterator<'_>> for Value {
-    fn from(value: SetIterator) -> Self {
-        Self::SetIterator(value.unbind())
+impl<'a> From<SetIterator<'a>> for Value<'a> {
+    fn from(value: SetIterator<'a>) -> Self {
+        Self::SetIterator(value)
     }
 }
 
-impl TryFrom<Value> for SetIterator<'_> {
+impl<'a> TryFrom<Value<'a>> for SetIterator<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::SetIterator(data) => Ok(data),
             _ => Err(()),
@@ -128,10 +118,12 @@ impl<'a> InternalSlots<'a> for SetIterator<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

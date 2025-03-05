@@ -8,16 +8,16 @@ use crate::{
         syntax_directed_operations::{
             function_definitions::CompileFunctionBodyData,
             scope_analysis::{
+                LexicallyScopedDeclaration, VarScopedDeclaration,
                 class_static_block_lexically_scoped_declarations,
                 class_static_block_var_declared_names, class_static_block_var_scoped_declarations,
-                LexicallyScopedDeclaration, VarScopedDeclaration,
             },
         },
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::{
-        is_reference, CompileContext, CompileEvaluation, FunctionExpression, Instruction,
-        NamedEvaluationParameter, SendableRef,
+        CompileContext, CompileEvaluation, FunctionExpression, Instruction,
+        NamedEvaluationParameter, SendableRef, is_reference,
     },
 };
 use ahash::{AHashMap, AHashSet};
@@ -450,14 +450,14 @@ impl CompileEvaluation for ast::Class<'_> {
                     // SAFETY: The SourceCode that contains this code cannot be garbage collected
                     // as long as the constructor function we produce here lives.
                     body: unsafe {
-                        std::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
+                        core::mem::transmute::<&ast::FunctionBody<'_>, &ast::FunctionBody<'static>>(
                             constructor.value.body.as_ref().unwrap(),
                         )
                     },
                     // SAFETY: The SourceCode that contains this code cannot be garbage collected
                     // as long as the constructor function we produce here lives.
                     params: unsafe {
-                        std::mem::transmute::<
+                        core::mem::transmute::<
                             &ast::FormalParameters<'_>,
                             &ast::FormalParameters<'static>,
                         >(&constructor.value.params)
@@ -589,7 +589,7 @@ fn define_constructor_method(
         Instruction::ClassDefineConstructor,
         FunctionExpression {
             expression: SendableRef::new(unsafe {
-                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
                     &class_element.value,
                 )
             }),
@@ -651,7 +651,7 @@ fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext
         instruction,
         FunctionExpression {
             expression: SendableRef::new(unsafe {
-                std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
                     &class_element.value,
                 )
             }),
@@ -675,7 +675,7 @@ impl CompileEvaluation for ast::StaticBlock<'_> {
             if let VarScopedDeclaration::Function(d) = d {
                 // i. Assert: d is either a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration.
                 // ii. Let fn be the sole element of the BoundNames of d.
-                let f_name = d.id.as_ref().unwrap().name.clone();
+                let f_name = d.id.as_ref().unwrap().name;
                 // iii. If functionNames does not contain fn, then
                 //   1. Insert fn as the first element of functionNames.
                 //   2. NOTE: If there are multiple function declarations for the same name, the last declaration is used.

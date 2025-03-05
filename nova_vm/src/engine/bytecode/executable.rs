@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
+use core::{
     num::NonZeroU32,
     ops::{Index, IndexMut},
 };
 
 use super::{
-    instructions::Instr, CompileContext, CompileEvaluation, Instruction, NamedEvaluationParameter,
+    CompileContext, CompileEvaluation, Instruction, NamedEvaluationParameter, instructions::Instr,
 };
 use crate::{
     ecmascript::{
@@ -17,7 +17,7 @@ use crate::{
         syntax_directed_operations::function_definitions::CompileFunctionBodyData,
         types::{String, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues},
 };
 use oxc_ast::ast::{self, Program, Statement};
@@ -56,7 +56,7 @@ impl<T: ?Sized> SendableRef<T> {
     /// The safety conditions for this constructor are the same as for
     /// transmuting `reference` into a static lifetime.
     pub(crate) unsafe fn new_as_static(reference: &T) -> Self {
-        Self::new(unsafe { std::mem::transmute::<&T, &'static T>(reference) })
+        Self::new(unsafe { core::mem::transmute::<&T, &'static T>(reference) })
     }
 
     pub(crate) fn get(&self) -> &'static T {
@@ -101,13 +101,13 @@ const EXECUTABLE_OPTION_SIZE_IS_U32: () =
 #[derive(Debug, Clone)]
 pub(crate) struct ExecutableHeapData {
     pub instructions: Box<[u8]>,
-    pub(crate) constants: Box<[Value]>,
+    pub(crate) constants: Box<[Value<'static>]>,
     pub(crate) function_expressions: Box<[FunctionExpression]>,
     pub(crate) arrow_function_expressions: Box<[ArrowFunctionExpression]>,
     pub(crate) class_initializer_bytecodes: Box<[(Option<Executable>, bool)]>,
 }
 
-impl Executable {
+impl<'gc> Executable {
     pub(crate) fn compile_script(
         agent: &mut Agent,
         script: ScriptIdentifier,
@@ -121,7 +121,7 @@ impl Executable {
         // SAFETY: Script uniquely owns the Program and the body buffer does
         // not move under any circumstances during heap operations.
         let body: &[Statement] =
-            unsafe { std::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
+            unsafe { core::mem::transmute(agent[script].ecmascript_code.body.as_slice()) };
         let mut ctx = CompileContext::new(agent, gc);
 
         ctx.compile_statements(body);
@@ -197,7 +197,7 @@ impl Executable {
     pub(super) fn get_instructions(self, agent: &Agent) -> &'static [u8] {
         // SAFETY: As long as we're alive the instructions Box lives, and it is
         // never accessed mutably.
-        unsafe { std::mem::transmute(&agent[self].instructions[..]) }
+        unsafe { core::mem::transmute(&agent[self].instructions[..]) }
     }
 
     #[inline]
@@ -208,12 +208,16 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn get_constants(self, agent: &Agent) -> &[Value] {
+    pub(super) fn get_constants<'a>(
+        self,
+        agent: &'a Agent,
+        _: NoGcScope<'gc, '_>,
+    ) -> &'a [Value<'gc>] {
         &agent[self].constants[..]
     }
 
     #[inline]
-    pub(super) fn fetch_identifier<'gc>(
+    pub(super) fn fetch_identifier(
         self,
         agent: &Agent,
         index: usize,
@@ -231,12 +235,17 @@ impl Executable {
     }
 
     #[inline]
-    pub(super) fn fetch_constant(self, agent: &Agent, index: usize) -> Value {
+    pub(super) fn fetch_constant(
+        self,
+        agent: &Agent,
+        index: usize,
+        gc: NoGcScope<'gc, '_>,
+    ) -> Value<'gc> {
         // SAFETY: As long as we're alive the constants Box lives. It is
         // accessed mutably only during GC, during which this function is never
         // called. As we do not hand out a reference here, the mutable
         // reference during GC and fetching references here never overlap.
-        agent[self].constants[index]
+        agent[self].constants[index].bind(gc)
     }
 
     pub(super) fn fetch_function_expression(
@@ -271,7 +280,8 @@ pub(super) fn get_instruction(instructions: &[u8], ip: &mut usize) -> Option<Ins
         return None;
     }
     *ip += 1;
-    let kind: Instruction = unsafe { std::mem::transmute::<u8, Instruction>(instructions[cur_ip]) };
+    let kind: Instruction =
+        unsafe { core::mem::transmute::<u8, Instruction>(instructions[cur_ip]) };
 
     let arg_count = kind.argument_count() as usize;
 

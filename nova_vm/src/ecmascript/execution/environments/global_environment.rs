@@ -14,18 +14,19 @@ use crate::{
             testing_and_comparison::{is_extensible, try_is_extensible},
         },
         execution::{
+            Agent, JsResult,
             agent::ExceptionType,
             environments::{
                 DeclarativeEnvironment, DeclarativeEnvironmentIndex, GlobalEnvironmentIndex,
                 ObjectEnvironment, ObjectEnvironmentIndex,
             },
-            Agent, JsResult,
         },
         types::{InternalMethods, Object, PropertyDescriptor, PropertyKey, String, Value},
     },
     engine::{
-        context::{GcScope, NoGcScope},
         TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
@@ -184,6 +185,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         gc: GcScope,
     ) -> JsResult<bool> {
+        let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         // 2. If ! DclRec.HasBinding(N) is true, return true.
@@ -194,7 +196,7 @@ impl GlobalEnvironmentIndex {
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 4. Return ? ObjRec.HasBinding(N).
-        obj_rec.has_binding(agent, name, gc)
+        obj_rec.has_binding(agent, name.unbind(), gc)
     }
 
     /// ### [9.1.1.4.2 CreateMutableBinding ( N, D )](https://tc39.es/ecma262/#sec-global-environment-records-createmutablebinding-n-d)
@@ -306,6 +308,9 @@ impl GlobalEnvironmentIndex {
         value: Value,
         gc: GcScope,
     ) -> JsResult<()> {
+        let nogc = gc.nogc();
+        let name = name.bind(nogc);
+        let value = value.bind(nogc);
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -319,7 +324,7 @@ impl GlobalEnvironmentIndex {
             // 4. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 5. Return ? ObjRec.InitializeBinding(N, V).
-            obj_rec.initialize_binding(agent, name, value, gc)
+            obj_rec.initialize_binding(agent, name.unbind(), value.unbind(), gc)
         }
     }
 
@@ -374,6 +379,9 @@ impl GlobalEnvironmentIndex {
         is_strict: bool,
         gc: GcScope,
     ) -> JsResult<()> {
+        let nogc = gc.nogc();
+        let name = name.bind(nogc);
+        let value = value.bind(nogc);
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -385,7 +393,7 @@ impl GlobalEnvironmentIndex {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.SetMutableBinding(N, V, S).
-            obj_rec.set_mutable_binding(agent, name, value, is_strict, gc)
+            obj_rec.set_mutable_binding(agent, name.unbind(), value.unbind(), is_strict, gc)
         }
     }
 
@@ -399,13 +407,13 @@ impl GlobalEnvironmentIndex {
     /// ReferenceError exception. A property named N normally already exists
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
-    pub(crate) fn try_get_binding_value(
+    pub(crate) fn try_get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: NoGcScope,
-    ) -> TryResult<JsResult<Value>> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<JsResult<Value<'gc>>> {
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -431,25 +439,26 @@ impl GlobalEnvironmentIndex {
     /// ReferenceError exception. A property named N normally already exists
     /// but if it does not or is not currently writable, error handling is
     /// determined by S.
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         n: String,
         s: bool,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let n = n.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
         // 2. If ! DclRec.HasBinding(N) is true, then
         if dcl_rec.has_binding(agent, n) {
             // a. Return ? DclRec.GetBindingValue(N, S).
-            dcl_rec.get_binding_value(agent, n, s, gc.nogc())
+            dcl_rec.get_binding_value(agent, n.unbind(), s, gc.into_nogc())
         } else {
             // 3. Let ObjRec be envRec.[[ObjectRecord]].
             let obj_rec = env_rec.object_record;
             // 4. Return ? ObjRec.GetBindingValue(N, S).
-            obj_rec.get_binding_value(agent, n, s, gc)
+            obj_rec.get_binding_value(agent, n.unbind(), s, gc)
         }
     }
 
@@ -512,6 +521,7 @@ impl GlobalEnvironmentIndex {
         name: String,
         mut gc: GcScope,
     ) -> JsResult<bool> {
+        let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let DclRec be envRec.[[DeclarativeRecord]].
         let dcl_rec = env_rec.declarative_record;
@@ -523,20 +533,23 @@ impl GlobalEnvironmentIndex {
         // 3. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 4. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
         // 5. Let existingProp be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
-        let existing_prop = has_own_property(agent, global_object, n, gc.reborrow())?;
+        let scoped_name = name.scope(agent, gc.nogc());
+        let existing_prop =
+            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow())?;
         // 6. If existingProp is true, then
         if existing_prop {
             // a. Let status be ? ObjRec.DeleteBinding(N).
-            let status = obj_rec.delete_binding(agent, name, gc)?;
+            let status = obj_rec.delete_binding(agent, scoped_name.get(agent), gc)?;
             // b. If status is true and envRec.[[VarNames]] contains N, then
             if status {
+                let name = scoped_name.get(agent);
                 let env_rec = &mut agent[self];
                 if env_rec.var_names.contains(&name) {
                     // i. Remove N from envRec.[[VarNames]].
-                    env_rec.var_names.remove(&name.unbind());
+                    env_rec.var_names.remove(&name);
                 }
             }
             // c. Return status.
@@ -663,14 +676,18 @@ impl GlobalEnvironmentIndex {
         name: String,
         gc: GcScope,
     ) -> JsResult<bool> {
+        let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
         let n = PropertyKey::from(name);
-        let existing_prop = global_object.internal_get_own_property(agent, n, gc)?;
+        let existing_prop =
+            global_object
+                .unbind()
+                .internal_get_own_property(agent, n.unbind(), gc)?;
         let Some(existing_prop) = existing_prop else {
             // 4. If existingProp is undefined, return false.
             return Ok(false);
@@ -725,20 +742,23 @@ impl GlobalEnvironmentIndex {
         name: String,
         mut gc: GcScope,
     ) -> JsResult<bool> {
+        let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
+        let scoped_global_object = global_object.scope(agent, gc.nogc());
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
         let n = PropertyKey::from(name);
-        let has_property = has_own_property(agent, global_object, n, gc.reborrow())?;
+        let has_property =
+            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow())?;
         // 4. If hasProperty is true, return true.
         if has_property {
             Ok(true)
         } else {
             // 5. Return ? IsExtensible(globalObject).
-            is_extensible(agent, global_object, gc)
+            is_extensible(agent, scoped_global_object.get(agent), gc)
         }
     }
 
@@ -794,17 +814,22 @@ impl GlobalEnvironmentIndex {
         name: String,
         mut gc: GcScope,
     ) -> JsResult<bool> {
+        let name = name.bind(gc.nogc());
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = agent[obj_rec].binding_object.bind(gc.nogc());
+        let scoped_global_object = global_object.scope(agent, gc.nogc());
         let n = PropertyKey::from(name);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.internal_get_own_property(agent, n, gc.reborrow())?;
+        let existing_prop =
+            global_object
+                .unbind()
+                .internal_get_own_property(agent, n.unbind(), gc.reborrow())?;
         // 4. If existingProp is undefined, return ? IsExtensible(globalObject).
         let Some(existing_prop) = existing_prop else {
-            return is_extensible(agent, global_object, gc);
+            return is_extensible(agent, scoped_global_object.get(agent), gc);
         };
         // 5. If existingProp.[[Configurable]] is true, return true.
         if existing_prop.configurable == Some(true)
@@ -883,28 +908,35 @@ impl GlobalEnvironmentIndex {
         is_deletable: bool,
         mut gc: GcScope,
     ) -> JsResult<()> {
+        let nogc = gc.nogc();
+        let name = name.bind(nogc);
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = agent[obj_rec].binding_object.bind(nogc);
+        let scoped_global_object = global_object.scope(agent, nogc);
         let n = PropertyKey::from(name);
+        let name = name.scope(agent, nogc);
         // 3. Let hasProperty be ? HasOwnProperty(globalObject, N).
-        let has_property = has_own_property(agent, global_object, n, gc.reborrow())?;
+        let has_property =
+            has_own_property(agent, global_object.unbind(), n.unbind(), gc.reborrow())?;
         // 4. Let extensible be ? IsExtensible(globalObject).
-        let extensible = is_extensible(agent, global_object, gc.reborrow()).unwrap();
+        let extensible =
+            is_extensible(agent, scoped_global_object.get(agent), gc.reborrow()).unwrap();
         // 5. If hasProperty is false and extensible is true, then
         if !has_property && extensible {
             // a. Perform ? ObjRec.CreateMutableBinding(N, D).
-            obj_rec.create_mutable_binding(agent, name, is_deletable, gc.reborrow())?;
+            obj_rec.create_mutable_binding(agent, name.get(agent), is_deletable, gc.reborrow())?;
             // b. Perform ? ObjRec.InitializeBinding(N, undefined).
-            obj_rec.initialize_binding(agent, name, Value::Undefined, gc)?;
+            obj_rec.initialize_binding(agent, name.get(agent), Value::Undefined, gc)?;
         }
 
         // 6. If envRec.[[VarNames]] does not contain N, then
         //    a. Append N to envRec.[[VarNames]].
-        let env_rec = &mut agent[self];
-        env_rec.var_names.insert(name.unbind());
+        // SAFETY: name is not shared.
+        let name = unsafe { name.take(agent) };
+        agent[self].var_names.insert(name);
 
         // 7. Return UNUSED.
         Ok(())
@@ -939,7 +971,7 @@ impl GlobalEnvironmentIndex {
         let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
             // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.
             PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 writable: Some(true),
                 get: None,
                 set: None,
@@ -950,7 +982,7 @@ impl GlobalEnvironmentIndex {
             // 5. Else,
             // a. Let desc be the PropertyDescriptor { [[Value]]: V }.
             PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 writable: None,
                 get: None,
                 set: None,
@@ -998,19 +1030,27 @@ impl GlobalEnvironmentIndex {
         d: bool,
         mut gc: GcScope,
     ) -> JsResult<()> {
+        let nogc = gc.nogc();
+        let name = name.bind(nogc);
+        let value = value.scope(agent, nogc);
         let env_rec = &agent[self];
         // 1. Let ObjRec be envRec.[[ObjectRecord]].
         let obj_rec = env_rec.object_record;
         // 2. Let globalObject be ObjRec.[[BindingObject]].
-        let global_object = agent[obj_rec].binding_object;
+        let global_object = agent[obj_rec].binding_object.bind(nogc);
+        let scoped_global_object = global_object.scope(agent, nogc);
         let n = PropertyKey::from(name);
+        let scoped_n = n.scope(agent, nogc);
         // 3. Let existingProp be ? globalObject.[[GetOwnProperty]](N).
-        let existing_prop = global_object.internal_get_own_property(agent, n, gc.reborrow())?;
+        let existing_prop =
+            global_object
+                .unbind()
+                .internal_get_own_property(agent, n.unbind(), gc.reborrow())?;
         // 4. If existingProp is undefined or existingProp.[[Configurable]] is true, then
         let desc = if existing_prop.is_none() || existing_prop.unwrap().configurable == Some(true) {
             // a. Let desc be the PropertyDescriptor { [[Value]]: V, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: D }.
             PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.get(agent)),
                 writable: Some(true),
                 get: None,
                 set: None,
@@ -1021,7 +1061,7 @@ impl GlobalEnvironmentIndex {
             // 5. Else,
             // a. Let desc be the PropertyDescriptor { [[Value]]: V }.
             PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.get(agent)),
                 writable: None,
                 get: None,
                 set: None,
@@ -1030,13 +1070,27 @@ impl GlobalEnvironmentIndex {
             }
         };
         // 6. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
-        define_property_or_throw(agent, global_object, n, desc, gc.reborrow())?;
+        define_property_or_throw(
+            agent,
+            scoped_global_object.get(agent),
+            scoped_n.get(agent),
+            desc,
+            gc.reborrow(),
+        )?;
         // 7. Perform ? Set(globalObject, N, V, false).
-        set(agent, global_object, n, value, false, gc)?;
+        set(
+            agent,
+            scoped_global_object.get(agent),
+            scoped_n.get(agent),
+            value.get(agent),
+            false,
+            gc,
+        )?;
         // 8. If envRec.[[VarNames]] does not contain N, then
         // a. Append N to envRec.[[VarNames]].
-        let env_rec = &mut agent[self];
-        env_rec.var_names.insert(name.unbind());
+        // SAFETY: Name of a global function cannot be a numeric string.
+        let n = unsafe { String::try_from(scoped_n.get(agent).into_value_unchecked()).unwrap() };
+        agent[self].var_names.insert(n);
         // 9. Return UNUSED.
         Ok(())
         // NOTE

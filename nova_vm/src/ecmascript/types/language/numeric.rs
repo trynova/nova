@@ -2,25 +2,24 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::NoGcScope;
-use crate::engine::Scoped;
+use crate::engine::context::{Bindable, NoGcScope};
 use crate::{
+    SmallInteger,
     ecmascript::execution::Agent,
     engine::{
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
-    SmallInteger,
 };
 
 use super::{
+    IntoPrimitive, IntoValue, Number, Primitive, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     value::{
         BIGINT_DISCRIMINANT, FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT,
         SMALL_BIGINT_DISCRIMINANT,
     },
-    IntoPrimitive, IntoValue, Number, Primitive, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,35 +41,7 @@ pub enum NumericRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl<'a> Numeric<'a> {
-    /// Unbind this Numeric from its current lifetime. This is necessary to use
-    /// the Numeric as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Numeric<'static> {
-        unsafe { std::mem::transmute::<Self, Numeric<'static>>(self) }
-    }
-
-    // Bind this Numeric to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your Numerics cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let numeric = numeric.bind(&gc);
-    // ```
-    // to make sure that the unbound Numeric cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Numeric<'_>, Self>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Numeric<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl Numeric<'_> {
     pub fn is_bigint(self) -> bool {
         matches!(self, Self::BigInt(_) | Self::SmallBigInt(_))
     }
@@ -110,8 +81,23 @@ impl<'a> Numeric<'a> {
     }
 }
 
-impl IntoValue for Numeric<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Numeric<'_> {
+    type Of<'a> = Numeric<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Numeric<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Numeric::Number(data) => Value::Number(data.unbind()),
             Numeric::Integer(data) => Value::Integer(data),
@@ -134,8 +120,8 @@ impl<'a> IntoPrimitive<'a> for Numeric<'a> {
     }
 }
 
-impl From<Numeric<'_>> for Value {
-    fn from(value: Numeric<'_>) -> Self {
+impl<'a> From<Numeric<'a>> for Value<'a> {
+    fn from(value: Numeric<'a>) -> Self {
         value.into_value()
     }
 }
@@ -146,10 +132,10 @@ impl<'a> From<Numeric<'a>> for Primitive<'a> {
     }
 }
 
-impl TryFrom<Value> for Numeric<'_> {
+impl<'a> TryFrom<Value<'a>> for Numeric<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Numeric::Number(data)),
             Value::Integer(data) => Ok(Numeric::Integer(data)),

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
+use core::{
     ops::{Index, IndexMut},
     ptr::NonNull,
 };
@@ -15,32 +15,33 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
         execution::{
+            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext,
+            FunctionEnvironmentIndex, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics,
+            RealmIdentifier, ThisBindingStatus,
             agent::{
-                get_active_script_or_module,
                 ExceptionType::{self, SyntaxError},
+                get_active_script_or_module,
             },
-            new_function_environment, Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex,
-            ExecutionContext, FunctionEnvironmentIndex, JsResult, PrivateEnvironmentIndex,
-            ProtoIntrinsics, RealmIdentifier, ThisBindingStatus,
+            new_function_environment,
         },
-        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+        scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
         syntax_directed_operations::function_definitions::{
             evaluate_async_function_body, evaluate_function_body, evaluate_generator_body,
         },
         types::{
+            BUILTIN_STRING_MEMORY, ECMAScriptFunctionHeapData, Function,
+            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, ECMAScriptFunctionHeapData, Function,
-            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            function_internal_set,
         },
     },
-    engine::Executable,
+    engine::{Executable, rootable::Scopable},
     heap::{
-        indexes::ECMAScriptFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::ECMAScriptFunctionIndex,
     },
 };
 use crate::{
@@ -49,15 +50,15 @@ use crate::{
         types::{function_try_get, function_try_has_property, function_try_set},
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped, TryResult,
     },
 };
 
 use super::{
-    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
     ArgumentsList,
+    ordinary::{ordinary_create_from_constructor, ordinary_object_create_with_intrinsics},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -75,8 +76,8 @@ impl<'a> From<ECMAScriptFunctionIndex<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl IntoValue for ECMAScriptFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for ECMAScriptFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -93,10 +94,10 @@ impl<'a> IntoFunction<'a> for ECMAScriptFunction<'a> {
     }
 }
 
-impl TryFrom<Value> for ECMAScriptFunction<'_> {
+impl<'a> TryFrom<Value<'a>> for ECMAScriptFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::ECMAScriptFunction(function) = value {
             Ok(function)
         } else {
@@ -129,15 +130,15 @@ impl<'a> TryFrom<Function<'a>> for ECMAScriptFunction<'a> {
     }
 }
 
-impl From<ECMAScriptFunction<'_>> for Value {
-    fn from(val: ECMAScriptFunction) -> Self {
-        Value::ECMAScriptFunction(val.unbind())
+impl<'a> From<ECMAScriptFunction<'a>> for Value<'a> {
+    fn from(value: ECMAScriptFunction<'a>) -> Self {
+        Value::ECMAScriptFunction(value)
     }
 }
 
 impl<'a> From<ECMAScriptFunction<'a>> for Object<'a> {
-    fn from(val: ECMAScriptFunction) -> Self {
-        Object::ECMAScriptFunction(val.unbind())
+    fn from(value: ECMAScriptFunction<'a>) -> Self {
+        Object::ECMAScriptFunction(value)
     }
 }
 
@@ -287,35 +288,7 @@ impl IndexMut<ECMAScriptFunction<'_>> for Vec<Option<ECMAScriptFunctionHeapData>
     }
 }
 
-impl<'a> ECMAScriptFunction<'a> {
-    /// Unbind this ECMAScriptFunction from its current lifetime. This is necessary to use
-    /// the ECMAScriptFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> ECMAScriptFunction<'static> {
-        unsafe { std::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'static>>(self) }
-    }
-
-    // Bind this ECMAScriptFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your ECMAScriptFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound ECMAScriptFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> ECMAScriptFunction<'gc> {
-        unsafe { std::mem::transmute::<ECMAScriptFunction, ECMAScriptFunction<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, ECMAScriptFunction<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl ECMAScriptFunction<'_> {
     pub(crate) const fn _def() -> Self {
         ECMAScriptFunction(ECMAScriptFunctionIndex::from_u32_index(0))
     }
@@ -335,6 +308,21 @@ impl<'a> ECMAScriptFunction<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for ECMAScriptFunction<'_> {
+    type Of<'a> = ECMAScriptFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Function;
 
@@ -344,10 +332,12 @@ impl<'a> InternalSlots<'a> for ECMAScriptFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -434,23 +424,23 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -500,13 +490,13 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     /// `argumentsList` (a List of ECMAScript language values) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
@@ -519,7 +509,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             .unwrap()
             .lexical_environment;
         // 3. Assert: calleeContext is now the running execution context.
-        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+        // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
         if agent[self]
             .ecmascript_function
@@ -601,7 +591,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             panic!("constructorEnv is not a Function Environment Record");
         };
         // 5. Assert: calleeContext is now the running execution context.
-        // assert!(std::ptr::eq(agent.running_execution_context(), callee_context));
+        // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
 
         // 6. If kind is base, then
         if is_base {
@@ -636,7 +626,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         // 10. If result is a return completion, then
         //   a. If result.[[Value]] is an Object, return result.[[Value]].
         if let Ok(value) = Object::try_from(value) {
-            Ok(value)
+            Ok(value.unbind())
         } else
         //   b. If kind is base, return thisArgument.
         if is_base {
@@ -646,7 +636,10 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         if !value.is_undefined() {
             let message = format!(
                 "derived class constructor returned invalid value {}",
-                value.string_repr(agent, gc.reborrow()).as_str(agent)
+                value
+                    .unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .as_str(agent)
             );
             let message = String::from_string(agent, message, gc.nogc());
             Err(agent.throw_exception_with_message(ExceptionType::TypeError, message))
@@ -660,7 +653,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             };
 
             // 14. Return thisBinding.
-            Ok(this_binding)
+            Ok(this_binding.unbind())
         }
     }
 }
@@ -776,12 +769,12 @@ pub(crate) fn ordinary_call_bind_this(
 /// (an ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn evaluate_body(
+pub(crate) fn evaluate_body<'gc>(
     agent: &mut Agent,
     function_object: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
     let function_heap_data = &agent[function_object].ecmascript_function;
     let heap_data = function_heap_data;
@@ -847,12 +840,12 @@ pub(crate) fn evaluate_body(
 /// ECMAScript function object) and `argumentsList` (a List of ECMAScript
 /// language values) and returns either a normal completion containing an
 /// ECMAScript language value or an abrupt completion.
-pub(crate) fn ordinary_call_evaluate_body(
+pub(crate) fn ordinary_call_evaluate_body<'gc>(
     agent: &mut Agent,
     f: ECMAScriptFunction,
     arguments_list: ArgumentsList,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     // 1. Return ? EvaluateBody of F.[[ECMAScriptCode]] with arguments F and argumentsList.
     evaluate_body(agent, f, arguments_list, gc)
 }
@@ -900,14 +893,14 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
         // alive until this ECMAScriptFunction gets dropped, hence the 'static
         // lifetime here is justified.
         formal_parameters: NonNull::from(unsafe {
-            std::mem::transmute::<&FormalParameters<'program>, &FormalParameters<'static>>(
+            core::mem::transmute::<&FormalParameters<'program>, &FormalParameters<'static>>(
                 params.parameters_list,
             )
         }),
         // 6. Set F.[[ECMAScriptCode]] to Body.
         // SAFETY: Same as above: Self-referential reference to ScriptOrModule.
         ecmascript_code: NonNull::from(unsafe {
-            std::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
+            core::mem::transmute::<&FunctionBody<'program>, &FunctionBody<'static>>(params.body)
         }),
         is_concise_arrow_function: params.is_concise_arrow_function,
         is_async: params.is_async,
@@ -1028,7 +1021,7 @@ pub(crate) fn make_constructor<'a>(
             agent,
             key,
             PropertyDescriptor {
-                value: Some(function.into_value()),
+                value: Some(function.into_value().unbind()),
                 writable: Some(writable_prototype),
                 enumerable: Some(false),
                 configurable: Some(true),
@@ -1047,7 +1040,7 @@ pub(crate) fn make_constructor<'a>(
         agent,
         key,
         PropertyDescriptor {
-            value: Some(prototype.into_value()),
+            value: Some(prototype.into_value().unbind()),
             writable: Some(writable_prototype),
             enumerable: Some(false),
             configurable: Some(false),

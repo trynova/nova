@@ -5,27 +5,27 @@
 include!(concat!(env!("OUT_DIR"), "/builtin_strings.rs"));
 mod data;
 
-use std::{
+use core::{
     hash::Hash,
     ops::{Index, IndexMut},
 };
 
 use super::{
-    IntoPrimitive, IntoValue, Primitive, PropertyKey, Value, SMALL_STRING_DISCRIMINANT,
-    STRING_DISCRIMINANT,
+    IntoPrimitive, IntoValue, Primitive, PropertyKey, SMALL_STRING_DISCRIMINANT,
+    STRING_DISCRIMINANT, Value,
 };
 use crate::{
+    SmallInteger, SmallString,
     ecmascript::{execution::Agent, types::PropertyDescriptor},
     engine::{
-        context::NoGcScope,
-        rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
+        context::{Bindable, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        indexes::{GetBaseIndexMut, IntoBaseIndex, StringIndex},
     },
-    SmallInteger, SmallString,
 };
 
 pub use data::StringHeapData;
@@ -36,26 +36,6 @@ use wtf8::Wtf8Buf;
 pub struct HeapString<'a>(pub(crate) StringIndex<'a>);
 
 impl HeapString<'_> {
-    /// Unbind this HeapString from its current lifetime. This is necessary to
-    /// use the HeapString as a parameter in a call that can perform garbage
-    /// collection.
-    pub const fn unbind(self) -> HeapString<'static> {
-        unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'static>>(self) }
-    }
-
-    // Bind this HeapString to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your HeapStrings cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let heap_string = heap_string.bind(&gc);
-    // ```
-    // to make sure that the unbound HeapString cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapString<'gc> {
-        unsafe { std::mem::transmute::<HeapString<'_>, HeapString<'gc>>(self) }
-    }
-
     pub fn len(self, agent: &Agent) -> usize {
         agent[self].len()
     }
@@ -70,6 +50,19 @@ impl HeapString<'_> {
 
     pub fn as_str(self, agent: &Agent) -> &str {
         agent[self].as_str()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapString<'_> {
+    type Of<'a> = HeapString<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -142,16 +135,16 @@ pub enum StringRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl IntoValue for HeapString<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapString<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::String(self.unbind())
     }
 }
 
-impl TryFrom<Value> for HeapString<'_> {
+impl<'a> TryFrom<Value<'a>> for HeapString<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::String(x) = value {
             Ok(x)
         } else {
@@ -160,10 +153,10 @@ impl TryFrom<Value> for HeapString<'_> {
     }
 }
 
-impl IntoValue for String<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for String<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
-            String::String(idx) => Value::String(idx.unbind()),
+            String::String(idx) => Value::String(idx),
             String::SmallString(data) => Value::SmallString(data),
         }
     }
@@ -172,7 +165,7 @@ impl IntoValue for String<'_> {
 impl<'a> IntoPrimitive<'a> for String<'a> {
     fn into_primitive(self) -> Primitive<'a> {
         match self {
-            String::String(idx) => Primitive::String(idx.unbind()),
+            String::String(idx) => Primitive::String(idx),
             String::SmallString(data) => Primitive::SmallString(data),
         }
     }
@@ -197,9 +190,9 @@ impl TryFrom<&str> for String<'static> {
     }
 }
 
-impl TryFrom<Value> for String<'_> {
+impl<'a> TryFrom<Value<'a>> for String<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::String(x) => Ok(String::String(x)),
             Value::SmallString(x) => Ok(String::SmallString(x)),
@@ -219,16 +212,16 @@ impl<'a> TryFrom<Primitive<'a>> for String<'a> {
     }
 }
 
-impl From<String<'_>> for Value {
-    fn from(value: String) -> Self {
+impl<'a> From<String<'a>> for Value<'a> {
+    fn from(value: String<'a>) -> Self {
         match value {
-            String::String(x) => Value::String(x.unbind()),
+            String::String(x) => Value::String(x),
             String::SmallString(x) => Value::SmallString(x),
         }
     }
 }
 
-impl From<SmallString> for Value {
+impl From<SmallString> for Value<'static> {
     fn from(value: SmallString) -> Self {
         Value::SmallString(value)
     }
@@ -240,8 +233,8 @@ impl From<SmallString> for String<'static> {
     }
 }
 
-impl IntoValue for SmallString {
-    fn into_value(self) -> Value {
+impl IntoValue<'static> for SmallString {
+    fn into_value(self) -> Value<'static> {
         self.into()
     }
 }
@@ -261,32 +254,19 @@ impl IntoPrimitive<'static> for SmallString {
 impl<'a> String<'a> {
     pub const EMPTY_STRING: String<'static> = String::from_small_string("");
 
-    /// Unbind this String from its current lifetime. This is necessary to use
-    /// the String as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> String<'static> {
-        unsafe { std::mem::transmute::<String<'_>, String<'static>>(self) }
-    }
-
-    // Bind this String to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Strings cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let string = string.bind(&gc);
-    // ```
-    // to make sure that the unbound String cannot be used after binding.
-    pub fn bind<'gc>(self, _gc: NoGcScope<'gc, '_>) -> String<'gc> {
-        unsafe { std::mem::transmute::<String<'_>, String<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, String<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
+    /// Scope a stack-only String. Stack-only Strings do not need to store any
+    /// data on the heap, hence scoping them is effectively a no-op. These
+    /// Strings are also not concerned with the garbage collector.
+    ///
+    /// ## Panics
+    ///
+    /// If the String is not stack-only, this method will panic.
+    pub const fn scope_static(self) -> Scoped<'static, String<'static>> {
+        let key_root_repr = match self {
+            String::SmallString(small_string) => StringRootRepr::SmallString(small_string),
+            _ => panic!("String required rooting"),
+        };
+        Scoped::from_root_repr(key_root_repr)
     }
 
     pub fn is_empty_string(self) -> bool {
@@ -295,15 +275,14 @@ impl<'a> String<'a> {
 
     pub const fn to_property_key(self) -> PropertyKey<'a> {
         match self {
-            String::String(data) => PropertyKey::String(data.unbind()),
+            String::String(data) => PropertyKey::String(data),
             String::SmallString(data) => PropertyKey::SmallString(data),
         }
     }
 
     pub const fn from_small_string(message: &'static str) -> String<'static> {
         assert!(
-            message.len() < 8
-                && (message.is_empty() || message.as_bytes()[message.as_bytes().len() - 1] != 0)
+            message.len() < 8 && (message.is_empty() || message.as_bytes()[message.len() - 1] != 0)
         );
         String::SmallString(SmallString::from_str_unchecked(message))
     }
@@ -384,7 +363,7 @@ impl<'a> String<'a> {
                         let mut result = Wtf8Buf::with_capacity(*len + string_len);
                         // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result
                         // of concatenating UTF-8 strings, which is always valid UTF-8.
-                        result.push_str(unsafe { std::str::from_utf8_unchecked(&data[..*len]) });
+                        result.push_str(unsafe { core::str::from_utf8_unchecked(&data[..*len]) });
                         push_string_to_wtf8(agent, &mut result, *string);
                         status = Status::String(result);
                     }
@@ -399,15 +378,11 @@ impl<'a> String<'a> {
             Status::SmallString { data, len } => {
                 // SAFETY: Since SmallStrings are guaranteed UTF-8, `&data[..len]` is the result of
                 // concatenating UTF-8 strings, which is always valid UTF-8.
-                let str_slice = unsafe { std::str::from_utf8_unchecked(&data[..len]) };
+                let str_slice = unsafe { core::str::from_utf8_unchecked(&data[..len]) };
                 SmallString::from_str_unchecked(str_slice).into()
             }
             Status::String(string) => agent.heap.create(string.into_string().unwrap()).bind(gc),
         }
-    }
-
-    pub fn into_value(self) -> Value {
-        self.into()
     }
 
     /// Byte length of the string.
@@ -568,6 +543,19 @@ impl<'gc> String<'gc> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for String<'_> {
+    type Of<'a> = String<'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl Scoped<'_, String<'static>> {
     pub fn as_str<'string, 'agent: 'string>(&'string self, agent: &'agent Agent) -> &'string str {
         match &self.inner {
@@ -619,13 +607,13 @@ impl HeapMarkAndSweep for HeapString<'static> {
     }
 }
 
-impl Rootable for String<'static> {
+impl Rootable for String<'_> {
     type RootRepr = StringRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
             Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
         }
     }

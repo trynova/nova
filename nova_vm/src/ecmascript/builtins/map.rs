@@ -2,9 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
+    Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
@@ -12,15 +13,13 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::{BaseIndex, MapIndex},
         CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+        indexes::{BaseIndex, MapIndex},
     },
-    Heap,
 };
 
 use self::data::MapHeapData;
@@ -30,35 +29,7 @@ pub mod data;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Map<'a>(pub(crate) MapIndex<'a>);
 
-impl<'a> Map<'a> {
-    /// Unbind this Map from its current lifetime. This is necessary to use
-    /// the Map as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Map<'static> {
-        unsafe { std::mem::transmute::<Self, Map<'static>>(self) }
-    }
-
-    // Bind this Map to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Maps cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let map = map.bind(&gc);
-    // ```
-    // to make sure that the unbound Map cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Map<'gc> {
-        unsafe { std::mem::transmute::<Self, Map<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Map<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl Map<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -68,8 +39,23 @@ impl<'a> Map<'a> {
     }
 }
 
-impl IntoValue for Map<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Map<'_> {
+    type Of<'a> = Map<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Map<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -80,15 +66,15 @@ impl<'a> IntoObject<'a> for Map<'a> {
     }
 }
 
-impl From<Map<'_>> for Value {
-    fn from(val: Map) -> Self {
-        Value::Map(val.unbind())
+impl<'a> From<Map<'a>> for Value<'a> {
+    fn from(value: Map<'a>) -> Self {
+        Value::Map(value)
     }
 }
 
 impl<'a> From<Map<'a>> for Object<'a> {
-    fn from(val: Map) -> Self {
-        Object::Map(val.unbind())
+    fn from(value: Map<'a>) -> Self {
+        Object::Map(value)
     }
 }
 
@@ -112,10 +98,12 @@ impl<'a> InternalSlots<'a> for Map<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

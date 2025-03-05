@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::hash::Hasher;
+use core::hash::Hasher;
 
 use ahash::AHasher;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -15,17 +16,17 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
             indexed_collections::array_objects::array_iterator_objects::array_iterator::CollectionIteratorKind,
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
             keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator,
             set::{
-                data::{SetData, SetHeapData},
                 Set,
+                data::{SetData, SetHeapData},
             },
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsic,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, PropertyKey, String, Value},
     },
     heap::{Heap, IntrinsicFunctionIndexes, PrimitiveHeap, WellKnownSymbolIndexes},
 };
@@ -88,15 +89,17 @@ impl BuiltinIntrinsic for SetPrototypeValues {
 
 impl SetPrototype {
     /// #### [24.2.4.1 Set.prototype.add ( value )](https://tc39.es/ecma262/#sec-set.prototype.add)
-    fn add(
+    fn add<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -109,7 +112,7 @@ impl SetPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(numbers, value);
 
         let SetData {
             values, set_data, ..
@@ -137,7 +140,7 @@ impl SetPrototype {
             // 5. Append value to S.[[SetData]].
             let index = u32::try_from(values.len()).unwrap();
             entry.insert(index);
-            values.push(Some(value));
+            values.push(Some(value.unbind()));
         }
         // i. Return S.
         // 6. Return S.
@@ -150,15 +153,16 @@ impl SetPrototype {
     /// > The existing \[\[SetData]] List is preserved because there may be
     /// > existing Set Iterator objects that are suspended midway through
     /// > iterating over that List.
-    fn clear(
+    fn clear<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
         // 3. For each element e of S.[[SetData]], do
         // a. Replace the element of S.[[SetData]] whose value is e with an
@@ -175,15 +179,17 @@ impl SetPrototype {
     /// > The value EMPTY is used as a specification device to indicate that an
     /// > entry has been deleted. Actual implementations may take other actions
     /// > such as physically removing the entry from internal data structures.
-    fn delete(
+    fn delete<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -196,7 +202,7 @@ impl SetPrototype {
         let primitive_heap = PrimitiveHeap::new(bigints, numbers, strings);
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(numbers, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(numbers, value);
         let mut hasher = AHasher::default();
         let value_hash = {
             value.hash(&primitive_heap, &mut hasher);
@@ -226,18 +232,19 @@ impl SetPrototype {
         }
     }
 
-    fn entries(
+    fn entries<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, KEY+VALUE).
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::KeyAndValue).into_value())
     }
@@ -275,40 +282,43 @@ impl SetPrototype {
     /// > are not visited unless the value is added again before the
     /// > **forEach** call completes. New values added after the call to
     /// > **forEach** begins are visited.
-    fn for_each(
+    fn for_each<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let callback_fn = arguments.get(0);
-        let this_arg = arguments.get(1);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let this_value = this_value.bind(nogc);
+        let callback_fn = arguments.get(0).bind(nogc);
+        let this_arg = arguments.get(1).bind(nogc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let mut s = require_set_data_internal_slot(agent, this_value, gc.nogc())?;
+        let mut s = require_set_data_internal_slot(agent, this_value, nogc)?;
         // 3. If IsCallable(callbackfn) is false, throw a TypeError exception.
-        let Some(callback_fn) = is_callable(callback_fn, gc.nogc()) else {
+        let Some(callback_fn) = is_callable(callback_fn, nogc) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "Callback function is not a function",
-                gc.nogc(),
+                nogc,
             ));
         };
         // 4. Let entries be S.[[SetData]].
         // 5. Let numEntries be the number of elements in entries.
         // Note: We must use the values vector length, not the size. The size
         // does not contain empty slots.
-        let mut num_entries = agent[s].values().len() as u32;
+        let mut num_entries = agent[s].values(gc.nogc()).len() as u32;
 
-        let callback_fn = callback_fn.scope(agent, gc.nogc());
-        let scoped_s = s.scope(agent, gc.nogc());
+        let callback_fn = callback_fn.scope(agent, nogc);
+        let scoped_s = s.scope(agent, nogc);
+        let scoped_this_arg = this_arg.scope(agent, nogc);
 
         // 6. Let index be 0.
         let mut index = 0;
         // 7. Repeat, while index < numEntries,
         while index < num_entries {
             // a. Let e be entries[index].
-            let e = agent[s].values()[index as usize];
+            let e = agent[s].values(gc.nogc())[index as usize];
             // b. Set index to index + 1.
             index += 1;
             // c. If e is not EMPTY, then
@@ -317,14 +327,18 @@ impl SetPrototype {
                 call_function(
                     agent,
                     callback_fn.get(agent),
-                    this_arg,
-                    Some(ArgumentsList(&[e, e, s.into_value()])),
+                    scoped_this_arg.get(agent),
+                    Some(ArgumentsList(&[
+                        e.unbind(),
+                        e.unbind(),
+                        s.into_value().unbind(),
+                    ])),
                     gc.reborrow(),
                 )?;
                 // ii. NOTE: The number of elements in entries may have increased during execution of callbackfn.
                 // iii. Set numEntries to the number of elements in entries.
                 s = scoped_s.get(agent).bind(gc.nogc());
-                num_entries = agent[s].values().len() as u32;
+                num_entries = agent[s].values(gc.nogc()).len() as u32;
             }
         }
         // 8. Return undefined.
@@ -332,15 +346,17 @@ impl SetPrototype {
     }
 
     /// ### [24.2.4.8 Set.prototype.has ( value )](https://tc39.es/ecma262/#sec-set.prototype.has)
-    fn has(
+    fn has<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
+        let value = arguments.get(0).bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
 
         let Heap {
@@ -357,7 +373,7 @@ impl SetPrototype {
         let set_data = set_data.borrow();
 
         // 3. Set value to CanonicalizeKeyedCollectionKey(value).
-        let value = canonicalize_keyed_collection_key(&primitive_heap, arguments.get(0));
+        let value = canonicalize_keyed_collection_key(&primitive_heap, value);
         let mut hasher = AHasher::default();
         let value_hash = {
             value.hash(&primitive_heap, &mut hasher);
@@ -380,15 +396,16 @@ impl SetPrototype {
     ///
     /// Set.prototype.size is an accessor property whose set accessor function
     /// is undefined.
-    fn get_size(
+    fn get_size<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Perform ? RequireInternalSlot(S, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
         // 3. Let size be SetDataSize(S.[[SetData]]).
         let size = agent[s].size();
@@ -396,18 +413,19 @@ impl SetPrototype {
         Ok(Number::from(size).into_value())
     }
 
-    fn values(
+    fn values<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let this_value = this_value.bind(gc);
         // 1. Let S be the this value.
         // 2. Return ? CreateSetIterator(S, VALUE).
 
         // 24.2.6.1 CreateSetIterator ( set, kind )
         // 1. Perform ? RequireInternalSlot(set, [[SetData]]).
-        let gc = gc.into_nogc();
         let s = require_set_data_internal_slot(agent, this_value, gc)?;
         Ok(SetIterator::from_set(agent, s, CollectionIteratorKind::Value).into_value())
     }
@@ -466,7 +484,7 @@ fn require_set_data_internal_slot<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<Set<'a>> {
     match value {
-        Value::Set(map) => Ok(map),
+        Value::Set(map) => Ok(map.bind(gc)),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Object is not a Set",

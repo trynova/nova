@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::ecmascript::types::IntoValue;
 use crate::engine::context::GcScope;
 use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     heap::WellKnownSymbolIndexes,
 };
@@ -23,12 +24,12 @@ impl Builtin for WeakRefPrototypeDeref {
 }
 
 impl WeakRefPrototype {
-    fn deref(
+    fn deref<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

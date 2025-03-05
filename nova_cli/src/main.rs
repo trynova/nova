@@ -8,17 +8,22 @@ use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 use clap::{Parser as ClapParser, Subcommand};
 use cliclack::{input, intro, set_theme};
-use helper::{exit_with_parse_errors, initialize_global_object};
+use helper::{
+    exit_with_parse_errors, initialize_global_object, initialize_global_object_with_internals,
+};
 use nova_vm::{
     ecmascript::{
         execution::{
+            Agent, JsResult,
             agent::{GcAgent, HostHooks, Job, Options},
-            Agent,
         },
         scripts_and_modules::script::{parse_script, script_evaluation},
-        types::{Object, String as JsString},
+        types::{Object, String as JsString, Value},
     },
-    engine::context::GcScope,
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
 };
 use oxc_parser::Parser;
 use oxc_semantic::{SemanticBuilder, SemanticBuilderReturn};
@@ -52,13 +57,25 @@ enum Command {
         #[arg(short, long)]
         no_strict: bool,
 
+        #[arg(long)]
+        expose_internals: bool,
+
         /// The files to evaluate
         #[arg(required = true)]
         paths: Vec<String>,
     },
 
     /// Runs the REPL
-    Repl {},
+    Repl {
+        #[arg(long)]
+        expose_internals: bool,
+
+        #[arg(long)]
+        print_internals: bool,
+
+        #[arg(long)]
+        disable_gc: bool,
+    },
 }
 
 #[derive(Default)]
@@ -76,6 +93,10 @@ impl Debug for CliHostHooks {
 }
 
 impl CliHostHooks {
+    fn has_promise_jobs(&self) -> bool {
+        !self.promise_job_queue.borrow().is_empty()
+    }
+
     fn pop_promise_job(&self) -> Option<Job> {
         self.promise_job_queue.borrow_mut().pop_front()
     }
@@ -116,6 +137,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             verbose,
             no_strict,
             nogc,
+            expose_internals,
             paths,
         } => {
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
@@ -133,10 +155,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let create_global_this_value: Option<
                 for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
             > = None;
+            let initialize_global: Option<fn(&mut Agent, Object, GcScope)> = if expose_internals {
+                Some(initialize_global_object_with_internals)
+            } else {
+                Some(initialize_global_object)
+            };
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
-                Some(initialize_global_object),
+                initialize_global,
             );
             let mut is_first = true;
             for path in paths {
@@ -166,16 +193,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 exit_with_parse_errors(errors, &path, source_text)
                             }
                         };
-                        let mut result = script_evaluation(agent, script, gc.reborrow());
+                        let result = script_evaluation(agent, script, gc.reborrow());
 
-                        if result.is_ok() {
-                            while let Some(job) = host_hooks.pop_promise_job() {
-                                if let Err(err) = job.run(agent, gc.reborrow()) {
-                                    result = Err(err);
-                                    break;
+                        fn run_microtask_queue<'gc>(
+                            agent: &mut Agent,
+                            host_hooks: &CliHostHooks,
+                            result: JsResult<Value>,
+                            mut gc: GcScope<'gc, '_>,
+                        ) -> JsResult<Value<'gc>> {
+                            match result.bind(gc.nogc()) {
+                                Ok(result) => {
+                                    let ok_result = result.unbind().scope(agent, gc.nogc());
+                                    while let Some(job) = host_hooks.pop_promise_job() {
+                                        job.run(agent, gc.reborrow())?;
+                                    }
+                                    Ok(ok_result.get(agent).bind(gc.into_nogc()))
                                 }
+                                Err(_) => result.bind(gc.into_nogc()),
                             }
                         }
+
+                        let result = if host_hooks.has_promise_jobs() {
+                            run_microtask_queue(agent, host_hooks, result.unbind(), gc.reborrow())
+                                .unbind()
+                                .bind(gc.nogc())
+                        } else {
+                            result
+                        };
 
                         match result {
                             Ok(result) => {
@@ -200,12 +244,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             agent.remove_realm(realm);
         }
-        Command::Repl {} => {
+        Command::Repl {
+            expose_internals,
+            print_internals,
+            disable_gc,
+        } => {
             let host_hooks: &CliHostHooks = &*Box::leak(Box::default());
             let mut agent = GcAgent::new(
                 Options {
-                    disable_gc: false,
-                    print_internals: true,
+                    disable_gc,
+                    print_internals,
                 },
                 host_hooks,
             );
@@ -215,22 +263,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let create_global_this_value: Option<
                 for<'a> fn(&mut Agent, GcScope<'a, '_>) -> Object<'a>,
             > = None;
+            let initialize_global: Option<fn(&mut Agent, Object, GcScope)> = if expose_internals {
+                Some(initialize_global_object_with_internals)
+            } else {
+                Some(initialize_global_object)
+            };
             let realm = agent.create_realm(
                 create_global_object,
                 create_global_this_value,
-                Some(initialize_global_object),
+                initialize_global,
             );
 
             set_theme(DefaultTheme);
-            println!("\n\n");
+            println!("\n");
             let mut placeholder = "Enter a line of Javascript".to_string();
 
             // Register a signal handler for Ctrl+C
             let _ = ctrlc::set_handler(|| {
-                let _ = console::Term::stderr().show_cursor();
+                std::process::exit(0);
             });
             loop {
-                intro("Nova Repl (type exit or ctrl+c to exit)")?;
+                intro("Nova Repl")?;
                 let input: String = input("").placeholder(&placeholder).interact()?;
 
                 if input.matches("exit").count() == 1 {

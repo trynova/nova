@@ -55,18 +55,18 @@ pub(crate) mod weak_ref;
 pub(crate) mod weak_set;
 
 pub(crate) use arguments::*;
-pub(crate) use array::abstract_operations::*;
 pub use array::Array;
+pub(crate) use array::abstract_operations::*;
 pub(crate) use array::{ArrayHeapData, SealableElementsVector};
 #[cfg(feature = "array-buffer")]
 pub use array_buffer::ArrayBuffer;
 #[cfg(feature = "array-buffer")]
 pub(crate) use array_buffer::ArrayBufferHeapData;
 pub use builtin_constructor::BuiltinConstructorFunction;
-pub(crate) use builtin_constructor::{create_builtin_constructor, BuiltinConstructorArgs};
+pub(crate) use builtin_constructor::{BuiltinConstructorArgs, create_builtin_constructor};
 pub use builtin_function::{
-    create_builtin_function, ArgumentsList, Behaviour, Builtin, BuiltinFunction,
-    BuiltinFunctionArgs, BuiltinGetter, ConstructorFn, RegularFn as JsFunction, RegularFn,
+    ArgumentsList, Behaviour, Builtin, BuiltinFunction, BuiltinFunctionArgs, BuiltinGetter,
+    ConstructorFn, RegularFn as JsFunction, RegularFn, create_builtin_function,
 };
 pub(crate) use builtin_function::{BuiltinIntrinsic, BuiltinIntrinsicConstructor};
 pub use control_abstraction_objects::*;

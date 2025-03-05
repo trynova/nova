@@ -2,16 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    ops::{Index, IndexMut},
-    vec,
-};
+use core::ops::{Index, IndexMut};
+use std::vec;
 
 use crate::{
     ecmascript::abstract_operations::operations_on_objects::try_create_data_property,
     engine::{
-        context::{GcScope, NoGcScope},
-        unwrap_try, Scoped, TryResult,
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        unwrap_try,
     },
 };
 use crate::{
@@ -21,11 +21,11 @@ use crate::{
             testing_and_comparison::same_value,
         },
         builtins::ArgumentsList,
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            Function, InternalMethods, InternalSlots, IntoFunction, IntoObject, Object,
-            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoFunction,
+            IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey,
+            String, Symbol, Value,
         },
     },
     heap::{CompactionLists, CreateHeapData, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
@@ -37,18 +37,18 @@ use super::date::data::DateHeapData;
 use super::regexp::RegExpHeapData;
 #[cfg(feature = "shared-array-buffer")]
 use super::shared_array_buffer::data::SharedArrayBufferHeapData;
+#[cfg(feature = "array-buffer")]
 use super::{
-    async_generator_objects::AsyncGeneratorHeapData,
+    ArrayBufferHeapData, data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData,
+};
+use super::{
+    ArrayHeapData, async_generator_objects::AsyncGeneratorHeapData,
     control_abstraction_objects::generator_objects::GeneratorHeapData, error::ErrorHeapData,
     finalization_registry::data::FinalizationRegistryHeapData,
     indexed_collections::array_objects::array_iterator_objects::array_iterator::ArrayIteratorHeapData,
     keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIteratorHeapData,
     map::data::MapHeapData, module::Module, primitive_objects::PrimitiveObjectHeapData,
-    promise::data::PromiseHeapData, ArrayHeapData,
-};
-#[cfg(feature = "array-buffer")]
-use super::{
-    data_view::data::DataViewHeapData, typed_array::data::TypedArrayHeapData, ArrayBufferHeapData,
+    promise::data::PromiseHeapData,
 };
 #[cfg(feature = "set")]
 use super::{
@@ -649,13 +649,13 @@ pub(crate) fn ordinary_has_property_entry<'a>(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_try_get(
+pub(crate) fn ordinary_try_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    gc: NoGcScope,
-) -> TryResult<Value> {
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<Value<'gc>> {
     // 1. Let desc be ? O.[[GetOwnProperty]](P).
     let Some(descriptor) = object.try_get_own_property(agent, property_key, gc)? else {
         // 2. If desc is undefined, then
@@ -698,13 +698,13 @@ pub(crate) fn ordinary_try_get(
 }
 
 /// ### [10.1.8.1 OrdinaryGet ( O, P, Receiver )](https://tc39.es/ecma262/#sec-ordinaryget)
-pub(crate) fn ordinary_get(
+pub(crate) fn ordinary_get<'gc>(
     agent: &mut Agent,
     object: OrdinaryObject,
     property_key: PropertyKey,
     receiver: Value,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let object = object.bind(gc.nogc());
     let property_key = property_key.bind(gc.nogc());
     // Note: We scope here because it's likely we've already tried.
@@ -751,7 +751,7 @@ pub(crate) fn ordinary_get(
         // c. Return ? parent.[[Get]](P, Receiver).
         return parent
             .unbind()
-            .internal_get(agent, property_key.unbind(), receiver, gc.reborrow());
+            .internal_get(agent, property_key.unbind(), receiver, gc);
     };
 
     // 3. If IsDataDescriptor(desc) is true, return desc.[[Value]].
@@ -898,7 +898,7 @@ fn ordinary_try_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 ..Default::default()
             };
 
@@ -1012,7 +1012,7 @@ fn ordinary_set_with_own_descriptor(
 
             // iii. Let valueDesc be the PropertyDescriptor { [[Value]]: V }.
             let value_descriptor = PropertyDescriptor {
-                value: Some(value),
+                value: Some(value.unbind()),
                 ..Default::default()
             };
 
@@ -1053,7 +1053,13 @@ fn ordinary_set_with_own_descriptor(
     };
 
     // 6. Perform ? Call(setter, Receiver, « V »).
-    call_function(agent, setter, receiver, Some(ArgumentsList(&[value])), gc)?;
+    call_function(
+        agent,
+        setter,
+        receiver,
+        Some(ArgumentsList(&[value.unbind()])),
+        gc,
+    )?;
 
     // 7. Return true.
     Ok(true)

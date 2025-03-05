@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::type_conversion::to_uint32_number;
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -13,13 +13,13 @@ use crate::{
             type_conversion::{to_number, to_uint32},
         },
         builtins::ArgumentsList,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{IntoObject, Number, Object, PropertyDescriptor, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, Number, Object, PropertyDescriptor, Value},
     },
-    heap::{indexes::ArrayIndex, Heap, WellKnownSymbolIndexes},
+    heap::{Heap, WellKnownSymbolIndexes, indexes::ArrayIndex},
 };
 
-use super::{data::SealableElementsVector, Array, ArrayHeapData};
+use super::{Array, ArrayHeapData, data::SealableElementsVector};
 
 /// ### [10.4.2.2 ArrayCreate ( length \[ , proto \] )](https://tc39.es/ecma262/#sec-arraycreate)
 ///
@@ -97,9 +97,10 @@ pub(crate) fn array_species_create<'a>(
     length: usize,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Object<'a>> {
-    let original_array = original_array.bind(gc.nogc());
+    let nogc = gc.nogc();
+    let original_array = original_array.bind(nogc);
     // 1. Let isArray be ? IsArray(originalArray).
-    let original_is_array = is_array(agent, original_array.into_value(), gc.nogc())?;
+    let original_is_array = is_array(agent, original_array, nogc)?;
     // 2. If isArray is false, return ? ArrayCreate(length).
     if !original_is_array {
         let new_array = array_create(agent, length, length, None, gc.into_nogc())?;
@@ -111,7 +112,9 @@ pub(crate) fn array_species_create<'a>(
         original_array.unbind(),
         BUILTIN_STRING_MEMORY.constructor.into(),
         gc.reborrow(),
-    )?;
+    )?
+    .unbind()
+    .bind(gc.nogc());
     // 4. If IsConstructor(C) is true, then
     if let Some(c_func) = is_constructor(agent, c) {
         // a. Let thisRealm be the current Realm Record.
@@ -131,10 +134,12 @@ pub(crate) fn array_species_create<'a>(
         // a. Set C to ? Get(C, @@species).
         c = get(
             agent,
-            c_obj,
+            c_obj.unbind(),
             WellKnownSymbolIndexes::Species.into(),
             gc.reborrow(),
-        )?;
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // b. If C is null, set C to undefined.
         if c.is_null() {
             c = Value::Undefined;
@@ -155,7 +160,13 @@ pub(crate) fn array_species_create<'a>(
     };
     // 8. Return ? Construct(C, « 𝔽(length) »).
     let length = Value::from_f64(agent, length as f64, gc.nogc());
-    construct(agent, c, Some(ArgumentsList(&[length])), None, gc)
+    construct(
+        agent,
+        c.unbind(),
+        Some(ArgumentsList(&[length.unbind()])),
+        None,
+        gc,
+    )
 }
 
 /// ### [10.4.2.4 ArraySetLength ( A, Desc )](https://tc39.es/ecma262/#sec-arraysetlength)

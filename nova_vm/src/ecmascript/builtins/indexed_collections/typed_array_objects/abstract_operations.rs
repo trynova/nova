@@ -3,37 +3,39 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{get, length_of_array_like, set, try_set},
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
+            ArrayBuffer,
             array_buffer::{
-                allocate_array_buffer, array_buffer_byte_length, clone_array_buffer,
-                get_value_from_buffer, is_detached_buffer, is_fixed_length_array_buffer,
-                set_value_in_buffer, Ordering, ViewedArrayBufferByteLength,
+                Ordering, ViewedArrayBufferByteLength, allocate_array_buffer,
+                array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
+                is_detached_buffer, is_fixed_length_array_buffer, set_value_in_buffer,
             },
             indexed_collections::typed_array_objects::typed_array_intrinsic_object::require_internal_slot_typed_array,
             ordinary::get_prototype_from_constructor,
             typed_array::{
-                data::{TypedArrayArrayLength, TypedArrayHeapData},
                 TypedArray,
+                data::{TypedArrayArrayLength, TypedArrayHeapData},
             },
-            ArrayBuffer,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
             BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, Number,
             Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        unwrap_try,
     },
     heap::indexes::TypedArrayIndex,
-    SmallInteger,
 };
 
 #[repr(transparent)]
@@ -66,11 +68,7 @@ impl CachedBufferByteLength {
 
 impl From<CachedBufferByteLength> for Option<usize> {
     fn from(val: CachedBufferByteLength) -> Self {
-        if val.is_detached() {
-            None
-        } else {
-            Some(val.0)
-        }
+        if val.is_detached() { None } else { Some(val.0) }
     }
 }
 
@@ -421,7 +419,7 @@ pub(crate) fn typed_array_get_element<'a, O: Viewable>(
     // 2. Let offset be O.[[ByteOffset]].
     let offset = o.byte_offset(agent);
     // 3. Let elementSize be TypedArrayElementSize(O).
-    let element_size = std::mem::size_of::<O>();
+    let element_size = core::mem::size_of::<O>();
     // 4. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
     let byte_index_in_buffer = (index * element_size) + offset;
     // 5. Let elementType be TypedArrayElementType(O).
@@ -500,7 +498,7 @@ pub(crate) fn typed_array_set_element<O: Viewable>(
             v.into_numeric()
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
-            let v = to_big_int(agent, value, gc.reborrow())?
+            let v = to_big_int(agent, value.unbind(), gc.reborrow())?
                 .into_numeric()
                 .unbind()
                 .bind(gc.nogc());
@@ -513,7 +511,7 @@ pub(crate) fn typed_array_set_element<O: Viewable>(
             v.into_numeric()
         } else {
             let scoped_o = o.scope(agent, gc.nogc());
-            let v = to_number(agent, value, gc.reborrow())?
+            let v = to_number(agent, value.unbind(), gc.reborrow())?
                 .into_numeric()
                 .unbind()
                 .bind(gc.nogc());
@@ -632,7 +630,7 @@ fn typed_array_set_element_internal<O: Viewable>(
         // a. Let offset be O.[[ByteOffset]].
         let offset = o.byte_offset(agent);
         // b. Let elementSize be TypedArrayElementSize(O).
-        let element_size = std::mem::size_of::<O>();
+        let element_size = core::mem::size_of::<O>();
         // c. Let byteIndexInBuffer be (ℝ(index) × elementSize) + offset.
         let byte_index_in_buffer = index * element_size + offset;
         // d. Let elementType be TypedArrayElementType(O).
@@ -1011,25 +1009,24 @@ pub(crate) fn initialize_typed_array_from_array_buffer<T: Viewable>(
 /// either a normal completion containing unused or a throw completion.
 pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
     agent: &mut Agent,
-    o: TypedArray,
-    values: Vec<Value>,
+    scoped_o: Scoped<'_, TypedArray<'static>>,
+    values: Vec<Scoped<'_, Value<'static>>>,
     mut gc: GcScope,
 ) -> JsResult<()> {
-    let mut o = o.bind(gc.nogc());
+    let mut o = scoped_o.get(agent).bind(gc.nogc());
     // 1. Let len be the number of elements in values.
     // 2. Perform ? AllocateTypedArrayBuffer(O, len).
     allocate_typed_array_buffer::<T>(agent, o, values.len(), gc.nogc())?;
-
-    let scoped_o = o.scope(agent, gc.nogc());
 
     // 3. Let k be 0.
     // 4. Repeat, while k < len,
     // b. Let kValue be the first element of values.
     // c. Remove the first element from values.
     // e. Set k to k + 1.
-    for (k, &k_value) in values.iter().enumerate() {
+    for (k, k_value) in values.iter().enumerate() {
         // a. Let Pk be ! ToString(𝔽(k)).
         let pk = PropertyKey::from(SmallInteger::try_from(k as i64).unwrap());
+        let k_value = k_value.get(agent).bind(gc.nogc());
         // d. Perform ? Set(O, Pk, kValue, true).
         if k_value.is_numeric() {
             unwrap_try(try_set(
@@ -1045,7 +1042,7 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
                 agent,
                 o.unbind().into_object(),
                 pk,
-                k_value,
+                k_value.unbind(),
                 true,
                 gc.reborrow(),
             )?;
@@ -1066,11 +1063,10 @@ pub(crate) fn initialize_typed_array_from_list<T: Viewable>(
 /// throw completion.
 pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
     agent: &mut Agent,
-    o: TypedArray,
+    o: Scoped<'_, TypedArray<'static>>,
     array_like: Object,
     mut gc: GcScope,
 ) -> JsResult<()> {
-    let o = o.bind(gc.nogc()).scope(agent, gc.nogc());
     // 1. Let len be ? LengthOfArrayLike(arrayLike).
     let len = length_of_array_like(agent, array_like, gc.reborrow())? as usize;
 
@@ -1090,7 +1086,7 @@ pub(crate) fn initialize_typed_array_from_array_like<T: Viewable>(
             agent,
             o.get(agent).into_object(),
             pk,
-            k_value,
+            k_value.unbind(),
             true,
             gc.reborrow(),
         )?;

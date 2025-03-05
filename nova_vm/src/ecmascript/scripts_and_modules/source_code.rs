@@ -7,7 +7,7 @@
 //! that the eval call defines functions. Those functions will refer to the
 //! SourceCode for their function source text.
 
-use std::{fmt::Debug, ops::Index, ptr::NonNull};
+use core::{fmt::Debug, ops::Index, ptr::NonNull};
 
 use oxc_allocator::Allocator;
 use oxc_ast::ast::Program;
@@ -21,9 +21,9 @@ use crate::{
         execution::Agent,
         types::{HeapString, String},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{
-        indexes::BaseIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::BaseIndex,
     },
 };
 
@@ -56,7 +56,7 @@ impl SourceCode {
                 // garbage collected until the parsed Program is dropped.
                 // Thus the source text is kept from garbage collection.
                 let source_text =
-                    unsafe { std::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
+                    unsafe { core::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
                 (source.unbind(), source_text)
             }
             String::SmallString(source) => {
@@ -72,7 +72,7 @@ impl SourceCode {
                 // garbage collected until the parsed Program is dropped.
                 // Thus the source text is kept from garbage collection.
                 let source_text =
-                    unsafe { std::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
+                    unsafe { core::mem::transmute::<&str, &'static str>(source.as_str(agent)) };
                 // Slice the source text back to the original length so that the
                 // whitespace we added doesn't get fed to the parser: It shouldn't
                 // need it.
@@ -116,7 +116,7 @@ impl SourceCode {
         }
         // SAFETY: Caller guarantees that they will drop the Program before
         // SourceCode can be garbage collected.
-        let program = unsafe { std::mem::transmute::<Program, Program<'static>>(program) };
+        let program = unsafe { core::mem::transmute::<Program, Program<'static>>(program) };
         let source_code = agent.heap.create(SourceCodeHeapData {
             source: source.unbind(),
             allocator,
@@ -148,7 +148,7 @@ pub(crate) struct SourceCodeHeapData {
 unsafe impl Send for SourceCodeHeapData {}
 
 impl Debug for SourceCodeHeapData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("SourceCodeHeapData")
             .field("source", &self.source)
             .field("allocator", &"[binary data]")

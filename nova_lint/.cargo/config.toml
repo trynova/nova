@@ -1,0 +1,2 @@
+[target.'cfg(all())']
+rustflags = ["-C", "linker=dylint-link"]

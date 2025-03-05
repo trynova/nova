@@ -9,7 +9,7 @@ mod into_object;
 mod property_key;
 mod property_storage;
 
-use std::hash::Hash;
+use core::hash::Hash;
 
 #[cfg(feature = "date")]
 use super::value::DATE_DISCRIMINANT;
@@ -23,13 +23,14 @@ use super::value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 use super::value::{
     ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
     DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-    INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
-    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
-    UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+    UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+    UINT_32_ARRAY_DISCRIMINANT,
 };
 #[cfg(feature = "weak-refs")]
 use super::value::{WEAK_MAP_DISCRIMINANT, WEAK_REF_DISCRIMINANT, WEAK_SET_DISCRIMINANT};
 use super::{
+    Function, IntoValue, Value,
     value::{
         ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
         ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
@@ -42,7 +43,6 @@ use super::{
         MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, OBJECT_DISCRIMINANT,
         PRIMITIVE_OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT,
     },
-    Function, IntoValue, Value,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -61,13 +61,14 @@ use crate::ecmascript::{
 };
 #[cfg(feature = "array-buffer")]
 use crate::{
-    ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer},
-    engine::{context::NoGcScope, Scoped},
+    ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray},
+    engine::context::NoGcScope,
     heap::indexes::TypedArrayIndex,
 };
 use crate::{
     ecmascript::{
         builtins::{
+            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
@@ -81,17 +82,21 @@ use crate::{
             keyed_collections::map_objects::map_iterator_objects::map_iterator::MapIterator,
             map::Map,
             module::Module,
+            ordinary::ordinary_object_create_with_intrinsics,
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
-        execution::{Agent, JsResult},
+        execution::{Agent, JsResult, ProtoIntrinsics},
         types::PropertyDescriptor,
     },
-    engine::{context::GcScope, rootable::HeapRootData, TryResult},
+    engine::{
+        TryResult,
+        context::{Bindable, GcScope},
+        rootable::HeapRootData,
+    },
     heap::{
-        indexes::ObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::ObjectIndex,
     },
 };
 
@@ -99,9 +104,7 @@ pub use data::ObjectHeapData;
 pub use internal_methods::InternalMethods;
 pub use internal_slots::InternalSlots;
 pub use into_object::IntoObject;
-pub use property_key::{
-    bind_property_keys, scope_property_keys, unbind_property_keys, PropertyKey,
-};
+pub use property_key::{PropertyKey, scope_property_keys};
 pub use property_storage::PropertyStorage;
 
 /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
@@ -172,7 +175,7 @@ pub enum Object<'a> {
     #[cfg(feature = "array-buffer")]
     Float64Array(TypedArrayIndex<'a>) = FLOAT_64_ARRAY_DISCRIMINANT,
     AsyncFromSyncIterator = ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT,
-    AsyncGenerator(AsyncGenerator<'static>) = ASYNC_GENERATOR_DISCRIMINANT,
+    AsyncGenerator(AsyncGenerator<'a>) = ASYNC_GENERATOR_DISCRIMINANT,
     Iterator = ITERATOR_DISCRIMINANT,
     ArrayIterator(ArrayIterator<'a>) = ARRAY_ITERATOR_DISCRIMINANT,
     #[cfg(feature = "set")]
@@ -186,8 +189,8 @@ pub enum Object<'a> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OrdinaryObject<'a>(pub(crate) ObjectIndex<'a>);
 
-impl IntoValue for Object<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Object<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Object::Object(data) => Value::Object(data.unbind()),
             Object::BoundFunction(data) => Value::BoundFunction(data.unbind()),
@@ -266,6 +269,36 @@ impl IntoValue for Object<'_> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Object<'_> {
+    type Of<'a> = Object<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for OrdinaryObject<'_> {
+    type Of<'a> = OrdinaryObject<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> IntoObject<'a> for Object<'a> {
     #[inline(always)]
     fn into_object(self) -> Object<'a> {
@@ -279,15 +312,15 @@ impl<'a> IntoObject<'a> for OrdinaryObject<'a> {
     }
 }
 
-impl IntoValue for OrdinaryObject<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for OrdinaryObject<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
 impl<'a> From<OrdinaryObject<'a>> for Object<'a> {
-    fn from(value: OrdinaryObject<'_>) -> Self {
-        Self::Object(value.unbind())
+    fn from(value: OrdinaryObject<'a>) -> Self {
+        Self::Object(value)
     }
 }
 
@@ -297,16 +330,16 @@ impl<'a> From<ObjectIndex<'a>> for OrdinaryObject<'a> {
     }
 }
 
-impl From<OrdinaryObject<'_>> for Value {
-    fn from(value: OrdinaryObject<'_>) -> Self {
-        Self::Object(value.unbind())
+impl<'a> From<OrdinaryObject<'a>> for Value<'a> {
+    fn from(value: OrdinaryObject<'a>) -> Self {
+        Self::Object(value)
     }
 }
 
-impl TryFrom<Value> for OrdinaryObject<'_> {
+impl<'a> TryFrom<Value<'a>> for OrdinaryObject<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Object(data) => Ok(data),
             _ => Err(()),
@@ -358,34 +391,6 @@ impl<'a> InternalSlots<'a> for OrdinaryObject<'a> {
 }
 
 impl<'a> OrdinaryObject<'a> {
-    /// Unbind this OrdinaryObject from its current lifetime. This is necessary to use
-    /// the OrdinaryObject as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> OrdinaryObject<'static> {
-        unsafe { std::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'static>>(self) }
-    }
-
-    // Bind this OrdinaryObject to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your OrdinaryObjects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound OrdinaryObject cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> OrdinaryObject<'gc> {
-        unsafe { std::mem::transmute::<OrdinaryObject<'a>, OrdinaryObject<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, OrdinaryObject<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(ObjectIndex::from_u32_index(0))
     }
@@ -395,6 +400,15 @@ impl<'a> OrdinaryObject<'a> {
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+
+    pub fn create_empty_object(agent: &mut Agent, gc: NoGcScope<'a, '_>) -> Self {
+        let Object::Object(ordinary) =
+            ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc)
+        else {
+            unreachable!()
+        };
+        ordinary
     }
 }
 
@@ -411,8 +425,8 @@ impl<'a> From<BoundFunction<'a>> for Object<'a> {
     }
 }
 
-impl From<Object<'_>> for Value {
-    fn from(value: Object) -> Self {
+impl<'a> From<Object<'a>> for Value<'a> {
+    fn from(value: Object<'a>) -> Self {
         match value {
             Object::Object(data) => Value::Object(data.unbind()),
             Object::BoundFunction(data) => Value::BoundFunction(data.unbind()),
@@ -491,9 +505,9 @@ impl From<Object<'_>> for Value {
     }
 }
 
-impl TryFrom<Value> for Object<'_> {
+impl<'a> TryFrom<Value<'a>> for Object<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Undefined
             | Value::Null
@@ -582,45 +596,13 @@ impl TryFrom<Value> for Object<'_> {
 }
 
 impl<'a> Object<'a> {
-    /// Unbind this Object from its current lifetime. This is necessary to use
-    /// the Object as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Object<'static> {
-        unsafe { std::mem::transmute::<Self, Object<'static>>(self) }
-    }
-
-    // Bind this Object to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Objects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let object = object.bind(&gc);
-    // ```
-    // to make sure that the unbound Object cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Object<'gc> {
-        unsafe { std::mem::transmute::<Self, Object<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Object<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
-    pub fn into_value(self) -> Value {
-        self.into()
-    }
-
     pub fn property_storage(self) -> PropertyStorage<'a> {
         PropertyStorage::new(self)
     }
 }
 
 impl Hash for Object<'_> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         core::mem::discriminant(self).hash(state);
         match self {
             Object::Object(data) => data.get_index().hash(state),
@@ -2678,13 +2660,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         match self {
             Object::Object(data) => data.try_get(agent, property_key, receiver, gc),
             Object::Array(data) => data.try_get(agent, property_key, receiver, gc),
@@ -2786,13 +2768,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             Object::Object(data) => data.internal_get(agent, property_key, receiver, gc),
             Object::Array(data) => data.internal_get(agent, property_key, receiver, gc),
@@ -3590,13 +3572,13 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         }
     }
 
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_value: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         match self {
             Object::BoundFunction(data) => {
                 data.internal_call(agent, this_value, arguments_list, gc)
@@ -3791,7 +3773,7 @@ impl CreateHeapData<ObjectHeapData, OrdinaryObject<'static>> for Heap {
     }
 }
 
-impl TryFrom<HeapRootData> for OrdinaryObject<'static> {
+impl TryFrom<HeapRootData> for OrdinaryObject<'_> {
     type Error = ();
 
     fn try_from(value: HeapRootData) -> Result<Self, ()> {
@@ -3890,7 +3872,7 @@ impl TryFrom<HeapRootData> for Object<'_> {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Ok(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Ok(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncGenerator(gen) => Ok(Self::AsyncGenerator(gen)),
+            HeapRootData::AsyncGenerator(r#gen) => Ok(Self::AsyncGenerator(r#gen)),
             HeapRootData::Iterator => Ok(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => Ok(Self::ArrayIterator(array_iterator)),
             #[cfg(feature = "set")]

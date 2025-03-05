@@ -3,34 +3,37 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
+use crate::ecmascript::abstract_operations::type_conversion::to_numeric_primitive;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
+use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
-use crate::ecmascript::types::bigint::BigIntMathematicalValue;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
+use crate::ecmascript::types::bigint::BigIntMathematicalValue;
 
 use crate::ecmascript::types::Numeric;
 use crate::ecmascript::types::Object;
 
+use crate::SmallInteger;
 use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
+use crate::ecmascript::types::Primitive;
 use crate::ecmascript::types::{String, Value};
-use crate::engine::context::GcScope;
 use crate::engine::context::NoGcScope;
+use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
-use crate::SmallInteger;
 
 /// ### [21.1.1.1 Number ( value )](https://tc39.es/ecma262/#sec-number-constructor-number-value)
 pub struct NumberConstructor;
@@ -70,22 +73,32 @@ impl Builtin for NumberIsSafeInteger {
 }
 
 impl NumberConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let value = arguments.get(0);
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let value = arguments.get(0).bind(nogc);
+        let mut new_target = new_target.map(|n| n.bind(nogc));
 
         // 1. If value is present, then
         let n = if !value.is_undefined() {
             // a. Let prim be ? ToNumeric(value).
-            let prim = value
-                .to_numeric(agent, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc());
+            let prim = if let Ok(prim) = Primitive::try_from(value) {
+                to_numeric_primitive(agent, prim, nogc)?
+            } else {
+                let scoped_new_target = new_target.map(|n| n.scope(agent, nogc));
+                let prim = value
+                    .unbind()
+                    .to_numeric(agent, gc.reborrow())?
+                    .unbind()
+                    .bind(gc.nogc());
+                new_target = scoped_new_target.map(|n| n.get(agent));
+                prim
+            };
 
             // b. If prim is a BigInt, let n be 𝔽(ℝ(prim)).
             match prim {
@@ -113,7 +126,7 @@ impl NumberConstructor {
 
         // 3. If NewTarget is undefined, return n.
         let Some(new_target) = new_target else {
-            return Ok(n.into_value());
+            return Ok(n.into_value().unbind());
         };
 
         let n = n.scope(agent, gc.nogc());
@@ -123,7 +136,7 @@ impl NumberConstructor {
         // 4. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%Number.prototype%", « [[NumberData]] »).
         let o = PrimitiveObject::try_from(ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.unbind(),
             ProtoIntrinsics::Number,
             gc.reborrow(),
         )?)
@@ -136,17 +149,18 @@ impl NumberConstructor {
             Number::SmallF64(d) => PrimitiveObjectData::Float(d),
         };
         // 6. Return O.
-        Ok(o.into_value())
+        Ok(o.unbind().into_value())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn is_finite(
+    fn is_finite<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        let maybe_number = arguments.get(0);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. If number is not a Number, return false.
         let Ok(number) = Number::try_from(maybe_number) else {
@@ -159,26 +173,28 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn is_integer(
+    fn is_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
-        let maybe_number = arguments.get(0);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. Return IsIntegralNumber(number).
-        Ok(is_integral_number(agent, maybe_number, gc.reborrow()).into())
+        Ok(is_integral_number(agent, maybe_number).into())
     }
 
     /// ### [21.1.2.4 Number.isNaN ( number )](https://tc39.es/ecma262/#sec-number.isnan)
-    fn is_nan(
+    fn is_nan<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        let maybe_number = arguments.get(0);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. If number is not a Number, return false.
         let Ok(number) = Number::try_from(maybe_number) else {
@@ -191,13 +207,14 @@ impl NumberConstructor {
     }
 
     /// ### [21.1.2.5 Number.isSafeInteger ( number )](https://tc39.es/ecma262/#sec-number.issafeinteger)
-    fn is_safe_integer(
+    fn is_safe_integer<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
-        let maybe_number = arguments.get(0);
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
+        let maybe_number = arguments.get(0).bind(gc);
 
         // 1. If IsIntegralNumber(number) is true, then
         //    a. If abs(ℝ(number)) ≤ 2**53 - 1, return true.
@@ -221,7 +238,7 @@ impl NumberConstructor {
                 let value = Value::from_f64(builder.agent, f64::EPSILON, gc);
                 builder
                     .with_key(BUILTIN_STRING_MEMORY.EPSILON.into())
-                    .with_value_readonly(value)
+                    .with_value_readonly(value.unbind())
                     .with_enumerable(false)
                     .with_configurable(false)
                     .build()

@@ -15,7 +15,7 @@ pub struct ErrorHeapData {
     pub(crate) object_index: Option<OrdinaryObject<'static>>,
     pub(crate) kind: ExceptionType,
     pub(crate) message: Option<String<'static>>,
-    pub(crate) cause: Option<Value>,
+    pub(crate) cause: Option<Value<'static>>,
     // TODO: stack? name?
 }
 
@@ -23,7 +23,7 @@ impl ErrorHeapData {
     pub(crate) fn new(
         kind: ExceptionType,
         message: Option<String<'static>>,
-        cause: Option<Value>,
+        cause: Option<Value<'static>>,
     ) -> Self {
         Self {
             object_index: None,

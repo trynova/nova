@@ -61,6 +61,7 @@ use crate::ecmascript::builtins::{
 use crate::{
     ecmascript::{
         builtins::{
+            Array, BuiltinFunction,
             control_abstraction_objects::{
                 async_function_objects::{
                     async_function_constructor::AsyncFunctionConstructor,
@@ -107,7 +108,6 @@ use crate::{
                 string_iterator_objects::StringIteratorPrototype,
                 string_prototype::StringPrototype,
             },
-            Array, BuiltinFunction,
         },
         execution::Agent,
         fundamental_objects::{
@@ -143,10 +143,10 @@ use crate::{
     },
     engine::context::NoGcScope,
     heap::{
-        indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
-        intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
         CompactionLists, HeapMarkAndSweep, IntrinsicConstructorIndexes, IntrinsicFunctionIndexes,
         IntrinsicObjectIndexes, IntrinsicPrimitiveObjectIndexes, WorkQueues,
+        indexes::{ArrayIndex, BuiltinFunctionIndex, ObjectIndex, PrimitiveObjectIndex},
+        intrinsic_function_count, intrinsic_object_count, intrinsic_primitive_object_count,
     },
 };
 #[derive(Debug, Clone)]

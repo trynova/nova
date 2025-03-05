@@ -2,12 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{TryResult, unwrap_try};
 use crate::{
+    SmallInteger,
     ecmascript::{
         builtins::ordinary::{
             is_compatible_property_descriptor, ordinary_define_own_property, ordinary_delete,
@@ -15,20 +16,20 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
+            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, BigInt,
+            FLOAT_DISCRIMINANT, HeapNumber, HeapString, INTEGER_DISCRIMINANT, InternalMethods,
+            InternalSlots, IntoObject, IntoValue, NUMBER_DISCRIMINANT, Number, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, SMALL_BIGINT_DISCRIMINANT,
+            SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT, String, Symbol,
+            Value,
             bigint::{HeapBigInt, SmallBigInt},
-            BigInt, HeapNumber, HeapString, InternalMethods, InternalSlots, IntoObject, IntoValue,
-            Number, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Symbol, Value,
-            BIGINT_DISCRIMINANT, BOOLEAN_DISCRIMINANT, BUILTIN_STRING_MEMORY, FLOAT_DISCRIMINANT,
-            INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT, SMALL_BIGINT_DISCRIMINANT,
-            SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         },
     },
     engine::small_f64::SmallF64,
     heap::{
-        indexes::PrimitiveObjectIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::PrimitiveObjectIndex,
     },
-    SmallInteger,
 };
 use small_string::SmallString;
 
@@ -52,9 +53,9 @@ impl<'a> From<PrimitiveObject<'a>> for Object<'a> {
     }
 }
 
-impl From<PrimitiveObject<'_>> for Value {
-    fn from(value: PrimitiveObject) -> Self {
-        Self::PrimitiveObject(value.unbind())
+impl<'a> From<PrimitiveObject<'a>> for Value<'a> {
+    fn from(value: PrimitiveObject<'a>) -> Self {
+        Self::PrimitiveObject(value)
     }
 }
 
@@ -64,8 +65,8 @@ impl<'a> IntoObject<'a> for PrimitiveObject<'a> {
     }
 }
 
-impl IntoValue for PrimitiveObject<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for PrimitiveObject<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -81,10 +82,10 @@ impl<'a> TryFrom<Object<'a>> for PrimitiveObject<'a> {
     }
 }
 
-impl TryFrom<Value> for PrimitiveObject<'_> {
+impl<'a> TryFrom<Value<'a>> for PrimitiveObject<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::PrimitiveObject(obj) => Ok(obj),
             _ => Err(()),
@@ -126,35 +127,7 @@ impl IndexMut<PrimitiveObject<'_>> for Vec<Option<PrimitiveObjectHeapData>> {
     }
 }
 
-impl<'a> PrimitiveObject<'a> {
-    /// Unbind this PrimitiveObject from its current lifetime. This is necessary to use
-    /// the PrimitiveObject as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> PrimitiveObject<'static> {
-        unsafe { std::mem::transmute::<PrimitiveObject, PrimitiveObject<'static>>(self) }
-    }
-
-    // Bind this PrimitiveObject to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your PrimitiveObjects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound PrimitiveObject cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> PrimitiveObject<'a> {
-        unsafe { std::mem::transmute::<PrimitiveObject, PrimitiveObject<'a>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, PrimitiveObject<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl PrimitiveObject<'_> {
     pub(crate) const fn _def() -> Self {
         PrimitiveObject(PrimitiveObjectIndex::from_u32_index(0))
     }
@@ -191,6 +164,21 @@ impl<'a> PrimitiveObject<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for PrimitiveObject<'_> {
+    type Of<'a> = PrimitiveObject<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
@@ -198,10 +186,12 @@ impl<'a> InternalSlots<'a> for PrimitiveObject<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
@@ -358,13 +348,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
                 return TryResult::Continue(string_desc.value.unwrap());
@@ -389,13 +379,13 @@ impl<'a> InternalMethods<'a> for PrimitiveObject<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Ok(string) = String::try_from(agent[self].data) {
             if let Some(string_desc) = string.get_property_descriptor(agent, property_key) {
@@ -567,7 +557,7 @@ pub(crate) enum PrimitiveObjectData {
     SmallBigInt(SmallBigInt) = SMALL_BIGINT_DISCRIMINANT,
 }
 
-impl<'a> TryFrom<PrimitiveObjectData> for BigInt<'a> {
+impl TryFrom<PrimitiveObjectData> for BigInt<'_> {
     type Error = ();
 
     fn try_from(value: PrimitiveObjectData) -> Result<Self, Self::Error> {
@@ -671,11 +661,11 @@ impl PrimitiveObjectHeapData {
     }
 }
 
-impl Rootable for PrimitiveObject<'static> {
+impl Rootable for PrimitiveObject<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::PrimitiveObject(value))
+        Err(HeapRootData::PrimitiveObject(value.unbind()))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {

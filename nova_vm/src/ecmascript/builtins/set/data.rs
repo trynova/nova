@@ -4,18 +4,19 @@
 
 use crate::{
     ecmascript::types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Value, BIGINT_DISCRIMINANT,
-        NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
+        BIGINT_DISCRIMINANT, HeapNumber, HeapString, NUMBER_DISCRIMINANT, OrdinaryObject,
+        STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
-use hashbrown::{hash_table::Entry, HashTable};
-use std::{
+use core::{
     cell::RefCell,
     hash::{Hash, Hasher},
     sync::atomic::{AtomicBool, Ordering},
 };
+use hashbrown::{HashTable, hash_table::Entry};
 
 #[derive(Debug, Default)]
 pub struct SetHeapData {
@@ -40,7 +41,7 @@ impl SetHeapData {
         self.set_data.set_data.borrow().len() as u32
     }
 
-    pub fn values(&self) -> &[Option<Value>] {
+    pub fn values<'a>(&self, _gc: NoGcScope<'a, '_>) -> &[Option<Value<'a>>] {
         &self.set_data.values
     }
 
@@ -65,7 +66,7 @@ impl SetHeapData {
 
 #[derive(Debug, Default)]
 pub(crate) struct SetData {
-    pub(crate) values: Vec<Option<Value>>,
+    pub(crate) values: Vec<Option<Value<'static>>>,
     /// Low-level hash table pointing to value indexes.
     pub(crate) set_data: RefCell<HashTable<u32>>,
     /// Flag that lets the Set know if it needs to rehash its primitive keys.
@@ -114,7 +115,7 @@ fn rehash_set_data(
 ) {
     let hasher = |value: Value| {
         let mut hasher = AHasher::default();
-        value.hash(arena, &mut hasher);
+        value.unbind().hash(arena, &mut hasher);
         hasher.finish()
     };
     let hashes = {

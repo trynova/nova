@@ -4,24 +4,23 @@
 
 mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 pub use data::SymbolHeapData;
 
 use crate::{
     ecmascript::{execution::Agent, types::String},
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::SymbolIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WellKnownSymbolIndexes, WorkQueues, LAST_WELL_KNOWN_SYMBOL_INDEX,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, LAST_WELL_KNOWN_SYMBOL_INDEX,
+        WellKnownSymbolIndexes, WorkQueues, indexes::SymbolIndex,
     },
 };
 
-use super::{IntoPrimitive, IntoValue, Primitive, Value, BUILTIN_STRING_MEMORY};
+use super::{BUILTIN_STRING_MEMORY, IntoPrimitive, IntoValue, Primitive, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
@@ -40,34 +39,6 @@ enum SymbolRootReprInner {
 pub struct SymbolRootRepr(SymbolRootReprInner);
 
 impl<'a> Symbol<'a> {
-    /// Unbind this Symbol from its current lifetime. This is necessary to use
-    /// the Symbol as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Symbol<'static> {
-        unsafe { std::mem::transmute::<Self, Symbol<'static>>(self) }
-    }
-
-    // Bind this Symbol to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Symbols cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let symbol = symbol.bind(&gc);
-    // ```
-    // to make sure that the unbound Symbol cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Symbol<'_>, Self>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Symbol<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(SymbolIndex::from_u32_index(0))
     }
@@ -94,8 +65,23 @@ impl<'a> Symbol<'a> {
     }
 }
 
-impl IntoValue for Symbol<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Symbol<'_> {
+    type Of<'a> = Symbol<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Symbol<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::Symbol(self.unbind())
     }
 }
@@ -106,8 +92,8 @@ impl<'a> IntoPrimitive<'a> for Symbol<'a> {
     }
 }
 
-impl From<Symbol<'_>> for Value {
-    fn from(value: Symbol) -> Self {
+impl<'a> From<Symbol<'a>> for Value<'a> {
+    fn from(value: Symbol<'a>) -> Self {
         value.into_value()
     }
 }
@@ -118,10 +104,10 @@ impl<'a> From<Symbol<'a>> for Primitive<'a> {
     }
 }
 
-impl TryFrom<Value> for Symbol<'_> {
+impl<'a> TryFrom<Value<'a>> for Symbol<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Symbol(idx) => Ok(idx),
             _ => Err(()),
@@ -200,7 +186,7 @@ impl Rootable for Symbol<'_> {
             Ok(SymbolRootRepr(SymbolRootReprInner::WellKnown(
                 // SAFETY: Value is within the maximum number of well-known symbol indexes.
                 unsafe {
-                    std::mem::transmute::<u32, WellKnownSymbolIndexes>(value.0.into_u32_index())
+                    core::mem::transmute::<u32, WellKnownSymbolIndexes>(value.0.into_u32_index())
                 },
             )))
         } else {

@@ -2,21 +2,24 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
+    Heap,
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
-    heap::{
-        indexes::{BaseIndex, WeakSetIndex},
-        CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
     },
-    Heap,
+    heap::{
+        CompactionLists, CreateHeapData, HeapMarkAndSweep, WorkQueues,
+        indexes::{BaseIndex, WeakSetIndex},
+    },
 };
 
 use self::data::WeakSetHeapData;
@@ -28,34 +31,6 @@ pub mod data;
 pub struct WeakSet<'a>(pub(crate) WeakSetIndex<'a>);
 
 impl WeakSet<'_> {
-    /// Unbind this WeakSet from its current lifetime. This is necessary to use
-    /// the WeakSet as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> WeakSet<'static> {
-        unsafe { std::mem::transmute::<Self, WeakSet<'static>>(self) }
-    }
-
-    // Bind this WeakSet to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your WeakSets cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let weak_set = weak_set.bind(&gc);
-    // ```
-    // to make sure that the unbound WeakSet cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> WeakSet<'gc> {
-        unsafe { std::mem::transmute::<Self, WeakSet<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, WeakSet<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -65,8 +40,23 @@ impl WeakSet<'_> {
     }
 }
 
-impl IntoValue for WeakSet<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for WeakSet<'_> {
+    type Of<'a> = WeakSet<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for WeakSet<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -77,15 +67,15 @@ impl<'a> IntoObject<'a> for WeakSet<'a> {
     }
 }
 
-impl From<WeakSet<'_>> for Value {
-    fn from(val: WeakSet) -> Self {
-        Value::WeakSet(val.unbind())
+impl<'a> From<WeakSet<'a>> for Value<'a> {
+    fn from(value: WeakSet<'a>) -> Self {
+        Value::WeakSet(value)
     }
 }
 
 impl<'a> From<WeakSet<'a>> for Object<'a> {
-    fn from(val: WeakSet) -> Self {
-        Object::WeakSet(val.unbind())
+    fn from(value: WeakSet<'a>) -> Self {
+        Object::WeakSet(value)
     }
 }
 
@@ -98,10 +88,12 @@ impl<'a> InternalSlots<'a> for WeakSet<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

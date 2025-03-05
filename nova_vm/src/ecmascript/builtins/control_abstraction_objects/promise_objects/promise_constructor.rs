@@ -2,7 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -11,17 +12,17 @@ use crate::{
         },
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
             ordinary::ordinary_create_from_constructor,
             promise::{
-                data::{PromiseHeapData, PromiseState},
                 Promise,
+                data::{PromiseHeapData, PromiseState},
             },
-            ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, IntoObject, IntoValue, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, PropertyKey, String,
+            Value,
         },
     },
     heap::{CreateHeapData, IntrinsicConstructorIndexes, ObjectEntry, WellKnownSymbolIndexes},
@@ -102,13 +103,13 @@ impl Builtin for PromiseGetSpecies {
 impl BuiltinGetter for PromiseGetSpecies {}
 
 impl PromiseConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         args: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let executor = args.get(0);
 
         // 1. If NewTarget is undefined, throw a TypeError exception.
@@ -191,46 +192,47 @@ impl PromiseConstructor {
         Ok(scoped_promise.get(agent).into_value())
     }
 
-    fn all(
+    fn all<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn all_settled(
+    fn all_settled<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn any(
+    fn any<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
-    fn race(
+    fn race<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn reject(
+    fn reject<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        _: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let r = arguments.get(0).bind(gc.nogc());
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -246,19 +248,19 @@ impl PromiseConstructor {
         let promise = agent.heap.create(PromiseHeapData {
             object_index: None,
             promise_state: PromiseState::Rejected {
-                promise_result: arguments.get(0),
+                promise_result: r.unbind(),
                 is_handled: false,
             },
         });
         Ok(promise.into_value())
     }
 
-    fn resolve(
+    fn resolve<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // We currently don't support Promise subclassing.
         assert_eq!(
             this_value,
@@ -270,12 +272,12 @@ impl PromiseConstructor {
     }
 
     /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
-    fn r#try(
+    fn r#try<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
@@ -316,19 +318,19 @@ impl PromiseConstructor {
             // 6. Else,
             Ok(result) => {
                 // a. Perform ? Call(promiseCapability.[[Resolve]], undefined, « status.[[Value]] »).
-                Promise::resolve(agent, result, gc)
+                Promise::resolve(agent, result.unbind(), gc)
             }
         };
         // 7. Return promiseCapability.[[Promise]].
         Ok(promise.into_value())
     }
 
-    fn with_resolvers(
+    fn with_resolvers<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // Step 2 will throw if `this_value` is not a constructor.
         if is_constructor(agent, this_value).is_none() {
             return Err(agent.throw_exception_with_static_message(
@@ -393,13 +395,13 @@ impl PromiseConstructor {
         Ok(obj.into_value())
     }
 
-    fn get_species(
+    fn get_species<'gc>(
         _: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        _: GcScope,
-    ) -> JsResult<Value> {
-        Ok(this_value)
+        _: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        Ok(this_value.unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {

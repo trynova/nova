@@ -1,4 +1,4 @@
-use std::{hash::Hash, num::NonZeroU32};
+use core::{hash::Hash, num::NonZeroU32};
 
 use ahash::AHashMap;
 use hashbrown::HashTable;
@@ -9,9 +9,9 @@ use hashbrown::HashTable;
 #[cfg(feature = "array-buffer")]
 use super::indexes::TypedArrayIndex;
 use super::{
+    Heap,
     element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
     indexes::{BaseIndex, ElementIndex, GetBaseIndexMut, IntoBaseIndex},
-    Heap,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -20,7 +20,7 @@ use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "set")]
 use crate::ecmascript::builtins::{
     keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -29,6 +29,7 @@ use crate::ecmascript::builtins::{
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 use crate::ecmascript::{
     builtins::{
+        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         async_generator_objects::AsyncGenerator,
         bound_function::BoundFunction,
         control_abstraction_objects::{
@@ -49,7 +50,6 @@ use crate::ecmascript::{
         primitive_objects::PrimitiveObject,
         promise::Promise,
         proxy::Proxy,
-        Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
     },
     execution::{
         DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
@@ -57,8 +57,8 @@ use crate::ecmascript::{
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
-        bigint::HeapBigInt, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
-        BUILTIN_STRINGS_LIST,
+        BUILTIN_STRINGS_LIST, HeapNumber, HeapString, OrdinaryObject, Symbol, Value,
+        bigint::HeapBigInt,
     },
 };
 use crate::engine::Executable;
@@ -996,7 +996,7 @@ fn sweep_array_with_u32_length<T: HeapMarkAndSweep, const N: usize>(
         });
 }
 
-pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
+pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + core::fmt::Debug>(
     vec: &mut Vec<T>,
     compactions: &CompactionLists,
     bits: &[bool],
@@ -1015,7 +1015,7 @@ pub(crate) fn sweep_heap_vector_values<T: HeapMarkAndSweep + std::fmt::Debug>(
 }
 
 pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
     u8s: &[(bool, u8)],
 ) {
@@ -1033,7 +1033,7 @@ pub(crate) fn sweep_heap_u8_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
     u16s: &[(bool, u16)],
 ) {
@@ -1051,7 +1051,7 @@ pub(crate) fn sweep_heap_u16_elements_vector_values<const N: usize>(
 }
 
 pub(crate) fn sweep_heap_u32_elements_vector_values<const N: usize>(
-    vec: &mut Vec<Option<[Option<Value>; N]>>,
+    vec: &mut Vec<Option<[Option<Value<'static>>; N]>>,
     compactions: &CompactionLists,
     u32s: &[(bool, u32)],
 ) {

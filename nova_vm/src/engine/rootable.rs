@@ -14,7 +14,7 @@ use crate::ecmascript::builtins::regexp::RegExp;
 #[cfg(feature = "shared-array-buffer")]
 use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
 #[cfg(feature = "array-buffer")]
-use crate::ecmascript::builtins::{data_view::DataView, ArrayBuffer};
+use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView};
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
 #[cfg(feature = "date")]
@@ -29,9 +29,9 @@ use crate::ecmascript::types::SHARED_ARRAY_BUFFER_DISCRIMINANT;
 use crate::ecmascript::types::{
     ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
     DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-    INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
-    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
-    UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+    UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+    UINT_32_ARRAY_DISCRIMINANT,
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::types::{
@@ -49,6 +49,7 @@ use crate::heap::indexes::TypedArrayIndex;
 use crate::{
     ecmascript::{
         builtins::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
@@ -66,10 +67,8 @@ use crate::{
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
-            bigint::HeapBigInt, HeapNumber, HeapString, IntoObject, Object, OrdinaryObject, Symbol,
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
             ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
             BIGINT_DISCRIMINANT, BOUND_FUNCTION_DISCRIMINANT,
@@ -78,10 +77,11 @@ use crate::{
             BUILTIN_PROMISE_COLLECTOR_FUNCTION_DISCRIMINANT,
             BUILTIN_PROMISE_RESOLVING_FUNCTION_DISCRIMINANT, BUILTIN_PROXY_REVOKER_FUNCTION,
             ECMASCRIPT_FUNCTION_DISCRIMINANT, EMBEDDER_OBJECT_DISCRIMINANT, ERROR_DISCRIMINANT,
-            FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, ITERATOR_DISCRIMINANT,
-            MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT, MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT,
-            OBJECT_DISCRIMINANT, PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, STRING_DISCRIMINANT,
-            SYMBOL_DISCRIMINANT,
+            FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
+            ITERATOR_DISCRIMINANT, IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT,
+            MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject,
+            PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
+            Symbol, bigint::HeapBigInt,
         },
     },
     heap::HeapMarkAndSweep,
@@ -95,7 +95,7 @@ mod private {
     #[cfg(feature = "shared-array-buffer")]
     use crate::ecmascript::builtins::shared_array_buffer::SharedArrayBuffer;
     #[cfg(feature = "array-buffer")]
-    use crate::ecmascript::builtins::{data_view::DataView, typed_array::TypedArray, ArrayBuffer};
+    use crate::ecmascript::builtins::{ArrayBuffer, data_view::DataView, typed_array::TypedArray};
     #[cfg(feature = "set")]
     use crate::ecmascript::builtins::{
         keyed_collections::set_objects::set_iterator_objects::set_iterator::SetIterator, set::Set,
@@ -104,6 +104,7 @@ mod private {
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::ecmascript::{
         builtins::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
@@ -121,7 +122,6 @@ mod private {
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         types::{
             BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
@@ -176,7 +176,7 @@ mod private {
     impl RootableSealed for Symbol<'_> {}
     #[cfg(feature = "array-buffer")]
     impl RootableSealed for TypedArray<'_> {}
-    impl RootableSealed for Value {}
+    impl RootableSealed for Value<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakMap<'_> {}
     #[cfg(feature = "weak-refs")]
@@ -186,10 +186,12 @@ mod private {
 }
 
 pub use global::Global;
-pub use scoped::Scoped;
+pub use scoped::{Scopable, Scoped};
 
-pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
-    type RootRepr: Sized + Clone + std::fmt::Debug;
+use super::context::Bindable;
+
+pub trait Rootable: core::fmt::Debug + Copy + RootableSealed {
+    type RootRepr: Sized + Clone + core::fmt::Debug;
 
     /// Convert a rootable value to a root representation directly if the value
     /// does not need to be rooted, or return its heap root representation as
@@ -211,7 +213,7 @@ pub trait Rootable: std::fmt::Debug + Copy + RootableSealed {
 }
 
 // Blanket impl for Objects
-impl<'a, T: std::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable
+impl<'a, T: core::fmt::Debug + RootableSealed + IntoObject<'a> + TryFrom<HeapRootData>> Rootable
     for T
 {
     type RootRepr = HeapRootRef;
@@ -394,7 +396,7 @@ impl From<Object<'static>> for HeapRootData {
             Object::Float32Array(base_index) => Self::Float32Array(base_index),
             Object::Float64Array(base_index) => Self::Float64Array(base_index),
             Object::AsyncFromSyncIterator => Self::AsyncFromSyncIterator,
-            Object::AsyncGenerator(gen) => Self::AsyncGenerator(gen),
+            Object::AsyncGenerator(r#gen) => Self::AsyncGenerator(r#gen),
             Object::Iterator => Self::Iterator,
             Object::ArrayIterator(array_iterator) => Self::ArrayIterator(array_iterator),
             #[cfg(feature = "set")]
@@ -521,7 +523,7 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.mark_values(queues),
             HeapRootData::AsyncFromSyncIterator => todo!(),
-            HeapRootData::AsyncGenerator(gen) => gen.mark_values(queues),
+            HeapRootData::AsyncGenerator(r#gen) => r#gen.mark_values(queues),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.mark_values(queues),
             #[cfg(feature = "set")]
@@ -614,7 +616,7 @@ impl HeapMarkAndSweep for HeapRootData {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => base_index.sweep_values(compactions),
             HeapRootData::AsyncFromSyncIterator => todo!(),
-            HeapRootData::AsyncGenerator(gen) => gen.sweep_values(compactions),
+            HeapRootData::AsyncGenerator(r#gen) => r#gen.sweep_values(compactions),
             HeapRootData::Iterator => todo!(),
             HeapRootData::ArrayIterator(array_iterator) => array_iterator.sweep_values(compactions),
             #[cfg(feature = "set")]

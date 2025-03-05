@@ -2,39 +2,40 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Deref, Index, IndexMut};
+use core::ops::{Deref, Index, IndexMut};
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{
-            agent::ExceptionType, Agent, ExecutionContext, JsResult, ProtoIntrinsics,
-            RealmIdentifier,
+            Agent, ExecutionContext, JsResult, ProtoIntrinsics, RealmIdentifier,
+            agent::ExceptionType,
         },
         types::{
+            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
+            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
+            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, BuiltinFunctionHeapData, Function, FunctionInternalProperties,
-            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            function_internal_set,
         },
     },
     heap::{
-        indexes::BuiltinFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        IntrinsicConstructorIndexes, IntrinsicFunctionIndexes, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, IntrinsicConstructorIndexes,
+        IntrinsicFunctionIndexes, ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::BuiltinFunctionIndex,
     },
 };
 
 #[derive(Debug, Clone, Copy, Default)]
-pub struct ArgumentsList<'a>(pub(crate) &'a [Value]);
+pub struct ArgumentsList<'a>(pub(crate) &'a [Value<'static>]);
 
 impl<'a> Deref for ArgumentsList<'a> {
-    type Target = &'a [Value];
+    type Target = &'a [Value<'static>];
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -48,9 +49,15 @@ impl ArgumentsList<'_> {
     }
 }
 
-pub type RegularFn = fn(&mut Agent, Value, ArgumentsList, GcScope) -> JsResult<Value>;
-pub type ConstructorFn =
-    fn(&mut Agent, Value, ArgumentsList, Option<Object>, GcScope) -> JsResult<Value>;
+pub type RegularFn =
+    for<'gc> fn(&mut Agent, Value, ArgumentsList, GcScope<'gc, '_>) -> JsResult<Value<'gc>>;
+pub type ConstructorFn = for<'gc> fn(
+    &mut Agent,
+    Value,
+    ArgumentsList,
+    Option<Object>,
+    GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Behaviour {
@@ -115,27 +122,7 @@ impl BuiltinFunctionArgs<'static> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinFunction<'a>(pub(crate) BuiltinFunctionIndex<'a>);
 
-impl<'a> BuiltinFunction<'a> {
-    /// Unbind this BuiltinFunction from its current lifetime. This is necessary to use
-    /// the BuiltinFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BuiltinFunction<'static> {
-        unsafe { std::mem::transmute::<BuiltinFunction<'a>, BuiltinFunction<'static>>(self) }
-    }
-
-    // Bind this BuiltinFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BuiltinFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound BuiltinFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinFunction<'gc> {
-        unsafe { std::mem::transmute::<BuiltinFunction<'a>, BuiltinFunction<'gc>>(self) }
-    }
-
+impl BuiltinFunction<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -159,14 +146,29 @@ impl<'a> BuiltinFunction<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BuiltinFunction<'_> {
+    type Of<'a> = BuiltinFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> From<BuiltinFunctionIndex<'a>> for BuiltinFunction<'a> {
     fn from(value: BuiltinFunctionIndex<'a>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for BuiltinFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BuiltinFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -183,9 +185,9 @@ impl<'a> IntoFunction<'a> for BuiltinFunction<'a> {
     }
 }
 
-impl From<BuiltinFunction<'_>> for Value {
-    fn from(value: BuiltinFunction) -> Self {
-        Value::BuiltinFunction(value.unbind())
+impl<'a> From<BuiltinFunction<'a>> for Value<'a> {
+    fn from(value: BuiltinFunction<'a>) -> Self {
+        Value::BuiltinFunction(value)
     }
 }
 
@@ -254,10 +256,12 @@ impl<'a> InternalSlots<'a> for BuiltinFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -313,23 +317,23 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -379,13 +383,13 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         this_argument: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         builtin_call_or_construct(agent, self, Some(this_argument), arguments_list, None, gc)
     }
@@ -416,14 +420,14 @@ impl<'a> InternalMethods<'a> for BuiltinFunction<'a> {
 /// uninitialized), argumentsList (a List of ECMAScript language values), and
 /// newTarget (a constructor or undefined) and returns either a normal
 /// completion containing an ECMAScript language value or a throw completion.
-pub(crate) fn builtin_call_or_construct(
+pub(crate) fn builtin_call_or_construct<'gc>(
     agent: &mut Agent,
     f: BuiltinFunction,
     this_argument: Option<Value>,
     arguments_list: ArgumentsList,
     new_target: Option<Function>,
-    gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let f = f.bind(gc.nogc());
     let new_target = new_target.map(|f| f.bind(gc.nogc()));
     // 1. Let callerContext be the running execution context.

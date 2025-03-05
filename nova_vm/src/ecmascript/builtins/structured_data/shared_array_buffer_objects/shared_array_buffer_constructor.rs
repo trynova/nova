@@ -8,7 +8,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinGetter, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicConstructorIndexes, WellKnownSymbolIndexes},
 };
@@ -39,22 +39,22 @@ impl Builtin for SharedArrayBufferGetSpecies {
 impl BuiltinGetter for SharedArrayBufferGetSpecies {}
 
 impl SharedArrayBufferConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn species(
+    fn species<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

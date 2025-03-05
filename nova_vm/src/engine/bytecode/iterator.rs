@@ -4,16 +4,20 @@
 
 use std::collections::VecDeque;
 
-use crate::ecmascript::abstract_operations::operations_on_iterator_objects::get_iterator_from_method;
-use crate::ecmascript::abstract_operations::operations_on_objects::{call, get, get_method};
-use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::{
     ecmascript::{
-        abstract_operations::operations_on_iterator_objects::IteratorRecord,
+        abstract_operations::{
+            operations_on_iterator_objects::{IteratorRecord, get_iterator_from_method},
+            operations_on_objects::{call_function, get, get_method, throw_not_callable},
+            type_conversion::to_boolean,
+        },
         builtins::Array,
-        execution::{agent::ExceptionType, Agent, JsResult},
-        types::{InternalMethods, Object, PropertyKey, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, InternalMethods, IntoValue, Object, PropertyKey, Value},
+    },
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WellKnownSymbolIndexes, WorkQueues},
 };
@@ -22,54 +26,40 @@ use super::executable::SendableRef;
 
 #[derive(Debug)]
 pub(super) enum VmIterator {
+    /// Special type for iterators that do not have a callable next method.
+    InvalidIterator,
     ObjectProperties(ObjectPropertiesIterator),
     ArrayValues(ArrayValuesIterator),
-    GenericIterator(IteratorRecord),
-    SliceIterator(SendableRef<[Value]>),
+    GenericIterator(IteratorRecord<'static>),
+    SliceIterator(SendableRef<[Value<'static>]>),
 }
 
 impl VmIterator {
-    /// Unbind this VmIterator from its current lifetime. This is necessary to use
-    /// the VmIterator as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> VmIterator {
-        self
-    }
-
-    // Bind this VmIterator to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your VmIterators cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound VmIterator cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope) -> VmIterator {
-        self
-    }
-
     /// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
     ///
     /// While not exactly equal to the IteratorStepValue method in usage, this
     /// function implements much the same intent. It does the IteratorNext
     /// step, followed by a completion check, and finally extracts the value
     /// if the iterator did not complete yet.
-    pub(super) fn step_value(
+    pub(super) fn step_value<'gc>(
         &mut self,
         agent: &mut Agent,
-        mut gc: GcScope,
-    ) -> JsResult<Option<Value>> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<Value<'gc>>> {
         match self {
+            VmIterator::InvalidIterator => Err(throw_not_callable(agent, gc.into_nogc())),
             VmIterator::ObjectProperties(iter) => {
                 let result = iter.next(agent, gc.reborrow())?;
                 if let Some(result) = result {
+                    let result = result.unbind();
+                    let gc = gc.into_nogc();
+                    let result = result.bind(gc);
                     Ok(Some(match result {
                         PropertyKey::Integer(int) => {
-                            Value::from_string(agent, int.into_i64().to_string(), gc.nogc())
+                            Value::from_string(agent, int.into_i64().to_string(), gc)
                         }
                         PropertyKey::SmallString(data) => Value::SmallString(data),
-                        PropertyKey::String(data) => Value::String(data.unbind()),
+                        PropertyKey::String(data) => Value::String(data),
                         _ => unreachable!(),
                     }))
                 } else {
@@ -78,7 +68,7 @@ impl VmIterator {
             }
             VmIterator::ArrayValues(iter) => iter.next(agent, gc),
             VmIterator::GenericIterator(iter) => {
-                let result = call(
+                let result = call_function(
                     agent,
                     iter.next_method,
                     iter.iterator.into_value(),
@@ -92,10 +82,12 @@ impl VmIterator {
                         gc.nogc(),
                     ));
                 };
+                let result = result.unbind().bind(gc.nogc());
+                let scoped_result = result.scope(agent, gc.nogc());
                 // 1. Return ToBoolean(? Get(iterResult, "done")).
                 let done = get(
                     agent,
-                    result,
+                    result.unbind(),
                     BUILTIN_STRING_MEMORY.done.into(),
                     gc.reborrow(),
                 )?;
@@ -106,9 +98,9 @@ impl VmIterator {
                     // 1. Return ? Get(iterResult, "value").
                     let value = get(
                         agent,
-                        result,
+                        scoped_result.get(agent),
                         BUILTIN_STRING_MEMORY.value.into(),
-                        gc.reborrow(),
+                        gc,
                     )?;
                     Ok(Some(value))
                 }
@@ -128,6 +120,7 @@ impl VmIterator {
 
     pub(super) fn remaining_length_estimate(&self, agent: &mut Agent) -> Option<usize> {
         match self {
+            VmIterator::InvalidIterator => None,
             VmIterator::ObjectProperties(iter) => Some(iter.remaining_keys.len()),
             VmIterator::ArrayValues(iter) => {
                 Some(iter.array.len(agent).saturating_sub(iter.index) as usize)
@@ -176,10 +169,30 @@ impl VmIterator {
                 Ok(VmIterator::ArrayValues(ArrayValuesIterator::new(array)))
             }
             _ => {
-                let js_iterator = get_iterator_from_method(agent, value, method.unbind(), gc)?;
-                Ok(VmIterator::GenericIterator(js_iterator))
+                if let Some(js_iterator) =
+                    get_iterator_from_method(agent, value, method.unbind(), gc)?
+                {
+                    Ok(VmIterator::GenericIterator(js_iterator.unbind()))
+                } else {
+                    Ok(VmIterator::InvalidIterator)
+                }
             }
         }
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for VmIterator {
+    type Of<'a> = VmIterator;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        self
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        self
     }
 }
 
@@ -266,7 +279,11 @@ impl ArrayValuesIterator {
         }
     }
 
-    pub(super) fn next(&mut self, agent: &mut Agent, gc: GcScope) -> JsResult<Option<Value>> {
+    pub(super) fn next<'gc>(
+        &mut self,
+        agent: &mut Agent,
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Option<Value<'gc>>> {
         // b. Repeat,
         let array = self.array;
         // iv. Let indexNumber be 𝔽(index).
@@ -282,7 +299,7 @@ impl ArrayValuesIterator {
         if let Some(element_value) = array.as_slice(agent)[index as usize] {
             // Fast path: If the element at this index has a Value, then it is
             // not an accessor nor a hole. Yield the result as-is.
-            return Ok(Some(element_value));
+            return Ok(Some(element_value.bind(gc.into_nogc())));
         }
         // 1. Let elementKey be ! ToString(indexNumber).
         // 2. Let elementValue be ? Get(array, elementKey).
@@ -337,6 +354,7 @@ impl HeapMarkAndSweep for ArrayValuesIterator {
 impl HeapMarkAndSweep for VmIterator {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
+            VmIterator::InvalidIterator => {}
             VmIterator::ObjectProperties(iter) => iter.mark_values(queues),
             VmIterator::ArrayValues(iter) => iter.mark_values(queues),
             VmIterator::GenericIterator(iter) => iter.mark_values(queues),
@@ -346,6 +364,7 @@ impl HeapMarkAndSweep for VmIterator {
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
         match self {
+            VmIterator::InvalidIterator => {}
             VmIterator::ObjectProperties(iter) => iter.sweep_values(compactions),
             VmIterator::ArrayValues(iter) => iter.sweep_values(compactions),
             VmIterator::GenericIterator(iter) => iter.sweep_values(compactions),

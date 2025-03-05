@@ -6,12 +6,12 @@ use super::{
     DeclarativeEnvironment, DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
 };
 use crate::ecmascript::types::OrdinaryObject;
-use crate::engine::context::NoGcScope;
+use crate::engine::context::{Bindable, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         builtins::{ECMAScriptFunction, ThisMode},
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         types::{Function, InternalMethods, IntoFunction, IntoValue, Object, String, Value},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
@@ -40,7 +40,7 @@ pub(crate) struct FunctionEnvironment {
     /// ### \[\[ThisValue\]\]
     ///
     /// This is the this value used for this invocation of the function.
-    pub(crate) this_value: Option<Value>,
+    pub(crate) this_value: Option<Value<'static>>,
 
     /// ### \[\[ThisBindingStatus\]\]
     ///
@@ -170,7 +170,7 @@ pub(crate) fn new_class_static_element_environment(
         DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative);
 
     let env = FunctionEnvironment {
-        this_value: Some(class_constructor.into_value()),
+        this_value: Some(class_constructor.into_value().unbind()),
 
         function_object: class_constructor.unbind(),
 
@@ -203,7 +203,7 @@ pub(crate) fn new_class_field_initializer_environment(
         .heap
         .environments
         .push_function_environment(FunctionEnvironment {
-            this_value: Some(class_instance.into_value()),
+            this_value: Some(class_instance.into_value().unbind()),
             this_binding_status: ThisBindingStatus::Initialized,
             function_object: class_constructor.unbind(),
             new_target: None,
@@ -220,7 +220,11 @@ impl FunctionEnvironmentIndex {
     /// The GetThisBinding concrete method of a Function Environment Record
     /// envRec takes no arguments and returns either a normal completion
     /// containing an ECMAScript language value or a throw completion.
-    pub(crate) fn get_this_binding(self, agent: &mut Agent, gc: NoGcScope) -> JsResult<Value> {
+    pub(crate) fn get_this_binding<'gc>(
+        self,
+        agent: &mut Agent,
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Assert: envRec.[[ThisBindingStatus]] is not lexical.
         // 2. If envRec.[[ThisBindingStatus]] is uninitialized, throw a ReferenceError exception.
         // 3. Return envRec.[[ThisValue]].
@@ -320,7 +324,7 @@ impl FunctionEnvironmentIndex {
         // 4. Else if the binding for N in envRec is a mutable binding, then
         if binding.mutable {
             // a. Change its bound value to V.
-            binding.value = Some(value);
+            binding.value = Some(value.unbind());
         }
         // 5. Else,
         else {
@@ -342,13 +346,13 @@ impl FunctionEnvironmentIndex {
     }
 
     /// ### [9.1.1.1.6 GetBindingValue ( N, S )](https://tc39.es/ecma262/#sec-declarative-environment-records-getbindingvalue-n-s)
-    pub(crate) fn get_binding_value(
+    pub(crate) fn get_binding_value<'gc>(
         self,
         agent: &mut Agent,
         name: String,
         is_strict: bool,
-        gc: NoGcScope,
-    ) -> JsResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         agent[self]
             .declarative_environment
             .get_binding_value(agent, name, is_strict, gc)
@@ -373,12 +377,12 @@ impl FunctionEnvironmentIndex {
     /// envRec takes argument V (an ECMAScript language value) and returns
     /// either a normal completion containing an ECMAScript language value or a
     /// throw completion.
-    pub(crate) fn bind_this_value(
+    pub(crate) fn bind_this_value<'gc>(
         self,
         agent: &mut Agent,
         value: Value,
-        gc: NoGcScope,
-    ) -> JsResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let env_rec = &mut agent[self];
         // 1. Assert: envRec.[[ThisBindingStatus]] is not LEXICAL.
         debug_assert!(env_rec.this_binding_status != ThisBindingStatus::Lexical);
@@ -394,13 +398,13 @@ impl FunctionEnvironmentIndex {
         }
 
         // 3. Set envRec.[[ThisValue]] to V.
-        env_rec.this_value = Some(value);
+        env_rec.this_value = Some(value.unbind());
 
         // 4. Set envRec.[[ThisBindingStatus]] to INITIALIZED.
         env_rec.this_binding_status = ThisBindingStatus::Initialized;
 
         // 5. Return V.
-        Ok(value)
+        Ok(value.bind(gc))
     }
 
     /// ### [9.1.1.3.2 HasThisBinding ( )](https://tc39.es/ecma262/#sec-function-environment-records-hasthisbinding)

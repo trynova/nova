@@ -5,11 +5,11 @@
 use wtf8::Wtf8;
 
 use super::{
+    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
+    StringHeapData, Symbol,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
-    BigInt, BigIntHeapData, IntoValue, Number, Numeric, OrdinaryObject, Primitive, String,
-    StringHeapData, Symbol,
 };
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -23,18 +23,15 @@ use crate::ecmascript::builtins::{
 };
 #[cfg(feature = "weak-refs")]
 use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
-#[cfg(feature = "array-buffer")]
 use crate::{
-    ecmascript::builtins::{data_view::DataView, ArrayBuffer},
-    heap::indexes::TypedArrayIndex,
-};
-use crate::{
+    SmallInteger, SmallString,
     ecmascript::{
         abstract_operations::type_conversion::{
             to_big_int, to_int16, to_int32, to_number, to_numeric, to_string, to_uint16, to_uint32,
             try_to_string,
         },
         builtins::{
+            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             control_abstraction_objects::{
@@ -51,22 +48,25 @@ use crate::{
             primitive_objects::PrimitiveObject,
             promise::Promise,
             proxy::Proxy,
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
         },
         execution::{Agent, JsResult},
         types::BUILTIN_STRING_MEMORY,
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
-        Scoped, TryResult,
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    SmallInteger, SmallString,
+};
+#[cfg(feature = "array-buffer")]
+use crate::{
+    ecmascript::builtins::{ArrayBuffer, data_view::DataView},
+    heap::indexes::TypedArrayIndex,
 };
 
-use std::{
+use core::{
     hash::{Hash, Hasher},
     mem::size_of,
     ops::Index,
@@ -75,7 +75,7 @@ use std::{
 /// ### [6.1 ECMAScript Language Types](https://tc39.es/ecma262/#sec-ecmascript-language-types)
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
-pub enum Value {
+pub enum Value<'a> {
     /// ### [6.1.1 The Undefined Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-undefined-type)
     #[default]
     Undefined = 1,
@@ -91,7 +91,7 @@ pub enum Value {
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString<'static>),
+    String(HeapString<'a>),
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// 7-byte UTF-8 string on the stack. End of the string is determined by
@@ -100,12 +100,12 @@ pub enum Value {
     SmallString(SmallString),
 
     /// ### [6.1.5 The Symbol Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-symbol-type)
-    Symbol(Symbol<'static>),
+    Symbol(Symbol<'a>),
 
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber<'static>),
+    Number(HeapNumber<'a>),
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// 53-bit signed integer on the stack.
@@ -120,31 +120,31 @@ pub enum Value {
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt<'static>),
+    BigInt(HeapBigInt<'a>),
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// 56-bit signed integer on the stack.
     SmallBigInt(SmallBigInt),
 
     /// ### [6.1.7 The Object Type](https://tc39.es/ecma262/#sec-object-type)
-    Object(OrdinaryObject<'static>),
+    Object(OrdinaryObject<'a>),
 
     // Functions
-    BoundFunction(BoundFunction<'static>),
-    BuiltinFunction(BuiltinFunction<'static>),
-    ECMAScriptFunction(ECMAScriptFunction<'static>),
+    BoundFunction(BoundFunction<'a>),
+    BuiltinFunction(BuiltinFunction<'a>),
+    ECMAScriptFunction(ECMAScriptFunction<'a>),
     // TODO: Figure out if all the special function types are wanted or if we'd
     // prefer to just keep them as internal variants of the three above ones.
     BuiltinGeneratorFunction,
     /// Default class constructor created in step 14 of
     /// [ClassDefinitionEvaluation](https://tc39.es/ecma262/#sec-runtime-semantics-classdefinitionevaluation).
-    BuiltinConstructorFunction(BuiltinConstructorFunction<'static>),
-    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'static>),
+    BuiltinConstructorFunction(BuiltinConstructorFunction<'a>),
+    BuiltinPromiseResolvingFunction(BuiltinPromiseResolvingFunction<'a>),
     BuiltinPromiseCollectorFunction,
     BuiltinProxyRevokerFunction,
 
     // Boolean, Number, String, Symbol, BigInt objects
-    PrimitiveObject(PrimitiveObject<'static>),
+    PrimitiveObject(PrimitiveObject<'a>),
 
     // Well-known object types
     // Roughly corresponding to 6.1.7.4 Well-Known Intrinsic Objects
@@ -155,75 +155,75 @@ pub enum Value {
     ///
     /// An unmapped arguments object is an ordinary object with an additional
     /// internal slot \[\[ParameterMap]] whose value is always **undefined**.
-    Arguments(OrdinaryObject<'static>),
+    Arguments(OrdinaryObject<'a>),
     // TODO: MappedArguments(MappedArgumentsObject),
-    Array(Array<'static>),
+    Array(Array<'a>),
     #[cfg(feature = "array-buffer")]
-    ArrayBuffer(ArrayBuffer<'static>),
+    ArrayBuffer(ArrayBuffer<'a>),
     #[cfg(feature = "array-buffer")]
-    DataView(DataView<'static>),
+    DataView(DataView<'a>),
     #[cfg(feature = "date")]
-    Date(Date<'static>),
-    Error(Error<'static>),
-    FinalizationRegistry(FinalizationRegistry<'static>),
-    Map(Map<'static>),
-    Promise(Promise<'static>),
-    Proxy(Proxy<'static>),
+    Date(Date<'a>),
+    Error(Error<'a>),
+    FinalizationRegistry(FinalizationRegistry<'a>),
+    Map(Map<'a>),
+    Promise(Promise<'a>),
+    Proxy(Proxy<'a>),
     #[cfg(feature = "regexp")]
-    RegExp(RegExp<'static>),
+    RegExp(RegExp<'a>),
     #[cfg(feature = "set")]
-    Set(Set<'static>),
+    Set(Set<'a>),
     #[cfg(feature = "shared-array-buffer")]
-    SharedArrayBuffer(SharedArrayBuffer<'static>),
+    SharedArrayBuffer(SharedArrayBuffer<'a>),
     #[cfg(feature = "weak-refs")]
-    WeakMap(WeakMap<'static>),
+    WeakMap(WeakMap<'a>),
     #[cfg(feature = "weak-refs")]
-    WeakRef(WeakRef<'static>),
+    WeakRef(WeakRef<'a>),
     #[cfg(feature = "weak-refs")]
-    WeakSet(WeakSet<'static>),
+    WeakSet(WeakSet<'a>),
 
     // TypedArrays
     #[cfg(feature = "array-buffer")]
-    Int8Array(TypedArrayIndex<'static>),
+    Int8Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Uint8Array(TypedArrayIndex<'static>),
+    Uint8Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Uint8ClampedArray(TypedArrayIndex<'static>),
+    Uint8ClampedArray(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Int16Array(TypedArrayIndex<'static>),
+    Int16Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Uint16Array(TypedArrayIndex<'static>),
+    Uint16Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Int32Array(TypedArrayIndex<'static>),
+    Int32Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Uint32Array(TypedArrayIndex<'static>),
+    Uint32Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    BigInt64Array(TypedArrayIndex<'static>),
+    BigInt64Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    BigUint64Array(TypedArrayIndex<'static>),
+    BigUint64Array(TypedArrayIndex<'a>),
     #[cfg(feature = "proposal-float16array")]
-    Float16Array(TypedArrayIndex<'static>),
+    Float16Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Float32Array(TypedArrayIndex<'static>),
+    Float32Array(TypedArrayIndex<'a>),
     #[cfg(feature = "array-buffer")]
-    Float64Array(TypedArrayIndex<'static>),
+    Float64Array(TypedArrayIndex<'a>),
 
     // Iterator objects
     // TODO: Figure out if these are needed at all.
     AsyncFromSyncIterator,
-    AsyncGenerator(AsyncGenerator<'static>),
+    AsyncGenerator(AsyncGenerator<'a>),
     Iterator,
-    ArrayIterator(ArrayIterator<'static>),
+    ArrayIterator(ArrayIterator<'a>),
     #[cfg(feature = "set")]
-    SetIterator(SetIterator<'static>),
-    MapIterator(MapIterator<'static>),
-    Generator(Generator<'static>),
+    SetIterator(SetIterator<'a>),
+    MapIterator(MapIterator<'a>),
+    Generator(Generator<'a>),
 
     // ECMAScript Module
-    Module(Module<'static>),
+    Module(Module<'a>),
 
     // Embedder objects
-    EmbedderObject(EmbedderObject<'static>) = 0x7f,
+    EmbedderObject(EmbedderObject<'a>) = 0x7f,
 }
 
 /// We want to guarantee that all handles to JS values are register sized. This
@@ -365,47 +365,49 @@ pub(crate) const MODULE_DISCRIMINANT: u8 = value_discriminant(Value::Module(Modu
 pub(crate) const EMBEDDER_OBJECT_DISCRIMINANT: u8 =
     value_discriminant(Value::EmbedderObject(EmbedderObject::_def()));
 
-impl Value {
-    /// Unbind this Value from its current lifetime. This is necessary to use
-    /// the Value as a parameter in a call that can perform garbage collection.
-    pub fn unbind(self) -> Self {
-        self
+impl<'a> Value<'a> {
+    /// Scope a stack-only Value. Stack-only Values are primitives that do not
+    /// need to store any data on the heap, hence scoping them is effectively a
+    /// no-op. These Values are also not concerned with the garbage collector.
+    ///
+    /// ## Panics
+    ///
+    /// If the Value is not stack-only, this method will panic.
+    pub const fn scope_static(self) -> Scoped<'static, Value<'static>> {
+        let key_root_repr = match self {
+            Value::Undefined => ValueRootRepr::Undefined,
+            Value::Null => ValueRootRepr::Null,
+            Value::Boolean(bool) => ValueRootRepr::Boolean(bool),
+            Value::SmallString(small_string) => ValueRootRepr::SmallString(small_string),
+            Value::Integer(small_integer) => ValueRootRepr::Integer(small_integer),
+            Value::SmallF64(small_string) => ValueRootRepr::SmallF64(small_string),
+            Value::SmallBigInt(small_string) => ValueRootRepr::SmallBigInt(small_string),
+            _ => panic!("Value required rooting"),
+        };
+        Scoped::from_root_repr(key_root_repr)
     }
 
-    // Bind this Value to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Values cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let value = value.bind(&gc);
-    // ```
-    // to make sure that the unbound Value cannot be used after binding.
-    pub fn bind(self, _gc: NoGcScope) -> Self {
-        self
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Value> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
-    pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope) -> Value {
+    pub fn from_str(agent: &mut Agent, str: &str, gc: NoGcScope<'a, '_>) -> Value<'a> {
         String::from_str(agent, str, gc).into_value()
     }
 
-    pub fn from_string(agent: &mut Agent, string: std::string::String, gc: NoGcScope) -> Value {
+    pub fn from_string(
+        agent: &mut Agent,
+        string: std::string::String,
+        gc: NoGcScope<'a, '_>,
+    ) -> Value<'a> {
         String::from_string(agent, string, gc).into_value()
     }
 
-    pub fn from_static_str(agent: &mut Agent, str: &'static str, gc: NoGcScope) -> Value {
+    pub fn from_static_str(
+        agent: &mut Agent,
+        str: &'static str,
+        gc: NoGcScope<'a, '_>,
+    ) -> Value<'a> {
         String::from_static_str(agent, str, gc).into_value()
     }
 
-    pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope) -> Value {
+    pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Value<'a> {
         Number::from_f64(agent, value, gc).into_value()
     }
 
@@ -586,7 +588,8 @@ impl Value {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return symbol_idx.descriptive_string(agent, gc.into_nogc());
+            let gc = gc.into_nogc();
+            return symbol_idx.unbind().descriptive_string(agent, gc);
         };
         match self.to_string(agent, gc) {
             Ok(result) => result,
@@ -603,7 +606,7 @@ impl Value {
         if let Value::Symbol(symbol_idx) = self {
             // ToString of a symbol always throws. We use the descriptive
             // string instead (the result of `String(symbol)`).
-            return symbol_idx.descriptive_string(agent, gc);
+            return symbol_idx.unbind().descriptive_string(agent, gc);
         };
         match self.try_to_string(agent, gc) {
             TryResult::Continue(result) => result.unwrap(),
@@ -628,9 +631,9 @@ impl Value {
     pub(crate) fn hash<H, A>(self, arena: &A, hasher: &mut H)
     where
         H: Hasher,
-        A: Index<HeapString<'static>, Output = StringHeapData>
-            + Index<HeapNumber<'static>, Output = f64>
-            + Index<HeapBigInt<'static>, Output = BigIntHeapData>,
+        A: Index<HeapString<'a>, Output = StringHeapData>
+            + Index<HeapNumber<'a>, Output = f64>
+            + Index<HeapBigInt<'a>, Output = BigIntHeapData>,
     {
         let discriminant = core::mem::discriminant(&self);
         match self {
@@ -1099,22 +1102,37 @@ impl Value {
     }
 }
 
-impl From<bool> for Value {
+impl From<bool> for Value<'_> {
     fn from(value: bool) -> Self {
         Value::Boolean(value)
     }
 }
 
-impl<T> From<Option<T>> for Value
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Value<'_> {
+    type Of<'a> = Value<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a, T> From<Option<T>> for Value<'a>
 where
-    T: Into<Value>,
+    T: Into<Value<'a>>,
 {
     fn from(value: Option<T>) -> Self {
         value.map_or(Value::Undefined, |v| v.into())
     }
 }
 
-impl TryFrom<&str> for Value {
+impl TryFrom<&str> for Value<'static> {
     type Error = ();
     fn try_from(value: &str) -> Result<Self, ()> {
         if let Ok(data) = value.try_into() {
@@ -1125,36 +1143,36 @@ impl TryFrom<&str> for Value {
     }
 }
 
-impl TryFrom<f64> for Value {
+impl TryFrom<f64> for Value<'static> {
     type Error = ();
     fn try_from(value: f64) -> Result<Self, ()> {
         Number::try_from(value).map(|v| v.into())
     }
 }
 
-impl From<Number<'_>> for Value {
-    fn from(value: Number<'_>) -> Self {
+impl<'a> From<Number<'a>> for Value<'a> {
+    fn from(value: Number<'a>) -> Self {
         value.into_value()
     }
 }
 
-impl From<f32> for Value {
+impl From<f32> for Value<'static> {
     fn from(value: f32) -> Self {
         Value::SmallF64(SmallF64::from(value))
     }
 }
 
-impl TryFrom<i64> for Value {
+impl TryFrom<i64> for Value<'static> {
     type Error = ();
     fn try_from(value: i64) -> Result<Self, ()> {
         Ok(Value::Integer(SmallInteger::try_from(value)?))
     }
 }
 
-impl TryFrom<Value> for bool {
+impl<'a> TryFrom<Value<'a>> for bool {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Boolean(bool) => Ok(bool),
             _ => Err(()),
@@ -1164,7 +1182,7 @@ impl TryFrom<Value> for bool {
 
 macro_rules! impl_value_from_n {
     ($size: ty) => {
-        impl From<$size> for Value {
+        impl From<$size> for Value<'_> {
             fn from(value: $size) -> Self {
                 Value::Integer(SmallInteger::from(value))
             }
@@ -1179,14 +1197,14 @@ impl_value_from_n!(i16);
 impl_value_from_n!(u32);
 impl_value_from_n!(i32);
 
-impl IntoValue for Value {
+impl<'a> IntoValue<'a> for Value<'a> {
     #[inline(always)]
-    fn into_value(self) -> Value {
+    fn into_value(self) -> Value<'a> {
         self
     }
 }
 
-impl Rootable for Value {
+impl Rootable for Value<'_> {
     type RootRepr = ValueRootRepr;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
@@ -1194,100 +1212,120 @@ impl Rootable for Value {
             Self::Undefined => Ok(Self::RootRepr::Undefined),
             Self::Null => Ok(Self::RootRepr::Null),
             Self::Boolean(bool) => Ok(Self::RootRepr::Boolean(bool)),
-            Self::String(heap_string) => Err(HeapRootData::String(heap_string)),
+            Self::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
             Self::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
             Self::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
             Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
-            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int)),
+            Self::BigInt(heap_big_int) => Err(HeapRootData::BigInt(heap_big_int.unbind())),
             Self::SmallBigInt(small_big_int) => Ok(Self::RootRepr::SmallBigInt(small_big_int)),
-            Self::Object(ordinary_object) => Err(HeapRootData::Object(ordinary_object)),
-            Self::BoundFunction(bound_function) => Err(HeapRootData::BoundFunction(bound_function)),
+            Self::Object(ordinary_object) => Err(HeapRootData::Object(ordinary_object.unbind())),
+            Self::BoundFunction(bound_function) => {
+                Err(HeapRootData::BoundFunction(bound_function.unbind()))
+            }
             Self::BuiltinFunction(builtin_function) => {
-                Err(HeapRootData::BuiltinFunction(builtin_function))
+                Err(HeapRootData::BuiltinFunction(builtin_function.unbind()))
             }
-            Self::ECMAScriptFunction(ecmascript_function) => {
-                Err(HeapRootData::ECMAScriptFunction(ecmascript_function))
-            }
+            Self::ECMAScriptFunction(ecmascript_function) => Err(HeapRootData::ECMAScriptFunction(
+                ecmascript_function.unbind(),
+            )),
             Self::BuiltinGeneratorFunction => Err(HeapRootData::BuiltinGeneratorFunction),
             Self::BuiltinConstructorFunction(builtin_constructor_function) => Err(
-                HeapRootData::BuiltinConstructorFunction(builtin_constructor_function),
+                HeapRootData::BuiltinConstructorFunction(builtin_constructor_function.unbind()),
             ),
-            Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => Err(
-                HeapRootData::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function),
-            ),
+            Self::BuiltinPromiseResolvingFunction(builtin_promise_resolving_function) => {
+                Err(HeapRootData::BuiltinPromiseResolvingFunction(
+                    builtin_promise_resolving_function.unbind(),
+                ))
+            }
             Self::BuiltinPromiseCollectorFunction => {
                 Err(HeapRootData::BuiltinPromiseCollectorFunction)
             }
             Self::BuiltinProxyRevokerFunction => Err(HeapRootData::BuiltinProxyRevokerFunction),
             Self::PrimitiveObject(primitive_object) => {
-                Err(HeapRootData::PrimitiveObject(primitive_object))
+                Err(HeapRootData::PrimitiveObject(primitive_object.unbind()))
             }
-            Self::Arguments(ordinary_object) => Err(HeapRootData::Arguments(ordinary_object)),
-            Self::Array(array) => Err(HeapRootData::Array(array)),
+            Self::Arguments(ordinary_object) => {
+                Err(HeapRootData::Arguments(ordinary_object.unbind()))
+            }
+            Self::Array(array) => Err(HeapRootData::Array(array.unbind())),
             #[cfg(feature = "array-buffer")]
-            Self::ArrayBuffer(array_buffer) => Err(HeapRootData::ArrayBuffer(array_buffer)),
+            Self::ArrayBuffer(array_buffer) => {
+                Err(HeapRootData::ArrayBuffer(array_buffer.unbind()))
+            }
             #[cfg(feature = "array-buffer")]
-            Self::DataView(data_view) => Err(HeapRootData::DataView(data_view)),
+            Self::DataView(data_view) => Err(HeapRootData::DataView(data_view.unbind())),
             #[cfg(feature = "date")]
-            Self::Date(date) => Err(HeapRootData::Date(date)),
-            Self::Error(error) => Err(HeapRootData::Error(error)),
-            Self::FinalizationRegistry(finalization_registry) => {
-                Err(HeapRootData::FinalizationRegistry(finalization_registry))
-            }
-            Self::Map(map) => Err(HeapRootData::Map(map)),
-            Self::Promise(promise) => Err(HeapRootData::Promise(promise)),
-            Self::Proxy(proxy) => Err(HeapRootData::Proxy(proxy)),
+            Self::Date(date) => Err(HeapRootData::Date(date.unbind())),
+            Self::Error(error) => Err(HeapRootData::Error(error.unbind())),
+            Self::FinalizationRegistry(finalization_registry) => Err(
+                HeapRootData::FinalizationRegistry(finalization_registry.unbind()),
+            ),
+            Self::Map(map) => Err(HeapRootData::Map(map.unbind())),
+            Self::Promise(promise) => Err(HeapRootData::Promise(promise.unbind())),
+            Self::Proxy(proxy) => Err(HeapRootData::Proxy(proxy.unbind())),
             #[cfg(feature = "regexp")]
-            Self::RegExp(reg_exp) => Err(HeapRootData::RegExp(reg_exp)),
+            Self::RegExp(reg_exp) => Err(HeapRootData::RegExp(reg_exp.unbind())),
             #[cfg(feature = "set")]
-            Self::Set(set) => Err(HeapRootData::Set(set)),
+            Self::Set(set) => Err(HeapRootData::Set(set.unbind())),
             #[cfg(feature = "shared-array-buffer")]
-            Self::SharedArrayBuffer(shared_array_buffer) => {
-                Err(HeapRootData::SharedArrayBuffer(shared_array_buffer))
+            Self::SharedArrayBuffer(shared_array_buffer) => Err(HeapRootData::SharedArrayBuffer(
+                shared_array_buffer.unbind(),
+            )),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakMap(weak_map) => Err(HeapRootData::WeakMap(weak_map.unbind())),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakRef(weak_ref) => Err(HeapRootData::WeakRef(weak_ref.unbind())),
+            #[cfg(feature = "weak-refs")]
+            Self::WeakSet(weak_set) => Err(HeapRootData::WeakSet(weak_set.unbind())),
+            #[cfg(feature = "array-buffer")]
+            Self::Int8Array(base_index) => Err(HeapRootData::Int8Array(base_index.unbind())),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8Array(base_index) => Err(HeapRootData::Uint8Array(base_index.unbind())),
+            #[cfg(feature = "array-buffer")]
+            Self::Uint8ClampedArray(base_index) => {
+                Err(HeapRootData::Uint8ClampedArray(base_index.unbind()))
             }
-            #[cfg(feature = "weak-refs")]
-            Self::WeakMap(weak_map) => Err(HeapRootData::WeakMap(weak_map)),
-            #[cfg(feature = "weak-refs")]
-            Self::WeakRef(weak_ref) => Err(HeapRootData::WeakRef(weak_ref)),
-            #[cfg(feature = "weak-refs")]
-            Self::WeakSet(weak_set) => Err(HeapRootData::WeakSet(weak_set)),
             #[cfg(feature = "array-buffer")]
-            Self::Int8Array(base_index) => Err(HeapRootData::Int8Array(base_index)),
+            Self::Int16Array(base_index) => Err(HeapRootData::Int16Array(base_index.unbind())),
             #[cfg(feature = "array-buffer")]
-            Self::Uint8Array(base_index) => Err(HeapRootData::Uint8Array(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::Uint8ClampedArray(base_index) => Err(HeapRootData::Uint8ClampedArray(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::Int16Array(base_index) => Err(HeapRootData::Int16Array(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::Uint16Array(base_index) => Err(HeapRootData::Uint16Array(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::Int32Array(base_index) => Err(HeapRootData::Int32Array(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::Uint32Array(base_index) => Err(HeapRootData::Uint32Array(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::BigInt64Array(base_index) => Err(HeapRootData::BigInt64Array(base_index)),
-            #[cfg(feature = "array-buffer")]
-            Self::BigUint64Array(base_index) => Err(HeapRootData::BigUint64Array(base_index)),
+            Self::Uint16Array(base_index) => Err(HeapRootData::Uint16Array(base_index.unbind())),
             #[cfg(feature = "proposal-float16array")]
-            Self::Float16Array(base_index) => Err(HeapRootData::Float16Array(base_index)),
+            Self::Float16Array(base_index) => Err(HeapRootData::Float16Array(base_index.unbind())),
             #[cfg(feature = "array-buffer")]
-            Self::Float32Array(base_index) => Err(HeapRootData::Float32Array(base_index)),
+            Self::Int32Array(base_index) => Err(HeapRootData::Int32Array(base_index.unbind())),
             #[cfg(feature = "array-buffer")]
-            Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index)),
+            Self::Uint32Array(base_index) => Err(HeapRootData::Uint32Array(base_index.unbind())),
+            #[cfg(feature = "array-buffer")]
+            Self::Float32Array(base_index) => Err(HeapRootData::Float32Array(base_index.unbind())),
+            #[cfg(feature = "array-buffer")]
+            Self::BigInt64Array(base_index) => {
+                Err(HeapRootData::BigInt64Array(base_index.unbind()))
+            }
+            #[cfg(feature = "array-buffer")]
+            Self::BigUint64Array(base_index) => {
+                Err(HeapRootData::BigUint64Array(base_index.unbind()))
+            }
+            #[cfg(feature = "array-buffer")]
+            Self::Float64Array(base_index) => Err(HeapRootData::Float64Array(base_index.unbind())),
             Self::AsyncFromSyncIterator => Err(HeapRootData::AsyncFromSyncIterator),
-            Self::AsyncGenerator(gen) => Err(HeapRootData::AsyncGenerator(gen)),
+            Self::AsyncGenerator(r#gen) => Err(HeapRootData::AsyncGenerator(r#gen.unbind())),
             Self::Iterator => Err(HeapRootData::Iterator),
-            Self::ArrayIterator(array_iterator) => Err(HeapRootData::ArrayIterator(array_iterator)),
+            Self::ArrayIterator(array_iterator) => {
+                Err(HeapRootData::ArrayIterator(array_iterator.unbind()))
+            }
             #[cfg(feature = "set")]
-            Self::SetIterator(set_iterator) => Err(HeapRootData::SetIterator(set_iterator)),
-            Self::MapIterator(map_iterator) => Err(HeapRootData::MapIterator(map_iterator)),
-            Self::Generator(generator) => Err(HeapRootData::Generator(generator)),
-            Self::Module(module) => Err(HeapRootData::Module(module)),
+            Self::SetIterator(set_iterator) => {
+                Err(HeapRootData::SetIterator(set_iterator.unbind()))
+            }
+            Self::MapIterator(map_iterator) => {
+                Err(HeapRootData::MapIterator(map_iterator.unbind()))
+            }
+            Self::Generator(generator) => Err(HeapRootData::Generator(generator.unbind())),
+            Self::Module(module) => Err(HeapRootData::Module(module.unbind())),
             Self::EmbedderObject(embedder_object) => {
-                Err(HeapRootData::EmbedderObject(embedder_object))
+                Err(HeapRootData::EmbedderObject(embedder_object.unbind()))
             }
         }
     }
@@ -1398,7 +1436,7 @@ impl Rootable for Value {
             #[cfg(feature = "array-buffer")]
             HeapRootData::Float64Array(base_index) => Some(Self::Float64Array(base_index)),
             HeapRootData::AsyncFromSyncIterator => Some(Self::AsyncFromSyncIterator),
-            HeapRootData::AsyncGenerator(gen) => Some(Self::AsyncGenerator(gen)),
+            HeapRootData::AsyncGenerator(r#gen) => Some(Self::AsyncGenerator(r#gen)),
             HeapRootData::Iterator => Some(Self::Iterator),
             HeapRootData::ArrayIterator(array_iterator) => {
                 Some(Self::ArrayIterator(array_iterator))
@@ -1431,7 +1469,7 @@ pub enum ValueRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl HeapMarkAndSweep for Value {
+impl HeapMarkAndSweep for Value<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             Value::Undefined

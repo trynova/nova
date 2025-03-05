@@ -5,17 +5,16 @@
 use small_string::SmallString;
 
 use crate::{
-    ecmascript::execution::Agent,
+    SmallInteger,
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
-        Scoped,
     },
-    SmallInteger,
 };
 
 use super::{
+    IntoPrimitive, IntoValue, Symbol, Value,
     bigint::{HeapBigInt, SmallBigInt},
     number::HeapNumber,
     string::HeapString,
@@ -25,7 +24,6 @@ use super::{
         SMALL_STRING_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
         UNDEFINED_DISCRIMINANT,
     },
-    IntoPrimitive, IntoValue, Symbol, Value,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,26 +93,26 @@ pub enum PrimitiveRootRepr {
 /// stored on the stack.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub(crate) enum HeapPrimitive {
+pub(crate) enum HeapPrimitive<'a> {
     /// ### [6.1.4 The String Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-string-type)
     ///
     /// UTF-8 string on the heap. Accessing the data must be done through the
     /// Agent. ECMAScript specification compliant UTF-16 indexing is
     /// implemented through an index mapping.
-    String(HeapString<'static>) = STRING_DISCRIMINANT,
+    String(HeapString<'a>) = STRING_DISCRIMINANT,
     /// ### [6.1.6.1 The Number Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-number-type)
     ///
     /// f64 on the heap. Accessing the data must be done through the Agent.
-    Number(HeapNumber<'static>) = NUMBER_DISCRIMINANT,
+    Number(HeapNumber<'a>) = NUMBER_DISCRIMINANT,
     /// ### [6.1.6.2 The BigInt Type](https://tc39.es/ecma262/#sec-ecmascript-language-types-bigint-type)
     ///
     /// Unlimited size integer data on the heap. Accessing the data must be
     /// done through the Agent.
-    BigInt(HeapBigInt<'static>) = BIGINT_DISCRIMINANT,
+    BigInt(HeapBigInt<'a>) = BIGINT_DISCRIMINANT,
 }
 
-impl IntoValue for HeapPrimitive {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapPrimitive<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             HeapPrimitive::String(data) => Value::String(data),
             HeapPrimitive::Number(data) => Value::Number(data),
@@ -123,10 +121,10 @@ impl IntoValue for HeapPrimitive {
     }
 }
 
-impl TryFrom<Value> for HeapPrimitive {
+impl<'a> TryFrom<Value<'a>> for HeapPrimitive<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::String(data) => Ok(Self::String(data)),
             Value::Number(data) => Ok(Self::Number(data)),
@@ -136,8 +134,8 @@ impl TryFrom<Value> for HeapPrimitive {
     }
 }
 
-impl<'a> IntoValue for Primitive<'a> {
-    fn into_value(self) -> super::Value {
+impl<'a> IntoValue<'a> for Primitive<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Primitive::Undefined => Value::Undefined,
             Primitive::Null => Value::Null,
@@ -154,35 +152,7 @@ impl<'a> IntoValue for Primitive<'a> {
     }
 }
 
-impl<'a> Primitive<'a> {
-    /// Unbind this Primitive from its current lifetime. This is necessary to
-    /// use the Primitive as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Primitive<'static> {
-        unsafe { std::mem::transmute::<Self, Primitive<'static>>(self) }
-    }
-
-    // Bind this Primitive to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your Primitives cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let primitive = primitive.bind(&gc);
-    // ```
-    // to make sure that the unbound Primitive cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Primitive<'_>, Self>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Primitive<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl Primitive<'_> {
     pub fn is_boolean(self) -> bool {
         matches!(self, Self::Boolean(_))
     }
@@ -211,8 +181,23 @@ impl<'a> Primitive<'a> {
     }
 }
 
-impl From<Primitive<'_>> for Value {
-    fn from(value: Primitive) -> Self {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Primitive<'_> {
+    type Of<'a> = Primitive<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> From<Primitive<'a>> for Value<'a> {
+    fn from(value: Primitive<'a>) -> Self {
         value.into_value()
     }
 }
@@ -224,10 +209,10 @@ impl<'a> IntoPrimitive<'a> for Primitive<'a> {
     }
 }
 
-impl TryFrom<Value> for Primitive<'_> {
+impl<'a> TryFrom<Value<'a>> for Primitive<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Undefined => Ok(Primitive::Undefined),
             Value::Null => Ok(Primitive::Null),

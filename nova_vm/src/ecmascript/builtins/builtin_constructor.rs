@@ -2,38 +2,38 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use oxc_span::Span;
 
 use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
 use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{
-            agent::ExceptionType, Agent, EnvironmentIndex, ExecutionContext, JsResult,
-            PrivateEnvironmentIndex, ProtoIntrinsics,
+            Agent, EnvironmentIndex, ExecutionContext, JsResult, PrivateEnvironmentIndex,
+            ProtoIntrinsics, agent::ExceptionType,
         },
         scripts_and_modules::source_code::SourceCode,
         syntax_directed_operations::class_definitions::{
             base_class_default_constructor, derived_class_default_constructor,
         },
         types::{
+            BUILTIN_STRING_MEMORY, BuiltinConstructorHeapData, Function,
+            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
+            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, BuiltinConstructorHeapData, Function,
-            FunctionInternalProperties, InternalMethods, InternalSlots, IntoFunction, IntoObject,
-            IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            function_internal_set,
         },
     },
     engine::Executable,
     heap::{
-        indexes::BuiltinConstructorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        ObjectEntry, ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::BuiltinConstructorIndex,
     },
 };
 
@@ -42,33 +42,7 @@ use super::ArgumentsList;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BuiltinConstructorFunction<'a>(pub(crate) BuiltinConstructorIndex<'a>);
 
-impl<'a> BuiltinConstructorFunction<'a> {
-    /// Unbind this BuiltinConstructorFunction from its current lifetime. This is necessary to use
-    /// the BuiltinConstructorFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BuiltinConstructorFunction<'static> {
-        unsafe {
-            std::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'static>>(
-                self,
-            )
-        }
-    }
-
-    // Bind this BuiltinConstructorFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BuiltinConstructorFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound BuiltinConstructorFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BuiltinConstructorFunction<'gc> {
-        unsafe {
-            std::mem::transmute::<BuiltinConstructorFunction, BuiltinConstructorFunction<'gc>>(self)
-        }
-    }
-
+impl BuiltinConstructorFunction<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -90,14 +64,29 @@ impl<'a> BuiltinConstructorFunction<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BuiltinConstructorFunction<'_> {
+    type Of<'a> = BuiltinConstructorFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> From<BuiltinConstructorIndex<'a>> for BuiltinConstructorFunction<'a> {
     fn from(value: BuiltinConstructorIndex<'a>) -> Self {
         Self(value)
     }
 }
 
-impl IntoValue for BuiltinConstructorFunction<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for BuiltinConstructorFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -114,9 +103,9 @@ impl<'a> IntoFunction<'a> for BuiltinConstructorFunction<'a> {
     }
 }
 
-impl From<BuiltinConstructorFunction<'_>> for Value {
-    fn from(value: BuiltinConstructorFunction) -> Self {
-        Value::BuiltinConstructorFunction(value.unbind())
+impl<'a> From<BuiltinConstructorFunction<'a>> for Value<'a> {
+    fn from(value: BuiltinConstructorFunction<'a>) -> Self {
+        Value::BuiltinConstructorFunction(value)
     }
 }
 
@@ -132,10 +121,10 @@ impl<'a> From<BuiltinConstructorFunction<'a>> for Function<'a> {
     }
 }
 
-impl TryFrom<Value> for BuiltinConstructorFunction<'_> {
+impl<'a> TryFrom<Value<'a>> for BuiltinConstructorFunction<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::BuiltinConstructorFunction(data) => Ok(data),
             _ => Err(()),
@@ -218,10 +207,7 @@ impl<'a> InternalSlots<'a> for BuiltinConstructorFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -277,23 +263,23 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -343,13 +329,13 @@ impl<'a> InternalMethods<'a> for BuiltinConstructorFunction<'a> {
     /// (a List of ECMAScript language values) and returns either a normal
     /// completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Return ? BuiltinCallOrConstruct(F, thisArgument, argumentsList, undefined).
         // ii. If NewTarget is undefined, throw a TypeError exception.
         Err(agent.throw_exception_with_static_message(
@@ -443,8 +429,8 @@ fn builtin_call_or_construct<'a>(
 pub(crate) struct BuiltinConstructorArgs<'a> {
     pub(crate) is_derived: bool,
     pub(crate) class_name: String<'a>,
-    pub(crate) prototype: Option<Object<'static>>,
-    pub(crate) prototype_property: Object<'static>,
+    pub(crate) prototype: Option<Object<'a>>,
+    pub(crate) prototype_property: Object<'a>,
     pub(crate) compiled_initializer_bytecode: Option<Executable>,
     pub(crate) env: EnvironmentIndex,
     pub(crate) private_env: Option<PrivateEnvironmentIndex>,

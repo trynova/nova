@@ -9,7 +9,7 @@
 pub(crate) mod abstract_operations;
 mod data;
 
-use std::ops::{Index, IndexMut, RangeInclusive};
+use core::ops::{Index, IndexMut, RangeInclusive};
 
 use crate::{
     ecmascript::{
@@ -23,19 +23,20 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            Function, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, InternalSlots, IntoObject, IntoValue,
+            Object, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
     heap::{
+        CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
         element_array::{ElementArrays, ElementDescriptor},
         indexes::ArrayIndex,
-        CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
     },
 };
 
@@ -47,26 +48,6 @@ pub struct Array<'a>(ArrayIndex<'a>);
 pub(crate) static ARRAY_INDEX_RANGE: RangeInclusive<i64> = 0..=(i64::pow(2, 32) - 2);
 
 impl<'a> Array<'a> {
-    /// Unbind this Array from its current lifetime. This is necessary to use
-    /// the Array as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Array<'static> {
-        unsafe { std::mem::transmute::<Array<'a>, Array<'static>>(self) }
-    }
-
-    // Bind this Array to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Arrays cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array = array.bind(&gc);
-    // ```
-    // to make sure that the unbound Array cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Array<'gc> {
-        unsafe { std::mem::transmute::<Array<'a>, Array<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -134,13 +115,13 @@ impl<'a> Array<'a> {
     }
 
     #[inline]
-    fn try_get_backing(
+    fn try_get_backing<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
             object_index.try_get(agent, property_key, receiver, gc)
@@ -154,13 +135,13 @@ impl<'a> Array<'a> {
     }
 
     #[inline]
-    fn internal_get_backing(
+    fn internal_get_backing<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if let Some(object_index) = self.get_backing_object(agent) {
             // If backing object exists, then we might have properties there
@@ -178,20 +159,35 @@ impl<'a> Array<'a> {
     }
 
     #[inline]
-    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value>] {
+    pub(crate) fn as_slice(self, arena: &impl ArrayHeapIndexable<'a>) -> &[Option<Value<'a>>] {
         let elements = arena[self].elements;
         &arena.as_ref()[elements]
     }
 
     #[inline]
-    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value>] {
+    pub(crate) fn as_mut_slice(self, agent: &mut Agent) -> &mut [Option<Value<'static>>] {
         let elements = agent[self].elements;
         &mut agent[elements]
     }
 }
 
-impl IntoValue for Array<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Array<'_> {
+    type Of<'a> = Array<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Array<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -214,16 +210,16 @@ impl<'a> From<Array<'a>> for Object<'a> {
     }
 }
 
-impl From<Array<'_>> for Value {
-    fn from(value: Array) -> Self {
-        Self::Array(value.unbind())
+impl<'a> From<Array<'a>> for Value<'a> {
+    fn from(value: Array<'a>) -> Self {
+        Self::Array(value)
     }
 }
 
-impl TryFrom<Value> for Array<'_> {
+impl<'a> TryFrom<Value<'a>> for Array<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Array(data) => Ok(data),
             _ => Err(()),
@@ -251,10 +247,12 @@ impl<'a> InternalSlots<'a> for Array<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn internal_set_extensible(self, agent: &mut Agent, value: bool) {
@@ -503,13 +501,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         Ok(false)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             TryResult::Continue(self.len(agent).into())
         } else if let PropertyKey::Integer(index) = property_key {
@@ -559,13 +557,13 @@ impl<'a> InternalMethods<'a> for Array<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.length) {
             Ok(self.len(agent).into())
@@ -573,12 +571,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
             let index = index.into_i64();
             if !ARRAY_INDEX_RANGE.contains(&index) {
                 // Negative indexes and indexes over 2^32 - 2 go into backing store
-                return self.internal_get_backing(
-                    agent,
-                    property_key.unbind(),
-                    receiver,
-                    gc.reborrow(),
-                );
+                return self.internal_get_backing(agent, property_key.unbind(), receiver, gc);
             }
             let index = index as u32;
             let elements = agent[self].elements;
@@ -616,7 +609,7 @@ impl<'a> InternalMethods<'a> for Array<'a> {
                 }
             }
         } else {
-            self.internal_get_backing(agent, property_key.unbind(), receiver, gc.reborrow())
+            self.internal_get_backing(agent, property_key.unbind(), receiver, gc)
         }
     }
 
@@ -732,11 +725,11 @@ impl IndexMut<Array<'_>> for Vec<Option<ArrayHeapData>> {
     }
 }
 
-impl Rootable for Array<'static> {
+impl Rootable for Array<'_> {
     type RootRepr = HeapRootRef;
 
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
-        Err(HeapRootData::Array(value))
+        Err(HeapRootData::Array(value.unbind()))
     }
 
     fn from_root_repr(value: &Self::RootRepr) -> Result<Self, HeapRootRef> {
@@ -797,7 +790,7 @@ fn ordinary_define_own_property_for_array(
 
     // 2. If current is undefined, then
     if current_descriptor.is_none() && current_value.is_none() {
-        // Hole
+        // Holegc
 
         // a. If extensible is false, return false.
         if !elements.writable() {
@@ -862,11 +855,11 @@ fn ordinary_define_own_property_for_array(
     // If current descriptor doesn't exist, then its a default data descriptor
     // with WEC all true.
     let current_writable = current_descriptor.map_or(Some(true), |c| c.is_writable());
-    let current_enumerable = current_descriptor.map_or(true, |c| c.is_enumerable());
-    let current_configurable = current_descriptor.map_or(true, |c| c.is_configurable());
-    let current_is_data_descriptor = current_descriptor.map_or(false, |c| c.is_data_descriptor());
+    let current_enumerable = current_descriptor.is_none_or(|c| c.is_enumerable());
+    let current_configurable = current_descriptor.is_none_or(|c| c.is_configurable());
+    let current_is_data_descriptor = current_descriptor.is_some_and(|c| c.is_data_descriptor());
     let current_is_accessor_descriptor =
-        current_descriptor.map_or(false, |c| c.is_accessor_descriptor());
+        current_descriptor.is_some_and(|c| c.is_accessor_descriptor());
     let current_getter = current_descriptor.and_then(|c| c.getter_function(gc));
     let current_setter = current_descriptor.and_then(|c| c.setter_function(gc));
 
@@ -881,7 +874,7 @@ fn ordinary_define_own_property_for_array(
         //    is false, return false.
         if descriptor
             .enumerable
-            .map_or(false, |enumerable| enumerable != current_enumerable)
+            .is_some_and(|enumerable| enumerable != current_enumerable)
         {
             return false;
         }
@@ -899,7 +892,7 @@ fn ordinary_define_own_property_for_array(
             // i. If Desc has a [[Get]] field and SameValue(Desc.[[Get]], current.[[Get]]) is false,
             //    return false.
             if let Some(desc_get) = descriptor.get {
-                if current_getter.map_or(true, |current_getter| desc_get != current_getter) {
+                if current_getter != Some(desc_get) {
                     return false;
                 }
             }
@@ -907,7 +900,7 @@ fn ordinary_define_own_property_for_array(
             // ii. If Desc has a [[Set]] field and SameValue(Desc.[[Set]], current.[[Set]]) is
             //     false, return false.
             if let Some(desc_set) = descriptor.set {
-                if current_setter.map_or(true, |current_setter| desc_set != current_setter) {
+                if current_setter != Some(desc_set) {
                     return false;
                 }
             }
@@ -1070,5 +1063,5 @@ pub(crate) trait ArrayHeapIndexable<'a>:
     Index<Array<'a>, Output = ArrayHeapData> + AsRef<ElementArrays>
 {
 }
-impl<'a, 'b> ArrayHeapIndexable<'a> for ArrayHeap<'b> {}
-impl<'a> ArrayHeapIndexable<'a> for Agent {}
+impl ArrayHeapIndexable<'_> for ArrayHeap<'_> {}
+impl ArrayHeapIndexable<'_> for Agent {}

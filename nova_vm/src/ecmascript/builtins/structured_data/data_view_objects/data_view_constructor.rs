@@ -6,24 +6,24 @@ use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
 use crate::ecmascript::builtins::array_buffer::{
     ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
 };
-use crate::engine::context::GcScope;
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_index,
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
             array_buffer::{
-                array_buffer_byte_length, is_detached_buffer, is_fixed_length_array_buffer,
-                Ordering,
+                Ordering, array_buffer_byte_length, is_detached_buffer,
+                is_fixed_length_array_buffer,
             },
             data_view::DataView,
             ordinary::ordinary_create_from_constructor,
             structured_data::array_buffer_objects::array_buffer_prototype::require_internal_slot_array_buffer,
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
-        types::{Function, IntoObject, IntoValue, Object, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -43,13 +43,13 @@ impl BuiltinIntrinsicConstructor for DataViewConstructor {
 /// ### [25.3.2 The DataView Constructor](https://tc39.es/ecma262/#sec-dataview-constructor)
 impl DataViewConstructor {
     /// ### [25.3.2.1 DataView ( buffer \[ , byteOffset \[ , byteLength \] \] )](https://tc39.es/ecma262/#sec-dataview-buffer-byteoffset-bytelength)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
             return Err(agent.throw_exception_with_static_message(

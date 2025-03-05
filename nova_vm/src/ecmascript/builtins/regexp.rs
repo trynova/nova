@@ -5,25 +5,26 @@
 pub(crate) mod abstract_operations;
 pub(crate) mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, Value,
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
         rootable::HeapRootData,
-        unwrap_try, Scoped, TryResult,
+        unwrap_try,
     },
     heap::{
-        indexes::{BaseIndex, RegExpIndex},
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
         ObjectEntryPropertyDescriptor, WorkQueues,
+        indexes::{BaseIndex, RegExpIndex},
     },
 };
 pub(crate) use abstract_operations::*;
@@ -37,34 +38,6 @@ use super::ordinary::{ordinary_set, ordinary_try_set};
 pub struct RegExp<'a>(RegExpIndex<'a>);
 
 impl RegExp<'_> {
-    /// Unbind this RegExp from its current lifetime. This is necessary to use
-    /// the RegExp as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> RegExp<'static> {
-        unsafe { std::mem::transmute::<Self, RegExp<'static>>(self) }
-    }
-
-    // Bind this RegExp to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your RegExps cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let reg_exp = reg_exp.bind(&gc);
-    // ```
-    // to make sure that the unbound RegExp cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> RegExp<'gc> {
-        unsafe { std::mem::transmute::<Self, RegExp<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, RegExp<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -74,9 +47,24 @@ impl RegExp<'_> {
     }
 }
 
-impl From<RegExp<'_>> for Value {
-    fn from(value: RegExp) -> Self {
-        Self::RegExp(value.unbind())
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for RegExp<'_> {
+    type Of<'a> = RegExp<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> From<RegExp<'a>> for Value<'a> {
+    fn from(value: RegExp<'a>) -> Self {
+        Self::RegExp(value)
     }
 }
 
@@ -97,10 +85,10 @@ impl<'a> TryFrom<Object<'a>> for RegExp<'a> {
     }
 }
 
-impl TryFrom<Value> for RegExp<'_> {
+impl<'a> TryFrom<Value<'a>> for RegExp<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::RegExp(regexp) => Ok(regexp),
             _ => Err(()),
@@ -108,8 +96,8 @@ impl TryFrom<Value> for RegExp<'_> {
     }
 }
 
-impl IntoValue for RegExp<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for RegExp<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -153,10 +141,12 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 
@@ -228,13 +218,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value
             // for lastIndex.
@@ -257,13 +247,13 @@ impl<'a> InternalMethods<'a> for RegExp<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         if property_key == BUILTIN_STRING_MEMORY.lastIndex.into() {
             // Regardless of the backing object, we might have a valid value

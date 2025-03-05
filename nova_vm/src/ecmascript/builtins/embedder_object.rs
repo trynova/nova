@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -11,10 +11,13 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+    },
     heap::{
-        indexes::{BaseIndex, EmbedderObjectIndex},
         HeapMarkAndSweep,
+        indexes::{BaseIndex, EmbedderObjectIndex},
     },
 };
 
@@ -27,34 +30,6 @@ pub mod data;
 pub struct EmbedderObject<'a>(pub(crate) EmbedderObjectIndex<'a>);
 
 impl EmbedderObject<'_> {
-    /// Unbind this EmbedderObject from its current lifetime. This is necessary to use
-    /// the EmbedderObject as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> EmbedderObject<'static> {
-        unsafe { std::mem::transmute::<Self, EmbedderObject<'static>>(self) }
-    }
-
-    // Bind this EmbedderObject to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your EmbedderObjects cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound EmbedderObject cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> EmbedderObject<'gc> {
-        unsafe { std::mem::transmute::<Self, EmbedderObject<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, EmbedderObject<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -64,8 +39,23 @@ impl EmbedderObject<'_> {
     }
 }
 
-impl IntoValue for EmbedderObject<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for EmbedderObject<'_> {
+    type Of<'a> = EmbedderObject<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for EmbedderObject<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -76,15 +66,15 @@ impl<'a> IntoObject<'a> for EmbedderObject<'a> {
     }
 }
 
-impl From<EmbedderObject<'_>> for Value {
-    fn from(val: EmbedderObject) -> Self {
-        Value::EmbedderObject(val.unbind().unbind())
+impl<'a> From<EmbedderObject<'a>> for Value<'a> {
+    fn from(value: EmbedderObject<'a>) -> Self {
+        Value::EmbedderObject(value.unbind())
     }
 }
 
 impl<'a> From<EmbedderObject<'a>> for Object<'a> {
-    fn from(val: EmbedderObject) -> Self {
-        Object::EmbedderObject(val.unbind())
+    fn from(value: EmbedderObject<'a>) -> Self {
+        Object::EmbedderObject(value)
     }
 }
 

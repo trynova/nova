@@ -17,12 +17,12 @@ mod value;
 
 pub use bigint::{BigInt, BigIntHeapData};
 pub(crate) use function::{
-    function_create_backing_object, function_internal_define_own_property,
-    function_internal_delete, function_internal_get, function_internal_get_own_property,
-    function_internal_has_property, function_internal_own_property_keys, function_internal_set,
-    function_try_get, function_try_has_property, function_try_set, BoundFunctionHeapData,
-    BuiltinConstructorHeapData, BuiltinFunctionHeapData, ECMAScriptFunctionHeapData,
-    FunctionInternalProperties,
+    BoundFunctionHeapData, BuiltinConstructorHeapData, BuiltinFunctionHeapData,
+    ECMAScriptFunctionHeapData, FunctionInternalProperties, function_create_backing_object,
+    function_internal_define_own_property, function_internal_delete, function_internal_get,
+    function_internal_get_own_property, function_internal_has_property,
+    function_internal_own_property_keys, function_internal_set, function_try_get,
+    function_try_has_property, function_try_set,
 };
 pub use function::{Function, IntoFunction};
 pub use into_numeric::IntoNumeric;
@@ -31,14 +31,13 @@ pub use into_value::IntoValue;
 pub use number::{HeapNumber, Number, NumberHeapData};
 pub use numeric::Numeric;
 pub use object::{
-    bind_property_keys, scope_property_keys, unbind_property_keys, InternalMethods, InternalSlots,
-    IntoObject, Object, ObjectHeapData, OrdinaryObject, PropertyKey,
+    InternalMethods, InternalSlots, IntoObject, Object, ObjectHeapData, OrdinaryObject,
+    PropertyKey, scope_property_keys,
 };
 pub(crate) use primitive::HeapPrimitive;
 pub use primitive::Primitive;
-pub use string::{HeapString, String, StringHeapData, BUILTIN_STRINGS_LIST, BUILTIN_STRING_MEMORY};
+pub use string::{BUILTIN_STRING_MEMORY, BUILTIN_STRINGS_LIST, HeapString, String, StringHeapData};
 pub use symbol::{Symbol, SymbolHeapData};
-pub use value::Value;
 #[cfg(feature = "date")]
 pub(crate) use value::DATE_DISCRIMINANT;
 #[cfg(feature = "proposal-float16array")]
@@ -47,6 +46,7 @@ pub(crate) use value::FLOAT_16_ARRAY_DISCRIMINANT;
 pub(crate) use value::REGEXP_DISCRIMINANT;
 #[cfg(feature = "shared-array-buffer")]
 pub(crate) use value::SHARED_ARRAY_BUFFER_DISCRIMINANT;
+pub use value::Value;
 pub(crate) use value::{
     ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
     ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT, BIGINT_DISCRIMINANT,
@@ -65,9 +65,9 @@ pub(crate) use value::{
 pub(crate) use value::{
     ARRAY_BUFFER_DISCRIMINANT, BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
     DATA_VIEW_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT,
-    INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
-    UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, UINT_8_ARRAY_DISCRIMINANT,
-    UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+    INT_8_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
+    UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT,
+    UINT_32_ARRAY_DISCRIMINANT,
 };
 #[cfg(feature = "set")]
 pub(crate) use value::{SET_DISCRIMINANT, SET_ITERATOR_DISCRIMINANT};

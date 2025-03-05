@@ -4,15 +4,15 @@
 
 //! ## [27.2.2 Promise Jobs](https://tc39.es/ecma262/#sec-promise-jobs)
 
-use crate::engine::context::GcScope;
 use crate::engine::Global;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{call_function, get_function_realm},
-        builtins::{promise::Promise, ArgumentsList},
+        builtins::{ArgumentsList, promise::Promise},
         execution::{
-            agent::{InnerJob, Job, JsError},
             Agent, JsResult,
+            agent::{InnerJob, Job, JsError},
         },
         types::{Function, IntoValue, Object, Value},
     },
@@ -112,13 +112,13 @@ pub(crate) fn new_promise_resolve_thenable_job(
 #[derive(Debug)]
 pub(crate) struct PromiseReactionJob {
     reaction: Global<PromiseReaction>,
-    argument: Global<Value>,
+    argument: Global<Value<'static>>,
 }
 impl PromiseReactionJob {
     pub(crate) fn run(self, agent: &mut Agent, mut gc: GcScope) -> JsResult<()> {
         let Self { reaction, argument } = self;
         let reaction = reaction.take(agent);
-        let argument = argument.take(agent).bind(gc.nogc());
+        let argument = argument.take(agent).bind(gc.nogc()).unbind();
         // The following are substeps of point 1 in NewPromiseReactionJob.
         let handler_result = match agent[reaction].handler {
             PromiseReactionHandler::Empty => match agent[reaction].reaction_type {
@@ -174,7 +174,7 @@ impl PromiseReactionJob {
             // i. Else,
             Ok(value) => {
                 // i. Return ? Call(promiseCapability.[[Resolve]], undefined, « handlerResult.[[Value]] »).
-                promise_capability.resolve(agent, value, gc)
+                promise_capability.resolve(agent, value.unbind(), gc)
             }
         };
         Ok(())
@@ -215,7 +215,7 @@ pub(crate) fn new_promise_reaction_job(
 
     // 4. Return the Record { [[Job]]: job, [[Realm]]: handlerRealm }.
     let reaction = Global::new(agent, reaction);
-    let argument = Global::new(agent, argument);
+    let argument = Global::new(agent, argument.unbind());
     Job {
         realm: handler_realm,
         inner: InnerJob::PromiseReaction(PromiseReactionJob { reaction, argument }),

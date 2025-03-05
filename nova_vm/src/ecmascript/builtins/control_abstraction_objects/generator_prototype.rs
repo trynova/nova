@@ -2,14 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_iterator_objects::create_iter_result_object,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -48,12 +48,12 @@ impl Builtin for GeneratorPrototypeThrow {
 }
 
 impl GeneratorPrototype {
-    fn next(
+    fn next<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // GeneratorResume: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(
@@ -67,12 +67,12 @@ impl GeneratorPrototype {
         Ok(generator.resume(agent, arguments.get(0), gc)?.into_value())
     }
 
-    fn r#return(
+    fn r#return<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         // 1. Let g be the this value.
         // 2. Let C be Completion Record { [[Type]]: return, [[Value]]: value, [[Target]]: empty }.
@@ -112,7 +112,7 @@ impl GeneratorPrototype {
                     ExceptionType::TypeError,
                     "The generator is currently running",
                     gc,
-                ))
+                ));
             }
             GeneratorState::Completed => {}
         };
@@ -124,12 +124,12 @@ impl GeneratorPrototype {
         Ok(create_iter_result_object(agent, arguments.get(0), true, gc).into_value())
     }
 
-    fn throw(
+    fn throw<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // GeneratorResumeAbrupt: 1. Let state be ? GeneratorValidate(generator, generatorBrand).
         let Value::Generator(generator) = this_value else {
             return Err(agent.throw_exception_with_static_message(

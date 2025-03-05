@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
-use crate::engine::context::{GcScope, NoGcScope};
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -13,12 +13,12 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_buffer::{is_detached_buffer, is_fixed_length_array_buffer},
             ArgumentsList, ArrayBuffer, Behaviour, Builtin, BuiltinGetter,
+            array_buffer::{is_detached_buffer, is_fixed_length_array_buffer},
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{
-            IntoFunction, IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Object, PropertyKey, String, Value,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -92,12 +92,12 @@ impl ArrayBufferPrototype {
     ///
     /// ArrayBuffer.prototype.byteLength is an accessor property whose set
     /// accessor function is undefined.
-    fn get_byte_length(
+    fn get_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -114,12 +114,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.3 get ArrayBuffer.prototype.detached](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.detached)
     ///
     /// ArrayBuffer.prototype.detached is an accessor property whose set accessor function is undefined.
-    fn get_detached(
+    fn get_detached<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -131,12 +131,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.4 get ArrayBuffer.prototype.maxByteLength](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.maxbytelength)
     ///
     /// ArrayBuffer.prototype.maxByteLength is an accessor property whose set accessor function is undefined.
-    fn get_max_byte_length(
+    fn get_max_byte_length<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
@@ -153,12 +153,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.5 get ArrayBuffer.prototype.resizable](https://tc39.es/ecma262/#sec-get-arraybuffer.prototype.resizable)
     ///
     /// ArrayBuffer.prototype.resizable is an accessor property whose set accessor function is undefined.
-    fn get_resizable(
+    fn get_resizable<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
@@ -170,12 +170,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.6 ArrayBuffer.prototype.resize ( newLength )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.resize)
     ///
     /// This method performs the following steps when called:
-    fn resize(
+    fn resize<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let new_length = arguments.get(0);
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
@@ -236,12 +236,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.7 ArrayBuffer.prototype.slice ( start, end )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.slice)
     ///
     /// This method performs the following steps when called:
-    fn slice(
+    fn slice<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let start = arguments.get(0);
         let end = arguments.get(1);
         // 1. Let O be the this value.
@@ -362,12 +362,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.8 ArrayBuffer.prototype.transfer ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfer)
     ///
     /// This method performs the following steps when called:
-    fn transfer(
+    fn transfer<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, preserve-resizability).
         todo!()
@@ -376,12 +376,12 @@ impl ArrayBufferPrototype {
     /// ### [25.1.6.9 ArrayBuffer.prototype.transferToFixedLength ( [ newLength ] )](https://tc39.es/ecma262/#sec-arraybuffer.prototype.transfertofixedlength)
     ///
     /// This method performs the following steps when called:
-    fn transfer_to_fixed_length(
+    fn transfer_to_fixed_length<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let O be the this value.
         // 2. Return ? ArrayBufferCopyAndDetach(O, newLength, fixed-length).
         todo!()
@@ -426,7 +426,7 @@ pub(crate) fn require_internal_slot_array_buffer<'a>(
     match o {
         // 1. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 2. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.
-        Value::ArrayBuffer(array_buffer) => Ok(array_buffer),
+        Value::ArrayBuffer(array_buffer) => Ok(array_buffer.unbind()),
         _ => Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Expected this to be ArrayBuffer",

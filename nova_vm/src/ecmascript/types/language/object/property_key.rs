@@ -3,10 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    SmallInteger, SmallString,
     ecmascript::{
         abstract_operations::type_conversion::parse_string_to_integer_property_key,
         execution::Agent,
         types::{
+            String, Symbol, Value,
             language::{
                 string::HeapString,
                 value::{
@@ -14,16 +16,14 @@ use crate::{
                     SYMBOL_DISCRIMINANT,
                 },
             },
-            String, Symbol, Value,
         },
     },
     engine::{
-        context::NoGcScope,
-        rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
+        context::{Bindable, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
     },
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
-    SmallInteger, SmallString,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -37,34 +37,6 @@ pub enum PropertyKey<'a> {
 }
 
 impl<'a> PropertyKey<'a> {
-    /// Unbind this PropertyKey from its current lifetime. This is necessary to
-    /// use the PropertyKey as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> PropertyKey<'static> {
-        unsafe { std::mem::transmute::<Self, PropertyKey<'static>>(self) }
-    }
-
-    // Bind this PropertyKey to the garbage collection lifetime. This enables
-    // Rust's borrow checker to verify that your PropertyKeys cannot not be
-    // invalidated by garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let primitive = primitive.bind(&gc);
-    // ```
-    // to make sure that the unbound PropertyKey cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<PropertyKey, Self>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, PropertyKey<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub const fn scope_static(self) -> Scoped<'static, PropertyKey<'static>> {
         let key_root_repr = match self {
             PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),
@@ -100,10 +72,10 @@ impl<'a> PropertyKey<'a> {
     ///
     /// This converts any integer keys into strings. This matches what the
     /// ECMAScript specification expects.
-    pub fn convert_to_value(self, agent: &mut Agent, gc: NoGcScope) -> Value {
+    pub fn convert_to_value<'gc>(self, agent: &mut Agent, gc: NoGcScope<'gc, '_>) -> Value<'gc> {
         match self {
             PropertyKey::Integer(small_integer) => {
-                Value::from_string(agent, format!("{}", small_integer.into_i64()), gc)
+                Value::from_string(agent, small_integer.into_i64().to_string(), gc)
             }
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
             PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
@@ -122,12 +94,12 @@ impl<'a> PropertyKey<'a> {
     /// If the resulting PropertyKey is mixed with normal JavaScript values or
     /// passed to user code, the resulting JavaScript will not necessarily
     /// correctly match the ECMAScript specification or user's expectations.
-    pub(crate) unsafe fn into_value_unchecked(self) -> Value {
+    pub(crate) unsafe fn into_value_unchecked(self) -> Value<'a> {
         match self {
             PropertyKey::Integer(small_integer) => Value::Integer(small_integer),
             PropertyKey::SmallString(small_string) => Value::SmallString(small_string),
-            PropertyKey::String(heap_string) => Value::String(heap_string.unbind()),
-            PropertyKey::Symbol(symbol) => Value::Symbol(symbol.unbind()),
+            PropertyKey::String(heap_string) => Value::String(heap_string),
+            PropertyKey::Symbol(symbol) => Value::Symbol(symbol),
         }
     }
 
@@ -147,12 +119,12 @@ impl<'a> PropertyKey<'a> {
     ///
     /// If the passed-in Value is not a string, integer, or symbol, the method
     /// will panic.
-    pub(crate) unsafe fn from_value_unchecked(value: Value) -> Self {
+    pub(crate) unsafe fn from_value_unchecked(value: Value<'a>) -> Self {
         match value {
             Value::Integer(small_integer) => PropertyKey::Integer(small_integer),
             Value::SmallString(small_string) => PropertyKey::SmallString(small_string),
-            Value::String(heap_string) => PropertyKey::String(heap_string.unbind()),
-            Value::Symbol(symbol) => PropertyKey::Symbol(symbol.unbind()),
+            Value::String(heap_string) => PropertyKey::String(heap_string),
+            Value::Symbol(symbol) => PropertyKey::Symbol(symbol),
             _ => unreachable!(),
         }
     }
@@ -213,14 +185,19 @@ impl<'a> PropertyKey<'a> {
     }
 }
 
-#[inline(always)]
-pub fn unbind_property_keys<'a>(vec: Vec<PropertyKey<'a>>) -> Vec<PropertyKey<'static>> {
-    unsafe { std::mem::transmute::<Vec<PropertyKey<'a>>, Vec<PropertyKey<'static>>>(vec) }
-}
+// SAFETY: Properly implemented as a lifetime transmute.
+unsafe impl Bindable for PropertyKey<'_> {
+    type Of<'a> = PropertyKey<'a>;
 
-#[inline(always)]
-pub fn bind_property_keys<'a>(vec: Vec<PropertyKey>, _: NoGcScope<'a, '_>) -> Vec<PropertyKey<'a>> {
-    unsafe { std::mem::transmute::<Vec<PropertyKey>, Vec<PropertyKey<'a>>>(vec) }
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 #[inline]
@@ -239,8 +216,8 @@ pub(crate) struct DisplayablePropertyKey<'a, 'b, 'c> {
     agent: &'c Agent,
 }
 
-impl<'a, 'b, 'c> core::fmt::Display for DisplayablePropertyKey<'a, 'b, 'c> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for DisplayablePropertyKey<'_, '_, '_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self.key {
             PropertyKey::Integer(data) => data.into_i64().fmt(f),
             PropertyKey::SmallString(data) => data.as_str().fmt(f),
@@ -314,12 +291,12 @@ impl<'a> From<String<'a>> for PropertyKey<'a> {
     }
 }
 
-impl From<PropertyKey<'_>> for Value {
+impl<'a> From<PropertyKey<'a>> for Value<'a> {
     /// Note: You should not be using this conversion without thinking. Integer
     /// keys don't actually become proper strings here, so converting a
     /// PropertyKey into a Value using this and then comparing that with an
     /// actual Value is unsound.
-    fn from(value: PropertyKey) -> Self {
+    fn from(value: PropertyKey<'a>) -> Self {
         // SAFETY: Don't be silly!
         unsafe { value.into_value_unchecked() }
     }
@@ -373,7 +350,7 @@ pub enum PropertyKeyRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl Rootable for PropertyKey<'static> {
+impl Rootable for PropertyKey<'_> {
     type RootRepr = PropertyKeyRootRepr;
 
     #[inline]
@@ -381,8 +358,8 @@ impl Rootable for PropertyKey<'static> {
         match value {
             PropertyKey::Integer(small_integer) => Ok(Self::RootRepr::Integer(small_integer)),
             PropertyKey::SmallString(small_string) => Ok(Self::RootRepr::SmallString(small_string)),
-            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string)),
-            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol)),
+            PropertyKey::String(heap_string) => Err(HeapRootData::String(heap_string.unbind())),
+            PropertyKey::Symbol(symbol) => Err(HeapRootData::Symbol(symbol.unbind())),
         }
     }
 

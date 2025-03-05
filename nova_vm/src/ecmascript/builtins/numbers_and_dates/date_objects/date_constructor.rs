@@ -4,28 +4,29 @@
 
 use std::time::SystemTime;
 
+use crate::SmallInteger;
 use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::date::Date;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
+use crate::ecmascript::builtins::date::Date;
+use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
-use crate::SmallInteger;
 
 pub struct DateConstructor;
 
@@ -57,13 +58,13 @@ impl Builtin for DateUTC {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
 }
 impl DateConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
             // a. Let now be the time value (UTC) identifying the current time.
@@ -121,16 +122,16 @@ impl DateConstructor {
         // 7. Set O.[[DateValue]] to dv.
         agent[Date::try_from(o).unwrap()].date = Some(dv);
         // 8. Return O.
-        Ok(o.into_value())
+        Ok(o.unbind().into_value())
     }
 
     /// ### [21.1.2.2 Number.isFinite ( number )](https://tc39.es/ecma262/#sec-number.isfinite)
-    fn now(
+    fn now<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let time_value = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -144,22 +145,22 @@ impl DateConstructor {
     }
 
     /// ### [21.1.2.3 Number.isInteger ( number )](https://tc39.es/ecma262/#sec-number.isinteger)
-    fn parse(
+    fn parse<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
     /// ### [21.4.3.4 Date.UTC ( year \[ , month \[ , date \[ , hours \[ , minutes \[ , seconds \[ , ms \] \] \] \] \] \] )](https://tc39.es/ecma262/#sec-date.utc)
-    fn utc(
+    fn utc<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).
         let _y = to_number(agent, arguments.get(0), gc.reborrow())?;

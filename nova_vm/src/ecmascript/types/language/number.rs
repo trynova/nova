@@ -4,27 +4,27 @@
 
 mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use super::{
-    value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
     IntoNumeric, IntoPrimitive, IntoValue, Numeric, Primitive, String, Value,
+    value::{FLOAT_DISCRIMINANT, INTEGER_DISCRIMINANT, NUMBER_DISCRIMINANT},
 };
 use crate::{
-    ecmascript::abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
-    engine::{context::NoGcScope, Scoped},
-};
-use crate::{
-    ecmascript::execution::Agent,
+    SmallInteger,
+    ecmascript::{
+        abstract_operations::type_conversion::{to_int32_number, to_uint32_number},
+        execution::Agent,
+    },
     engine::{
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
         small_f64::SmallF64,
     },
     heap::{
-        indexes::NumberIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        PrimitiveHeap, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, PrimitiveHeap, WorkQueues,
+        indexes::NumberIndex,
     },
-    SmallInteger,
 };
 
 pub use data::NumberHeapData;
@@ -34,33 +34,28 @@ use num_traits::{PrimInt, Zero};
 #[repr(transparent)]
 pub struct HeapNumber<'a>(pub(crate) NumberIndex<'a>);
 
-impl<'a> HeapNumber<'a> {
-    /// Unbind this HeapNumber from its current lifetime. This is necessary to use
-    /// the HeapNumber as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> HeapNumber<'static> {
-        unsafe { std::mem::transmute::<HeapNumber<'_>, HeapNumber<'static>>(self) }
-    }
-
-    // Bind this HeapNumber to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your HeapNumbers cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound HeapNumber cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> HeapNumber<'gc> {
-        unsafe { std::mem::transmute::<HeapNumber<'a>, HeapNumber<'gc>>(self) }
-    }
-
+impl HeapNumber<'_> {
     pub(crate) const fn _def() -> Self {
         HeapNumber(NumberIndex::from_u32_index(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for HeapNumber<'_> {
+    type Of<'a> = HeapNumber<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -85,8 +80,8 @@ pub enum NumberRootRepr {
     HeapRef(HeapRootRef) = 0x80,
 }
 
-impl IntoValue for HeapNumber<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for HeapNumber<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::Number(self.unbind())
     }
 }
@@ -97,8 +92,8 @@ impl<'a> IntoPrimitive<'a> for HeapNumber<'a> {
     }
 }
 
-impl IntoValue for Number<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Number<'a> {
+    fn into_value(self) -> Value<'a> {
         match self {
             Number::Number(idx) => Value::Number(idx.unbind()),
             Number::Integer(data) => Value::Integer(data),
@@ -113,10 +108,10 @@ impl<'a> IntoNumeric<'a> for HeapNumber<'a> {
     }
 }
 
-impl TryFrom<Value> for HeapNumber<'_> {
+impl<'a> TryFrom<Value<'a>> for HeapNumber<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         if let Value::Number(x) = value {
             Ok(x)
         } else {
@@ -145,8 +140,8 @@ impl<'a> IntoNumeric<'a> for Number<'a> {
     }
 }
 
-impl std::fmt::Debug for Number<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Number<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self {
             Number::Number(idx) => write!(f, "Number({:?})", idx),
             Number::Integer(value) => write!(f, "{}", value.into_i64()),
@@ -260,9 +255,9 @@ impl TryFrom<f64> for Number<'static> {
     }
 }
 
-impl TryFrom<Value> for Number<'_> {
+impl<'a> TryFrom<Value<'a>> for Number<'a> {
     type Error = ();
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Number(data) => Ok(Number::Number(data)),
             Value::Integer(data) => Ok(Number::Integer(data)),
@@ -297,34 +292,6 @@ impl<'a> TryFrom<Numeric<'a>> for Number<'a> {
 }
 
 impl<'a> Number<'a> {
-    /// Unbind this Number from its current lifetime. This is necessary to use
-    /// the Number as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Number<'static> {
-        unsafe { std::mem::transmute::<Number<'_>, Number<'static>>(self) }
-    }
-
-    // Bind this Number to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Numbers cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound Number cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Number<'gc> {
-        unsafe { std::mem::transmute::<Number<'a>, Number<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Number<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub fn from_f64(agent: &mut Agent, value: f64, gc: NoGcScope<'a, '_>) -> Self {
         if let Ok(value) = Number::try_from(value) {
             value
@@ -493,7 +460,7 @@ impl<'a> Number<'a> {
     pub fn into_f64(self, agent: &impl Index<HeapNumber<'static>, Output = f64>) -> f64 {
         match self {
             Number::Number(n) => agent[n.unbind()],
-            Number::Integer(n) => Into::<i64>::into(n) as f64,
+            Number::Integer(n) => n.into_i64() as f64,
             Number::SmallF64(n) => n.into_f64(),
         }
     }
@@ -612,11 +579,7 @@ impl<'a> Number<'a> {
         match self {
             Number::Number(n) => {
                 let n = agent[n.unbind()];
-                if n > 0.0 {
-                    self
-                } else {
-                    agent.heap.create(-n)
-                }
+                if n > 0.0 { self } else { agent.heap.create(-n) }
             }
             Number::Integer(n) => {
                 let n = n.into_i64();
@@ -1385,6 +1348,21 @@ impl<'a> Number<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Number<'_> {
+    type Of<'a> = Number<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum BitwiseOp {
     And,
@@ -1495,13 +1473,13 @@ impl HeapMarkAndSweep for HeapNumber<'static> {
     }
 }
 
-impl Rootable for Number<'static> {
+impl Rootable for Number<'_> {
     type RootRepr = NumberRootRepr;
 
     #[inline]
     fn to_root_repr(value: Self) -> Result<Self::RootRepr, HeapRootData> {
         match value {
-            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number)),
+            Self::Number(heap_number) => Err(HeapRootData::Number(heap_number.unbind())),
             Self::Integer(integer) => Ok(Self::RootRepr::Integer(integer)),
             Self::SmallF64(small_f64) => Ok(Self::RootRepr::SmallF64(small_f64)),
         }

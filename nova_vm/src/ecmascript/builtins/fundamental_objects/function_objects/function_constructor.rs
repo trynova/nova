@@ -9,21 +9,24 @@ use crate::{
         abstract_operations::type_conversion::{to_string, to_string_primitive},
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{
-            make_constructor, ordinary::get_prototype_from_constructor, ordinary_function_create,
-            set_function_name, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor,
-            ECMAScriptFunction, OrdinaryFunctionCreateParams,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor, ECMAScriptFunction,
+            OrdinaryFunctionCreateParams, make_constructor,
+            ordinary::get_prototype_from_constructor, ordinary_function_create, set_function_name,
         },
         execution::{
-            agent::ExceptionType, Agent, EnvironmentIndex, JsResult, ProtoIntrinsics,
-            RealmIdentifier,
+            Agent, EnvironmentIndex, JsResult, ProtoIntrinsics, RealmIdentifier,
+            agent::ExceptionType,
         },
         scripts_and_modules::source_code::SourceCode,
         types::{
-            Function, IntoObject, IntoValue, Object, Primitive, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, IntoObject, IntoValue, Object, Primitive, String,
+            Value,
         },
     },
-    engine::context::GcScope,
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+    },
     heap::IntrinsicConstructorIndexes,
 };
 
@@ -41,13 +44,13 @@ impl BuiltinIntrinsicConstructor for FunctionConstructor {
 }
 
 impl FunctionConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 2. If bodyArg is not present, set bodyArg to the empty String.
         let (parameter_args, body_arg) = if arguments.is_empty() {
             (&[] as &[Value], String::EMPTY_STRING.into_value())
@@ -77,7 +80,7 @@ impl FunctionConstructor {
         //   a. Perform MakeConstructor(F).
         make_constructor(agent, f.unbind(), None, None, gc.nogc());
 
-        Ok(f.into_value())
+        Ok(f.into_value().unbind())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -152,7 +155,7 @@ pub(crate) fn create_dynamic_function<'a>(
             body_string = String::try_from(body_arg).unwrap().bind(gc.nogc());
             parameter_strings_slice =
                 // Safety: All the strings were checked to be strings.
-                unsafe { std::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
+                unsafe { core::mem::transmute::<&[Value], &[String<'_>]>(parameter_args) };
         } else if body_arg.is_primitive() && parameter_args.iter().all(|arg| arg.is_primitive()) {
             // We don't need to call JavaScript here. Nice.
             let gc = gc.nogc();
@@ -255,7 +258,7 @@ pub(crate) fn create_dynamic_function<'a>(
                         // alive as long as `source_code` is kept alive. Similarly, the inner
                         // lifetime of Function is also kept alive by `source_code`.`
                         function = Some(unsafe {
-                            std::mem::transmute::<
+                            core::mem::transmute::<
                                 &oxc_ast::ast::Function,
                                 &'static oxc_ast::ast::Function,
                             >(funct)

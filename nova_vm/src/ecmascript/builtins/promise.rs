@@ -2,11 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::Scoped;
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -15,8 +14,8 @@ use crate::{
         },
     },
     heap::{
-        indexes::{BaseIndex, PromiseIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{BaseIndex, PromiseIndex},
     },
 };
 
@@ -31,34 +30,6 @@ pub mod data;
 pub struct Promise<'a>(pub(crate) PromiseIndex<'a>);
 
 impl<'a> Promise<'a> {
-    /// Unbind this Promise from its current lifetime. This is necessary to use
-    /// the Promise as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Promise<'static> {
-        unsafe { std::mem::transmute::<Self, Promise<'static>>(self) }
-    }
-
-    // Bind this Promise to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Promises cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let promise = promise.bind(&gc);
-    // ```
-    // to make sure that the unbound Promise cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Promise<'gc> {
-        unsafe { std::mem::transmute::<Promise, Promise<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Promise<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -74,7 +45,7 @@ impl<'a> Promise<'a> {
             // a. Let xConstructor be ? Get(x, "constructor").
             // b. If SameValue(xConstructor, C) is true, return x.
             // NOTE: Ignoring subclasses.
-            promise
+            promise.unbind()
         } else {
             // 2. Let promiseCapability be ? NewPromiseCapability(C).
             let promise_capability = PromiseCapability::new(agent);
@@ -86,8 +57,23 @@ impl<'a> Promise<'a> {
     }
 }
 
-impl IntoValue for Promise<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Promise<'_> {
+    type Of<'a> = Promise<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Promise<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -98,15 +84,15 @@ impl<'a> IntoObject<'a> for Promise<'a> {
     }
 }
 
-impl From<Promise<'_>> for Value {
-    fn from(val: Promise) -> Self {
-        Value::Promise(val.unbind())
+impl<'a> From<Promise<'a>> for Value<'a> {
+    fn from(value: Promise<'a>) -> Self {
+        Value::Promise(value)
     }
 }
 
 impl<'a> From<Promise<'a>> for Object<'a> {
-    fn from(val: Promise) -> Self {
-        Object::Promise(val.unbind())
+    fn from(value: Promise<'a>) -> Self {
+        Object::Promise(value)
     }
 }
 
@@ -119,10 +105,12 @@ impl<'a> InternalSlots<'a> for Promise<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

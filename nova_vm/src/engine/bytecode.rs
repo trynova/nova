@@ -9,10 +9,10 @@ pub(super) mod iterator;
 mod vm;
 
 pub(crate) use bytecode_compiler::{
-    is_reference, CompileContext, CompileEvaluation, NamedEvaluationParameter,
+    CompileContext, CompileEvaluation, NamedEvaluationParameter, is_reference,
 };
 pub(crate) use executable::{
     Executable, ExecutableHeapData, FunctionExpression, IndexType, SendableRef,
 };
 pub(crate) use instructions::{Instruction, InstructionIter};
-pub(crate) use vm::{instanceof_operator, ExecutionResult, SuspendedVm, Vm};
+pub(crate) use vm::{ExecutionResult, SuspendedVm, Vm, instanceof_operator};

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use data::TypedArrayArrayLength;
 
@@ -10,22 +10,23 @@ use crate::{
     ecmascript::{
         execution::{Agent, JsResult},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
-            PropertyDescriptor, PropertyKey, Value, BIGINT_64_ARRAY_DISCRIMINANT,
-            BIGUINT_64_ARRAY_DISCRIMINANT, FLOAT_32_ARRAY_DISCRIMINANT,
-            FLOAT_64_ARRAY_DISCRIMINANT, INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT,
-            INT_8_ARRAY_DISCRIMINANT, UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT,
+            BIGINT_64_ARRAY_DISCRIMINANT, BIGUINT_64_ARRAY_DISCRIMINANT,
+            FLOAT_32_ARRAY_DISCRIMINANT, FLOAT_64_ARRAY_DISCRIMINANT, INT_8_ARRAY_DISCRIMINANT,
+            INT_16_ARRAY_DISCRIMINANT, INT_32_ARRAY_DISCRIMINANT, InternalMethods, InternalSlots,
+            IntoObject, IntoValue, Object, OrdinaryObject, PropertyDescriptor, PropertyKey,
             UINT_8_ARRAY_DISCRIMINANT, UINT_8_CLAMPED_ARRAY_DISCRIMINANT,
+            UINT_16_ARRAY_DISCRIMINANT, UINT_32_ARRAY_DISCRIMINANT, Value,
         },
     },
     engine::{
-        context::{GcScope, NoGcScope},
-        rootable::HeapRootData,
-        unwrap_try, Scoped, TryResult,
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, Scopable},
+        unwrap_try,
     },
     heap::{
-        indexes::{IntoBaseIndex, TypedArrayIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{IntoBaseIndex, TypedArrayIndex},
     },
 };
 
@@ -35,6 +36,7 @@ use crate::ecmascript::types::FLOAT_16_ARRAY_DISCRIMINANT;
 use self::data::TypedArrayHeapData;
 
 use super::{
+    ArrayBuffer,
     array_buffer::{Ordering, ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     indexed_collections::typed_array_objects::abstract_operations::{
         is_typed_array_fixed_length, is_typed_array_out_of_bounds, is_valid_integer_index_generic,
@@ -46,7 +48,6 @@ use super::{
         ordinary_has_property_entry, ordinary_prevent_extensions, ordinary_set, ordinary_try_get,
         ordinary_try_has_property_entry, ordinary_try_set,
     },
-    ArrayBuffer,
 };
 
 pub mod data;
@@ -71,34 +72,6 @@ pub enum TypedArray<'a> {
 }
 
 impl TypedArray<'_> {
-    /// Unbind this TypedArray from its current lifetime. This is necessary to use
-    /// the TypedArray as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> TypedArray<'static> {
-        unsafe { std::mem::transmute::<Self, TypedArray<'static>>(self) }
-    }
-
-    // Bind this TypedArray to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your TypedArrays cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let typed_array = typed_array.bind(&gc);
-    // ```
-    // to make sure that the unbound TypedArray cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> TypedArray<'gc> {
-        unsafe { std::mem::transmute::<Self, TypedArray<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, TypedArray<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) fn get_index(self) -> usize {
         match self {
             TypedArray::Int8Array(index)
@@ -161,6 +134,21 @@ impl TypedArray<'_> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for TypedArray<'_> {
+    type Of<'a> = TypedArray<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> From<TypedArrayIndex<'a>> for TypedArray<'a> {
     fn from(value: TypedArrayIndex<'a>) -> Self {
         TypedArray::Uint8Array(value)
@@ -207,8 +195,8 @@ impl<'a> From<TypedArray<'a>> for TypedArrayIndex<'a> {
     }
 }
 
-impl IntoValue for TypedArray<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for TypedArray<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -219,9 +207,9 @@ impl<'a> IntoObject<'a> for TypedArray<'a> {
     }
 }
 
-impl From<TypedArray<'_>> for Value {
-    fn from(val: TypedArray) -> Self {
-        match val.unbind() {
+impl<'a> From<TypedArray<'a>> for Value<'a> {
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
             TypedArray::Int8Array(idx) => Value::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Value::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Value::Uint8ClampedArray(idx),
@@ -240,8 +228,8 @@ impl From<TypedArray<'_>> for Value {
 }
 
 impl<'a> From<TypedArray<'a>> for Object<'a> {
-    fn from(val: TypedArray) -> Self {
-        match val.unbind() {
+    fn from(value: TypedArray<'a>) -> Self {
+        match value {
             TypedArray::Int8Array(idx) => Object::Int8Array(idx),
             TypedArray::Uint8Array(idx) => Object::Uint8Array(idx),
             TypedArray::Uint8ClampedArray(idx) => Object::Uint8ClampedArray(idx),
@@ -259,10 +247,10 @@ impl<'a> From<TypedArray<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for TypedArray<'_> {
+impl<'a> TryFrom<Value<'a>> for TypedArray<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
+    fn try_from(value: Value<'a>) -> Result<Self, Self::Error> {
         match value {
             Value::Int8Array(base_index) => Ok(TypedArray::Int8Array(base_index)),
             Value::Uint8Array(base_index) => Ok(TypedArray::Uint8Array(base_index)),
@@ -323,10 +311,12 @@ impl<'a> InternalSlots<'a> for TypedArray<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn internal_prototype(self, agent: &Agent) -> Option<Object<'static>> {
@@ -397,7 +387,7 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
                 //          [[Configurable]]: true
                 //      }.
                 TryResult::Continue(Some(PropertyDescriptor {
-                    value: Some(value.into_value()),
+                    value: Some(value.into_value().unbind()),
                     writable: Some(true),
                     enumerable: Some(true),
                     configurable: Some(true),
@@ -577,13 +567,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.5 Infallible \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
@@ -613,13 +603,13 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
     }
 
     /// ### [10.4.5.5 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-typedarray-get)
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. 1. If P is a String, then
         // a. Let numericIndex be CanonicalNumericIndexString(P).
         // b. If numericIndex is not undefined, then
@@ -734,9 +724,10 @@ impl<'a> InternalMethods<'a> for TypedArray<'a> {
             TryResult::Continue(numeric_index.is_none())
         } else {
             // 2. Return ! OrdinaryDelete(O, P).
-            TryResult::Continue(self.get_backing_object(agent).map_or(true, |object| {
-                ordinary_delete(agent, object, property_key, gc)
-            }))
+            TryResult::Continue(
+                self.get_backing_object(agent)
+                    .is_none_or(|object| ordinary_delete(agent, object, property_key, gc)),
+            )
         }
     }
 

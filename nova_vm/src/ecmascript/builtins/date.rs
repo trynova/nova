@@ -4,7 +4,7 @@
 
 pub(crate) mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -14,12 +14,12 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
-        rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
+        context::{Bindable, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        indexes::DateIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues, indexes::DateIndex,
     },
 };
 
@@ -29,27 +29,7 @@ use self::data::DateHeapData;
 #[repr(transparent)]
 pub struct Date<'a>(pub(crate) DateIndex<'a>);
 
-impl<'a> Date<'a> {
-    /// Unbind this Date from its current lifetime. This is necessary to use
-    /// the Date as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Date<'static> {
-        unsafe { std::mem::transmute::<Self, Date<'static>>(self) }
-    }
-
-    // Bind this Date to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Dates cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let date = date.bind(&gc);
-    // ```
-    // to make sure that the unbound Date cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Date<'gc> {
-        unsafe { std::mem::transmute::<Date, Date<'gc>>(self) }
-    }
-
+impl Date<'_> {
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -67,15 +47,30 @@ impl<'a> Date<'a> {
     }
 }
 
-impl IntoValue for Date<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Date<'_> {
+    type Of<'a> = Date<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Date<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
-impl From<Date<'_>> for Value {
-    fn from(value: Date) -> Self {
-        Value::Date(value.unbind())
+impl<'a> From<Date<'a>> for Value<'a> {
+    fn from(value: Date<'a>) -> Self {
+        Value::Date(value)
     }
 }
 
@@ -91,10 +86,10 @@ impl<'a> From<Date<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for Date<'_> {
+impl<'a> TryFrom<Value<'a>> for Date<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Date(idx) => Ok(idx),
             _ => Err(()),
@@ -122,10 +117,7 @@ impl<'a> InternalSlots<'a> for Date<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 

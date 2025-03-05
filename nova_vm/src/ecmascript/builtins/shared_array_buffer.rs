@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -11,10 +11,13 @@ use crate::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject, Value,
         },
     },
-    engine::{context::NoGcScope, rootable::HeapRootData, Scoped},
+    engine::{
+        context::{Bindable, NoGcScope},
+        rootable::HeapRootData,
+    },
     heap::{
-        indexes::SharedArrayBufferIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::SharedArrayBufferIndex,
     },
 };
 
@@ -27,34 +30,6 @@ pub mod data;
 pub struct SharedArrayBuffer<'a>(pub(crate) SharedArrayBufferIndex<'a>);
 
 impl SharedArrayBuffer<'_> {
-    /// Unbind this SharedArrayBuffer from its current lifetime. This is necessary to use
-    /// the SharedArrayBuffer as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> SharedArrayBuffer<'static> {
-        unsafe { std::mem::transmute::<Self, SharedArrayBuffer<'static>>(self) }
-    }
-
-    // Bind this SharedArrayBuffer to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your SharedArrayBuffers cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let shared_array_buffer = shared_array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound SharedArrayBuffer cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> SharedArrayBuffer<'gc> {
-        unsafe { std::mem::transmute::<Self, SharedArrayBuffer<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, SharedArrayBuffer<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         SharedArrayBuffer(SharedArrayBufferIndex::from_u32_index(0))
     }
@@ -64,8 +39,23 @@ impl SharedArrayBuffer<'_> {
     }
 }
 
-impl IntoValue for SharedArrayBuffer<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for SharedArrayBuffer<'_> {
+    type Of<'a> = SharedArrayBuffer<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for SharedArrayBuffer<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -76,15 +66,15 @@ impl<'a> IntoObject<'a> for SharedArrayBuffer<'a> {
     }
 }
 
-impl From<SharedArrayBuffer<'_>> for Value {
-    fn from(val: SharedArrayBuffer) -> Self {
-        Value::SharedArrayBuffer(val.unbind())
+impl<'a> From<SharedArrayBuffer<'a>> for Value<'a> {
+    fn from(value: SharedArrayBuffer<'a>) -> Self {
+        Value::SharedArrayBuffer(value)
     }
 }
 
 impl<'a> From<SharedArrayBuffer<'a>> for Object<'a> {
-    fn from(val: SharedArrayBuffer) -> Self {
-        Object::SharedArrayBuffer(val.unbind())
+    fn from(value: SharedArrayBuffer<'a>) -> Self {
+        Object::SharedArrayBuffer(value)
     }
 }
 
@@ -131,10 +121,12 @@ impl<'a> InternalSlots<'a> for SharedArrayBuffer<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 }
 

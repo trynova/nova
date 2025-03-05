@@ -8,8 +8,8 @@ mod for_in_of_statement;
 mod function_declaration_instantiation;
 
 use super::{
-    executable::ArrowFunctionExpression, Executable, ExecutableHeapData, FunctionExpression,
-    Instruction, SendableRef,
+    Executable, ExecutableHeapData, FunctionExpression, Instruction, SendableRef,
+    executable::ArrowFunctionExpression,
 };
 #[cfg(feature = "regexp")]
 use crate::ecmascript::builtins::regexp::reg_exp_create_literal;
@@ -20,9 +20,9 @@ use crate::{
             function_definitions::{CompileFunctionBodyData, ContainsExpression},
             scope_analysis::{LexicallyScopedDeclaration, LexicallyScopedDeclarations},
         },
-        types::{BigInt, IntoValue, Number, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, BigInt, IntoValue, Number, PropertyKey, String, Value},
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::CreateHeapData,
 };
 use num_traits::Num;
@@ -53,7 +53,7 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     /// Instructions being built
     instructions: Vec<u8>,
     /// Constants being built
-    constants: Vec<Value>,
+    constants: Vec<Value<'gc>>,
     /// Function expressions being built
     function_expressions: Vec<FunctionExpression>,
     /// Arrow function expressions being built
@@ -208,7 +208,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         // SAFETY: Script referred by the Function uniquely owns the Program
         // and the body buffer does not move under any circumstances during
         // heap operations.
-        let body: &[Statement] = unsafe { std::mem::transmute(data.body.statements.as_slice()) };
+        let body: &[Statement] = unsafe { core::mem::transmute(data.body.statements.as_slice()) };
 
         self.compile_statements(body);
     }
@@ -231,7 +231,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     pub(super) fn finish(self) -> Executable {
         self.agent.heap.create(ExecutableHeapData {
             instructions: self.instructions.into_boxed_slice(),
-            constants: self.constants.into_boxed_slice(),
+            constants: self.constants.iter().map(|v| v.unbind()).collect(),
             function_expressions: self.function_expressions.into_boxed_slice(),
             arrow_function_expressions: self.arrow_function_expressions.into_boxed_slice(),
             class_initializer_bytecodes: self.class_initializer_bytecodes.into_boxed_slice(),
@@ -270,7 +270,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
 
     fn _push_instruction(&mut self, instruction: Instruction) {
         self.instructions
-            .push(unsafe { std::mem::transmute::<Instruction, u8>(instruction) });
+            .push(unsafe { core::mem::transmute::<Instruction, u8>(instruction) });
     }
 
     fn add_instruction(&mut self, instruction: Instruction) {
@@ -303,7 +303,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         }
     }
 
-    fn add_constant(&mut self, constant: Value) -> usize {
+    fn add_constant(&mut self, constant: Value<'gc>) -> usize {
         let duplicate = self
             .constants
             .iter()
@@ -318,7 +318,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         })
     }
 
-    fn add_identifier(&mut self, identifier: String) -> usize {
+    fn add_identifier(&mut self, identifier: String<'gc>) -> usize {
         let duplicate = self
             .constants
             .iter()
@@ -342,7 +342,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     fn add_instruction_with_constant(
         &mut self,
         instruction: Instruction,
-        constant: impl Into<Value>,
+        constant: impl Into<Value<'gc>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 1);
         debug_assert!(instruction.has_constant_index());
@@ -367,7 +367,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         &mut self,
         instruction: Instruction,
         identifier: String<'gc>,
-        constant: impl Into<Value>,
+        constant: impl Into<Value<'gc>>,
     ) {
         debug_assert_eq!(instruction.argument_count(), 2);
         debug_assert!(instruction.has_identifier_index() && instruction.has_constant_index());
@@ -448,7 +448,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     fn add_jump_index(&mut self) -> JumpIndex {
         self.add_index(0);
         JumpIndex {
-            index: self.instructions.len() - std::mem::size_of::<IndexType>(),
+            index: self.instructions.len() - core::mem::size_of::<IndexType>(),
         }
     }
 
@@ -629,6 +629,7 @@ impl CompileEvaluation for ast::UnaryExpression<'_> {
                 if is_reference(&self.argument) {
                     ctx.add_instruction(Instruction::GetValue);
                 }
+                ctx.add_instruction(Instruction::ToNumeric);
                 ctx.add_instruction(Instruction::BitwiseNot);
             }
             // 13.5.3 The typeof Operator
@@ -935,7 +936,7 @@ impl CompileEvaluation for ast::ArrowFunctionExpression<'_> {
         let identifier = ctx.name_identifier.take();
         ctx.add_arrow_function_expression(ArrowFunctionExpression {
             expression: SendableRef::new(unsafe {
-                std::mem::transmute::<
+                core::mem::transmute::<
                     &ast::ArrowFunctionExpression<'_>,
                     &'static ast::ArrowFunctionExpression<'static>,
                 >(self)
@@ -953,7 +954,9 @@ impl CompileEvaluation for ast::Function<'_> {
             Instruction::InstantiateOrdinaryFunctionExpression,
             FunctionExpression {
                 expression: SendableRef::new(unsafe {
-                    std::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(self)
+                    core::mem::transmute::<&ast::Function<'_>, &'static ast::Function<'static>>(
+                        self,
+                    )
                 }),
                 identifier,
                 compiled_bytecode: None,
@@ -1089,7 +1092,7 @@ impl CompileEvaluation for ast::ObjectExpression<'_> {
                                 },
                                 FunctionExpression {
                                     expression: SendableRef::new(unsafe {
-                                        std::mem::transmute::<
+                                        core::mem::transmute::<
                                             &ast::Function<'_>,
                                             &'static ast::Function<'static>,
                                         >(
@@ -1751,10 +1754,10 @@ impl CompileEvaluation for ast::UpdateExpression<'_> {
             | ast::SimpleAssignmentTarget::TSTypeAssertion(_) => unreachable!(),
         }
         ctx.add_instruction(Instruction::GetValueKeepReference);
+        ctx.add_instruction(Instruction::ToNumeric);
         if !self.prefix {
             // The return value of postfix increment/decrement is the value
             // after ToNumeric.
-            ctx.add_instruction(Instruction::ToNumeric);
             ctx.add_instruction(Instruction::LoadCopy);
         }
         match self.operator {
@@ -2939,7 +2942,10 @@ impl CompileEvaluation for ast::Statement<'_> {
             ast::Statement::ReturnStatement(x) => x.compile(ctx),
             ast::Statement::IfStatement(x) => x.compile(ctx),
             ast::Statement::VariableDeclaration(x) => x.compile(ctx),
-            ast::Statement::FunctionDeclaration(x) => x.compile(ctx),
+            ast::Statement::FunctionDeclaration(_) => {
+                // Note: Function declaration statements are always hoisted.
+                // There is no work left to do here.
+            }
             ast::Statement::BlockStatement(x) => x.compile(ctx),
             ast::Statement::EmptyStatement(_) => {}
             ast::Statement::ForStatement(x) => x.compile(ctx),

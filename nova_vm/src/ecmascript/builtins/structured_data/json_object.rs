@@ -4,34 +4,36 @@
 
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 
-use crate::ecmascript::abstract_operations::operations_on_objects::{
-    length_of_array_like, try_create_data_property, try_create_data_property_or_throw,
-};
-use crate::ecmascript::abstract_operations::testing_and_comparison::is_array;
-use crate::ecmascript::types::{IntoObject, IntoValue};
-use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::{unwrap_try, Scoped};
 use crate::{
+    SmallInteger,
     ecmascript::{
         abstract_operations::{
             operations_on_objects::{
-                call_function, create_data_property, get, scoped_enumerable_own_keys,
+                call_function, create_data_property, get, length_of_array_like,
+                scoped_enumerable_own_keys, try_create_data_property,
+                try_create_data_property_or_throw,
             },
-            testing_and_comparison::is_callable,
+            testing_and_comparison::{is_array, is_callable},
             type_conversion::to_string,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            array_create, ordinary::ordinary_object_create_with_intrinsics, ArgumentsList, Builtin,
+            ArgumentsList, Behaviour, Builtin, array_create,
+            ordinary::ordinary_object_create_with_intrinsics,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics, RealmIdentifier},
+        execution::{Agent, JsResult, ProtoIntrinsics, RealmIdentifier, agent::ExceptionType},
         types::{
-            Function, InternalMethods, Number, Object, PropertyKey, String, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, Function, InternalMethods, IntoObject, IntoValue, Number,
+            Object, PropertyKey, String, Value,
         },
     },
+    engine::{
+        Scoped,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        unwrap_try,
+    },
     heap::WellKnownSymbolIndexes,
-    SmallInteger,
 };
 
 pub(crate) struct JSONObject;
@@ -42,8 +44,7 @@ impl Builtin for JSONObjectParse {
 
     const LENGTH: u8 = 2;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(JSONObject::parse);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(JSONObject::parse);
 }
 
 struct JSONObjectStringify;
@@ -52,8 +53,7 @@ impl Builtin for JSONObjectStringify {
 
     const LENGTH: u8 = 3;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(JSONObject::stringify);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(JSONObject::stringify);
 }
 
 impl JSONObject {
@@ -88,17 +88,17 @@ impl JSONObject {
     /// > likewise does not apply during JSON.parse, means that not all texts
     /// > accepted by JSON.parse are valid as a PrimaryExpression, despite
     /// > matching the grammar.
-    fn parse(
+    fn parse<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let text = arguments.get(0);
         let reviver = arguments.get(1);
 
         // 1. Let jsonString be ? ToString(text).
-        let json_string = to_string(agent, text, gc.reborrow())?;
+        let json_string = to_string(agent, text, gc.reborrow())?.unbind();
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
         let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
@@ -146,7 +146,10 @@ impl JSONObject {
             };
 
             // b. Let rootName be the empty String.
-            let root_name = String::EMPTY_STRING.to_property_key().scope_static();
+            let root_name = String::EMPTY_STRING
+                .to_property_key()
+                .unbind()
+                .scope_static();
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
             unwrap_try(try_create_data_property_or_throw(
@@ -159,22 +162,22 @@ impl JSONObject {
             .unwrap();
 
             // d. Return ? InternalizeJSONProperty(root, rootName, reviver).
-            let root = root.into_object().scope(agent, gc.nogc());
-            let reviver = reviver.scope(agent, gc.nogc());
-            return internalize_json_property(agent, root, root_name, reviver, gc.reborrow());
+            let root = root.unbind().into_object().scope(agent, gc.nogc());
+            let reviver = reviver.unbind().scope(agent, gc.nogc());
+            return internalize_json_property(agent, root, root_name, reviver, gc);
         }
 
         // 12. Else,
         // a. Return unfiltered.
-        Ok(unfiltered)
+        Ok(unfiltered.unbind())
     }
 
-    fn stringify(
+    fn stringify<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 
@@ -214,15 +217,15 @@ impl JSONObject {
 /// > Note 2
 /// > In the case where there are duplicate name Strings within an object,
 /// > lexically preceding values for the same key shall be overwritten.
-fn internalize_json_property<'a>(
+fn internalize_json_property<'gc, 'a>(
     agent: &mut Agent,
     holder: Scoped<'a, Object<'static>>,
     name: Scoped<'a, PropertyKey<'static>>,
     reviver: Scoped<'a, Function<'static>>,
-    mut gc: GcScope<'_, 'a>,
-) -> JsResult<Value> {
+    mut gc: GcScope<'gc, 'a>,
+) -> JsResult<Value<'gc>> {
     // 1. Let val be ? Get(holder, name).
-    let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())?;
+    let val = get(agent, holder.get(agent), name.get(agent), gc.reborrow())?.unbind();
     // 2. If val is an Object, then
     if let Ok(val) = Object::try_from(val) {
         // a. Let isArray be ? IsArray(val).
@@ -246,7 +249,8 @@ fn internalize_json_property<'a>(
                     prop.clone(),
                     reviver.clone(),
                     gc.reborrow(),
-                )?;
+                )?
+                .unbind();
 
                 // 3. If newElement is undefined, then
                 if new_element.is_undefined() {
@@ -284,7 +288,8 @@ fn internalize_json_property<'a>(
                     p.clone(),
                     reviver.clone(),
                     gc.reborrow(),
-                )?;
+                )?
+                .unbind();
 
                 // 2. If newElement is undefined, then
                 if new_element.is_undefined() {
@@ -310,17 +315,21 @@ fn internalize_json_property<'a>(
     // 3. Return ? Call(reviver, holder, « name, val »).
     // Note: Because this call gets holder as `this`, it can do dirty things to
     // it, such as `holder[other_key] = new Proxy()`.
-    let name = name.get(agent).convert_to_value(agent, gc.nogc());
+    let name = name.get(agent).convert_to_value(agent, gc.nogc()).unbind();
     call_function(
         agent,
         reviver.get(agent),
         holder.get(agent).into_value(),
         Some(ArgumentsList(&[name, val])),
-        gc.reborrow(),
+        gc,
     )
 }
 
-pub(crate) fn value_from_json(agent: &mut Agent, json: &sonic_rs::Value, gc: NoGcScope) -> Value {
+pub(crate) fn value_from_json<'gc>(
+    agent: &mut Agent,
+    json: &sonic_rs::Value,
+    gc: NoGcScope<'gc, '_>,
+) -> Value<'gc> {
     match json.get_type() {
         sonic_rs::JsonType::Null => Value::Null,
         sonic_rs::JsonType::Boolean => Value::Boolean(json.is_true()),

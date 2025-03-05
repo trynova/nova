@@ -6,6 +6,7 @@ use super::{InternalSlots, Object, PropertyKey};
 use crate::{
     ecmascript::{
         builtins::{
+            ArgumentsList,
             ordinary::{
                 ordinary_define_own_property, ordinary_delete, ordinary_get,
                 ordinary_get_own_property, ordinary_get_prototype_of, ordinary_has_property,
@@ -13,21 +14,22 @@ use crate::{
                 ordinary_set, ordinary_set_prototype_of, ordinary_try_get,
                 ordinary_try_has_property, ordinary_try_set,
             },
-            ArgumentsList,
         },
         execution::{Agent, JsResult},
         types::{Function, PropertyDescriptor, Value},
     },
     engine::{
-        context::{GcScope, NoGcScope},
-        unwrap_try, TryResult,
+        TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
+        unwrap_try,
     },
 };
 
 /// ### [6.1.7.2 Object Internal Methods and Internal Slots](https://tc39.es/ecma262/#sec-object-internal-methods-and-internal-slots)
 pub trait InternalMethods<'a>
 where
-    Self: 'a + std::fmt::Debug + Sized + Clone + Copy + Into<Object<'a>> + InternalSlots<'a>,
+    Self: 'a + core::fmt::Debug + Sized + Clone + Copy + Into<Object<'a>> + InternalSlots<'a>,
 {
     /// ## Infallible \[\[GetPrototypeOf\]\]
     ///
@@ -298,13 +300,13 @@ where
     /// method cannot be completed without calling into JavaScript, then `None`
     /// is returned. It is preferable to call this method first and only call
     /// the main method if this returns None.
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -324,13 +326,13 @@ where
     }
 
     /// ## \[\[Get\]\]
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         // 1. Return ? OrdinaryGet(O, P, Receiver).
         match self.get_backing_object(agent) {
@@ -450,13 +452,13 @@ where
     }
 
     /// ## \[\[Call\]\]
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         _agent: &mut Agent,
         _this_value: Value,
         _arguments_list: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         unreachable!()
     }
 

@@ -4,7 +4,7 @@
 
 use small_string::SmallString;
 use std::fs::File;
-use std::io::{self, prelude::*, BufReader};
+use std::io::{self, BufReader, prelude::*};
 
 fn replace_invalid_key_characters(string: &str) -> String {
     let mut string = string.to_owned();

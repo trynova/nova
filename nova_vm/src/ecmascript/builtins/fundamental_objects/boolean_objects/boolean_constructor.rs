@@ -4,23 +4,24 @@
 
 use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
+use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
 use crate::ecmascript::types::Object;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::{String, Value};
+use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
 
@@ -38,13 +39,13 @@ impl BuiltinIntrinsicConstructor for BooleanConstructor {
 }
 
 impl BooleanConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let value = arguments.get(0);
         let b = to_boolean(agent, value);
         let Some(new_target) = new_target else {

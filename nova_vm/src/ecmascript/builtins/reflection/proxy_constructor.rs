@@ -11,7 +11,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -39,13 +39,13 @@ impl Builtin for ProxyRevocable {
 
 impl ProxyConstructor {
     /// ### [28.2.1.1 Proxy ( target, handler )](https://tc39.es/ecma262/#sec-proxy-target-handler)
-    fn constructor(
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
         let target = arguments.get(0);
         let handler = arguments.get(1);
@@ -61,12 +61,12 @@ impl ProxyConstructor {
         proxy_create(agent, target, handler, gc).map(|proxy| proxy.into_value())
     }
 
-    fn revocable(
+    fn revocable<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

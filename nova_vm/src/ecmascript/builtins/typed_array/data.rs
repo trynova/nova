@@ -5,11 +5,12 @@
 use crate::{
     ecmascript::{
         builtins::{
-            array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
             ArrayBuffer,
+            array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
         },
         types::OrdinaryObject,
     },
+    engine::context::Bindable,
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -73,7 +74,7 @@ pub struct TypedArrayHeapData {
 impl TypedArrayHeapData {
     pub fn new(object_index: Option<OrdinaryObject<'_>>) -> Self {
         Self {
-            object_index: object_index.map(|o| o.unbind()),
+            object_index: object_index.unbind(),
             viewed_array_buffer: ArrayBuffer::_def(),
             byte_length: Default::default(),
             byte_offset: Default::default(),

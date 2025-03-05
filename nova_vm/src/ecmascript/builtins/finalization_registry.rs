@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -12,13 +12,12 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
+        context::{Bindable, NoGcScope},
         rootable::{HeapRootData, HeapRootRef, Rootable},
-        Scoped,
     },
     heap::{
-        indexes::{BaseIndex, FinalizationRegistryIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{BaseIndex, FinalizationRegistryIndex},
     },
 };
 
@@ -30,35 +29,7 @@ pub mod data;
 #[repr(transparent)]
 pub struct FinalizationRegistry<'a>(pub(crate) FinalizationRegistryIndex<'a>);
 
-impl<'a> FinalizationRegistry<'a> {
-    /// Unbind this FinalizationRegistry from its current lifetime. This is necessary to use
-    /// the FinalizationRegistry as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> FinalizationRegistry<'static> {
-        unsafe { std::mem::transmute::<Self, FinalizationRegistry<'static>>(self) }
-    }
-
-    // Bind this FinalizationRegistry to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your FinalizationRegistrys cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound FinalizationRegistry cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> FinalizationRegistry<'gc> {
-        unsafe { std::mem::transmute::<Self, FinalizationRegistry<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, FinalizationRegistry<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl FinalizationRegistry<'_> {
     pub(crate) const fn _def() -> Self {
         Self(BaseIndex::from_u32_index(0))
     }
@@ -68,8 +39,23 @@ impl<'a> FinalizationRegistry<'a> {
     }
 }
 
-impl IntoValue for FinalizationRegistry<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for FinalizationRegistry<'_> {
+    type Of<'a> = FinalizationRegistry<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for FinalizationRegistry<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -80,15 +66,15 @@ impl<'a> IntoObject<'a> for FinalizationRegistry<'a> {
     }
 }
 
-impl From<FinalizationRegistry<'_>> for Value {
-    fn from(val: FinalizationRegistry) -> Self {
-        Value::FinalizationRegistry(val.unbind())
+impl<'a> From<FinalizationRegistry<'a>> for Value<'a> {
+    fn from(value: FinalizationRegistry<'a>) -> Self {
+        Value::FinalizationRegistry(value)
     }
 }
 
 impl<'a> From<FinalizationRegistry<'a>> for Object<'a> {
-    fn from(val: FinalizationRegistry) -> Self {
-        Object::FinalizationRegistry(val.unbind())
+    fn from(value: FinalizationRegistry<'a>) -> Self {
+        Object::FinalizationRegistry(value)
     }
 }
 
@@ -101,10 +87,7 @@ impl<'a> InternalSlots<'a> for FinalizationRegistry<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 

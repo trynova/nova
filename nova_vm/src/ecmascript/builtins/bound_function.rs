@@ -2,12 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
-use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{unwrap_try, Scoped, TryResult};
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -16,17 +12,24 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics},
         types::{
-            function_create_backing_object, function_internal_define_own_property,
-            function_internal_delete, function_internal_get, function_internal_get_own_property,
-            function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set, BoundFunctionHeapData, Function, FunctionInternalProperties,
-            InternalMethods, InternalSlots, IntoFunction, IntoObject, IntoValue, Object,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
+            BoundFunctionHeapData, Function, FunctionInternalProperties, InternalMethods,
+            InternalSlots, IntoFunction, IntoObject, IntoValue, Object, OrdinaryObject,
+            PropertyDescriptor, PropertyKey, String, Value, function_create_backing_object,
+            function_internal_define_own_property, function_internal_delete, function_internal_get,
+            function_internal_get_own_property, function_internal_has_property,
+            function_internal_own_property_keys, function_internal_set, function_try_get,
+            function_try_has_property, function_try_set,
         },
     },
+    engine::{
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable, Scopable},
+        unwrap_try,
+    },
     heap::{
-        indexes::BoundFunctionIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep,
-        WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, WorkQueues,
+        indexes::BoundFunctionIndex,
     },
 };
 
@@ -37,26 +40,6 @@ use super::ArgumentsList;
 pub struct BoundFunction<'a>(BoundFunctionIndex<'a>);
 
 impl BoundFunction<'_> {
-    /// Unbind this BoundFunction from its current lifetime. This is necessary to use
-    /// the BoundFunction as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> BoundFunction<'static> {
-        unsafe { std::mem::transmute::<BoundFunction, BoundFunction<'static>>(self) }
-    }
-
-    // Bind this BoundFunction to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your BoundFunctions cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound BoundFunction cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> BoundFunction<'gc> {
-        unsafe { std::mem::transmute::<BoundFunction, BoundFunction<'gc>>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -80,8 +63,23 @@ impl BoundFunction<'_> {
     }
 }
 
-impl IntoValue for BoundFunction<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for BoundFunction<'_> {
+    type Of<'a> = BoundFunction<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for BoundFunction<'a> {
+    fn into_value(self) -> Value<'a> {
         Value::BoundFunction(self.unbind())
     }
 }
@@ -143,12 +141,12 @@ pub(crate) fn bound_function_create<'a>(
     // SAFETY: Option<Value> is an extra variant of the Value enum.
     // The transmute effectively turns Value into Some(Value).
     agent[elements]
-        .copy_from_slice(unsafe { std::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
+        .copy_from_slice(unsafe { core::mem::transmute::<&[Value], &[Option<Value>]>(bound_args) });
     let data = BoundFunctionHeapData {
         object_index: None,
         length: 0,
         bound_target_function: target_function.unbind(),
-        bound_this,
+        bound_this: bound_this.unbind(),
         bound_arguments: elements,
         name: None,
     };
@@ -180,10 +178,12 @@ impl<'a> InternalSlots<'a> for BoundFunction<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -239,23 +239,23 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         function_internal_has_property(self, agent, property_key, gc)
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         function_try_get(self, agent, property_key, receiver, gc)
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         function_internal_get(self, agent, property_key, receiver, gc)
     }
 
@@ -305,13 +305,13 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
     /// argumentsList (a List of ECMAScript language values) and returns either
     /// a normal completion containing an ECMAScript language value or a throw
     /// completion.
-    fn internal_call(
+    fn internal_call<'gc>(
         self,
         agent: &mut Agent,
         _: Value,
         arguments_list: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].

@@ -2,33 +2,36 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::SmallString;
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_number;
 use crate::ecmascript::abstract_operations::type_conversion::to_string;
+use crate::ecmascript::abstract_operations::type_conversion::to_uint16_number;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
-use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
-use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
-use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
-use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::builtins::ordinary::get_prototype_from_constructor;
+use crate::ecmascript::builtins::ordinary::ordinary_object_create_with_intrinsics;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObject;
+use crate::ecmascript::builtins::primitive_objects::PrimitiveObjectData;
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
 use crate::ecmascript::execution::RealmIdentifier;
+use crate::ecmascript::execution::agent::ExceptionType;
+use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
 use crate::ecmascript::types::Function;
 use crate::ecmascript::types::IntoObject;
 use crate::ecmascript::types::IntoValue;
+use crate::ecmascript::types::Number;
 use crate::ecmascript::types::Object;
 use crate::ecmascript::types::String;
 use crate::ecmascript::types::Value;
-use crate::ecmascript::types::BUILTIN_STRING_MEMORY;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::IntrinsicConstructorIndexes;
-use crate::SmallString;
 
 pub struct StringConstructor;
 
@@ -60,40 +63,52 @@ impl Builtin for StringRaw {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.raw;
 }
 impl StringConstructor {
-    fn constructor(
+    /// ### [22.1.1.1 String ( value )](https://tc39.es/ecma262/#sec-string-constructor-string-value)
+    fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         new_target: Option<Object>,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
+        let nogc = gc.nogc();
+        let value = arguments.get(0).bind(nogc);
+        let new_target = new_target.map(|n| n.bind(nogc));
+
         // 1. If value is not present, then
-        let s = if arguments.is_empty() {
+        let (s, new_target) = if arguments.is_empty() {
             // a. Let s be the empty String.
-            String::EMPTY_STRING
+            (String::EMPTY_STRING, new_target)
         } else {
             // 2. Else,
-            let value = arguments.get(0);
             // a. If NewTarget is undefined and value is a Symbol, return SymbolDescriptiveString(value).
             if new_target.is_none() {
                 if let Value::Symbol(value) = value {
-                    return Ok(value.descriptive_string(agent, gc.nogc()).into_value());
+                    return Ok(value
+                        .unbind()
+                        .descriptive_string(agent, gc.into_nogc())
+                        .into_value());
                 }
             }
             // b. Let s be ? ToString(value).
-            to_string(agent, value, gc.reborrow())?
-                .unbind()
-                .bind(gc.nogc())
+            if let Ok(s) = String::try_from(value) {
+                (s, new_target)
+            } else {
+                let new_target = new_target.map(|n| n.scope(agent, gc.nogc()));
+                let s = to_string(agent, value.unbind(), gc.reborrow())?.unbind();
+                let nogc = gc.nogc();
+                (s.bind(nogc), new_target.map(|n| n.get(agent).bind(nogc)))
+            }
         };
         // 3. If NewTarget is undefined, return s.
         let Some(new_target) = new_target else {
-            return Ok(s.into_value());
+            return Ok(s.into_value().unbind());
         };
         // 4. Return StringCreate(s, ? GetPrototypeFromConstructor(NewTarget, "%String.prototype%")).
         let value = s.scope(agent, gc.nogc());
         let prototype = get_prototype_from_constructor(
             agent,
-            Function::try_from(new_target).unwrap(),
+            Function::try_from(new_target.unbind()).unwrap(),
             ProtoIntrinsics::String,
             gc.reborrow(),
         )?
@@ -122,19 +137,19 @@ impl StringConstructor {
         // 7. Let length be the length of value.
         // 8. Perform ! DefinePropertyOrThrow(S, "length", PropertyDescriptor { [[Value]]: 𝔽(length), [[Writable]]: false, [[Enumerable]]: false, [[Configurable]]: false }).
         // 9. Return S.
-        Ok(s.into_value())
+        Ok(s.into_value().unbind())
     }
 
     /// ### [22.1.2.1 String.fromCharCode ( ...`codeUnits` )](https://262.ecma-international.org/15.0/index.html#sec-string.fromcharcode)
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codeUnits`.
-    fn from_char_code(
+    fn from_char_code<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         code_units: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let result be the empty String.
         // 2. For each element next of codeUnits, do
         //   a. Let nextCU be the code unit whose numeric value is ℝ(? ToUint16(next)).
@@ -153,27 +168,40 @@ impl StringConstructor {
             }
         }
 
-        let mut buf = Vec::with_capacity(code_units.len());
+        let buf = if code_units.iter().all(|cu| cu.is_number()) {
+            code_units
+                .iter()
+                .map(|&cu| to_uint16_number(agent, Number::try_from(cu).unwrap()))
+                .collect::<Vec<_>>()
+        } else {
+            let scoped_code_units = code_units
+                .iter()
+                .map(|cu| cu.scope(agent, gc.nogc()))
+                .collect::<Vec<_>>();
+            scoped_code_units
+                .iter()
+                .map(|cu| {
+                    let next = cu.get(agent);
+                    next.to_uint16(agent, gc.reborrow())
+                })
+                .collect::<JsResult<Vec<_>>>()?
+        };
 
-        for next in code_units.iter() {
-            let code_unit = next.to_uint16(agent, gc.reborrow())?;
-            buf.push(code_unit);
-        }
         let result = std::string::String::from_utf16_lossy(&buf);
 
-        Ok(String::from_string(agent, result, gc.nogc()).into())
+        Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
     /// ### [22.1.2.2 String.fromCodePoint ( ...`codePoints` )](https://tc39.es/ecma262/multipage/text-processing.html#sec-string.fromcodepoint)
     ///
     /// This function may be called with any number of arguments which form
     /// the rest parameter `codePoints`.
-    fn from_code_point(
+    fn from_code_point<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         code_points: ArgumentsList,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 3. Assert: If codePoints is empty, then result is the empty String.
         if code_points.is_empty() {
             return Ok(String::EMPTY_STRING.into_value());
@@ -201,41 +229,65 @@ impl StringConstructor {
             }
         };
         // 1. Let result be the empty String.
-        let mut result = std::string::String::new();
-        // 2. For each element next of codePoints, do
-        for next in code_points.iter() {
-            // a. Let nextCP be ? ToNumber(next).
-            let next_cp = to_number(agent, *next, gc.reborrow())?.unbind();
-            // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
-            if !is_integral_number(agent, next_cp, gc.reborrow()) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    format!("{:?} is not a valid code point", next_cp.to_real(agent)),
-                    gc.nogc(),
-                ));
+        let mut result = std::string::String::with_capacity(code_points.len());
+        if code_points.iter().all(|cp| cp.is_integer()) {
+            // 2. For each element next of codePoints, do
+            for next in code_points.iter() {
+                let Value::Integer(next_cp) = next else {
+                    unreachable!()
+                };
+                let next_cp = next_cp.into_i64();
+                // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+                if !(0..=0x10FFFF).contains(&next_cp) {
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp),
+                        gc.nogc(),
+                    ));
+                }
+                // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+                result.push(char::from_u32(next_cp as u32).unwrap());
             }
-            // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
-            let next_cp = next_cp.into_i64(agent);
-            if !(0..=0x10FFFF).contains(&next_cp) {
-                return Err(agent.throw_exception(
-                    ExceptionType::RangeError,
-                    format!("{:?} is not a valid code point", next_cp),
-                    gc.nogc(),
-                ));
+        } else {
+            let code_points = code_points
+                .iter()
+                .map(|cp| cp.scope(agent, gc.nogc()))
+                .collect::<Vec<_>>();
+            // 2. For each element next of codePoints, do
+            for next in code_points.into_iter() {
+                // a. Let nextCP be ? ToNumber(next).
+                let next_cp = to_number(agent, next.get(agent), gc.reborrow())?;
+                // b. If IsIntegralNumber(nextCP) is false, throw a RangeError exception.
+                if !is_integral_number(agent, next_cp) {
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp.to_real(agent)),
+                        gc.nogc(),
+                    ));
+                }
+                // c. If ℝ(nextCP) < 0 or ℝ(nextCP) > 0x10FFFF, throw a RangeError exception.
+                let next_cp = next_cp.into_i64(agent);
+                if !(0..=0x10FFFF).contains(&next_cp) {
+                    return Err(agent.throw_exception(
+                        ExceptionType::RangeError,
+                        format!("{:?} is not a valid code point", next_cp),
+                        gc.nogc(),
+                    ));
+                }
+                // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
+                result.push(char::from_u32(next_cp as u32).unwrap());
             }
-            // d. Set result to the string-concatenation of result and UTF16EncodeCodePoint(ℝ(nextCP)).
-            result.push(char::from_u32(next_cp as u32).unwrap());
         }
         // 4. Return result.
-        Ok(String::from_string(agent, result, gc.nogc()).into())
+        Ok(String::from_string(agent, result, gc.into_nogc()).into())
     }
 
-    fn raw(
+    fn raw<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!();
     }
 

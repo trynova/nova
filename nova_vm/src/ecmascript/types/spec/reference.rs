@@ -3,14 +3,17 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_objects::try_set;
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::ecmascript::types::IntoValue;
 use crate::engine::TryResult;
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{operations_on_objects::set, type_conversion::to_object},
         execution::{
+            EnvironmentIndex,
             agent::{self, ExceptionType},
-            get_global_object, EnvironmentIndex,
+            get_global_object,
         },
         types::{InternalMethods, Object, PropertyKey, String, Value},
     },
@@ -24,13 +27,13 @@ use agent::{Agent, JsResult};
 /// operators as delete, typeof, the assignment operators, the super keyword
 /// and other language features. For example, the left-hand operand of an
 /// assignment is expected to produce a Reference Record.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Reference<'a> {
     /// ### \[\[Base]]
     ///
     /// The value or Environment Record which holds the binding. A \[\[Base]]
     /// of UNRESOLVABLE indicates that the binding could not be resolved.
-    pub(crate) base: Base,
+    pub(crate) base: Base<'a>,
 
     /// ### \[\[ReferencedName]]
     ///
@@ -51,28 +54,21 @@ pub struct Reference<'a> {
     /// Record and its \[\[Base]] value will never be an Environment Record. In
     /// that case, the \[\[ThisValue]] field holds the this value at the time
     /// the Reference Record was created.
-    pub(crate) this_value: Option<Value>,
+    pub(crate) this_value: Option<Value<'a>>,
 }
 
-impl<'a> Reference<'a> {
-    /// Unbind this Reference from its current lifetime. This is necessary to use
-    /// the Reference as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Reference<'static> {
-        unsafe { std::mem::transmute::<Reference<'a>, Reference<'static>>(self) }
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Reference<'_> {
+    type Of<'a> = Reference<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
     }
 
-    // Bind this Reference to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your References cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let number = number.bind(&gc);
-    // ```
-    // to make sure that the unbound Reference cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Reference<'gc> {
-        unsafe { std::mem::transmute::<Reference<'a>, Reference<'gc>>(self) }
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -123,11 +119,11 @@ pub(crate) fn is_private_reference(_: &Reference) -> bool {
 /// The abstract operation GetValue takes argument V (a Reference Record or an
 /// ECMAScript language value) and returns either a normal completion
 /// containing an ECMAScript language value or an abrupt completion.
-pub(crate) fn get_value(
+pub(crate) fn get_value<'gc>(
     agent: &mut Agent,
     reference: &Reference,
-    mut gc: GcScope,
-) -> JsResult<Value> {
+    gc: GcScope<'gc, '_>,
+) -> JsResult<Value<'gc>> {
     let referenced_name = reference.referenced_name.bind(gc.nogc());
     match reference.base {
         Base::Value(value) => {
@@ -146,7 +142,7 @@ pub(crate) fn get_value(
                     agent,
                     referenced_name.unbind(),
                     get_this_value(reference),
-                    gc.reborrow(),
+                    gc,
                 )?)
             } else {
                 // Primitive value. annoying stuff.
@@ -177,7 +173,7 @@ pub(crate) fn get_value(
                         .current_realm()
                         .intrinsics()
                         .boolean_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::String(_) | Value::SmallString(_) => {
                         let string = String::try_from(value).unwrap();
                         if let Some(prop_desc) =
@@ -189,24 +185,24 @@ pub(crate) fn get_value(
                                 .current_realm()
                                 .intrinsics()
                                 .string_prototype()
-                                .internal_get(agent, referenced_name.unbind(), value, gc.reborrow())
+                                .internal_get(agent, referenced_name.unbind(), value, gc)
                         }
                     }
                     Value::Symbol(_) => agent
                         .current_realm()
                         .intrinsics()
                         .symbol_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => agent
                         .current_realm()
                         .intrinsics()
                         .number_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     Value::BigInt(_) | Value::SmallBigInt(_) => agent
                         .current_realm()
                         .intrinsics()
                         .big_int_prototype()
-                        .internal_get(agent, referenced_name.unbind(), value, gc.reborrow()),
+                        .internal_get(agent, referenced_name.unbind(), value, gc),
                     _ => unreachable!(),
                 }
             }
@@ -221,7 +217,7 @@ pub(crate) fn get_value(
                 PropertyKey::SmallString(data) => String::SmallString(*data),
                 _ => unreachable!(),
             };
-            Ok(env.get_binding_value(agent, referenced_name, reference.strict, gc.reborrow())?)
+            Ok(env.get_binding_value(agent, referenced_name, reference.strict, gc)?)
         }
         Base::Unresolvable => {
             // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
@@ -230,6 +226,127 @@ pub(crate) fn get_value(
                 referenced_name.as_display(agent)
             );
             Err(agent.throw_exception(ExceptionType::ReferenceError, error_message, gc.nogc()))
+        }
+    }
+}
+
+/// ### [6.2.5.5 GetValue ( V )](https://tc39.es/ecma262/#sec-getvalue)
+/// The abstract operation GetValue takes argument V (a Reference Record or an
+/// ECMAScript language value) and returns either a normal completion
+/// containing an ECMAScript language value or an abrupt completion.
+pub(crate) fn try_get_value<'gc>(
+    agent: &mut Agent,
+    reference: &Reference,
+    gc: NoGcScope<'gc, '_>,
+) -> TryResult<JsResult<Value<'gc>>> {
+    let referenced_name = reference.referenced_name.bind(gc);
+    match reference.base {
+        Base::Value(value) => {
+            // 3. If IsPropertyReference(V) is true, then
+            // a. Let baseObj be ? ToObject(V.[[Base]]).
+
+            // NOTE
+            // The object that may be created in step 3.a is not
+            // accessible outside of the above abstract operation
+            // and the ordinary object [[Get]] internal method. An
+            // implementation might choose to avoid the actual
+            // creation of the object.
+            if let Ok(object) = Object::try_from(value) {
+                // c. Return ? baseObj.[[Get]](V.[[ReferencedName]], GetThisValue(V)).
+                TryResult::Continue(Ok(object.try_get(
+                    agent,
+                    referenced_name.unbind(),
+                    get_this_value(reference),
+                    gc,
+                )?))
+            } else {
+                // Primitive value. annoying stuff.
+                match value {
+                    Value::Undefined => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of undefined.",
+                            referenced_name.as_display(agent)
+                        );
+                        TryResult::Continue(Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc,
+                        )))
+                    }
+                    Value::Null => {
+                        let error_message = format!(
+                            "Cannot read property '{}' of null.",
+                            referenced_name.as_display(agent)
+                        );
+                        TryResult::Continue(Err(agent.throw_exception(
+                            ExceptionType::TypeError,
+                            error_message,
+                            gc,
+                        )))
+                    }
+                    Value::Boolean(_) => TryResult::Continue(Ok(agent
+                        .current_realm()
+                        .intrinsics()
+                        .boolean_prototype()
+                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
+                    Value::String(_) | Value::SmallString(_) => {
+                        let string = String::try_from(value).unwrap();
+                        if let Some(prop_desc) =
+                            string.get_property_descriptor(agent, referenced_name)
+                        {
+                            TryResult::Continue(Ok(prop_desc.value.unwrap()))
+                        } else {
+                            TryResult::Continue(Ok(agent
+                                .current_realm()
+                                .intrinsics()
+                                .string_prototype()
+                                .try_get(agent, referenced_name.unbind(), value, gc)?))
+                        }
+                    }
+                    Value::Symbol(_) => TryResult::Continue(Ok(agent
+                        .current_realm()
+                        .intrinsics()
+                        .symbol_prototype()
+                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
+                    Value::Number(_) | Value::Integer(_) | Value::SmallF64(_) => {
+                        TryResult::Continue(Ok(agent
+                            .current_realm()
+                            .intrinsics()
+                            .number_prototype()
+                            .try_get(agent, referenced_name.unbind(), value, gc)?))
+                    }
+                    Value::BigInt(_) | Value::SmallBigInt(_) => TryResult::Continue(Ok(agent
+                        .current_realm()
+                        .intrinsics()
+                        .big_int_prototype()
+                        .try_get(agent, referenced_name.unbind(), value, gc)?)),
+                    _ => unreachable!(),
+                }
+            }
+        }
+        Base::Environment(env) => {
+            // 4. Else,
+            // a. Let base be V.[[Base]].
+            // b. Assert: base is an Environment Record.
+            // c. Return ? base.GetBindingValue(V.[[ReferencedName]], V.[[Strict]]) (see 9.1).
+            let referenced_name = match &reference.referenced_name {
+                PropertyKey::String(data) => String::String(*data),
+                PropertyKey::SmallString(data) => String::SmallString(*data),
+                _ => unreachable!(),
+            };
+            env.try_get_binding_value(agent, referenced_name, reference.strict, gc)
+        }
+        Base::Unresolvable => {
+            // 2. If IsUnresolvableReference(V) is true, throw a ReferenceError exception.
+            let error_message = format!(
+                "Cannot access undeclared variable '{}'.",
+                referenced_name.as_display(agent)
+            );
+            TryResult::Continue(Err(agent.throw_exception(
+                ExceptionType::ReferenceError,
+                error_message,
+                gc,
+            )))
         }
     }
 }
@@ -471,7 +588,7 @@ pub(crate) fn try_initialize_referenced_binding<'a>(
 /// ### {6.2.5.7 GetThisValue ( V )}(https://tc39.es/ecma262/#sec-getthisvalue)
 /// The abstract operation GetThisValue takes argument V (a Reference Record)
 /// and returns an ECMAScript language value.
-pub(crate) fn get_this_value(reference: &Reference) -> Value {
+pub(crate) fn get_this_value<'a>(reference: &Reference<'a>) -> Value<'a> {
     // 1. Assert: IsPropertyReference(V) is true.
     debug_assert!(is_property_reference(reference));
     // 2. If IsSuperReference(V) is true, return V.[[ThisValue]]; otherwise return V.[[Base]].
@@ -483,11 +600,26 @@ pub(crate) fn get_this_value(reference: &Reference) -> Value {
         })
 }
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum Base {
-    Value(Value),
+#[derive(Debug, PartialEq, Clone)]
+pub(crate) enum Base<'a> {
+    Value(Value<'a>),
     Environment(EnvironmentIndex),
     Unresolvable,
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Base<'_> {
+    type Of<'a> = Base<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
 }
 
 impl HeapMarkAndSweep for Reference<'static> {
@@ -516,7 +648,7 @@ impl HeapMarkAndSweep for Reference<'static> {
     }
 }
 
-impl HeapMarkAndSweep for Base {
+impl HeapMarkAndSweep for Base<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         match self {
             Base::Value(value) => value.mark_values(queues),

@@ -6,11 +6,11 @@ use crate::{
     ecmascript::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
+            ArgumentsList, Behaviour, Builtin,
             primitive_objects::{PrimitiveObjectData, PrimitiveObjectHeapData},
-            ArgumentsList, Builtin,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{String, Value, BUILTIN_STRING_MEMORY},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, String, Value},
     },
     engine::context::{GcScope, NoGcScope},
 };
@@ -23,8 +23,7 @@ impl Builtin for BooleanPrototypeToString {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BooleanPrototype::to_string);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BooleanPrototype::to_string);
 }
 
 struct BooleanPrototypeValueOf;
@@ -33,17 +32,16 @@ impl Builtin for BooleanPrototypeValueOf {
 
     const LENGTH: u8 = 0;
 
-    const BEHAVIOUR: crate::ecmascript::builtins::Behaviour =
-        crate::ecmascript::builtins::Behaviour::Regular(BooleanPrototype::value_of);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(BooleanPrototype::value_of);
 }
 
 impl BooleanPrototype {
-    fn to_string(
+    fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let b = this_boolean_value(agent, this_value, gc.nogc())?;
         if b {
             Ok(BUILTIN_STRING_MEMORY.r#true.into())
@@ -52,12 +50,12 @@ impl BooleanPrototype {
         }
     }
 
-    fn value_of(
+    fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         this_boolean_value(agent, this_value, gc.nogc()).map(|result| result.into())
     }
 

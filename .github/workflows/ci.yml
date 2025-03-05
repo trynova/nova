@@ -12,6 +12,32 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly-2024-11-28
+          components: rustfmt, clippy, llvm-tools-preview, rustc-dev
+      - name: Install Dylint
+        run: cargo install cargo-dylint dylint-link
+      - name: Spell check
+        uses: crate-ci/typos@master
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Clippy
+        run: |
+          cargo +stable clippy --all-targets -- -D warnings
+          cargo +nightly-2024-11-28 clippy --all-targets --all-features -- -D warnings
+      - name: Dylint tests
+        working-directory: nova_lint
+        run: cargo test
+      - name: Dylint
+        run: cargo dylint --all
+
   build:
     name: Build
     # TODO: Run CI on all three platforms.
@@ -20,16 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust toolchain
-        run: rustup update stable
-      - name: Check formatting
-        run: cargo fmt --check
-      - name: Clippy
-        run: >
-          cargo clippy --all-targets
-          --features default,annex-b,interleaved-gc,typescript
-          -- -D warnings
-      - name: Spell check
-        uses: crate-ci/typos@master
+        uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build
       - name: Test

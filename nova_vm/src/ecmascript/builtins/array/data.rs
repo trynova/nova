@@ -5,9 +5,9 @@
 use crate::{
     ecmascript::types::{OrdinaryObject, Value},
     heap::{
+        CompactionLists, HeapMarkAndSweep, WorkQueues,
         element_array::{ElementArrayKey, ElementArrays, ElementDescriptor, ElementsVector},
         indexes::ElementIndex,
-        CompactionLists, HeapMarkAndSweep, WorkQueues,
     },
 };
 

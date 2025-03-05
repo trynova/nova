@@ -5,7 +5,8 @@
 use super::Object;
 use crate::{
     ecmascript::{execution::Agent, types::Value},
-    heap::{element_array::ElementsVector, CompactionLists, HeapMarkAndSweep, WorkQueues},
+    engine::context::Bindable,
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues, element_array::ElementsVector},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -27,7 +28,7 @@ impl ObjectHeapData {
             None
         } else {
             // TODO: Throw error.
-            Some(Object::try_from(prototype).unwrap())
+            Some(Object::try_from(prototype.unbind()).unwrap())
         };
         Self {
             extensible,

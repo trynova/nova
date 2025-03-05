@@ -5,10 +5,10 @@
 use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
 use crate::{
     ecmascript::{
-        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
+        scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
         types::*,
     },
-    engine::context::NoGcScope,
+    engine::context::{Bindable, NoGcScope},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 

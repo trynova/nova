@@ -453,7 +453,7 @@ impl Instruction {
     }
 
     pub fn as_u8(self) -> u8 {
-        unsafe { std::mem::transmute::<Self, u8>(self) }
+        unsafe { core::mem::transmute::<Self, u8>(self) }
     }
 }
 
@@ -591,7 +591,7 @@ fn debug_print_constant(
     index: usize,
     gc: NoGcScope,
 ) -> std::string::String {
-    let constant = exe.fetch_constant(agent, index);
+    let constant = exe.fetch_constant(agent, index, gc);
     if let Ok(string_constant) = String::try_from(constant) {
         format!("\"{}\"", string_constant.as_str(agent))
     } else {
@@ -710,7 +710,7 @@ impl Iterator for InstructionIter<'_> {
         }
         let index = self.index;
 
-        let kind: Instruction = unsafe { std::mem::transmute(self.instructions[self.index]) };
+        let kind: Instruction = unsafe { core::mem::transmute(self.instructions[self.index]) };
         self.index += 1;
 
         let mut args: [Option<IndexType>; 2] = [None, None];
@@ -719,7 +719,7 @@ impl Iterator for InstructionIter<'_> {
             let length = self.instructions[self.index..].len();
             if length >= 2 {
                 let bytes = IndexType::from_ne_bytes(unsafe {
-                    *std::mem::transmute::<*const u8, *const [u8; 2]>(
+                    *core::mem::transmute::<*const u8, *const [u8; 2]>(
                         self.instructions[self.index..].as_ptr(),
                     )
                 });

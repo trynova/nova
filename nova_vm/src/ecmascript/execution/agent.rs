@@ -18,9 +18,9 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
-use std::{any::Any, cell::RefCell, ptr::NonNull};
+use core::{any::Any, cell::RefCell, ptr::NonNull};
 
 #[derive(Debug, Default)]
 pub struct Options {
@@ -28,23 +28,38 @@ pub struct Options {
     pub print_internals: bool,
 }
 
-pub type JsResult<T> = std::result::Result<T, JsError>;
+pub type JsResult<T> = core::result::Result<T, JsError>;
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(transparent)]
-pub struct JsError(Value);
+pub struct JsError(Value<'static>);
 
 impl JsError {
-    pub(crate) fn new(value: Value) -> Self {
+    pub(crate) fn new(value: Value<'static>) -> Self {
         Self(value)
     }
 
-    pub fn value(self) -> Value {
+    pub fn value(self) -> Value<'static> {
         self.0
     }
 
     pub fn to_string<'gc>(self, agent: &mut Agent, gc: GcScope<'gc, '_>) -> String<'gc> {
         to_string(agent, self.0, gc).unwrap()
+    }
+}
+
+// SAFETY: Property implemented as a recursive bind.
+unsafe impl Bindable for JsError {
+    type Of<'a> = JsError;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        self
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        self
     }
 }
 
@@ -108,7 +123,7 @@ pub enum PromiseRejectionTrackerOperation {
     Handle,
 }
 
-pub trait HostHooks: std::fmt::Debug {
+pub trait HostHooks: core::fmt::Debug {
     /// ### [19.2.1.2 HostEnsureCanCompileStrings ( calleeRealm )](https://tc39.es/ecma262/#sec-hostensurecancompilestrings)
     fn host_ensure_can_compile_strings(&self, _callee_realm: &mut Realm) -> JsResult<()> {
         // The default implementation of HostEnsureCanCompileStrings is to return NormalCompletion(unused).

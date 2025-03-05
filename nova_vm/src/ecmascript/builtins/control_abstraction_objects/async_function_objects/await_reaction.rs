@@ -2,15 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
+use core::{
     marker::PhantomData,
     ops::{Index, IndexMut},
 };
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builtins::{
+            ECMAScriptFunction,
             control_abstraction_objects::promise_objects::{
                 promise_abstract_operations::{
                     promise_capability_records::PromiseCapability,
@@ -19,7 +20,6 @@ use crate::{
                 promise_prototype::inner_promise_then,
             },
             promise::Promise,
-            ECMAScriptFunction,
         },
         execution::{Agent, ExecutionContext},
         types::Value,
@@ -61,6 +61,7 @@ impl AwaitReactionIdentifier {
         value: Value,
         mut gc: GcScope,
     ) {
+        let value = value.bind(gc.nogc());
         // [27.7.5.3 Await ( value )](https://tc39.es/ecma262/#await)
         // 3. c. Push asyncContext onto the execution context stack; asyncContext is now the running execution context.
         let execution_context = agent[self].execution_context.take().unwrap();
@@ -74,13 +75,13 @@ impl AwaitReactionIdentifier {
             PromiseReactionType::Fulfill => vm.resume(
                 agent,
                 async_function.get_executable(agent),
-                value,
+                value.unbind(),
                 gc.reborrow(),
             ),
             PromiseReactionType::Reject => vm.resume_throw(
                 agent,
                 async_function.get_executable(agent),
-                value,
+                value.unbind(),
                 gc.reborrow(),
             ),
         };
@@ -96,7 +97,7 @@ impl AwaitReactionIdentifier {
                 //       i. Perform ! Call(promiseCapability.[[Resolve]], undefined, « result.[[Value]] »).
                 agent[self]
                     .return_promise_capability
-                    .resolve(agent, result, gc);
+                    .resolve(agent, result.unbind(), gc);
             }
             ExecutionResult::Throw(err) => {
                 // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
@@ -118,7 +119,7 @@ impl AwaitReactionIdentifier {
                 // which resume execution of the function.
                 let handler = PromiseReactionHandler::Await(self);
                 // 2. Let promise be ? PromiseResolve(%Promise%, value).
-                let promise = Promise::resolve(agent, awaited_value, gc.reborrow())
+                let promise = Promise::resolve(agent, awaited_value.unbind(), gc.reborrow())
                     .unbind()
                     .bind(gc.nogc());
                 // 7. Perform PerformPromiseThen(promise, onFulfilled, onRejected).

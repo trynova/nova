@@ -8,7 +8,7 @@ use crate::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsicConstructor},
         execution::{Agent, JsResult, RealmIdentifier},
-        types::{IntoObject, Object, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, IntoObject, Object, String, Value},
     },
     heap::IntrinsicConstructorIndexes,
 };
@@ -26,13 +26,13 @@ impl BuiltinIntrinsicConstructor for WeakSetConstructor {
 }
 
 impl WeakSetConstructor {
-    fn constructor(
+    fn constructor<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _arguments: ArgumentsList,
         _new_target: Option<Object>,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 

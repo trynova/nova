@@ -9,12 +9,16 @@ use crate::{
             testing_and_comparison::is_constructor,
         },
         builtins::{
-            ordinary::ordinary_create_from_constructor, ArgumentsList, BuiltinConstructorFunction,
+            ArgumentsList, BuiltinConstructorFunction, ordinary::ordinary_create_from_constructor,
         },
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{Function, InternalMethods, Object},
     },
-    engine::{context::GcScope, unwrap_try},
+    engine::{
+        context::{Bindable, GcScope},
+        rootable::Scopable,
+        unwrap_try,
+    },
 };
 
 pub(crate) fn base_class_default_constructor<'a>(

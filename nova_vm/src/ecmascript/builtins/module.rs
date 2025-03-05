@@ -2,16 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::HeapRootData;
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{TryResult, unwrap_try};
 use crate::{
     ecmascript::{
         abstract_operations::testing_and_comparison::same_value,
         builtins::ordinary::ordinary_get_own_property,
-        execution::{agent::ExceptionType, Agent, JsResult},
+        execution::{Agent, JsResult, agent::ExceptionType},
         scripts_and_modules::module::ModuleIdentifier,
         types::{
             InternalMethods, InternalSlots, IntoObject, IntoValue, Object, OrdinaryObject,
@@ -45,8 +45,8 @@ impl<'a> From<ModuleIdentifier<'a>> for Module<'a> {
     }
 }
 
-impl IntoValue for Module<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for Module<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -57,15 +57,15 @@ impl<'a> IntoObject<'a> for Module<'a> {
     }
 }
 
-impl From<Module<'_>> for Value {
-    fn from(val: Module) -> Self {
-        Value::Module(val.unbind())
+impl<'a> From<Module<'a>> for Value<'a> {
+    fn from(value: Module<'a>) -> Self {
+        Value::Module(value)
     }
 }
 
 impl<'a> From<Module<'a>> for Object<'a> {
-    fn from(val: Module) -> Self {
-        Object::Module(val.unbind())
+    fn from(value: Module<'a>) -> Self {
+        Object::Module(value)
     }
 }
 
@@ -104,40 +104,27 @@ impl IndexMut<Module<'_>> for Vec<Option<ModuleHeapData>> {
 }
 
 impl Module<'_> {
-    /// Unbind this Module from its current lifetime. This is necessary to use
-    /// the Module as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Module<'static> {
-        unsafe { std::mem::transmute::<Self, Module<'static>>(self) }
-    }
-
-    // Bind this Module to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Modules cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let module = module.bind(&gc);
-    // ```
-    // to make sure that the unbound Module cannot be used after binding.
-    pub const fn bind<'gc>(self, _: NoGcScope<'gc, '_>) -> Module<'gc> {
-        unsafe { std::mem::transmute::<Self, Module<'gc>>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Module<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
     pub(crate) const fn _def() -> Self {
         Self(ModuleIdentifier::from_u32(0))
     }
 
     pub(crate) const fn get_index(self) -> usize {
         self.0.into_index()
+    }
+}
+
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Module<'_> {
+    type Of<'a> = Module<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
     }
 }
 
@@ -148,10 +135,12 @@ impl<'a> InternalSlots<'a> for Module<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, _: &mut Agent) -> OrdinaryObject<'static> {
@@ -230,7 +219,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     TryResult::Continue(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value = self.try_get(agent, property_key, self.into_value(), gc)?;
+                    let value = self
+                        .try_get(agent, property_key, self.into_value(), gc)?
+                        .unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     TryResult::Continue(Some(PropertyDescriptor {
                         value: Some(value),
@@ -273,8 +264,9 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                     Ok(None)
                 } else {
                     // 4. Let value be ? O.[[Get]](P, O).
-                    let value =
-                        self.internal_get(agent, property_key.unbind(), self.into_value(), gc)?;
+                    let value = self
+                        .internal_get(agent, property_key.unbind(), self.into_value(), gc)?
+                        .unbind();
                     // 5. Return PropertyDescriptor { [[Value]]: value, [[Writable]]: true, [[Enumerable]]: true, [[Configurable]]: false }.
                     Ok(Some(PropertyDescriptor {
                         value: Some(value),
@@ -300,7 +292,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
         match property_key {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryDefineOwnProperty(O, P, Desc).
-                TryResult::Continue(self.get_backing_object(agent).map_or(false, |object| {
+                TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
                     ordinary_define_own_property(
                         agent,
                         object,
@@ -428,7 +420,7 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             }
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, return ! OrdinaryHasProperty(O, P).
-                TryResult::Continue(self.get_backing_object(agent).map_or(false, |object| {
+                TryResult::Continue(self.get_backing_object(agent).is_some_and(|object| {
                     unwrap_try(ordinary_try_has_property(agent, object, property_key, gc))
                 }))
             }
@@ -436,13 +428,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         // NOTE: ResolveExport is side-effect free. Each time this operation
         // is called with a specific exportName, resolveSet pair as arguments
         // it must return the same result. An implementation might choose to
@@ -510,13 +502,13 @@ impl<'a> InternalMethods<'a> for Module<'a> {
     }
 
     /// ### [10.4.6.8 \[\[Get\]\] ( P, Receiver )](https://tc39.es/ecma262/#sec-module-namespace-exotic-objects-get-p-receiver)
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        mut gc: GcScope,
-    ) -> JsResult<Value> {
+        mut gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
 
         // NOTE: ResolveExport is side-effect free. Each time this operation
@@ -537,7 +529,8 @@ impl<'a> InternalMethods<'a> for Module<'a> {
                         receiver,
                         gc.reborrow(),
                     )
-                    .unwrap(),
+                    .unwrap()
+                    .unbind(),
                     None => Value::Undefined,
                 })
             }
@@ -617,9 +610,10 @@ impl<'a> InternalMethods<'a> for Module<'a> {
             PropertyKey::Symbol(_) => {
                 // 1. If P is a Symbol, then
                 // a. Return ! OrdinaryDelete(O, P).
-                TryResult::Continue(self.get_backing_object(agent).map_or(true, |object| {
-                    ordinary_delete(agent, object, property_key, gc)
-                }))
+                TryResult::Continue(
+                    self.get_backing_object(agent)
+                        .is_none_or(|object| ordinary_delete(agent, object, property_key, gc)),
+                )
             }
             PropertyKey::Integer(_) | PropertyKey::SmallString(_) | PropertyKey::String(_) => {
                 let p = match property_key {

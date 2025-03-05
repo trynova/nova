@@ -10,10 +10,11 @@ use crate::{
         },
         execution::{Agent, RealmIdentifier},
         types::{
-            BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, BuiltinFunctionHeapData, IntoFunction, IntoObject, IntoValue,
+            Object, ObjectHeapData, OrdinaryObject, PropertyKey, String, Value,
         },
     },
+    engine::context::Bindable,
     heap::{
         element_array::ElementDescriptor,
         indexes::{BuiltinFunctionIndex, ObjectIndex},
@@ -54,7 +55,7 @@ pub struct CreatorProperties(
     Vec<(
         PropertyKey<'static>,
         Option<ElementDescriptor>,
-        Option<Value>,
+        Option<Value<'static>>,
     )>,
 );
 
@@ -280,7 +281,7 @@ impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, NoName, B, Pr> {
     }
 }
 
-impl<'agent, P, L, B, Pr> BuiltinFunctionBuilder<'agent, P, L, CreatorName, B, Pr> {
+impl<P, L, B, Pr> BuiltinFunctionBuilder<'_, P, L, CreatorName, B, Pr> {
     pub(crate) fn get_name(&self) -> String<'static> {
         self.name.0
     }
@@ -324,7 +325,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
     pub fn with_data_property(
         self,
         key: PropertyKey<'static>,
-        value: Value,
+        value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
             self.agent.heap.objects.push(None);
@@ -339,9 +340,9 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             (
                 PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.name.0.into()),
+                Some(self.name.0.unbind().into()),
             ),
-            (key, None, Some(value)),
+            (key.unbind(), None, Some(value.unbind())),
         ];
         BuiltinFunctionBuilder {
             agent: self.agent,
@@ -364,7 +365,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName, B, CreatorProperties> {
         let object_index = Some(self.object_index.unwrap_or_else(|| {
@@ -384,7 +385,7 @@ impl<'agent, P, B> BuiltinFunctionBuilder<'agent, P, CreatorLength, CreatorName,
             (
                 PropertyKey::from(BUILTIN_STRING_MEMORY.name),
                 Some(ElementDescriptor::ReadOnlyUnenumerableConfigurableData),
-                Some(self.name.0.into()),
+                Some(self.name.0.unbind().into()),
             ),
             property,
         ];
@@ -407,9 +408,9 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     pub fn with_data_property(
         mut self,
         key: PropertyKey<'static>,
-        value: Value,
+        value: Value<'static>,
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
-        self.properties.0.push((key, None, Some(value)));
+        self.properties.0.push((key, None, Some(value.unbind())));
         BuiltinFunctionBuilder {
             agent: self.agent,
             this: self.this,
@@ -431,7 +432,7 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
         ) -> (
             PropertyKey<'static>,
             Option<ElementDescriptor>,
-            Option<Value>,
+            Option<Value<'static>>,
         ),
     ) -> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorProperties> {
         let builder = PropertyBuilder::new(self.agent);
@@ -528,9 +529,9 @@ impl<'agent, P, L, N, B> BuiltinFunctionBuilder<'agent, P, L, N, B, CreatorPrope
     }
 }
 
-impl<'agent>
+impl
     BuiltinFunctionBuilder<
-        'agent,
+        '_,
         NoPrototype,
         CreatorLength,
         CreatorName,
@@ -559,9 +560,9 @@ impl<'agent>
     }
 }
 
-impl<'agent>
+impl
     BuiltinFunctionBuilder<
-        'agent,
+        '_,
         NoPrototype,
         CreatorLength,
         CreatorName,
@@ -635,9 +636,9 @@ impl<'agent>
     }
 }
 
-impl<'agent>
+impl
     BuiltinFunctionBuilder<
-        'agent,
+        '_,
         CreatorPrototype,
         CreatorLength,
         CreatorName,

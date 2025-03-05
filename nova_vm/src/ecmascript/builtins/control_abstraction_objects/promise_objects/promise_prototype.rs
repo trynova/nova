@@ -2,23 +2,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::invoke,
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            promise::{
-                data::{PromiseReactions, PromiseState},
-                Promise,
-            },
             ArgumentsList, Behaviour, Builtin,
+            promise::{
+                Promise,
+                data::{PromiseReactions, PromiseState},
+            },
         },
         execution::{
-            agent::{ExceptionType, PromiseRejectionTrackerOperation},
             Agent, JsResult, RealmIdentifier,
+            agent::{ExceptionType, PromiseRejectionTrackerOperation},
         },
-        types::{Function, IntoValue, String, Value, BUILTIN_STRING_MEMORY},
+        types::{BUILTIN_STRING_MEMORY, Function, IntoValue, String, Value},
     },
     heap::{CreateHeapData, WellKnownSymbolIndexes},
 };
@@ -53,17 +53,17 @@ impl Builtin for PromisePrototypeThen {
 }
 
 impl PromisePrototype {
-    fn catch(
+    fn catch<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let promise be the this value.
         // 2. Return ? Invoke(promise, "then", « undefined, onRejected »).
         // TODO: Add a fast path that calls `perform_promise_then` if we know
         // `this.then` is this realm's creation-time `Promise.prototype.then`.
-        let on_rejected = args.get(0);
+        let on_rejected = args.get(0).unbind();
         invoke(
             agent,
             this_value,
@@ -73,21 +73,21 @@ impl PromisePrototype {
         )
     }
 
-    fn finally(
+    fn finally<'gc>(
         _agent: &mut Agent,
         _this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope,
-    ) -> JsResult<Value> {
+        _gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         todo!()
     }
 
-    fn then(
+    fn then<'gc>(
         agent: &mut Agent,
         this_value: Value,
         args: ArgumentsList,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
@@ -154,7 +154,7 @@ pub(crate) fn perform_promise_then(
     // TODO: Add the HostMakeJobCallback host hook. Leaving it for later, since in implementations
     // other than browsers, [[HostDefined]] must be EMPTY.
     let on_fulfilled_job_callback = match Function::try_from(on_fulfilled) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
         Err(_) => PromiseReactionHandler::Empty,
     };
     // 5. If IsCallable(onRejected) is false, then
@@ -162,7 +162,7 @@ pub(crate) fn perform_promise_then(
     // 6. Else,
     //     a. Let onRejectedJobCallback be HostMakeJobCallback(onRejected).
     let on_rejected_job_callback = match Function::try_from(on_rejected) {
-        Ok(callback) => PromiseReactionHandler::JobCallback(callback),
+        Ok(callback) => PromiseReactionHandler::JobCallback(callback.unbind()),
         Err(_) => PromiseReactionHandler::Empty,
     };
 

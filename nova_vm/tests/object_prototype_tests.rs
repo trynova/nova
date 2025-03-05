@@ -6,8 +6,8 @@ use std::{fs, path::PathBuf};
 
 use nova_vm::ecmascript::{
     execution::{
-        agent::{GcAgent, Options},
         DefaultHostHooks,
+        agent::{GcAgent, Options},
     },
     scripts_and_modules::script::{parse_script, script_evaluation},
     types::String,
@@ -31,12 +31,12 @@ fn object_prototype_tests() {
         let realm = agent.current_realm_id();
         let source_text = String::from_string(agent, contents, gc.nogc());
         let script = parse_script(agent, source_text, realm, false, None, gc.nogc()).unwrap();
-        let _ = script_evaluation(agent, script, gc.reborrow()).unwrap_or_else(|err| {
+        if let Err(err) = script_evaluation(agent, script, gc.reborrow()) {
             panic!(
                 "Test '{}' failed: {:?}",
                 d.display(),
                 err.to_string(agent, gc).as_str(agent)
             )
-        });
+        }
     });
 }

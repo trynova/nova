@@ -2,8 +2,8 @@
 
 ## :warning: This project is a Work In Progress, and is very far from being suitable for use :warning:
 
-Nova is a [JavaScript](https://tc39.es/ecma262) and
-[WebAssembly](https://webassembly.org) engine written in Rust.
+Nova is a [JavaScript](https://tc39.es/ecma262) (and eventually
+[WebAssembly](https://webassembly.org)) engine written in Rust.
 
 The engine is exposed as a library with an API for implementation in Rust
 projects which themselves must serve as a runtime for JavaScript code. The
@@ -12,9 +12,24 @@ execution model is currently greatly inspired by
 [SerenityOS's LibJS](https://github.com/SerenityOS/serenity). See the code for
 more details.
 
+The project's website can be found at [trynova.dev](https://trynova.dev/), where
+we blog about the project's progress, and where we track our Test262 pass rate.
 The core of our team is on our [Discord server](https://discord.gg/bwY4TRB8J7).
 
 ## Talks
+
+### [Abusing reborrowing for fun, profit, and a safepoint garbage collector @ FOSDEM 2025](https://fosdem.org/2025/schedule/event/fosdem-2025-4394-abusing-reborrowing-for-fun-profit-and-a-safepoint-garbage-collector/)
+
+Slides:
+[PDF](https://fosdem.org/2025/events/attachments/fosdem-2025-4394-abusing-reborrowing-for-fun-profit-and-a-safepoint-garbage-collector/slides/237982/Abusing_r_4Y4h70i.pdf)
+
+Repository: [GitHub](https://github.com/aapoalas/abusing-reborrowing)
+
+Presented at FOSDEM, 2025. Focuses on the technical challenges and solutions
+that lead to Nova's safepoint garbage collector design. The final design mildly
+abuses Rust's "reborrowing" functionality to make the borrow checker not only
+understand Nova's garbage collector but cooperate with making sure it is used in
+the correct way.
 
 ### [Nova Engine - Building a DOD JS Engine in Rust @ Finland Rust-lang meetup 1/2024](https://www.youtube.com/watch?v=WKGo1k47eYQ)
 
@@ -42,27 +57,27 @@ TC39 slides:
 
 ## [Architecture](./ARCHITECTURE.md)
 
-The architecture of the engine follows the ECMAScript specification in spirit,
-but uses data-oriented design for the actual implementation. Records that are
-present in the specification are likely present in the Nova engine as well and
-they're likely found in an "equivalent" file / folder path as the specification
-defines them in.
+The architecture and structure of the engine follows the ECMAScript
+specification in spirit, but uses data-oriented design for the actual
+implementation. Records that are present in the specification are generally
+found as a `struct` in Nova in an "equivalent" file / folder path as the
+specification defines them in. But instead of referring to these records by
+pointer or reference, the engine usually calls these structs the "RecordData" or
+"RecordHeapData", and defines a separate "index" type which takes the "Record"
+name and only contains a 32-bit unsigned integer. The heap data struct is stored
+inside the engine heap in a vector of these heap data structs, and the index
+type stores the correct vector index for the value. Polymorphic index types,
+such as the main JavaScript Value, are represented as tagged enums over the
+index types.
 
-Where the engine differs from the specification is that most ECMAScript types
-and specification Record types are defined "twice": They have one "heap data"
-definition, and another "index" definition. The heap data definition generally
-corresponds to the specification's definition, in some degree at least. The
-index definition is either a wrapper around `u32` or a `NonZeroU32`. Most spec
-defined methods are defined on the index definitions (this avoids issues with
-borrowing).
-
-The only case when direct "Record type A contains Record type B" ownership is
-used is when there can be only one referrer to the Record type B.
+In general, all specification abstract operations are then written to operate on
+the index types instead of operating on the heap structs themselves. This avoids
+issues with re-entrancy, pointer aliasing, and others.
 
 ### Heap structure - Data-oriented design
 
-Reading the above, you might be wondering why the double-definitions and all
-that. The ultimate reason is two-fold:
+Reading the above, you might be wondering why the split into index and heap data
+structs is done. The ultimate reason is two-fold:
 
 1. It is an interesting design.
 2. It helps the computer make frequently used things fast while allowing the

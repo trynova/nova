@@ -4,18 +4,19 @@
 
 use crate::{
     ecmascript::types::{
-        bigint::HeapBigInt, HeapNumber, HeapPrimitive, HeapString, OrdinaryObject, Value,
-        BIGINT_DISCRIMINANT, NUMBER_DISCRIMINANT, STRING_DISCRIMINANT,
+        BIGINT_DISCRIMINANT, HeapNumber, HeapPrimitive, HeapString, NUMBER_DISCRIMINANT,
+        OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
     },
+    engine::context::Bindable,
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
 use ahash::AHasher;
-use hashbrown::{hash_table::Entry, HashTable};
-use std::{
+use core::{
     cell::RefCell,
     hash::{Hash, Hasher},
     sync::atomic::{AtomicBool, Ordering},
 };
+use hashbrown::{HashTable, hash_table::Entry};
 
 #[derive(Debug, Default)]
 pub struct WeakMapHeapData {
@@ -27,8 +28,8 @@ pub struct WeakMapHeapData {
 pub(crate) struct WeakMapData {
     // TODO: Use a ParallelVec to remove one unnecessary allocation.
     // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    pub(crate) keys: Vec<Option<Value>>,
-    pub(crate) values: Vec<Option<Value>>,
+    pub(crate) keys: Vec<Option<Value<'static>>>,
+    pub(crate) values: Vec<Option<Value<'static>>>,
     /// Low-level hash table pointing to keys-values indexes.
     pub(crate) weak_map_data: RefCell<HashTable<u32>>,
     pub(crate) needs_primitive_rehashing: AtomicBool,
@@ -92,7 +93,7 @@ fn rehash_map_data(
 ) {
     let hasher = |value: Value| {
         let mut hasher = AHasher::default();
-        value.hash(arena, &mut hasher);
+        value.unbind().hash(arena, &mut hasher);
         hasher.finish()
     };
     let hashes = {

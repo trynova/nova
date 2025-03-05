@@ -4,24 +4,24 @@
 
 mod data;
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 pub(crate) use data::ErrorHeapData;
 
-use crate::engine::context::{GcScope, NoGcScope};
+use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{unwrap_try, Scoped, TryResult};
+use crate::engine::{TryResult, unwrap_try};
 use crate::{
     ecmascript::{
-        execution::{agent::ExceptionType, Agent, JsResult, ProtoIntrinsics},
+        execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            InternalMethods, InternalSlots, IntoObject, IntoValue, Object, ObjectHeapData,
-            OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value, BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, InternalMethods, InternalSlots, IntoObject, IntoValue, Object,
+            ObjectHeapData, OrdinaryObject, PropertyDescriptor, PropertyKey, String, Value,
         },
     },
     heap::{
-        indexes::ErrorIndex, CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
-        ObjectEntryPropertyDescriptor, WorkQueues,
+        CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, ObjectEntry,
+        ObjectEntryPropertyDescriptor, WorkQueues, indexes::ErrorIndex,
     },
 };
 
@@ -29,35 +29,7 @@ use crate::{
 #[repr(transparent)]
 pub struct Error<'a>(pub(crate) ErrorIndex<'a>);
 
-impl<'a> Error<'a> {
-    /// Unbind this Error from its current lifetime. This is necessary to use
-    /// the Error as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> Error<'static> {
-        unsafe { std::mem::transmute::<Error<'a>, Error<'static>>(self) }
-    }
-
-    // Bind this Error to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your Errors cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let error = error.bind(&gc);
-    // ```
-    // to make sure that the unbound Error cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<Error, Self>(self) }
-    }
-
-    pub fn scope<'scope>(
-        self,
-        agent: &mut Agent,
-        gc: NoGcScope<'_, 'scope>,
-    ) -> Scoped<'scope, Error<'static>> {
-        Scoped::new(agent, self.unbind(), gc)
-    }
-
+impl Error<'_> {
     pub(crate) const fn _def() -> Self {
         Self(ErrorIndex::from_u32_index(0))
     }
@@ -67,15 +39,30 @@ impl<'a> Error<'a> {
     }
 }
 
-impl IntoValue for Error<'_> {
-    fn into_value(self) -> Value {
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for Error<'_> {
+    type Of<'a> = Error<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
+impl<'a> IntoValue<'a> for Error<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
 
-impl From<Error<'_>> for Value {
-    fn from(value: Error) -> Self {
-        Value::Error(value.unbind())
+impl<'a> From<Error<'a>> for Value<'a> {
+    fn from(value: Error<'a>) -> Self {
+        Value::Error(value)
     }
 }
 
@@ -91,10 +78,10 @@ impl<'a> From<Error<'a>> for Object<'a> {
     }
 }
 
-impl TryFrom<Value> for Error<'_> {
+impl<'a> TryFrom<Value<'a>> for Error<'a> {
     type Error = ();
 
-    fn try_from(value: Value) -> Result<Self, ()> {
+    fn try_from(value: Value<'a>) -> Result<Self, ()> {
         match value {
             Value::Error(idx) => Ok(idx),
             _ => Err(()),
@@ -122,10 +109,12 @@ impl<'a> InternalSlots<'a> for Error<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(
+            agent[self]
+                .object_index
+                .replace(backing_object.unbind())
+                .is_none()
+        );
     }
 
     fn create_backing_object(self, agent: &mut Agent) -> OrdinaryObject<'static> {
@@ -268,13 +257,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn try_get(
+    fn try_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: NoGcScope,
-    ) -> TryResult<Value> {
+        gc: NoGcScope<'gc, '_>,
+    ) -> TryResult<Value<'gc>> {
         match self.get_backing_object(agent) {
             Some(backing_object) => backing_object.try_get(agent, property_key, receiver, gc),
             None => {
@@ -298,13 +287,13 @@ impl<'a> InternalMethods<'a> for Error<'a> {
         }
     }
 
-    fn internal_get(
+    fn internal_get<'gc>(
         self,
         agent: &mut Agent,
         property_key: PropertyKey,
         receiver: Value,
-        gc: GcScope,
-    ) -> JsResult<Value> {
+        gc: GcScope<'gc, '_>,
+    ) -> JsResult<Value<'gc>> {
         let property_key = property_key.bind(gc.nogc());
         match self.get_backing_object(agent) {
             Some(backing_object) => {
@@ -352,10 +341,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
                     && value.is_string()
                 {
-                    agent[self].message = Some(String::try_from(value).unwrap());
+                    agent[self].message = Some(String::try_from(value.unbind()).unwrap());
                     TryResult::Continue(true)
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = Some(value);
+                    agent[self].cause = Some(value.unbind());
                     TryResult::Continue(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);
@@ -382,10 +371,10 @@ impl<'a> InternalMethods<'a> for Error<'a> {
                 if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.message)
                     && value.is_string()
                 {
-                    agent[self].message = Some(String::try_from(value).unwrap());
+                    agent[self].message = Some(String::try_from(value.unbind()).unwrap());
                     Ok(true)
                 } else if property_key == PropertyKey::from(BUILTIN_STRING_MEMORY.cause) {
-                    agent[self].cause = Some(value);
+                    agent[self].cause = Some(value.unbind());
                     Ok(true)
                 } else {
                     let backing_object = self.create_backing_object(agent);

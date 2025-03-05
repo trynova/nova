@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use clap::{builder::ArgPredicate, Args, Parser as ClapParser, Subcommand};
+use clap::{Args, Parser as ClapParser, Subcommand, builder::ArgPredicate};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -10,10 +10,10 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     ffi::OsStr,
-    fs::{read_dir, File},
+    fs::{File, read_dir},
     io::{ErrorKind, Read, Write},
     num::NonZeroUsize,
-    path::{absolute, PathBuf},
+    path::{PathBuf, absolute},
     process::{Command, Stdio},
     time::Duration,
 };
@@ -185,6 +185,7 @@ impl BaseTest262Runner {
 
             let mut command = Command::new(&self.nova_cli_path);
             command.arg("eval");
+            command.arg("--expose-internals");
             if !strict {
                 command.arg("--no-strict");
             }
@@ -562,7 +563,7 @@ mod test_metadata {
             impl<'de> serde::de::Visitor<'de> for Visitor {
                 type Value = Flags;
 
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
                     formatter.write_str("a sequence")
                 }
 

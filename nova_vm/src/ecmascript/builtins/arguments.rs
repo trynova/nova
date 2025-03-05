@@ -26,17 +26,17 @@
 //!
 //! ECMAScript implementations of arguments exotic objects have historically contained an accessor property named "caller". Prior to ECMAScript 2017, this specification included the definition of a throwing "caller" property on ordinary arguments objects. Since implementations do not contain this extension any longer, ECMAScript 2017 dropped the requirement for a throwing "caller" accessor.
 
-use crate::engine::context::NoGcScope;
+use crate::engine::context::{Bindable, NoGcScope};
 use crate::engine::unwrap_try;
 use crate::{
     ecmascript::{
         abstract_operations::operations_on_objects::{
             try_create_data_property_or_throw, try_define_property_or_throw,
         },
-        execution::{agent::Agent, ProtoIntrinsics},
+        execution::{ProtoIntrinsics, agent::Agent},
         types::{
-            IntoFunction, IntoValue, Number, Object, PropertyDescriptor, PropertyKey, Value,
-            BUILTIN_STRING_MEMORY,
+            BUILTIN_STRING_MEMORY, IntoFunction, IntoValue, Number, Object, PropertyDescriptor,
+            PropertyKey, Value,
         },
     },
     heap::WellKnownSymbolIndexes,
@@ -129,7 +129,9 @@ pub(crate) fn create_unmapped_arguments_object<'a>(
 ) -> Object<'a> {
     // 1. Let len be the number of elements in argumentsList.
     let len = arguments_list.len();
-    let len = Number::from_f64(agent, len as f64, gc).into_value();
+    let len = Number::from_f64(agent, len as f64, gc)
+        .into_value()
+        .unbind();
     // 2. Let obj be OrdinaryObjectCreate(%Object.prototype%, « [[ParameterMap]] »).
     let obj =
         ordinary_object_create_with_intrinsics(agent, Some(ProtoIntrinsics::Object), None, gc);

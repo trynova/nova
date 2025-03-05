@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::ops::{Index, IndexMut};
+use core::ops::{Index, IndexMut};
 
 use crate::{
     ecmascript::{
@@ -12,21 +12,21 @@ use crate::{
         },
     },
     engine::{
-        context::NoGcScope,
-        rootable::{HeapRootData, HeapRootRef, Rootable},
         Scoped,
+        context::{Bindable, NoGcScope},
+        rootable::{HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
-        indexes::{DataViewIndex, IntoBaseIndex},
         CreateHeapData, Heap, HeapMarkAndSweep,
+        indexes::{DataViewIndex, IntoBaseIndex},
     },
 };
 
 use self::data::DataViewHeapData;
 
 use super::{
-    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
     ArrayBuffer,
+    array_buffer::{ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset},
 };
 
 pub(crate) mod abstract_operations;
@@ -37,26 +37,6 @@ pub mod data;
 pub struct DataView<'a>(pub(crate) DataViewIndex<'a>);
 
 impl<'a> DataView<'a> {
-    /// Unbind this DataView from its current lifetime. This is necessary to use
-    /// the DataView as a parameter in a call that can perform garbage
-    /// collection.
-    pub fn unbind(self) -> DataView<'static> {
-        unsafe { std::mem::transmute::<DataView<'a>, DataView<'static>>(self) }
-    }
-
-    // Bind this DataView to the garbage collection lifetime. This enables Rust's
-    // borrow checker to verify that your DataViews cannot not be invalidated by
-    // garbage collection being performed.
-    //
-    // This function is best called with the form
-    // ```rs
-    // let array_buffer = array_buffer.bind(&gc);
-    // ```
-    // to make sure that the unbound DataView cannot be used after binding.
-    pub const fn bind(self, _: NoGcScope<'a, '_>) -> Self {
-        unsafe { std::mem::transmute::<DataView, Self>(self) }
-    }
-
     pub fn scope<'scope>(
         self,
         agent: &mut Agent,
@@ -101,6 +81,21 @@ impl<'a> DataView<'a> {
     }
 }
 
+// SAFETY: Property implemented as a lifetime transmute.
+unsafe impl Bindable for DataView<'_> {
+    type Of<'a> = DataView<'a>;
+
+    #[inline(always)]
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'static>>(self) }
+    }
+
+    #[inline(always)]
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe { core::mem::transmute::<Self, Self::Of<'a>>(self) }
+    }
+}
+
 impl<'a> From<DataViewIndex<'a>> for DataView<'a> {
     fn from(value: DataViewIndex<'a>) -> Self {
         Self(value)
@@ -113,8 +108,8 @@ impl<'a> IntoBaseIndex<'a, DataViewHeapData> for DataView<'a> {
     }
 }
 
-impl IntoValue for DataView<'_> {
-    fn into_value(self) -> Value {
+impl<'a> IntoValue<'a> for DataView<'a> {
+    fn into_value(self) -> Value<'a> {
         self.into()
     }
 }
@@ -125,15 +120,15 @@ impl<'a> IntoObject<'a> for DataView<'a> {
     }
 }
 
-impl From<DataView<'_>> for Value {
-    fn from(val: DataView) -> Self {
-        Value::DataView(val.unbind())
+impl<'a> From<DataView<'a>> for Value<'a> {
+    fn from(value: DataView<'a>) -> Self {
+        Value::DataView(value)
     }
 }
 
 impl<'a> From<DataView<'a>> for Object<'a> {
-    fn from(val: DataView) -> Self {
-        Object::DataView(val.unbind())
+    fn from(value: DataView<'a>) -> Self {
+        Object::DataView(value)
     }
 }
 
@@ -191,10 +186,7 @@ impl<'a> InternalSlots<'a> for DataView<'a> {
     }
 
     fn set_backing_object(self, agent: &mut Agent, backing_object: OrdinaryObject<'static>) {
-        assert!(agent[self]
-            .object_index
-            .replace(backing_object.unbind())
-            .is_none());
+        assert!(agent[self].object_index.replace(backing_object).is_none());
     }
 }
 
