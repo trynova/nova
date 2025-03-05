@@ -1,59 +1,36 @@
-// This Source Code Form is subject to the terms of the Mozilla Public
-// License, v. 2.0. If a copy of the MPL was not distributed with this
-// file, You can obtain one at https://mozilla.org/MPL/2.0/.
-
 use crate::{
-    ecmascript::types::{
-        BIGINT_DISCRIMINANT, HeapNumber, HeapPrimitive, HeapString, NUMBER_DISCRIMINANT,
-        OrdinaryObject, STRING_DISCRIMINANT, Value, bigint::HeapBigInt,
-    },
-    engine::context::Bindable,
+    ecmascript::types::{Object, Symbol, Value},
     heap::{CompactionLists, HeapMarkAndSweep, PrimitiveHeapIndexable, WorkQueues},
 };
-use ahash::AHasher;
+use ahash::AHashMap;
 use core::{
-    cell::RefCell,
-    hash::{Hash, Hasher},
+    hash::Hash,
     sync::atomic::{AtomicBool, Ordering},
 };
-use hashbrown::{HashTable, hash_table::Entry};
 
-#[derive(Debug, Default)]
-pub struct WeakMapHeapData {
-    pub(crate) object_index: Option<OrdinaryObject<'static>>,
-    weak_map_data: WeakMapData,
+#[derive(Debug, Hash, Eq, PartialEq)]
+pub(crate) enum SymbolOrObject<'a> {
+    Symbol(Symbol<'a>),
+    Object(Object<'a>),
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct WeakMapData {
-    // TODO: Use a ParallelVec to remove one unnecessary allocation.
-    // pub(crate) key_values: ParallelVec<Option<Value>, Option<Value>>
-    pub(crate) keys: Vec<Option<Value<'static>>>,
-    pub(crate) values: Vec<Option<Value<'static>>>,
-    /// Low-level hash table pointing to keys-values indexes.
-    pub(crate) weak_map_data: RefCell<HashTable<u32>>,
+    pub(crate) weak_map_data: AHashMap<SymbolOrObject<'static>, Value<'static>>,
     pub(crate) needs_primitive_rehashing: AtomicBool,
 }
 
+#[derive(Debug, Default)]
+pub struct WeakMapHeapData {
+    pub(crate) weak_map_data: WeakMapData,
+}
+
 impl WeakMapHeapData {
-    pub fn keys(&self) -> &[Option<Value>] {
-        &self.weak_map_data.keys
-    }
-
-    pub fn values(&self) -> &[Option<Value>] {
-        &self.weak_map_data.values
-    }
-
     pub fn clear(&mut self) {
-        // 3. For each Record { [[Key]], [[Value]] } p of M.[[MapData]], do
-        // a. Set p.[[Key]] to EMPTY.
-        // b. Set p.[[Value]] to EMPTY.
-        self.weak_map_data.weak_map_data.get_mut().clear();
-        self.weak_map_data.values.fill(None);
-        self.weak_map_data.keys.fill(None);
+        self.weak_map_data.weak_map_data.clear();
     }
 
-    pub(crate) fn borrow(&self, arena: &impl PrimitiveHeapIndexable) -> &WeakMapData {
+    pub(crate) fn borrow(&mut self, arena: &impl PrimitiveHeapIndexable) -> &WeakMapData {
         self.weak_map_data.rehash_if_needed(arena);
         &self.weak_map_data
     }
@@ -66,200 +43,48 @@ impl WeakMapHeapData {
 
 impl WeakMapData {
     fn rehash_if_needed_mut(&mut self, arena: &impl PrimitiveHeapIndexable) {
-        if !*self.needs_primitive_rehashing.get_mut() {
-            return;
-        }
-
-        rehash_map_data(&self.keys, self.weak_map_data.get_mut(), arena);
-        self.needs_primitive_rehashing
-            .store(false, Ordering::Relaxed);
-    }
-
-    fn rehash_if_needed(&self, arena: &impl PrimitiveHeapIndexable) {
         if !self.needs_primitive_rehashing.load(Ordering::Relaxed) {
             return;
         }
-
-        rehash_map_data(&self.keys, &mut self.weak_map_data.borrow_mut(), arena);
+        self.rehash_map_data();
         self.needs_primitive_rehashing
             .store(false, Ordering::Relaxed);
     }
-}
 
-fn rehash_map_data(
-    keys: &[Option<Value>],
-    map_data: &mut HashTable<u32>,
-    arena: &impl PrimitiveHeapIndexable,
-) {
-    let hasher = |value: Value| {
-        let mut hasher = AHasher::default();
-        value.unbind().hash(arena, &mut hasher);
-        hasher.finish()
-    };
-    let hashes = {
-        let hasher = |discriminant: u8| {
-            let mut hasher = AHasher::default();
-            discriminant.hash(&mut hasher);
-            hasher.finish()
-        };
-        [
-            (0u8, hasher(STRING_DISCRIMINANT)),
-            (1u8, hasher(NUMBER_DISCRIMINANT)),
-            (2u8, hasher(BIGINT_DISCRIMINANT)),
-        ]
-    };
-    for (id, hash) in hashes {
-        let eq = |equal_hash_index: &u32| {
-            let value = keys[*equal_hash_index as usize].unwrap();
-            match id {
-                0 => HeapString::try_from(value).is_ok(),
-                1 => HeapNumber::try_from(value).is_ok(),
-                2 => HeapBigInt::try_from(value).is_ok(),
-                _ => unreachable!(),
-            }
-        };
-        let mut entries = Vec::new();
-        while let Ok(entry) = map_data.find_entry(hash, eq) {
-            entries.push(*entry.get());
-            entry.remove();
+    fn rehash_if_needed(&mut self, arena: &impl PrimitiveHeapIndexable) {
+        if !self.needs_primitive_rehashing.load(Ordering::Relaxed) {
+            return;
         }
-        entries.iter().for_each(|entry| {
-            let key = keys[*entry as usize].unwrap();
-            let key_hash = hasher(key);
-            let result = map_data.entry(
-                key_hash,
-                |equal_hash_index| {
-                    // It should not be possible for there to be an equal item
-                    // in the WeakMap already.
-                    debug_assert_ne!(keys[*equal_hash_index as usize].unwrap(), key);
-                    false
-                },
-                |index_to_hash| hasher(keys[*index_to_hash as usize].unwrap()),
-            );
+        self.rehash_map_data();
+        self.needs_primitive_rehashing
+            .store(false, Ordering::Relaxed);
+    }
 
-            let Entry::Vacant(result) = result else {
-                unreachable!();
-            };
-            result.insert(*entry);
-        });
+    fn rehash_map_data(&mut self) {
+        let mut new_map = AHashMap::new();
+        for (key, value) in self.weak_map_data.drain() {
+            new_map.insert(key, value);
+        }
+        self.weak_map_data = new_map;
     }
 }
 
 impl HeapMarkAndSweep for WeakMapHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        let Self {
-            object_index,
-            weak_map_data,
-        } = self;
-        object_index.mark_values(queues);
-        weak_map_data
-            .keys
+        self.weak_map_data
+            .weak_map_data
             .iter()
-            .for_each(|value| value.mark_values(queues));
-        weak_map_data
-            .values
-            .iter()
-            .for_each(|value| value.mark_values(queues));
+            .for_each(|(_, value)| {
+                value.mark_values(queues);
+            });
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        let Self {
-            object_index,
-            weak_map_data,
-        } = self;
-        let WeakMapData {
-            keys,
-            values,
-            needs_primitive_rehashing,
-            weak_map_data,
-        } = weak_map_data;
-        let weak_map_data = weak_map_data.get_mut();
-        object_index.sweep_values(compactions);
-
-        let hasher = |value: Value| {
-            let mut hasher = AHasher::default();
-            if value.try_hash(&mut hasher).is_err() {
-                // A heap String, Number, or BigInt required rehashing as part
-                // of moving an Object key inside the HashTable. The heap
-                // vectors for those data points are currently being sweeped on
-                // another thread, so we cannot access them right now even if
-                // we wanted to. This situation should be fairly improbable as
-                // it requires mixing eg. long string and object values in the
-                // same WeakMap, so it's not pressing right now. Still, it must be
-                // handled eventually. We essentially mark the heap hash data
-                // as "dirty". Any lookup shall then later check this boolean
-                // and rehash primitive keys if necessary.
-                needs_primitive_rehashing.store(true, Ordering::Relaxed);
-                let value = HeapPrimitive::try_from(value).unwrap();
-                // Return a hash based on the discriminant. This we are likely
-                // to cause hash collisions but we avoid having to rehash all
-                // keys; we can just rehash the primitive keys that match the
-                // discriminant hash.
-                core::mem::discriminant(&value).hash(&mut hasher);
-            }
-            hasher.finish()
-        };
-        assert_eq!(keys.len(), values.len());
-        for index in 0..keys.len() as u32 {
-            let key = &mut keys[index as usize];
-            let Some(key) = key else {
-                // Skip empty slots.
-                continue;
-            };
-            // Sweep value without any concerns.
-            values[index as usize].sweep_values(compactions);
-
-            let old_key = *key;
-            key.sweep_values(compactions);
-            let new_key = *key;
-
-            if old_key == new_key {
-                // No identity change, no hash change.
-                continue;
-            }
-
-            if !new_key.is_object() {
-                // Non-objects do not change their hash even if their identity
-                // changes.
-                continue;
-            }
-            // Object changed identity; it must be moved in the map_data.
-            let old_hash = hasher(old_key);
-            let new_hash = hasher(new_key);
-            if let Ok(old_entry) =
-                weak_map_data.find_entry(old_hash, |equal_hash_index| *equal_hash_index == index)
-            {
-                // We do not always find an entry if a previous item has
-                // shifted ontop of our old hash.
-                old_entry.remove();
-            }
-            let new_entry = weak_map_data.entry(
-                new_hash,
-                |equal_hash_index| {
-                    // It's not possible for there to be another hash index that
-                    // holds our item. But! It's possible that we're eg. shifting
-                    // 32 to 30, and then 30 to 29. Thus 32 will happily override
-                    // 30.
-                    values[*equal_hash_index as usize].unwrap() == new_key
-                },
-                |index_to_hash| {
-                    let value = values[*index_to_hash as usize].unwrap();
-                    hasher(value)
-                },
-            );
-            match new_entry {
-                hashbrown::hash_table::Entry::Occupied(mut occupied) => {
-                    // We found an existing entry that points to a
-                    // (necesssarily) different slot that contains the same
-                    // value. This value will necessarily be removed later; we
-                    // can just reuse this slot.
-                    *occupied.get_mut() = index;
-                }
-                hashbrown::hash_table::Entry::Vacant(vacant) => {
-                    // This is the expected case: We're not overwriting a slot.
-                    vacant.insert(index);
-                }
-            }
+        let mut new_map = AHashMap::new();
+        for (key, mut value) in self.weak_map_data.weak_map_data.drain() {
+            value.sweep_values(compactions);
+            new_map.insert(key, value);
         }
+        self.weak_map_data.weak_map_data = new_map;
     }
 }
