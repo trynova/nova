@@ -5,8 +5,9 @@
 use crate::{
     SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::{
-            IntegerOrInfinity, PreferredType, ordinary_to_primitive,
+        abstract_operations::{
+            operations_on_objects::invoke,
+            type_conversion::{IntegerOrInfinity, PreferredType, ordinary_to_primitive, to_object},
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -14,8 +15,9 @@ use crate::{
             text_processing::string_objects::string_prototype::to_zero_padded_decimal_string,
         },
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Object, PropertyKey, String, Value},
     },
+    engine::rootable::Scopable,
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 use crate::{
@@ -944,23 +946,71 @@ impl DatePrototype {
         Ok(Value::from_string(agent, date_string(t), gc.into_nogc()))
     }
 
+    /// ### [21.4.4.36 Date.prototype.toISOString ( )](https://tc39.es/ecma262/#sec-date.prototype.toisostring)
+    ///
+    /// This method performs the following steps when called:
     fn to_iso_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let tv be dateObject.[[DateValue]].
+        let tv = date_object.date(agent);
+        // 4. If tv is NaN, throw a RangeError exception.
+        if tv.is_nan() {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::RangeError,
+                "Invalid Date",
+                gc.into_nogc(),
+            ));
+        }
+        // 5. Assert: tv is an integral Number.
+        assert!(tv.fract() == 0.0);
+        // 6. If tv corresponds with a year that cannot be represented in the Date Time String Format, throw a RangeError exception.
+        // 7. Return a String representation of tv in the Date Time String Format on the UTC time scale, including all format elements and the UTC offset representation "Z".
         todo!()
     }
 
+    /// ### [21.4.4.37 Date.prototype.toJSON ( key )](https://tc39.es/ecma262/#sec-date.prototype.tojson)
+    ///
+    /// This method provides a String representation of a Date for use
+    /// by JSON.stringify (25.5.2).
+    /// It performs the following steps when called:
+    ///
+    /// > #### Note 1
+    /// >
+    /// > The argument is ignored.
+    /// >
+    /// > #### Note 2
+    /// >
+    /// > This method is intentionally generic; it does not require that its
+    /// > this value be a Date. Therefore, it can be transferred to other kinds
+    /// > of objects for use as a method. However, it does require that any
+    /// > such object have a toISOString method.
     fn to_json<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        // 2. Let tv be ? ToPrimitive(O, number).
+        let tv = ordinary_to_primitive(agent, o.get(agent), PreferredType::Number, gc.reborrow())?;
+        // 3. If tv is a Number and tv is not finite, return null.
+        if let Ok(tv) = Number::try_from(tv) {
+            if !tv.is_finite(agent) {
+                return Ok(Value::Null);
+            }
+        }
+        // 4. Return ? Invoke(O, "toISOString").
+        let k =
+            PropertyKey::from_static_str(agent, "toISOString", gc.nogc()).scope(agent, gc.nogc());
+        invoke(agent, o.get(agent).into_value(), k.get(agent), None, gc)
     }
 
     fn to_locale_date_string<'gc>(
@@ -990,34 +1040,139 @@ impl DatePrototype {
         todo!()
     }
 
+    /// ### [21.4.4.41 Date.prototype.toString ( )](https://tc39.es/ecma262/#sec-date.prototype.tostring)
+    ///
+    /// This method performs the following steps when called:
+    ///
+    /// > #### Note 1
+    /// >
+    /// > For any Date d such that d.[[DateValue]] is evenly divisible by 1000,
+    /// > the result of Date.parse(d.toString()) = d.valueOf(). See 21.4.3.2.
+    /// >
+    /// > #### Note 2
+    /// >
+    /// > This method is not generic; it throws a TypeError exception if its
+    /// > this value is not a Date. Therefore, it cannot be transferred to
+    /// > other kinds of objects for use as a method.
     fn to_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let tv be dateObject.[[DateValue]].
+        let tv = date_object.date(agent);
+        // 4. Return ToDateString(tv).
+        let s = to_date_string(agent, tv);
+        Ok(Value::from_string(agent, s, gc.into_nogc()))
     }
 
+    /// ### [21.4.4.42 Date.prototype.toTimeString ( )](https://tc39.es/ecma262/#sec-date.prototype.totimestring)
+    ///
+    /// This method performs the following steps when called:
     fn to_time_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let tv be dateObject.[[DateValue]].
+        let tv = date_object.date(agent);
+        // 4. If tv is NaN, return "Invalid Date".
+        if tv.is_nan() {
+            return Ok(Value::from_static_str(
+                agent,
+                "Invalid Date",
+                gc.into_nogc(),
+            ));
+        }
+        // 5. Let t be LocalTime(tv).
+        let t = local_time(agent, tv);
+        // 6. Return the string-concatenation of TimeString(t) and TimeZoneString(tv).
+        Ok(Value::from_string(
+            agent,
+            format!("{}{}", time_string(t), time_zone_string(tv)),
+            gc.into_nogc(),
+        ))
     }
 
+    /// ### [21.4.4.43 Date.prototype.toUTCString ( )](https://tc39.es/ecma262/#sec-date.prototype.toutcstring)
+    ///
+    /// This method returns a String value representing the instant in time
+    /// corresponding to the this value. The format of the String is based upon
+    /// "HTTP-date" from RFC 7231, generalized to support the full range of
+    /// times supported by ECMAScript Dates.
+    ///
+    /// It performs the following steps when called:
     fn to_utc_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]])
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let tv be dateObject.[[DateValue]].
+        let tv = date_object.date(agent);
+        // 4. If tv is NaN, return "Invalid Date".
+        if tv.is_nan() {
+            return Ok(Value::from_static_str(
+                agent,
+                "Invalid Date",
+                gc.into_nogc(),
+            ));
+        }
+        // 5. Let weekday be the Name of the entry in Table 65 with the Number WeekDay(tv).
+        let weekday = match week_day(tv) {
+            0 => "Sun",
+            1 => "Mon",
+            2 => "Tue",
+            3 => "Wed",
+            4 => "Thu",
+            5 => "Fri",
+            6 => "Sat",
+            _ => unreachable!(),
+        };
+        // 6. Let month be the Name of the entry in Table 66 with the Number MonthFromTime(tv).
+        let month = match month_from_time(tv) {
+            0 => "Jan",
+            1 => "Feb",
+            2 => "Mar",
+            3 => "Apr",
+            4 => "May",
+            5 => "Jun",
+            6 => "Jul",
+            7 => "Aug",
+            8 => "Sep",
+            9 => "Oct",
+            10 => "Nov",
+            11 => "Dec",
+            _ => unreachable!(),
+        };
+        // 7. Let day be ToZeroPaddedDecimalString(ℝ(DateFromTime(tv)), 2).
+        let day = to_zero_padded_decimal_string(date_from_time(tv), 2);
+        // 8. Let yv be YearFromTime(tv).
+        let yv = year_from_time(tv);
+        // 9. If yv is +0𝔽 or yv > +0𝔽, let yearSign be the empty String; otherwise, let yearSign be "-".
+        let year_sign = if yv >= 0 { "" } else { "-" };
+        // 10. Let paddedYear be ToZeroPaddedDecimalString(abs(ℝ(yv)), 4).
+        let padded_year = to_zero_padded_decimal_string(yv.abs(), 4);
+        // 11. Return the string-concatenation of weekday, ",", the code unit 0x0020 (SPACE), day, the code unit 0x0020 (SPACE), month, the code unit 0x0020 (SPACE), yearSign, paddedYear, the code unit 0x0020 (SPACE), and TimeString(tv).
+        Ok(Value::from_string(
+            agent,
+            format!(
+                "{weekday}, {day} {month} {year_sign}{padded_year} {}",
+                time_string(tv)
+            ),
+            gc.into_nogc(),
+        ))
     }
 
     /// ### [21.4.4.44 Date.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-date.prototype.valueof)
@@ -1515,7 +1670,7 @@ fn get_utc_epoch_nanoseconds(
 /// >
 /// > LocalTime(UTC(tlocal)) is not necessarily always equal to tlocal.
 /// > Correspondingly, UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
-fn local_time<'a>(agent: &mut Agent, t: f64) -> f64 {
+fn local_time(agent: &mut Agent, t: f64) -> f64 {
     // 1. Let systemTimeZoneIdentifier be SystemTimeZoneIdentifier().
     // 2. If IsTimeZoneOffsetString(systemTimeZoneIdentifier) is true, then
     //   a. Let offsetNs be ParseTimeZoneOffsetString(systemTimeZoneIdentifier).
@@ -1756,6 +1911,21 @@ pub(crate) fn time_clip(time: f64) -> f64 {
     IntegerOrInfinity::from(time).into_f64()
 }
 
+/// ### [21.4.4.41.1 TimeString ( tv )](https://tc39.es/ecma262/#sec-timestring)
+///
+/// The abstract operation TimeString takes argument tv (a Number, but not NaN)
+/// and returns a String. It performs the following steps when called:
+fn time_string(tv: f64) -> std::string::String {
+    // 1. Let hour be ToZeroPaddedDecimalString(ℝ(HourFromTime(tv)), 2).
+    let hour = to_zero_padded_decimal_string(hour_from_time(tv), 2);
+    // 2. Let minute be ToZeroPaddedDecimalString(ℝ(MinFromTime(tv)), 2).
+    let minute = to_zero_padded_decimal_string(min_from_time(tv), 2);
+    // 3. Let second be ToZeroPaddedDecimalString(ℝ(SecFromTime(tv)), 2).
+    let second = to_zero_padded_decimal_string(sec_from_time(tv), 2);
+    // 4. Return the string-concatenation of hour, ":", minute, ":", second, the code unit 0x0020 (SPACE), and "GMT".
+    format!("{hour}:{minute}:{second} GMT")
+}
+
 /// ### [21.4.4.41.2 DateString ( tv )](https://tc39.es/ecma262/#sec-datestring)
 ///
 /// The abstract operation DateString takes argument tv (a Number, but not NaN) and returns a String. It performs the following steps when called:
@@ -1797,4 +1967,48 @@ fn date_string(tv: f64) -> std::string::String {
     let padded_year = to_zero_padded_decimal_string(yv.abs(), 4);
     // 7. Return the string-concatenation of weekday, the code unit 0x0020 (SPACE), month, the code unit 0x0020 (SPACE), day, the code unit 0x0020 (SPACE), yearSign, and paddedYear.
     format!("{weekday} {month} {day} {year_sign}{padded_year}")
+}
+
+/// ### [21.4.4.41.3 TimeZoneString ( tv )](https://tc39.es/ecma262/#sec-timezoneestring)
+///
+/// The abstract operation TimeZoneString takes argument tv (an integral
+/// Number) and returns a String. It performs the following steps when called:
+fn time_zone_string(tv: f64) -> std::string::String {
+    // 1. Let systemTimeZoneIdentifier be SystemTimeZoneIdentifier().
+    // 2. If IsTimeZoneOffsetString(systemTimeZoneIdentifier) is true, then
+    //    a. Let offsetNs be ParseTimeZoneOffsetString(systemTimeZoneIdentifier).
+    // 3. Else,
+    //    a. Let offsetNs be GetNamedTimeZoneOffsetNanoseconds(systemTimeZoneIdentifier, ℤ(ℝ(tv) × 10**6)).
+    // 4. Let offset be 𝔽(truncate(offsetNs / 10**6)).
+    // 5. If offset is +0𝔽 or offset > +0𝔽, then
+    //    a. Let offsetSign be "+".
+    //    b. Let absOffset be offset.
+    // 6. Else,
+    //    a. Let offsetSign be "-".
+    //    b. Let absOffset be -offset.
+    // 7. Let offsetMin be ToZeroPaddedDecimalString(ℝ(MinFromTime(absOffset)), 2).
+    // 8. Let offsetHour be ToZeroPaddedDecimalString(ℝ(HourFromTime(absOffset)), 2).
+    // 9. Let tzName be an implementation-defined string that is either the empty String or the string-concatenation of the code unit 0x0020 (SPACE), the code unit 0x0028 (LEFT PARENTHESIS), an implementation-defined timezone name, and the code unit 0x0029 (RIGHT PARENTHESIS).
+    // 10. Return the string-concatenation of offsetSign, offsetHour, offsetMin, and tzName.
+    todo!()
+}
+
+/// ### [21.4.4.41.4 ToDateString ( tv )](https://tc39.es/ecma262/#sec-todatestring)
+///
+/// The abstract operation ToDateString takes argument tv (an integral Number
+/// or NaN) and returns a String. It performs the following steps when called:
+fn to_date_string(agent: &mut Agent, tv: f64) -> std::string::String {
+    // 1. If tv is NaN, return "Invalid Date".
+    if tv.is_nan() {
+        return "Invalid Date".to_string();
+    }
+    // 2. Let t be LocalTime(tv).
+    let t = local_time(agent, tv);
+    // 3. Return the string-concatenation of DateString(t), the code unit 0x0020 (SPACE), TimeString(t), and TimeZoneString(tv).
+    format!(
+        "{} {}{}",
+        date_string(t),
+        time_string(t),
+        time_zone_string(tv)
+    )
 }
