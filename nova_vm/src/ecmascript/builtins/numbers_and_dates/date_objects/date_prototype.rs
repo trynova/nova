@@ -3,20 +3,21 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::{ordinary_to_primitive, IntegerOrInfinity, PreferredType},
+        abstract_operations::type_conversion::{
+            IntegerOrInfinity, PreferredType, ordinary_to_primitive,
+        },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{date::Date, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
-        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
-        types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
-    }, heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes}, SmallInteger
+        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date},
+        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
+    },
+    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 use crate::{
-    ecmascript::abstract_operations::type_conversion::{to_integer_or_infinity, to_number},
-    engine::{
-        context::{Bindable, GcScope, NoGcScope},
-        rootable::Scopable,
-    },
+    ecmascript::abstract_operations::type_conversion::to_number,
+    engine::context::{Bindable, GcScope, NoGcScope},
 };
 
 pub(crate) struct DatePrototype;
@@ -133,91 +134,91 @@ struct DatePrototypeSetDate;
 impl Builtin for DatePrototypeSetDate {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setDate;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_date);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_date::<false>);
 }
 struct DatePrototypeSetFullYear;
 impl Builtin for DatePrototypeSetFullYear {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setFullYear;
     const LENGTH: u8 = 3;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_full_year);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_full_year::<false>);
 }
 struct DatePrototypeSetHours;
 impl Builtin for DatePrototypeSetHours {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setHours;
     const LENGTH: u8 = 4;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_hours);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_hours::<false>);
 }
 struct DatePrototypeSetMilliseconds;
 impl Builtin for DatePrototypeSetMilliseconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setMilliseconds;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_milliseconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_milliseconds::<false>);
 }
 struct DatePrototypeSetMinutes;
 impl Builtin for DatePrototypeSetMinutes {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setMinutes;
     const LENGTH: u8 = 3;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_minutes);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_minutes::<false>);
 }
 struct DatePrototypeSetMonth;
 impl Builtin for DatePrototypeSetMonth {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setMonth;
     const LENGTH: u8 = 2;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_month);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_month::<false>);
 }
 struct DatePrototypeSetSeconds;
 impl Builtin for DatePrototypeSetSeconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setSeconds;
     const LENGTH: u8 = 2;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_seconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_seconds::<false>);
 }
 struct DatePrototypeSetTime;
 impl Builtin for DatePrototypeSetTime {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setTime;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_time);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_time::<false>);
 }
 struct DatePrototypeSetUTCDate;
 impl Builtin for DatePrototypeSetUTCDate {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCDate;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_date);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_date::<true>);
 }
 struct DatePrototypeSetUTCFullYear;
 impl Builtin for DatePrototypeSetUTCFullYear {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCFullYear;
     const LENGTH: u8 = 3;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_full_year);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_full_year::<true>);
 }
 struct DatePrototypeSetUTCHours;
 impl Builtin for DatePrototypeSetUTCHours {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCHours;
     const LENGTH: u8 = 4;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_hours);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_hours::<true>);
 }
 struct DatePrototypeSetUTCMilliseconds;
 impl Builtin for DatePrototypeSetUTCMilliseconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCMilliseconds;
     const LENGTH: u8 = 1;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_milliseconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_milliseconds::<true>);
 }
 struct DatePrototypeSetUTCMinutes;
 impl Builtin for DatePrototypeSetUTCMinutes {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCMinutes;
     const LENGTH: u8 = 3;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_minutes);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_minutes::<true>);
 }
 struct DatePrototypeSetUTCMonth;
 impl Builtin for DatePrototypeSetUTCMonth {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCMonth;
     const LENGTH: u8 = 2;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_month);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_month::<true>);
 }
 struct DatePrototypeSetUTCSeconds;
 impl Builtin for DatePrototypeSetUTCSeconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.setUTCSeconds;
     const LENGTH: u8 = 2;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_utc_seconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::set_seconds::<true>);
 }
 struct DatePrototypeToDateString;
 impl Builtin for DatePrototypeToDateString {
@@ -534,7 +535,7 @@ impl DatePrototype {
     /// ### [21.4.4.20 Date.prototype.setDate ( date )](https://tc39.es/ecma262/#sec-date.prototype.setdate)
     ///
     /// This method performs the following steps when called:
-    fn set_date<'gc>(
+    fn set_date<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
@@ -542,24 +543,21 @@ impl DatePrototype {
     ) -> JsResult<Value<'gc>> {
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
-        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date(agent);
         // 4. Let dt be ? ToNumber(date).
-        let dt = to_number(agent, arguments.get(0), gc.reborrow())?;
+        let dt = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
         }
         // 6. Set t to LocalTime(t).
-        let t = local_time(agent, t);
+        let t = local_or_utc_time::<UTC>(agent, t);
         // 7. Let newDate be MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t)).
         let new_date = make_date(
-            make_day(
-                year_from_time(t) as f64,
-                month_from_time(t) as f64,
-                dt.to_real(agent),
-            ),
+            make_day(year_from_time(t) as f64, month_from_time(t) as f64, dt),
             time_within_day(t),
         );
         // 8. Let u be TimeClip(UTC(newDate)).
@@ -570,144 +568,349 @@ impl DatePrototype {
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_full_year<'gc>(
+    /// ### [21.4.4.21 Date.prototype.setFullYear ( year \[ , month \[ , date \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setfullyear)
+    ///
+    /// This method performs the following steps when called:
+    ///
+    /// The "length" property of this method is 3𝔽.
+    ///
+    /// > #### Note
+    /// >
+    /// > If month is not present, this method behaves as if month was present
+    /// > with the value getMonth(). If date is not present, it behaves as if
+    /// > date was present with the value getDate().
+    fn set_full_year<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Let y be ? ToNumber(year).
+        let y = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 5. If t is NaN, set t to +0𝔽; otherwise, set t to LocalTime(t).
+        let t = if t.is_nan() {
+            0.0
+        } else {
+            local_or_utc_time::<UTC>(agent, t)
+        };
+        // 6. If month is not present, let m be MonthFromTime(t); otherwise, let m be ? ToNumber(month).
+        let m = if arguments.len() < 2 {
+            month_from_time(t) as f64
+        } else {
+            arguments
+                .get(1)
+                .to_number(agent, gc.reborrow())?
+                .into_f64(agent)
+        };
+        // 7. If date is not present, let dt be DateFromTime(t); otherwise, let dt be ? ToNumber(date).
+        let dt = if arguments.len() < 3 {
+            date_from_time(t) as f64
+        } else {
+            arguments
+                .get(2)
+                .to_number(agent, gc.reborrow())?
+                .into_f64(agent)
+        };
+        // 8. Let newDate be MakeDate(MakeDay(y, m, dt), TimeWithinDay(t)).
+        let new_date = make_date(make_day(y, m, dt), time_within_day(t));
+        // 9. Let u be TimeClip(UTC(newDate)).
+        let u = time_clip(utc(new_date));
+        // 10. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 11. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_hours<'gc>(
+    /// ### [21.4.4.22 Date.prototype.setHours ( hour \[ , min \[ , sec \[ , ms \] \] \] )](https://tc39.es/ecma262/#sec-date.prototype.sethours)
+    ///
+    /// This method performs the following steps when called:
+    ///
+    /// The "length" property of this method is 4𝔽.
+    ///
+    /// > #### Note
+    /// >
+    /// > If min is not present, this method behaves as if min was present with
+    /// > the value getMinutes(). If sec is not present, it behaves as if sec
+    /// > was present with the value getSeconds(). If ms is not present, it
+    /// > behaves as if ms was present with the value getMilliseconds().
+    fn set_hours<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Let h be ? ToNumber(hour).
+        let h = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 5. If min is present, let m be ? ToNumber(min).
+        let m = if arguments.len() > 1 {
+            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 6. If sec is present, let s be ? ToNumber(sec).
+        let s = if arguments.len() > 2 {
+            Some(to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 7. If ms is present, let milli be ? ToNumber(ms).
+        let milli = if arguments.len() > 3 {
+            Some(to_number(agent, arguments.get(3), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 8. If t is NaN, return NaN.
+        if t.is_nan() {
+            return Ok(Value::nan());
+        }
+        // 9. Set t to LocalTime(t).
+        let t = local_or_utc_time::<UTC>(agent, t);
+        // 10. If min is not present, let m be MinFromTime(t).
+        let m = m.unwrap_or_else(|| min_from_time(t) as f64);
+        // 11. If sec is not present, let s be SecFromTime(t).
+        let s = s.unwrap_or_else(|| sec_from_time(t) as f64);
+        // 12. If ms is not present, let milli be msFromTime(t).
+        let milli = milli.unwrap_or_else(|| ms_from_time(t) as f64);
+        // 13. Let date be MakeDate(Day(t), MakeTime(h, m, s, milli)).
+        let date = make_date(day(t), make_time(h, m, s, milli));
+        // 14. Let u be TimeClip(UTC(date)).
+        let u = time_clip(utc(date));
+        // 15. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 16. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_milliseconds<'gc>(
+    /// ### [21.4.4.23 Date.prototype.setMilliseconds ( ms )](https://tc39.es/ecma262/#sec-date.prototype.setmilliseconds)
+    ///
+    /// This method performs the following steps when called:
+    fn set_milliseconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Set ms to ? ToNumber(ms).
+        let ms = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 5. If t is NaN, return NaN.
+        if t.is_nan() {
+            return Ok(Value::nan());
+        }
+        // 6. Set t to LocalTime(t).
+        let t = local_or_utc_time::<UTC>(agent, t);
+        // 7. Let time be MakeTime(HourFromTime(t), MinFromTime(t), SecFromTime(t), ms).
+        let time = make_time(
+            hour_from_time(t) as f64,
+            min_from_time(t) as f64,
+            sec_from_time(t) as f64,
+            ms,
+        );
+        // 8. Let u be TimeClip(UTC(MakeDate(Day(t), time))).
+        let u = time_clip(utc(make_date(day(t), time)));
+        // 9. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 10. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_minutes<'gc>(
+    /// ### [21.4.4.24 Date.prototype.setMinutes ( min \[ , sec \[ , ms \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setminutes)
+    ///
+    /// This method performs the following steps when called:
+    ///
+    /// The "length" property of this method is 3𝔽.
+    ///
+    /// > #### Note
+    /// >
+    /// > If sec is not present, this method behaves as if sec was present with
+    /// > the value getSeconds(). If ms is not present, this behaves as if ms
+    /// > was present with the value getMilliseconds().
+    fn set_minutes<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Let m be ? ToNumber(min).
+        let m = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 5. If sec is present, let s be ? ToNumber(sec).
+        let s = if arguments.len() > 1 {
+            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 6. If ms is present, let milli be ? ToNumber(ms).
+        let milli = if arguments.len() > 2 {
+            Some(to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 7. If t is NaN, return NaN.
+        if t.is_nan() {
+            return Ok(Value::nan());
+        }
+        // 8. Set t to LocalTime(t).
+        let t = local_or_utc_time::<UTC>(agent, t);
+        // 9. If sec is not present, let s be SecFromTime(t).
+        let s = s.unwrap_or_else(|| sec_from_time(t) as f64);
+        // 10. If ms is not present, let milli be msFromTime(t).
+        let milli = milli.unwrap_or_else(|| ms_from_time(t) as f64);
+        // 11. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), m, s, milli)).
+        let date = make_date(day(t), make_time(hour_from_time(t) as f64, m, s, milli));
+        // 12. Let u be TimeClip(UTC(date)).
+        let u = time_clip(utc(date));
+        // 13. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 14. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_month<'gc>(
+    /// ### [21.4.4.25 Date.prototype.setMonth ( month \[ , date \] )](https://tc39.es/ecma262/#sec-date.prototype.setmonth)
+    ///
+    /// This method performs the following steps when called:
+    ///
+    /// The "length" property of this method is 2𝔽.
+    ///
+    /// > #### Note
+    /// >
+    /// > If date is not present, this method behaves as if date was present
+    /// > with the value getDate().
+    fn set_month<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Let m be ? ToNumber(month).
+        let m = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 5. If date is present, let dt be ? ToNumber(date).
+        let dt = if arguments.len() > 1 {
+            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 6. If t is NaN, return NaN.
+        if t.is_nan() {
+            return Ok(Value::nan());
+        }
+        // 7. Set t to LocalTime(t).
+        let t = local_or_utc_time::<UTC>(agent, t);
+        // 8. If date is not present, let dt be DateFromTime(t).
+        let dt = dt.unwrap_or_else(|| date_from_time(t) as f64);
+        // 9. Let newDate be MakeDate(MakeDay(YearFromTime(t), m, dt), TimeWithinDay(t)).
+        let new_date = make_date(
+            make_day(year_from_time(t) as f64, m, dt),
+            time_within_day(t),
+        );
+        // 10. Let u be TimeClip(UTC(newDate)).
+        let u = time_clip(utc(new_date));
+        // 11. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 12. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_seconds<'gc>(
+    /// ### [21.4.4.26 Date.prototype.setSeconds ( sec \[ , ms \] )](https://tc39.es/ecma262/#sec-date.prototype.setseconds)
+    ///
+    /// This method performs the following steps when called:
+    ///
+    /// The "length" property of this method is 2𝔽.
+    ///
+    /// > #### Note
+    /// >
+    /// > If ms is not present, this method behaves as if ms was present with
+    /// > the value getMilliseconds().
+    fn set_seconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Let s be ? ToNumber(sec).
+        let s = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 5. If ms is present, let milli be ? ToNumber(ms).
+        let milli = if arguments.len() > 1 {
+            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+        } else {
+            None
+        };
+        // 6. If t is NaN, return NaN.
+        if t.is_nan() {
+            return Ok(Value::nan());
+        }
+        // 7. Set t to LocalTime(t).
+        let t = local_or_utc_time::<UTC>(agent, t);
+        // 8. If ms is not present, let milli be msFromTime(t).
+        let milli = milli.unwrap_or_else(|| ms_from_time(t) as f64);
+        // 9. Let date be MakeDate(Day(t), MakeTime(HourFromTime(t), MinFromTime(t), s, milli)).
+        let date = make_date(
+            day(t),
+            make_time(hour_from_time(t) as f64, min_from_time(t) as f64, s, milli),
+        );
+        // 10. Let u be TimeClip(UTC(date)).
+        let u = time_clip(utc(date));
+        // 11. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 12. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
-    fn set_time<'gc>(
+    /// ### [21.4.4.27 Date.prototype.setTime ( time )](https://tc39.es/ecma262/#sec-date.prototype.settime)
+    ///
+    /// This method performs the following steps when called:
+    fn set_time<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_date<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_full_year<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_hours<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_milliseconds<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_minutes<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_month<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn set_utc_seconds<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        let date_object = date_object.scope(agent, gc.nogc());
+        // 3. Let t be ? ToNumber(time).
+        let t = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        // 4. Let v be TimeClip(t).
+        let v = time_clip(t);
+        // 5. Set dateObject.[[DateValue]] to v.
+        date_object.get(agent).set_date(agent, v);
+        // 6. Return v.
+        Ok(Value::from_f64(agent, v, gc.into_nogc()))
     }
 
     fn to_date_string<'gc>(
@@ -1486,13 +1689,13 @@ pub(super) fn make_date(day: f64, time: f64) -> f64 {
 }
 
 /// ### [21.4.1.30 MakeFullYear ( year )](https://tc39.es/ecma262/#sec-makefullyear)
-/// 
-/// The abstract operation MakeFullYear takes argument year (a Number) and 
-/// returns an integral Number or NaN. It returns the full year associated with 
-/// the integer part of year, interpreting any value in the inclusive interval 
-/// from 0 to 99 as a count of years since the start of 1900. For alignment 
-/// with the proleptic Gregorian calendar, "full year" is defined as the signed 
-/// count of complete years since the start of year 0 (1 B.C.). It performs the 
+///
+/// The abstract operation MakeFullYear takes argument year (a Number) and
+/// returns an integral Number or NaN. It returns the full year associated with
+/// the integer part of year, interpreting any value in the inclusive interval
+/// from 0 to 99 as a count of years since the start of 1900. For alignment
+/// with the proleptic Gregorian calendar, "full year" is defined as the signed
+/// count of complete years since the start of year 0 (1 B.C.). It performs the
 /// following steps when called:
 fn make_full_year(year: f64) -> f64 {
     // 1. If year is NaN, return NaN.
@@ -1514,7 +1717,7 @@ fn make_full_year(year: f64) -> f64 {
 
 /// ### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
 ///
-/// The abstract operation TimeClip takes argument time (a Number) and returns 
+/// The abstract operation TimeClip takes argument time (a Number) and returns
 /// a Number. It calculates a number of milliseconds.
 /// It performs the following steps when called:
 pub(crate) fn time_clip(time: f64) -> f64 {
