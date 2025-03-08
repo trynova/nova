@@ -2,17 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
-    SmallInteger,
     ecmascript::{
-        abstract_operations::type_conversion::{PreferredType, ordinary_to_primitive},
+        abstract_operations::type_conversion::{ordinary_to_primitive, IntegerOrInfinity, PreferredType},
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date},
-        execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
+        builtins::{date::Date, ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic},
+        execution::{agent::ExceptionType, Agent, JsResult, RealmIdentifier},
+        types::{IntoValue, Object, PropertyKey, String, Value, BUILTIN_STRING_MEMORY},
+    }, heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes}, SmallInteger
+};
+use crate::{
+    ecmascript::abstract_operations::type_conversion::{to_integer_or_infinity, to_number},
+    engine::{
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::Scopable,
     },
-    heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
 
 pub(crate) struct DatePrototype;
@@ -527,14 +531,43 @@ impl DatePrototype {
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
+    /// ### [21.4.4.20 Date.prototype.setDate ( date )](https://tc39.es/ecma262/#sec-date.prototype.setdate)
+    ///
+    /// This method performs the following steps when called:
     fn set_date<'gc>(
         agent: &mut Agent,
         this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.get(agent).date(agent);
+        // 4. Let dt be ? ToNumber(date).
+        let dt = to_number(agent, arguments.get(0), gc.reborrow())?;
+        // 5. If t is NaN, return NaN.
+        if t.is_nan() {
+            return Ok(Value::nan());
+        }
+        // 6. Set t to LocalTime(t).
+        let t = local_time(agent, t);
+        // 7. Let newDate be MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t)).
+        let new_date = make_date(
+            make_day(
+                year_from_time(t) as f64,
+                month_from_time(t) as f64,
+                dt.to_real(agent),
+            ),
+            time_within_day(t),
+        );
+        // 8. Let u be TimeClip(UTC(newDate)).
+        let u = time_clip(utc(new_date));
+        // 9. Set dateObject.[[DateValue]] to u.
+        date_object.get(agent).set_date(agent, u);
+        // 10. Return u.
+        Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
 
     fn set_full_year<'gc>(
@@ -1237,19 +1270,19 @@ fn get_utc_epoch_nanoseconds(
 /// should be used to determine the result in the way specified in this
 /// section. It performs the following steps when called:
 ///
-/// > ### Note 1
+/// > #### Note 1
 /// >
 /// > If political rules for the local time t are not available within the
 /// > implementation, the result is t because SystemTimeZoneIdentifier returns
 /// > "UTC" and GetNamedTimeZoneOffsetNanoseconds returns 0.
 /// >
-/// > ### Note 2
+/// > #### Note 2
 /// >
 /// > It is required for time zone aware implementations (and recommended for
 /// > all others) to use the time zone information of the IANA Time Zone
 /// > Database https://www.iana.org/time-zones/.
 /// >
-/// > ### Note 3
+/// > #### Note 3
 /// >
 /// > Two different input time values tUTC are converted to the same local time
 /// > tlocal at a negative time zone transition when there are repeated times
@@ -1271,4 +1304,230 @@ fn local_time<'a>(agent: &mut Agent, t: f64) -> f64 {
 
 fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
     if UTC { t } else { local_time(agent, t) }
+}
+
+/// ### [21.4.1.26 UTC ( t )](https://tc39.es/ecma262/#sec-utc-t)
+///
+/// The abstract operation UTC takes argument t (a Number) and returns a time
+/// value. It converts t from local time to a UTC time value. The local
+/// political rules for standard time and daylight saving time in effect at t
+/// should be used to determine the result in the way specified in this section.
+/// It performs the following steps when called:
+///
+/// Input t is nominally a time value but may be any Number value.
+/// The algorithm must not limit t to the time value range, so that inputs
+/// corresponding with a boundary of the time value range can be supported
+/// regardless of local UTC offset. For example, the maximum time value is 8.64
+/// × 10**15, corresponding with "+275760-09-13T00:00:00Z". In an environment
+/// where the local time zone offset is ahead of UTC by 1 hour at that instant,
+/// it is represented by the larger input of 8.64 × 10**15 + 3.6 × 10**6,
+/// corresponding with "+275760-09-13T01:00:00+01:00".
+///
+/// If political rules for the local time t are not available within the
+/// implementation, the result is t because SystemTimeZoneIdentifier returns
+/// "UTC" and GetNamedTimeZoneOffsetNanoseconds returns 0.
+///
+/// > #### Note 1
+/// >
+/// > It is required for time zone aware implementations (and recommended for
+/// > all others) to use the time zone information of the IANA Time Zone
+/// > Database https://www.iana.org/time-zones/.
+/// >
+/// > 1:30 AM on 5 November 2017 in America/New_York is repeated twice (fall
+/// > backward), but it must be interpreted as 1:30 AM UTC-04 instead of 1:30
+/// > AM UTC-05. In UTC(TimeClip(MakeDate(MakeDay(2017, 10, 5), MakeTime(1, 30,
+/// > 0, 0)))), the value of offsetMs is -4 × msPerHour.
+/// >
+/// > 2:30 AM on 12 March 2017 in America/New_York does not exist, but it must
+/// > be interpreted as 2:30 AM UTC-05 (equivalent to 3:30 AM UTC-04). In UTC
+/// > (TimeClip(MakeDate(MakeDay(2017, 2, 12), MakeTime(2, 30, 0, 0)))), the
+/// > value of offsetMs is -5 × msPerHour.
+/// >
+/// > #### Note 2
+/// >
+/// > UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
+/// > Correspondingly, LocalTime(UTC(tlocal)) is not necessarily always equal
+/// > to tlocal.
+fn utc(t: f64) -> f64 {
+    // 1. If t is not finite, return NaN.
+    if !t.is_finite() {
+        return f64::NAN;
+    }
+
+    // 2. Let systemTimeZoneIdentifier be SystemTimeZoneIdentifier().
+    // 3. If IsTimeZoneOffsetString(systemTimeZoneIdentifier) is true, then
+    //    a. Let offsetNs be ParseTimeZoneOffsetString(systemTimeZoneIdentifier).
+    // 4. Else,
+    //    a. Let possibleInstants be GetNamedTimeZoneEpochNanoseconds(systemTimeZoneIdentifier, ℝ(YearFromTime(t)), ℝ(MonthFromTime(t)) + 1, ℝ(DateFromTime(t)), ℝ(HourFromTime(t)), ℝ(MinFromTime(t)), ℝ(SecFromTime(t)), ℝ(msFromTime(t)), 0, 0).
+    //    b. NOTE: The following steps ensure that when t represents local time repeating multiple times at a negative time zone transition (e.g. when the daylight saving time ends or the time zone offset is decreased due to a time zone rule change) or skipped local time at a positive time zone transition (e.g. when the daylight saving time starts or the time zone offset is increased due to a time zone rule change), t is interpreted using the time zone offset before the transition.
+    //    c. If possibleInstants is not empty, then
+    //       i. Let disambiguatedInstant be possibleInstants[0].
+    //    d. Else,
+    //       i. NOTE: t represents a local time skipped at a positive time zone transition (e.g. due to daylight saving time starting or a time zone rule change increasing the UTC offset).
+    //       ii. Let possibleInstantsBefore be GetNamedTimeZoneEpochNanoseconds(systemTimeZoneIdentifier, ℝ(YearFromTime(tBefore)), ℝ(MonthFromTime(tBefore)) + 1, ℝ(DateFromTime(tBefore)), ℝ(HourFromTime(tBefore)), ℝ(MinFromTime(tBefore)), ℝ(SecFromTime(tBefore)), ℝ(msFromTime(tBefore)), 0, 0), where tBefore is the largest integral Number < t for which possibleInstantsBefore is not empty (i.e., tBefore represents the last local time before the transition).
+    //       iii. Let disambiguatedInstant be the last element of possibleInstantsBefore.
+    //    e. Let offsetNs be GetNamedTimeZoneOffsetNanoseconds(systemTimeZoneIdentifier, disambiguatedInstant).
+    // 5. Let offsetMs be truncate(offsetNs / 10**6).
+    // 6. Return t - 𝔽(offsetMs).
+    todo!()
+}
+
+/// ### [21.4.1.27 MakeTime ( hour, min, sec, ms )](https://tc39.es/ecma262/#sec-maketime)
+///
+/// The abstract operation MakeTime takes arguments hour (a Number),
+/// min (a Number), sec (a Number), and ms (a Number) and returns a Number.
+/// It calculates a number of milliseconds.
+/// It performs the following steps when called:
+///
+/// > #### Note
+/// >
+/// > The arithmetic in MakeTime is floating-point arithmetic,
+/// > which is not associative, so the operations must be performed in the
+/// > correct order.
+pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
+    // 1. If hour is not finite, min is not finite, sec is not finite, or ms is not finite, return NaN.
+    if !hour.is_finite() || !min.is_finite() || !sec.is_finite() || !ms.is_finite() {
+        return f64::NAN;
+    }
+
+    // 2. Let h be 𝔽(! ToIntegerOrInfinity(hour)).
+    let h = hour.abs().floor().copysign(hour);
+
+    // 3. Let m be 𝔽(! ToIntegerOrInfinity(min)).
+    let m = min.abs().floor().copysign(min);
+
+    // 4. Let s be 𝔽(! ToIntegerOrInfinity(sec)).
+    let s = sec.abs().floor().copysign(sec);
+
+    // 5. Let milli be 𝔽(! ToIntegerOrInfinity(ms)).
+    let milli = ms.abs().floor().copysign(ms);
+
+    // 6. Return ((h × msPerHour + m × msPerMinute) + s × msPerSecond) + milli.
+    ((h * MS_PER_HOUR + m * MS_PER_MINUTE) + s * MS_PER_SECOND) + milli
+}
+
+/// ### [21.4.1.28 MakeDay ( year, month, date )](https://tc39.es/ecma262/#sec-makeday)
+///
+/// The abstract operation MakeDay takes arguments year (a Number),
+/// month (a Number), and date (a Number) and returns a Number.
+/// It calculates a number of days. It performs the following steps when called:
+fn make_day(year: f64, month: f64, date: f64) -> f64 {
+    // 1. If year is not finite, month is not finite, or date is not finite, return NaN.
+    if !year.is_finite() || !month.is_finite() || !date.is_finite() {
+        return f64::NAN;
+    }
+
+    // 2. Let y be 𝔽(! ToIntegerOrInfinity(year)).
+    let y = year.abs().floor().copysign(year);
+
+    // 3. Let m be 𝔽(! ToIntegerOrInfinity(month)).
+    let m = month.abs().floor().copysign(month);
+
+    // 4. Let dt be 𝔽(! ToIntegerOrInfinity(date)).
+    let dt = date.abs().floor().copysign(date);
+
+    // 5. Let ym be y + 𝔽(floor(ℝ(m) / 12)).
+    let ym = y + (m / 12.0).floor();
+
+    // 6. If ym is not finite, return NaN.
+    if !ym.is_finite() {
+        return f64::NAN;
+    }
+
+    // 7. Let mn be 𝔽(ℝ(m) modulo 12).
+    let mn = m.rem_euclid(12.0) as u8;
+
+    // 8. Find a finite time value t such that YearFromTime(t) is ym, MonthFromTime(t) is mn,
+    //    and DateFromTime(t) is 1𝔽;
+    //    but if this is not possible (because some argument is out of range), return NaN.
+    let rest = if mn > 1 { 1.0 } else { 0.0 };
+    let days_within_year_to_end_of_month = match mn {
+        0 => 0.0,
+        1 => 31.0,
+        2 => 59.0,
+        3 => 90.0,
+        4 => 120.0,
+        5 => 151.0,
+        6 => 181.0,
+        7 => 212.0,
+        8 => 243.0,
+        9 => 273.0,
+        10 => 304.0,
+        11 => 334.0,
+        12 => 365.0,
+        _ => unreachable!(),
+    };
+    let t =
+        (day_from_year(ym + rest) - 365.0 * rest + days_within_year_to_end_of_month) * MS_PER_DAY;
+
+    // 9. Return Day(t) + dt - 1𝔽.
+    day(t) + dt - 1.0
+}
+
+/// ### [21.4.1.29 MakeDate ( day, time )](https://tc39.es/ecma262/#sec-makedate)
+///
+/// The abstract operation MakeDate takes arguments day (a Number) and time (a Number) and returns a Number. It calculates a number of milliseconds. It performs the following steps when called:
+pub(super) fn make_date(day: f64, time: f64) -> f64 {
+    // 1. If day is not finite or time is not finite, return NaN.
+    if !day.is_finite() || !time.is_finite() {
+        return f64::NAN;
+    }
+
+    // 2. Let tv be day × msPerDay + time.
+    let tv = day * MS_PER_DAY + time;
+
+    // 3. If tv is not finite, return NaN.
+    if !tv.is_finite() {
+        return f64::NAN;
+    }
+
+    // 4. Return tv.
+    tv
+}
+
+/// ### [21.4.1.30 MakeFullYear ( year )](https://tc39.es/ecma262/#sec-makefullyear)
+/// 
+/// The abstract operation MakeFullYear takes argument year (a Number) and 
+/// returns an integral Number or NaN. It returns the full year associated with 
+/// the integer part of year, interpreting any value in the inclusive interval 
+/// from 0 to 99 as a count of years since the start of 1900. For alignment 
+/// with the proleptic Gregorian calendar, "full year" is defined as the signed 
+/// count of complete years since the start of year 0 (1 B.C.). It performs the 
+/// following steps when called:
+fn make_full_year(year: f64) -> f64 {
+    // 1. If year is NaN, return NaN.
+    if year.is_nan() {
+        return f64::NAN;
+    }
+
+    // 2. Let truncated be ! ToIntegerOrInfinity(year).
+    let truncated = IntegerOrInfinity::from(year);
+
+    // 3. If truncated is in the inclusive interval from 0 to 99, return 1900𝔽 + 𝔽(truncated).
+    if let 0..=99 = truncated.into_i64() {
+        return 1900.0 + truncated.into_i64() as f64;
+    }
+
+    // 4. Return 𝔽(truncated).
+    truncated.into_f64()
+}
+
+/// ### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
+///
+/// The abstract operation TimeClip takes argument time (a Number) and returns 
+/// a Number. It calculates a number of milliseconds.
+/// It performs the following steps when called:
+pub(crate) fn time_clip(time: f64) -> f64 {
+    // 1. If time is not finite, return NaN.
+    if !time.is_finite() {
+        return f64::NAN;
+    }
+
+    // 2. If abs(ℝ(time)) > 8.64 × 10**15, return NaN.
+    if time.abs() > 8.64e15 {
+        return f64::NAN;
+    }
+
+    // 3. Return 𝔽(! ToIntegerOrInfinity(time)).
+    IntegerOrInfinity::from(time).into_f64()
 }
