@@ -9,7 +9,10 @@ use crate::{
             IntegerOrInfinity, PreferredType, ordinary_to_primitive,
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
-        builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date},
+        builtins::{
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date,
+            text_processing::string_objects::string_prototype::to_zero_padded_decimal_string,
+        },
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
         types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
     },
@@ -913,14 +916,32 @@ impl DatePrototype {
         Ok(Value::from_f64(agent, v, gc.into_nogc()))
     }
 
+    /// ### [21.4.4.35 Date.prototype.toDateString ( )](https://tc39.es/ecma262/#sec-date.prototype.todatestring)
+    ///
+    /// This method performs the following steps when called:
     fn to_date_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let tv be dateObject.[[DateValue]].
+        let tv = date_object.date(agent);
+        // 4. If tv is NaN, return "Invalid Date".
+        if tv.is_nan() {
+            return Ok(Value::from_static_str(
+                agent,
+                "Invalid Date",
+                gc.into_nogc(),
+            ));
+        }
+        // 5. Let t be LocalTime(tv).
+        let t = local_time(agent, tv);
+        // 6. Return DateString(t).
+        Ok(Value::from_string(agent, date_string(t), gc.into_nogc()))
     }
 
     fn to_iso_string<'gc>(
@@ -1733,4 +1754,47 @@ pub(crate) fn time_clip(time: f64) -> f64 {
 
     // 3. Return 𝔽(! ToIntegerOrInfinity(time)).
     IntegerOrInfinity::from(time).into_f64()
+}
+
+/// ### [21.4.4.41.2 DateString ( tv )](https://tc39.es/ecma262/#sec-datestring)
+///
+/// The abstract operation DateString takes argument tv (a Number, but not NaN) and returns a String. It performs the following steps when called:
+fn date_string(tv: f64) -> std::string::String {
+    // 1. Let weekday be the Name of the entry in Table 65 with the Number WeekDay(tv).
+    let weekday = match week_day(tv) {
+        0 => "Sun",
+        1 => "Mon",
+        2 => "Tue",
+        3 => "Wed",
+        4 => "Thu",
+        5 => "Fri",
+        6 => "Sat",
+        _ => unreachable!(),
+    };
+    // 2. Let month be the Name of the entry in Table 66 with the Number MonthFromTime(tv).
+    let month = match month_from_time(tv) {
+        0 => "Jan",
+        1 => "Feb",
+        2 => "Mar",
+        3 => "Apr",
+        4 => "May",
+        5 => "Jun",
+        6 => "Jul",
+        7 => "Aug",
+        8 => "Sep",
+        9 => "Oct",
+        10 => "Nov",
+        11 => "Dec",
+        _ => unreachable!(),
+    };
+    // 3. Let day be ToZeroPaddedDecimalString(ℝ(DateFromTime(tv)), 2).
+    let day = to_zero_padded_decimal_string(date_from_time(tv), 2);
+    // 4. Let yv be YearFromTime(tv).
+    let yv = year_from_time(tv);
+    // 5. If yv is +0𝔽 or yv > +0𝔽, let yearSign be the empty String; otherwise, let yearSign be "-".
+    let year_sign = if yv >= 0 { "" } else { "-" };
+    // 6. Let paddedYear be ToZeroPaddedDecimalString(abs(ℝ(yv)), 4).
+    let padded_year = to_zero_padded_decimal_string(yv.abs(), 4);
+    // 7. Return the string-concatenation of weekday, the code unit 0x0020 (SPACE), month, the code unit 0x0020 (SPACE), day, the code unit 0x0020 (SPACE), yearSign, and paddedYear.
+    format!("{weekday} {month} {day} {year_sign}{padded_year}")
 }
