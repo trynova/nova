@@ -5,6 +5,7 @@
 pub(crate) mod data;
 
 use core::ops::{Index, IndexMut};
+use std::time::SystemTime;
 
 use crate::{
     ecmascript::{
@@ -36,6 +37,11 @@ impl Date<'_> {
         gc: NoGcScope<'_, 'scope>,
     ) -> Scoped<'scope, Date<'static>> {
         Scoped::new(agent, self.unbind(), gc)
+    }
+
+    #[inline]
+    pub fn date(self, agent: &Agent) -> Option<SystemTime> {
+        agent[self].date
     }
 
     pub(crate) const fn _def() -> Self {
