@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::time::SystemTime;
-
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::{
     SmallInteger,
@@ -12,7 +10,7 @@ use crate::{
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date},
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
-        types::{BUILTIN_STRING_MEMORY, IntoValue, Number, Object, PropertyKey, String, Value},
+        types::{BUILTIN_STRING_MEMORY, IntoValue, Object, PropertyKey, String, Value},
     },
     heap::{IntrinsicFunctionIndexes, WellKnownSymbolIndexes},
 };
@@ -312,9 +310,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return DateFromTime(LocalTime(t)).
         Ok(Value::Integer(date_from_time(local_time(agent, t)).into()))
     }
@@ -334,9 +332,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return WeekDay(LocalTime(t)).
         Ok(Value::Integer(week_day(local_time(agent, t)).into()))
     }
@@ -356,9 +354,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return YearFromTime(LocalTime(t)).
         Ok(Value::Integer(year_from_time(local_time(agent, t)).into()))
     }
@@ -378,9 +376,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return HourFromTime(LocalTime(t)).
         Ok(Value::Integer(hour_from_time(local_time(agent, t)).into()))
     }
@@ -400,9 +398,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return msFromTime(LocalTime(t)).
         Ok(Value::Integer(ms_from_time(local_time(agent, t)).into()))
     }
@@ -422,9 +420,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return MinFromTime(LocalTime(t)).
         Ok(Value::Integer(min_from_time(local_time(agent, t)).into()))
     }
@@ -444,9 +442,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return MonthFromTime(LocalTime(t)).
         Ok(Value::Integer(month_from_time(local_time(agent, t)).into()))
     }
@@ -466,9 +464,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return SecFromTime(LocalTime(t)).
         Ok(Value::Integer(sec_from_time(local_time(agent, t)).into()))
     }
@@ -486,21 +484,11 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Return dateObject.[[DateValue]].
-        Ok(match date_object.date(agent) {
-            None => Value::nan(),
-            Some(t) => {
-                // Convert SystemTime to milliseconds since epoch
-                let ms_since_epoch = t.duration_since(SystemTime::UNIX_EPOCH).map_or_else(
-                    |_| {
-                        // Handle time before UNIX epoch (negative value)
-                        let duration = SystemTime::UNIX_EPOCH.duration_since(t).unwrap();
-                        -(duration.as_millis() as f64)
-                    },
-                    |duration| duration.as_millis() as f64,
-                );
-                Value::from_f64(agent, ms_since_epoch, gc.into_nogc())
-            }
-        })
+        Ok(Value::from_f64(
+            agent,
+            date_object.date(agent),
+            gc.into_nogc(),
+        ))
     }
 
     fn get_timezone_offset<'gc>(
@@ -515,9 +503,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date(agent);
         // 4. If t is NaN, return NaN.
-        let Some(t) = t else {
+        if t.is_nan() {
             return Ok(Value::nan());
-        };
+        }
         // 5. Return (t - LocalTime(t)) / msPerMinute.
         todo!()
     }
@@ -838,51 +826,24 @@ impl DatePrototype {
         todo!()
     }
 
+    /// ### [21.4.4.44 Date.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-date.prototype.valueof)
+    ///
+    /// This method performs the following steps when called:
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        let data = &agent[date_object].date;
-        match data {
-            Some(system_time) => {
-                let time_as_millis = system_time
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .map_or_else(
-                        |_| {
-                            // System time is before UNIX_EPOCH
-                            let value = SystemTime::UNIX_EPOCH
-                                .duration_since(*system_time)
-                                .unwrap()
-                                .as_millis();
-                            if value > MAX_SYSTEM_TIME_VALUE {
-                                // Time difference is over representable limit
-                                None
-                            } else {
-                                Some(-(value as i64))
-                            }
-                        },
-                        |value| {
-                            let value = value.as_millis();
-                            if value > MAX_SYSTEM_TIME_VALUE {
-                                None
-                            } else {
-                                Some(value as i64)
-                            }
-                        },
-                    );
-                match time_as_millis {
-                    Some(time_as_millis) => Ok(Number::from(
-                        SmallInteger::try_from(time_as_millis).unwrap(),
-                    )
-                    .into_value()),
-                    None => Ok(Value::nan()),
-                }
-            }
-            None => Ok(Value::nan()),
-        }
+        // 3. Return dateObject.[[DateValue]].
+        Ok(Value::from_f64(
+            agent,
+            date_object.date(agent),
+            gc.into_nogc(),
+        ))
     }
 
     /// ### [21.4.4.45 Date.prototype \[ %Symbol.toPrimitive% \] ( hint )](https://tc39.es/ecma262/#sec-date.prototype-%symbol.toprimitive%)
@@ -1360,7 +1321,7 @@ fn get_utc_epoch_nanoseconds(
 /// >
 /// > LocalTime(UTC(tlocal)) is not necessarily always equal to tlocal.
 /// > Correspondingly, UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
-fn local_time<'a>(agent: &mut Agent, t: SystemTime) -> f64 {
+fn local_time<'a>(agent: &mut Agent, t: f64) -> f64 {
     // 1. Let systemTimeZoneIdentifier be SystemTimeZoneIdentifier().
     // 2. If IsTimeZoneOffsetString(systemTimeZoneIdentifier) is true, then
     //   a. Let offsetNs be ParseTimeZoneOffsetString(systemTimeZoneIdentifier).

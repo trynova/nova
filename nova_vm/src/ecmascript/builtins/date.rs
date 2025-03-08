@@ -5,7 +5,6 @@
 pub(crate) mod data;
 
 use core::ops::{Index, IndexMut};
-use std::time::SystemTime;
 
 use crate::{
     ecmascript::{
@@ -40,7 +39,7 @@ impl Date<'_> {
     }
 
     #[inline]
-    pub fn date(self, agent: &Agent) -> Option<SystemTime> {
+    pub fn date(self, agent: &Agent) -> f64 {
         agent[self].date
     }
 
