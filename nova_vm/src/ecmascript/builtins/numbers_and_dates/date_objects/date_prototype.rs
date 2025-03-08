@@ -363,64 +363,144 @@ impl DatePrototype {
         Ok(Value::Integer(year_from_time(local_time(agent, t)).into()))
     }
 
+    /// ### [21.4.4.5 Date.prototype.getHours ( )](https://tc39.es/ecma262/#sec-date.prototype.gethours)
+    ///
+    /// This method performs the following steps when called:
     fn get_hours<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.date(agent);
+        // 4. If t is NaN, return NaN.
+        let Some(t) = t else {
+            return Ok(Value::nan());
+        };
+        // 5. Return HourFromTime(LocalTime(t)).
+        Ok(Value::Integer(hour_from_time(local_time(agent, t)).into()))
     }
 
+    /// ### [21.4.4.6 Date.prototype.getMilliseconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getmilliseconds)
+    ///
+    /// This method performs the following steps when called:
     fn get_milliseconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.date(agent);
+        // 4. If t is NaN, return NaN.
+        let Some(t) = t else {
+            return Ok(Value::nan());
+        };
+        // 5. Return msFromTime(LocalTime(t)).
+        Ok(Value::Integer(ms_from_time(local_time(agent, t)).into()))
     }
 
+    /// ### [21.4.4.7 Date.prototype.getMinutes ( )](https://tc39.es/ecma262/#sec-date.prototype.getminutes)
+    ///
+    /// This method performs the following steps when called:
     fn get_minutes<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.date(agent);
+        // 4. If t is NaN, return NaN.
+        let Some(t) = t else {
+            return Ok(Value::nan());
+        };
+        // 5. Return MinFromTime(LocalTime(t)).
+        Ok(Value::Integer(min_from_time(local_time(agent, t)).into()))
     }
 
+    /// ### [21.4.4.8 Date.prototype.getMonth ( )](https://tc39.es/ecma262/#sec-date.prototype.getmonth)
+    ///
+    /// This method performs the following steps when called:
     fn get_month<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.date(agent);
+        // 4. If t is NaN, return NaN.
+        let Some(t) = t else {
+            return Ok(Value::nan());
+        };
+        // 5. Return MonthFromTime(LocalTime(t)).
+        Ok(Value::Integer(month_from_time(local_time(agent, t)).into()))
     }
 
+    /// ### [21.4.4.9 Date.prototype.getSeconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getseconds)
+    ///
+    /// This method performs the following steps when called:
     fn get_seconds<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.date(agent);
+        // 4. If t is NaN, return NaN.
+        let Some(t) = t else {
+            return Ok(Value::nan());
+        };
+        // 5. Return SecFromTime(LocalTime(t)).
+        Ok(Value::Integer(sec_from_time(local_time(agent, t)).into()))
     }
 
+    /// ### [21.4.4.10 Date.prototype.getTime ( )](https://tc39.es/ecma262/#sec-date.prototype.gettime)
+    ///
+    /// This method performs the following steps when called:
     fn get_time<'gc>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Return dateObject.[[DateValue]].
+        Ok(match date_object.date(agent) {
+            None => Value::nan(),
+            Some(t) => {
+                // Convert SystemTime to milliseconds since epoch
+                let ms_since_epoch = t.duration_since(SystemTime::UNIX_EPOCH).map_or_else(
+                    |_| {
+                        // Handle time before UNIX epoch (negative value)
+                        let duration = SystemTime::UNIX_EPOCH.duration_since(t).unwrap();
+                        -(duration.as_millis() as f64)
+                    },
+                    |duration| duration.as_millis() as f64,
+                );
+                Value::from_f64(agent, ms_since_epoch, gc.into_nogc())
+            }
+        })
     }
 
     fn get_timezone_offset<'gc>(
@@ -429,7 +509,16 @@ impl DatePrototype {
         _: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 1. Let dateObject be the this value.
+        // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
+        let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
+        // 3. Let t be dateObject.[[DateValue]].
+        let t = date_object.date(agent);
+        // 4. If t is NaN, return NaN.
+        let Some(t) = t else {
+            return Ok(Value::nan());
+        };
+        // 5. Return (t - LocalTime(t)) / msPerMinute.
         todo!()
     }
 
