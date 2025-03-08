@@ -79,6 +79,9 @@ impl DateConstructor {
             0 => {
                 // a. Let dv be the time value (UTC) identifying the current time.
                 SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .expect("Time went backwards")
+                    .as_millis() as f64
             }
             // 4. Else if numberOfArgs = 1, then
             1 => {
@@ -120,7 +123,7 @@ impl DateConstructor {
             gc.reborrow(),
         )?;
         // 7. Set O.[[DateValue]] to dv.
-        agent[Date::try_from(o).unwrap()].date = Some(dv);
+        agent[Date::try_from(o).unwrap()].date = dv;
         // 8. Return O.
         Ok(o.unbind().into_value())
     }

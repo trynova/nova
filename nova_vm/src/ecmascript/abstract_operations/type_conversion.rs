@@ -447,6 +447,38 @@ impl IntegerOrInfinity {
     pub(crate) fn into_i64(self) -> i64 {
         self.0
     }
+
+    pub(crate) fn into_f64(self) -> f64 {
+        match self {
+            Self::NEG_INFINITY => f64::NEG_INFINITY,
+            Self::POS_INFINITY => f64::INFINITY,
+            IntegerOrInfinity(i) => i as f64,
+        }
+    }
+}
+
+/// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
+impl From<f64> for IntegerOrInfinity {
+    fn from(number: f64) -> Self {
+        // `ToIntegerOrInfinity ( argument )`
+        if number.is_nan() || number == 0.0 {
+            // 2. If number is NaN, +0𝔽, or -0𝔽, return 0.
+            Self(0)
+        } else if number == f64::INFINITY {
+            // 3. If number is +∞𝔽, return +∞.
+            Self::POS_INFINITY
+        } else if number == f64::NEG_INFINITY {
+            // 4. If number is -∞𝔽, return -∞.
+            Self::NEG_INFINITY
+        } else {
+            // 5. Let integer be floor(abs(ℝ(number))).
+            // 6. If number < +0𝔽, set integer to -integer.
+            let integer = number.abs().floor().copysign(number) as i64;
+
+            // 7. Return integer.
+            Self(integer)
+        }
+    }
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)

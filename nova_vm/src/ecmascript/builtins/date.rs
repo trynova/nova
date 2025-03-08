@@ -38,6 +38,16 @@ impl Date<'_> {
         Scoped::new(agent, self.unbind(), gc)
     }
 
+    #[inline]
+    pub fn date(self, agent: &Agent) -> f64 {
+        agent[self].date
+    }
+
+    #[inline]
+    pub fn set_date(self, agent: &mut Agent, date: f64) {
+        agent[self].date = date;
+    }
+
     pub(crate) const fn _def() -> Self {
         Self(DateIndex::from_u32_index(0))
     }
