@@ -21,55 +21,55 @@ struct DatePrototypeGetDate;
 impl Builtin for DatePrototypeGetDate {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getDate;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_date);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_date::<false>);
 }
 struct DatePrototypeGetDay;
 impl Builtin for DatePrototypeGetDay {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getDay;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_day);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_day::<false>);
 }
 struct DatePrototypeGetFullYear;
 impl Builtin for DatePrototypeGetFullYear {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getFullYear;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_full_year);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_full_year::<false>);
 }
 struct DatePrototypeGetHours;
 impl Builtin for DatePrototypeGetHours {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getHours;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_hours);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_hours::<false>);
 }
 struct DatePrototypeGetMilliseconds;
 impl Builtin for DatePrototypeGetMilliseconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getMilliseconds;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_milliseconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_milliseconds::<false>);
 }
 struct DatePrototypeGetMinutes;
 impl Builtin for DatePrototypeGetMinutes {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getMinutes;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_minutes);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_minutes::<false>);
 }
 struct DatePrototypeGetMonth;
 impl Builtin for DatePrototypeGetMonth {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getMonth;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_month);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_month::<false>);
 }
 struct DatePrototypeGetSeconds;
 impl Builtin for DatePrototypeGetSeconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getSeconds;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_seconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_seconds::<false>);
 }
 struct DatePrototypeGetTime;
 impl Builtin for DatePrototypeGetTime {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getTime;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_time);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_time::<false>);
 }
 struct DatePrototypeGetTimezoneOffset;
 impl Builtin for DatePrototypeGetTimezoneOffset {
@@ -81,49 +81,49 @@ struct DatePrototypeGetUTCDate;
 impl Builtin for DatePrototypeGetUTCDate {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCDate;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_date);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_date::<true>);
 }
 struct DatePrototypeGetUTCDay;
 impl Builtin for DatePrototypeGetUTCDay {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCDay;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_day);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_day::<true>);
 }
 struct DatePrototypeGetUTCFullYear;
 impl Builtin for DatePrototypeGetUTCFullYear {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCFullYear;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_full_year);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_full_year::<true>);
 }
 struct DatePrototypeGetUTCHours;
 impl Builtin for DatePrototypeGetUTCHours {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCHours;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_hours);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_hours::<true>);
 }
 struct DatePrototypeGetUTCMilliseconds;
 impl Builtin for DatePrototypeGetUTCMilliseconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCMilliseconds;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_milliseconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_milliseconds::<true>);
 }
 struct DatePrototypeGetUTCMinutes;
 impl Builtin for DatePrototypeGetUTCMinutes {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCMinutes;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_minutes);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_minutes::<true>);
 }
 struct DatePrototypeGetUTCMonth;
 impl Builtin for DatePrototypeGetUTCMonth {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCMonth;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_month);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_month::<true>);
 }
 struct DatePrototypeGetUTCSeconds;
 impl Builtin for DatePrototypeGetUTCSeconds {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.getUTCSeconds;
     const LENGTH: u8 = 0;
-    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_utc_seconds);
+    const BEHAVIOUR: Behaviour = Behaviour::Regular(DatePrototype::get_seconds::<true>);
 }
 struct DatePrototypeSetDate;
 impl Builtin for DatePrototypeSetDate {
@@ -298,7 +298,7 @@ impl DatePrototype {
     /// ### [21.4.4.2 Date.prototype.getDate ( )](https://tc39.es/ecma262/#sec-date.prototype.getdate)
     ///
     /// This method performs the following steps when called:
-    fn get_date<'gc>(
+    fn get_date<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -314,13 +314,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return DateFromTime(LocalTime(t)).
-        Ok(Value::Integer(date_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            date_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.3 Date.prototype.getDay ( )](https://tc39.es/ecma262/#sec-date.prototype.getday)
     ///
     /// This method performs the following steps when called:
-    fn get_day<'gc>(
+    fn get_day<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -336,13 +338,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return WeekDay(LocalTime(t)).
-        Ok(Value::Integer(week_day(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            week_day(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.4 Date.prototype.getFullYear ( )](https://tc39.es/ecma262/#sec-date.prototype.getfullyear)
     ///
     /// This method performs the following steps when called:
-    fn get_full_year<'gc>(
+    fn get_full_year<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -358,13 +362,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return YearFromTime(LocalTime(t)).
-        Ok(Value::Integer(year_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            year_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.5 Date.prototype.getHours ( )](https://tc39.es/ecma262/#sec-date.prototype.gethours)
     ///
     /// This method performs the following steps when called:
-    fn get_hours<'gc>(
+    fn get_hours<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -380,13 +386,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return HourFromTime(LocalTime(t)).
-        Ok(Value::Integer(hour_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            hour_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.6 Date.prototype.getMilliseconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getmilliseconds)
     ///
     /// This method performs the following steps when called:
-    fn get_milliseconds<'gc>(
+    fn get_milliseconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -402,13 +410,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return msFromTime(LocalTime(t)).
-        Ok(Value::Integer(ms_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            ms_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.7 Date.prototype.getMinutes ( )](https://tc39.es/ecma262/#sec-date.prototype.getminutes)
     ///
     /// This method performs the following steps when called:
-    fn get_minutes<'gc>(
+    fn get_minutes<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -424,13 +434,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return MinFromTime(LocalTime(t)).
-        Ok(Value::Integer(min_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            min_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.8 Date.prototype.getMonth ( )](https://tc39.es/ecma262/#sec-date.prototype.getmonth)
     ///
     /// This method performs the following steps when called:
-    fn get_month<'gc>(
+    fn get_month<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -446,13 +458,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return MonthFromTime(LocalTime(t)).
-        Ok(Value::Integer(month_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            month_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.9 Date.prototype.getSeconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getseconds)
     ///
     /// This method performs the following steps when called:
-    fn get_seconds<'gc>(
+    fn get_seconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -468,13 +482,15 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return SecFromTime(LocalTime(t)).
-        Ok(Value::Integer(sec_from_time(local_time(agent, t)).into()))
+        Ok(Value::Integer(
+            sec_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
+        ))
     }
 
     /// ### [21.4.4.10 Date.prototype.getTime ( )](https://tc39.es/ecma262/#sec-date.prototype.gettime)
     ///
     /// This method performs the following steps when called:
-    fn get_time<'gc>(
+    fn get_time<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
         _: ArgumentsList,
@@ -507,87 +523,8 @@ impl DatePrototype {
             return Ok(Value::nan());
         }
         // 5. Return (t - LocalTime(t)) / msPerMinute.
-        todo!()
-    }
-
-    fn get_utc_date<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_day<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_full_year<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_hours<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_milliseconds<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_minutes<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_month<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
-    }
-
-    fn get_utc_seconds<'gc>(
-        agent: &mut Agent,
-        this_value: Value,
-        _: ArgumentsList,
-        gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        let _date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
-        todo!()
+        let result = (t - local_time(agent, t)) / MS_PER_MINUTE;
+        Ok(Value::from_f64(agent, result, gc.into_nogc()))
     }
 
     fn set_date<'gc>(
@@ -1330,4 +1267,8 @@ fn local_time<'a>(agent: &mut Agent, t: f64) -> f64 {
     // 4. Let offsetMs be truncate(offsetNs / 10**6).
     // 5. Return t + 𝔽(offsetMs).
     todo!()
+}
+
+fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
+    if UTC { t } else { local_time(agent, t) }
 }
