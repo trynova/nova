@@ -1697,7 +1697,7 @@ fn get_utc_epoch_nanoseconds(
     // 4. Assert: ms is an integral Number.
     assert!(ms.fract() == 0.0);
     // 5. Return ℤ(ℝ(ms) × 10**6 + microsecond × 10**3 + nanosecond).
-    (ms as i64) * 1_000_000 + (microsecond as i64) * 1_000 + (nanosecond as i64)
+    ((ms as f64) * 1e6 + (microsecond as f64) * 1e3 + (nanosecond as f64)) as i64
 }
 
 /// ### [21.4.1.20 GetNamedTimeZoneEpochNanoseconds ( timeZoneIdentifier, year, month, day, hour, minute, second, millisecond, microsecond, nanosecond )](https://tc39.es/ecma262/#sec-getnamedtimezoneepochnanoseconds)
