@@ -316,7 +316,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -338,7 +338,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -360,7 +360,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -382,7 +382,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -404,7 +404,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -426,7 +426,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -448,7 +448,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -470,7 +470,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -494,7 +494,7 @@ impl DatePrototype {
         // 3. Return dateObject.[[DateValue]].
         Ok(Value::from_f64(
             agent,
-            date_object.date(agent),
+            date_object.date_value(agent),
             gc.into_nogc(),
         ))
     }
@@ -509,7 +509,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.date(agent);
+        let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -526,14 +526,15 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let date = arguments.get(0).bind(gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Let dt be ? ToNumber(date).
-        let dt = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let dt = to_number(agent, date.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, return NaN.
         if t.is_nan() {
             return Ok(Value::nan());
@@ -548,7 +549,7 @@ impl DatePrototype {
         // 8. Let u be TimeClip(UTC(newDate)).
         let u = time_clip(utc(agent, new_date));
         // 9. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -568,14 +569,17 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let year = arguments.get(0).bind(gc.nogc());
+        let month = arguments.get(1).scope(agent, gc.nogc());
+        let date = arguments.get(2).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Let y be ? ToNumber(year).
-        let y = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let y = to_number(agent, year.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, set t to +0𝔽; otherwise, set t to LocalTime(t).
         let t = if t.is_nan() {
             0.0
@@ -586,8 +590,8 @@ impl DatePrototype {
         let m = if arguments.len() < 2 {
             month_from_time(t) as f64
         } else {
-            arguments
-                .get(1)
+            month
+                .get(agent)
                 .to_number(agent, gc.reborrow())?
                 .into_f64(agent)
         };
@@ -595,8 +599,7 @@ impl DatePrototype {
         let dt = if arguments.len() < 3 {
             date_from_time(t) as f64
         } else {
-            arguments
-                .get(2)
+            date.get(agent)
                 .to_number(agent, gc.reborrow())?
                 .into_f64(agent)
         };
@@ -605,7 +608,7 @@ impl DatePrototype {
         // 9. Let u be TimeClip(UTC(newDate)).
         let u = time_clip(utc(agent, new_date));
         // 10. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 11. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -626,29 +629,33 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let hour = arguments.get(0).bind(gc.nogc());
+        let min = arguments.get(1).scope(agent, gc.nogc());
+        let sec = arguments.get(2).scope(agent, gc.nogc());
+        let ms = arguments.get(3).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Let h be ? ToNumber(hour).
-        let h = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let h = to_number(agent, hour.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If min is present, let m be ? ToNumber(min).
         let m = if arguments.len() > 1 {
-            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, min.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
         // 6. If sec is present, let s be ? ToNumber(sec).
         let s = if arguments.len() > 2 {
-            Some(to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, sec.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
         // 7. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 3 {
-            Some(to_number(agent, arguments.get(3), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
@@ -669,7 +676,7 @@ impl DatePrototype {
         // 14. Let u be TimeClip(UTC(date)).
         let u = time_clip(utc(agent, date));
         // 15. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 16. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -686,7 +693,7 @@ impl DatePrototype {
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Set ms to ? ToNumber(ms).
         let ms = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, return NaN.
@@ -705,7 +712,7 @@ impl DatePrototype {
         // 8. Let u be TimeClip(UTC(MakeDate(Day(t), time))).
         let u = time_clip(utc(agent, make_date(day(t), time)));
         // 9. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -725,23 +732,26 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let min = arguments.get(0).bind(gc.nogc());
+        let sec = arguments.get(1).scope(agent, gc.nogc());
+        let ms = arguments.get(2).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Let m be ? ToNumber(min).
-        let m = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let m = to_number(agent, min.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If sec is present, let s be ? ToNumber(sec).
         let s = if arguments.len() > 1 {
-            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, sec.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
         // 6. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 2 {
-            Some(to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
@@ -760,7 +770,7 @@ impl DatePrototype {
         // 12. Let u be TimeClip(UTC(date)).
         let u = time_clip(utc(agent, date));
         // 13. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 14. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -779,17 +789,19 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let month = arguments.get(0).bind(gc.nogc());
+        let date = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Let m be ? ToNumber(month).
-        let m = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let m = to_number(agent, month.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If date is present, let dt be ? ToNumber(date).
         let dt = if arguments.len() > 1 {
-            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, date.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
@@ -809,7 +821,7 @@ impl DatePrototype {
         // 10. Let u be TimeClip(UTC(newDate)).
         let u = time_clip(utc(agent, new_date));
         // 11. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -828,17 +840,19 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let sec = arguments.get(0).bind(gc.nogc());
+        let ms = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be dateObject.[[DateValue]].
-        let t = date_object.get(agent).date(agent);
+        let t = date_object.get(agent).date_value(agent);
         // 4. Let s be ? ToNumber(sec).
-        let s = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let s = to_number(agent, sec.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If ms is present, let milli be ? ToNumber(ms).
         let milli = if arguments.len() > 1 {
-            Some(to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent))
+            Some(to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent))
         } else {
             None
         };
@@ -858,7 +872,7 @@ impl DatePrototype {
         // 10. Let u be TimeClip(UTC(date)).
         let u = time_clip(utc(agent, date));
         // 11. Set dateObject.[[DateValue]] to u.
-        date_object.get(agent).set_date(agent, u);
+        date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
         Ok(Value::from_f64(agent, u, gc.into_nogc()))
     }
@@ -879,7 +893,7 @@ impl DatePrototype {
         // 4. Let v be TimeClip(t).
         let v = time_clip(t);
         // 5. Set dateObject.[[DateValue]] to v.
-        date_object.get(agent).set_date(agent, v);
+        date_object.get(agent).set_date_value(agent, v);
         // 6. Return v.
         Ok(Value::from_f64(agent, v, gc.into_nogc()))
     }
@@ -895,7 +909,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let tv be dateObject.[[DateValue]].
-        let tv = date_object.date(agent);
+        let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
         if tv.is_nan() {
             return Ok(Value::from_static_str(
@@ -921,7 +935,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let tv be dateObject.[[DateValue]].
-        let tv = date_object.date(agent);
+        let tv = date_object.date_value(agent);
         // 4. If tv is NaN, throw a RangeError exception.
         if tv.is_nan() {
             return Err(agent.throw_exception_with_static_message(
@@ -1084,7 +1098,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let tv be dateObject.[[DateValue]].
-        let tv = date_object.date(agent);
+        let tv = date_object.date_value(agent);
         // 4. Return ToDateString(tv).
         let s = to_date_string(agent, tv);
         Ok(Value::from_string(agent, s, gc.into_nogc()))
@@ -1101,7 +1115,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let tv be dateObject.[[DateValue]].
-        let tv = date_object.date(agent);
+        let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
         if tv.is_nan() {
             return Ok(Value::from_static_str(
@@ -1136,7 +1150,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]])
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Let tv be dateObject.[[DateValue]].
-        let tv = date_object.date(agent);
+        let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
         if tv.is_nan() {
             return Ok(Value::from_static_str(
@@ -1206,7 +1220,7 @@ impl DatePrototype {
         // 3. Return dateObject.[[DateValue]].
         Ok(Value::from_f64(
             agent,
-            date_object.date(agent),
+            date_object.date_value(agent),
             gc.into_nogc(),
         ))
     }
@@ -1660,7 +1674,7 @@ fn get_utc_epoch_nanoseconds(
     // 4. Assert: ms is an integral Number.
     assert!(ms.fract() == 0.0);
     // 5. Return ℤ(ℝ(ms) × 10**6 + microsecond × 10**3 + nanosecond).
-    ((ms as f64) * 1e6 + (microsecond as f64) * 1e3 + (nanosecond as f64)) as i64
+    (ms * 1e6 + (microsecond as f64) * 1e3 + (nanosecond as f64)) as i64
 }
 
 /// ### [21.4.1.20 GetNamedTimeZoneEpochNanoseconds ( timeZoneIdentifier, year, month, day, hour, minute, second, millisecond, microsecond, nanosecond )](https://tc39.es/ecma262/#sec-getnamedtimezoneepochnanoseconds)

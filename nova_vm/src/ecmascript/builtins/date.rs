@@ -38,13 +38,15 @@ impl Date<'_> {
         Scoped::new(agent, self.unbind(), gc)
     }
 
+    /// ### get [[DateValue]]
     #[inline]
-    pub fn date(self, agent: &Agent) -> f64 {
+    pub(crate) fn date_value(self, agent: &Agent) -> f64 {
         agent[self].date
     }
 
+    /// ### set [[DateValue]]
     #[inline]
-    pub fn set_date(self, agent: &mut Agent, date: f64) {
+    pub(crate) fn set_date_value(self, agent: &mut Agent, date: f64) {
         agent[self].date = date;
     }
 

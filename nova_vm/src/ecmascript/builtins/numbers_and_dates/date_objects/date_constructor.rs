@@ -4,7 +4,6 @@
 
 use std::time::SystemTime;
 
-use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
 use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
@@ -37,6 +36,10 @@ use crate::{
         abstract_operations::type_conversion::to_primitive,
         numbers_and_dates::date_objects::date_prototype::time_clip,
     },
+};
+use crate::{
+    ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder,
+    engine::rootable::Scopable,
 };
 
 use super::date_prototype::{MS_PER_MINUTE, to_date_string};
@@ -71,6 +74,7 @@ impl Builtin for DateUTC {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.UTC;
 }
 impl DateConstructor {
+    /// ### [21.4.2.1 Date ( ...values )](https://tc39.es/ecma262/#sec-date)
     fn constructor<'gc>(
         agent: &mut Agent,
         _this_value: Value,
@@ -78,6 +82,13 @@ impl DateConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let arg0 = arguments.get(0).bind(gc.nogc());
+        let arg1 = arguments.get(1).scope(agent, gc.nogc());
+        let arg2 = arguments.get(2).scope(agent, gc.nogc());
+        let arg3 = arguments.get(3).scope(agent, gc.nogc());
+        let arg4 = arguments.get(4).scope(agent, gc.nogc());
+        let arg5 = arguments.get(5).scope(agent, gc.nogc());
+        let arg6 = arguments.get(6).scope(agent, gc.nogc());
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
             // a. Let now be the time value (UTC) identifying the current time.
@@ -107,22 +118,21 @@ impl DateConstructor {
             // 4. Else if numberOfArgs = 1, then
             1 => {
                 // a. Let value be values[0].
-                let value = arguments.get(0);
+                let value = arg0;
                 // b. If value is an Object and value has a [[DateValue]] internal slot, then
                 let tv = if let Value::Date(date) = value {
                     // i. Let tv be value.[[DateValue]].
-                    date.date(agent)
+                    date.date_value(agent)
                 }
                 // c. Else,
                 else {
                     // i. Let v be ? ToPrimitive(value).
-                    let v = to_primitive(agent, value, None, gc.reborrow())?.unbind();
+                    let v = to_primitive(agent, value.unbind(), None, gc.reborrow())?.unbind();
                     // ii. If v is a String, then
-                    if v.is_string() {
+                    if let Ok(v) = String::try_from(v) {
                         // 1. Assert: The next step never returns an abrupt completion because v is a String.
                         // 2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (21.4.3.2).
-                        let v = v.into_value().to_string(agent, gc.reborrow()).unwrap();
-                        parse_date::parse(agent, v.as_str(agent))
+                        parse_date::parse(agent, v.as_str(agent)).unwrap()
                     }
                     // iii. Else,
                     else {
@@ -138,36 +148,36 @@ impl DateConstructor {
                 // a. Assert: numberOfArgs ≥ 2.
                 assert!(number_of_args >= 2);
                 // b. Let y be ? ToNumber(values[0]).
-                let y = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+                let y = to_number(agent, arg0.unbind(), gc.reborrow())?.to_real(agent);
                 // c. Let m be ? ToNumber(values[1]).
-                let m = to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent);
+                let m = to_number(agent, arg1.get(agent), gc.reborrow())?.to_real(agent);
                 // d. If numberOfArgs > 2, let dt be ? ToNumber(values[2]); else let dt be 1𝔽.
                 let dt = if number_of_args > 2 {
-                    to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg2.get(agent), gc.reborrow())?.to_real(agent)
                 } else {
                     1.0
                 };
                 // e. If numberOfArgs > 3, let h be ? ToNumber(values[3]); else let h be +0𝔽.
                 let h = if number_of_args > 3 {
-                    to_number(agent, arguments.get(3), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg3.get(agent), gc.reborrow())?.to_real(agent)
                 } else {
                     0.0
                 };
                 // f. If numberOfArgs > 4, let min be ? ToNumber(values[4]); else let min be +0𝔽.
                 let min = if number_of_args > 4 {
-                    to_number(agent, arguments.get(4), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg4.get(agent), gc.reborrow())?.to_real(agent)
                 } else {
                     0.0
                 };
                 // g. If numberOfArgs > 5, let s be ? ToNumber(values[5]); else let s be +0𝔽.
                 let s = if number_of_args > 5 {
-                    to_number(agent, arguments.get(5), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg5.get(agent), gc.reborrow())?.to_real(agent)
                 } else {
                     0.0
                 };
                 // h. If numberOfArgs > 6, let milli be ? ToNumber(values[6]); else let milli be +0𝔽.
                 let milli = if number_of_args > 6 {
-                    to_number(agent, arguments.get(6), gc.reborrow())?.to_real(agent)
+                    to_number(agent, arg6.get(agent), gc.reborrow())?.to_real(agent)
                 } else {
                     0.0
                 };
@@ -261,7 +271,7 @@ impl DateConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let input = arguments.get(0).to_string(agent, gc.reborrow())?;
-        let parsed = parse_date::parse(agent, input.as_str(agent));
+        let parsed = parse_date::parse(agent, input.as_str(agent))?;
         Ok(Value::from_f64(agent, parsed, gc.into_nogc()))
     }
 
@@ -277,41 +287,48 @@ impl DateConstructor {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let year = arguments.get(0).bind(gc.nogc());
+        let month = arguments.get(1).scope(agent, gc.nogc());
+        let date = arguments.get(2).scope(agent, gc.nogc());
+        let hours = arguments.get(3).scope(agent, gc.nogc());
+        let minutes = arguments.get(4).scope(agent, gc.nogc());
+        let seconds = arguments.get(5).scope(agent, gc.nogc());
+        let ms = arguments.get(6).scope(agent, gc.nogc());
         // 1. Let y be ? ToNumber(year).
-        let y = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let y = to_number(agent, year.unbind(), gc.reborrow())?.to_real(agent);
         // 2. If month is present, let m be ? ToNumber(month); else let m be +0𝔽.
         let m = if arguments.len() > 1 {
-            to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent)
+            to_number(agent, month.get(agent), gc.reborrow())?.to_real(agent)
         } else {
             0.0
         };
         // 3. If date is present, let dt be ? ToNumber(date); else let dt be 1𝔽.
         let dt = if arguments.len() > 2 {
-            to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent)
+            to_number(agent, date.get(agent), gc.reborrow())?.to_real(agent)
         } else {
             1.0
         };
         // 4. If hours is present, let h be ? ToNumber(hours); else let h be +0𝔽.
         let h = if arguments.len() > 3 {
-            to_number(agent, arguments.get(3), gc.reborrow())?.to_real(agent)
+            to_number(agent, hours.get(agent), gc.reborrow())?.to_real(agent)
         } else {
             0.0
         };
         // 5. If minutes is present, let min be ? ToNumber(minutes); else let min be +0𝔽.
         let min = if arguments.len() > 4 {
-            to_number(agent, arguments.get(4), gc.reborrow())?.to_real(agent)
+            to_number(agent, minutes.get(agent), gc.reborrow())?.to_real(agent)
         } else {
             0.0
         };
         // 6. If seconds is present, let s be ? ToNumber(seconds); else let s be +0𝔽.
         let s = if arguments.len() > 5 {
-            to_number(agent, arguments.get(5), gc.reborrow())?.to_real(agent)
+            to_number(agent, seconds.get(agent), gc.reborrow())?.to_real(agent)
         } else {
             0.0
         };
         // 7. If ms is present, let milli be ? ToNumber(ms); else let milli be +0𝔽.
         let milli = if arguments.len() > 6 {
-            to_number(agent, arguments.get(6), gc.reborrow())?.to_real(agent)
+            to_number(agent, ms.get(agent), gc.reborrow())?.to_real(agent)
         } else {
             0.0
         };
@@ -340,6 +357,8 @@ impl DateConstructor {
 }
 
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L745
+///
+/// Copyright (c) 2019 Jason Williams
 mod parse_date {
     use super::*;
 
@@ -352,10 +371,10 @@ mod parse_date {
     ///
     /// [spec]: https://tc39.es/ecma262/#sec-date.parse
     /// [spec-format]: https://tc39.es/ecma262/#sec-date-time-string-format
-    pub fn parse(agent: &Agent, date: &str) -> f64 {
+    pub fn parse(agent: &Agent, date: &str) -> JsResult<f64> {
         // Date Time String Format: 'YYYY-MM-DDTHH:mm:ss.sssZ'
         if let Some(dt) = DateParser::new(agent, date).parse() {
-            return dt as f64;
+            return Ok(dt as f64);
         }
 
         // `toString` format: `Thu Jan 01 1970 00:00:00 GMT+0000`
@@ -371,7 +390,7 @@ mod parse_date {
         //     return Some(t.unix_timestamp() * 1000 + i64::from(t.millisecond()));
         // }
 
-        f64::NAN
+        Ok(f64::NAN)
     }
 
     /// Parses a date string according to the [`Date Time String Format`][spec].
@@ -519,7 +538,6 @@ mod parse_date {
             if t.is_finite() { Some(t as i64) } else { None }
         }
 
-        #[allow(clippy::as_conversions)]
         fn parse(&mut self) -> Option<i64> {
             self.parse_year()?;
             match self.input.peek() {
@@ -548,7 +566,6 @@ mod parse_date {
             }
         }
 
-        #[allow(clippy::as_conversions)]
         fn parse_year(&mut self) -> Option<()> {
             if let &&sign @ (b'+' | b'-') = self.input.peek()? {
                 // Consume the sign.
@@ -565,7 +582,6 @@ mod parse_date {
             Some(())
         }
 
-        #[allow(clippy::as_conversions)]
         fn parse_time(&mut self) -> Option<i64> {
             self.next_expect(b'T')?;
             self.hour = self.parse_n_ascii_digits::<2>()? as u32;
@@ -606,7 +622,6 @@ mod parse_date {
             }
         }
 
-        #[allow(clippy::as_conversions)]
         fn parse_timezone(&mut self) -> Option<()> {
             match self.input.next() {
                 Some(b'Z') => return Some(()),
