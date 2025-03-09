@@ -1390,7 +1390,7 @@ const SECONDS_PER_MINUTE: f64 = 60.0;
 /// msPerSecond = 1000𝔽
 const MS_PER_SECOND: f64 = 1000.0;
 /// msPerMinute = 60000𝔽 = msPerSecond × 𝔽(SecondsPerMinute)
-const MS_PER_MINUTE: f64 = MS_PER_SECOND * SECONDS_PER_MINUTE;
+pub(super) const MS_PER_MINUTE: f64 = MS_PER_SECOND * SECONDS_PER_MINUTE;
 /// msPerHour = 3600000𝔽 = msPerMinute × 𝔽(MinutesPerHour)
 const MS_PER_HOUR: f64 = MS_PER_MINUTE * MINUTES_PER_HOUR;
 /// msPerDay = 86400000𝔽 = msPerHour × 𝔽(HoursPerDay)
@@ -1437,7 +1437,7 @@ fn days_in_year(y: i32) -> u16 {
         return 366;
     }
     // 5. Return 365𝔽.
-    return 365;
+    365
 }
 
 /// ### [21.4.1.6 DayFromYear ( y )](https://tc39.es/ecma262/#sec-dayfromyear)
@@ -1671,6 +1671,7 @@ fn ms_from_time(t: f64) -> u16 {
 /// and returns a BigInt. The returned value represents a number of nanoseconds
 /// since the epoch that corresponds to the given ISO 8601 calendar date and
 /// wall-clock time in UTC.
+#[allow(clippy::too_many_arguments)]
 fn get_utc_epoch_nanoseconds(
     year: i32,
     month: u8,
@@ -1745,6 +1746,7 @@ fn get_utc_epoch_nanoseconds(
 /// > 2:30 AM on 12 March 2017 in America/New_York does not exist, so
 /// > GetNamedTimeZoneEpochNanoseconds("America/New_York", 2017, 3, 12, 2, 30,
 /// > 0, 0, 0, 0) would return an empty List.
+#[allow(clippy::too_many_arguments)]
 fn get_named_time_zone_epoch_nanoseconds(
     time_zone_identifier: &str,
     year: i32,
@@ -1929,7 +1931,7 @@ fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
 /// > UTC(LocalTime(tUTC)) is not necessarily always equal to tUTC.
 /// > Correspondingly, LocalTime(UTC(tlocal)) is not necessarily always equal
 /// > to tlocal.
-fn utc(agent: &Agent, t: f64) -> f64 {
+pub(super) fn utc(agent: &Agent, t: f64) -> f64 {
     // 1. If t is not finite, return NaN.
     if !t.is_finite() {
         return f64::NAN;
@@ -2032,7 +2034,7 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
 /// The abstract operation MakeDay takes arguments year (a Number),
 /// month (a Number), and date (a Number) and returns a Number.
 /// It calculates a number of days.
-fn make_day(year: f64, month: f64, date: f64) -> f64 {
+pub(super) fn make_day(year: f64, month: f64, date: f64) -> f64 {
     // 1. If year is not finite, month is not finite, or date is not finite, return NaN.
     if !year.is_finite() || !month.is_finite() || !date.is_finite() {
         return f64::NAN;
@@ -2116,7 +2118,7 @@ pub(super) fn make_date(day: f64, time: f64) -> f64 {
 /// with the proleptic Gregorian calendar, "full year" is defined as the signed
 /// count of complete years since the start of year 0 (1 B.C.). It performs the
 /// following steps when called:
-fn make_full_year(year: f64) -> f64 {
+pub(super) fn make_full_year(year: f64) -> f64 {
     // 1. If year is NaN, return NaN.
     if year.is_nan() {
         return f64::NAN;
@@ -2138,7 +2140,7 @@ fn make_full_year(year: f64) -> f64 {
 ///
 /// The abstract operation TimeClip takes argument time (a Number) and returns
 /// a Number. It calculates a number of milliseconds.
-pub(crate) fn time_clip(time: f64) -> f64 {
+pub(super) fn time_clip(time: f64) -> f64 {
     // 1. If time is not finite, return NaN.
     if !time.is_finite() {
         return f64::NAN;
