@@ -130,7 +130,7 @@ impl BigIntConstructor {
                     }
                     BigInt::SmallBigInt(bigint) => {
                         let bigint = bigint.into_i64();
-                        let modulo = bigint % divisor;
+                        let modulo = bigint.rem_euclid(divisor);
                         let modulo = if modulo >= 2i64.pow(bits - 1) {
                             modulo - divisor
                         } else {
@@ -188,7 +188,7 @@ impl BigIntConstructor {
             BigInt::BigInt(_) => todo!(),
             BigInt::SmallBigInt(int) => {
                 let int = int.into_i64();
-                let modulo = int % 2i64.pow(bits);
+                let modulo = int.rem_euclid(2i64.pow(bits));
                 Ok(BigInt::from(SmallBigInt::try_from(modulo).unwrap()).into_value())
             }
         }
