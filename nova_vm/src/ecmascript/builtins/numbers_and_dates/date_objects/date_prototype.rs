@@ -976,7 +976,7 @@ impl DatePrototype {
         // on the UTC time scale, including all format elements and the UTC offset representation "Z".
         // (The format is "YYYY-MM-DDTHH:mm:ss.sssZ")
         let year = year_from_time(tv);
-        let month = month_from_time(tv);
+        let month = month_from_time(tv) + 1;
         let day = date_from_time(tv);
         let hour = hour_from_time(tv);
         let minute = min_from_time(tv);
@@ -1481,13 +1481,20 @@ fn time_from_year(y: f64) -> f64 {
 
 /// ### [21.4.1.8 YearFromTime ( t )](https://tc39.es/ecma262/#sec-yearfromtime)
 ///
+/// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L133
+///
 /// The abstract operation YearFromTime takes argument t (a finite time value)
 /// and returns an integral Number. It returns the year in which t falls. It
 /// performs the following steps when called:
 fn year_from_time(t: f64) -> i32 {
+    const MS_PER_AVERAGE_YEAR: f64 = 12.0 * 30.436_875 * MS_PER_DAY;
+
     // 1. Return the largest integral Number y (closest to +∞) such that TimeFromYear(y) ≤ t.
-    let year = t / 31557600000.0;
-    year.floor() as i32
+    let mut year = (((t + MS_PER_AVERAGE_YEAR / 2.0) / MS_PER_AVERAGE_YEAR).floor()) as i32 + 1970;
+    if time_from_year(year.into()) > t {
+        year -= 1;
+    }
+    year
 }
 
 /// ### [21.4.1.9 DayWithinYear ( t )](https://tc39.es/ecma262/#sec-daywithinyear)
@@ -2030,6 +2037,8 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
 }
 
 /// ### [21.4.1.28 MakeDay ( year, month, date )](https://tc39.es/ecma262/#sec-makeday)
+/// 
+/// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L368
 ///
 /// The abstract operation MakeDay takes arguments year (a Number),
 /// month (a Number), and date (a Number) and returns a Number.
@@ -2324,7 +2333,7 @@ fn time_zone_string(agent: &Agent, tv: f64) -> std::string::String {
 ///
 /// The abstract operation ToDateString takes argument tv (an integral Number
 /// or NaN) and returns a String.
-fn to_date_string(agent: &Agent, tv: f64) -> std::string::String {
+pub(super) fn to_date_string(agent: &Agent, tv: f64) -> std::string::String {
     // 1. If tv is NaN, return "Invalid Date".
     if tv.is_nan() {
         return "Invalid Date".to_string();

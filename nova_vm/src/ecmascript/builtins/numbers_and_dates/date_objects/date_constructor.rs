@@ -39,7 +39,7 @@ use crate::{
     },
 };
 
-use super::date_prototype::MS_PER_MINUTE;
+use super::date_prototype::{MS_PER_MINUTE, to_date_string};
 
 pub struct DateConstructor;
 
@@ -68,7 +68,7 @@ struct DateUTC;
 impl Builtin for DateUTC {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(DateConstructor::utc);
     const LENGTH: u8 = 7;
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.utc;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.UTC;
 }
 impl DateConstructor {
     fn constructor<'gc>(
@@ -81,9 +81,17 @@ impl DateConstructor {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
             // a. Let now be the time value (UTC) identifying the current time.
-            let _now = SystemTime::now();
+            let now = SystemTime::now();
+            let now = now
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("Time went backwards")
+                .as_millis() as f64;
             // b. Return ToDateString(now).
-            todo!("ToDateString(now)");
+            return Ok(Value::from_string(
+                agent,
+                to_date_string(agent, now),
+                gc.into_nogc(),
+            ));
         };
         // 2. Let numberOfArgs be the number of elements in values.
         let number_of_args = arguments.len() as u32;
@@ -114,7 +122,7 @@ impl DateConstructor {
                         // 1. Assert: The next step never returns an abrupt completion because v is a String.
                         // 2. Let tv be the result of parsing v as a date, in exactly the same manner as for the parse method (21.4.3.2).
                         let v = v.into_value().to_string(agent, gc.reborrow()).unwrap();
-                        parse_date(agent, v.as_str(agent))
+                        parse_date::parse(agent, v.as_str(agent))
                     }
                     // iii. Else,
                     else {
@@ -253,64 +261,68 @@ impl DateConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let input = arguments.get(0).to_string(agent, gc.reborrow())?;
-        let parsed = parse_date(agent, input.as_str(agent));
+        let parsed = parse_date::parse(agent, input.as_str(agent));
         Ok(Value::from_f64(agent, parsed, gc.into_nogc()))
     }
 
     /// ### [21.4.3.4 Date.UTC ( year \[ , month \[ , date \[ , hours \[ , minutes \[ , seconds \[ , ms \] \] \] \] \] \] )](https://tc39.es/ecma262/#sec-date.utc)
+    /// > #### Note
+    /// >
+    /// > This function differs from the Date constructor in two ways: it
+    /// > returns a time value as a Number, rather than creating a Date,
+    /// > and it interprets the arguments in UTC rather than as local time.
     fn utc<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let _ns = arguments.get(0);
         // 1. Let y be ? ToNumber(year).
-        let _y = to_number(agent, arguments.get(0), gc.reborrow())?;
+        let y = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
         // 2. If month is present, let m be ? ToNumber(month); else let m be +0𝔽.
-        let _m = if arguments.len() > 1 {
-            to_number(agent, arguments.get(1), gc.reborrow())?
+        let m = if arguments.len() > 1 {
+            to_number(agent, arguments.get(1), gc.reborrow())?.to_real(agent)
         } else {
-            0.into()
+            0.0
         };
         // 3. If date is present, let dt be ? ToNumber(date); else let dt be 1𝔽.
-        let _dt = if arguments.len() > 2 {
-            to_number(agent, arguments.get(2), gc.reborrow())?
+        let dt = if arguments.len() > 2 {
+            to_number(agent, arguments.get(2), gc.reborrow())?.to_real(agent)
         } else {
-            0.into()
+            1.0
         };
         // 4. If hours is present, let h be ? ToNumber(hours); else let h be +0𝔽.
-        let _h = if arguments.len() > 3 {
-            to_number(agent, arguments.get(3), gc.reborrow())?
+        let h = if arguments.len() > 3 {
+            to_number(agent, arguments.get(3), gc.reborrow())?.to_real(agent)
         } else {
-            0.into()
+            0.0
         };
         // 5. If minutes is present, let min be ? ToNumber(minutes); else let min be +0𝔽.
-        let _min = if arguments.len() > 4 {
-            to_number(agent, arguments.get(4), gc.reborrow())?
+        let min = if arguments.len() > 4 {
+            to_number(agent, arguments.get(4), gc.reborrow())?.to_real(agent)
         } else {
-            0.into()
+            0.0
         };
         // 6. If seconds is present, let s be ? ToNumber(seconds); else let s be +0𝔽.
-        let _s = if arguments.len() > 5 {
-            to_number(agent, arguments.get(5), gc.reborrow())?
+        let s = if arguments.len() > 5 {
+            to_number(agent, arguments.get(5), gc.reborrow())?.to_real(agent)
         } else {
-            0.into()
+            0.0
         };
         // 7. If ms is present, let milli be ? ToNumber(ms); else let milli be +0𝔽.
-        let _milli = if arguments.len() > 6 {
-            to_number(agent, arguments.get(6), gc.reborrow())?
+        let milli = if arguments.len() > 6 {
+            to_number(agent, arguments.get(6), gc.reborrow())?.to_real(agent)
         } else {
-            0.into()
+            0.0
         };
         // 8. Let yr be MakeFullYear(y).
-        todo!("MakeFullYear");
+        let yr = make_full_year(y);
         // 9. Return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))).
-
-        // Note
-        // This function differs from the Date constructor in two ways: it
-        // returns a time value as a Number, rather than creating a Date,
-        // and it interprets the arguments in UTC rather than as local time.
+        Ok(Value::from_f64(
+            agent,
+            time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))),
+            gc.into_nogc(),
+        ))
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -327,294 +339,297 @@ impl DateConstructor {
     }
 }
 
-/// Parse a date string according to the steps specified in [`Date.parse`][spec].
-///
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L745
-///
-/// We parse three different formats:
-/// - The [`Date Time String Format`][spec-format] specified in the spec: `YYYY-MM-DDTHH:mm:ss.sssZ`
-/// - The `toString` format: `Thu Jan 01 1970 00:00:00 GMT+0000`
-/// - The `toUTCString` format: `Thu, 01 Jan 1970 00:00:00 GMT`
-///
-/// [spec]: https://tc39.es/ecma262/#sec-date.parse
-/// [spec-format]: https://tc39.es/ecma262/#sec-date-time-string-format
-pub(super) fn parse_date(agent: &Agent, date: &str) -> f64 {
-    // Date Time String Format: 'YYYY-MM-DDTHH:mm:ss.sssZ'
-    if let Some(dt) = DateParser::new(agent, date).parse() {
-        return dt as f64;
+mod parse_date {
+    use super::*;
+
+    /// Parse a date string according to the steps specified in [`Date.parse`][spec].
+    ///
+    /// We parse three different formats:
+    /// - The [`Date Time String Format`][spec-format] specified in the spec: `YYYY-MM-DDTHH:mm:ss.sssZ`
+    /// - The `toString` format: `Thu Jan 01 1970 00:00:00 GMT+0000`
+    /// - The `toUTCString` format: `Thu, 01 Jan 1970 00:00:00 GMT`
+    ///
+    /// [spec]: https://tc39.es/ecma262/#sec-date.parse
+    /// [spec-format]: https://tc39.es/ecma262/#sec-date-time-string-format
+    pub fn parse(agent: &Agent, date: &str) -> f64 {
+        // Date Time String Format: 'YYYY-MM-DDTHH:mm:ss.sssZ'
+        if let Some(dt) = DateParser::new(agent, date).parse() {
+            return dt as f64;
+        }
+
+        // `toString` format: `Thu Jan 01 1970 00:00:00 GMT+0000`
+        // TODO:
+        // if let Ok(t) = OffsetDateTime::parse(&date, &format_description!("[weekday repr:short] [month repr:short] [day] [year] [hour]:[minute]:[second] GMT[offset_hour sign:mandatory][offset_minute][end]")) {
+        //     return Some(t.unix_timestamp() * 1000 + i64::from(t.millisecond()));
+        // }
+
+        // `toUTCString` format: `Thu, 01 Jan 1970 00:00:00 GMT`
+        // TODO:
+        // if let Ok(t) = PrimitiveDateTime::parse(&date, &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT[end]")) {
+        //     let t = t.assume_utc();
+        //     return Some(t.unix_timestamp() * 1000 + i64::from(t.millisecond()));
+        // }
+
+        f64::NAN
     }
 
-    // `toString` format: `Thu Jan 01 1970 00:00:00 GMT+0000`
-    // TODO:
-    // if let Ok(t) = OffsetDateTime::parse(&date, &format_description!("[weekday repr:short] [month repr:short] [day] [year] [hour]:[minute]:[second] GMT[offset_hour sign:mandatory][offset_minute][end]")) {
-    //     return Some(t.unix_timestamp() * 1000 + i64::from(t.millisecond()));
-    // }
-
-    // `toUTCString` format: `Thu, 01 Jan 1970 00:00:00 GMT`
-    // TODO:
-    // if let Ok(t) = PrimitiveDateTime::parse(&date, &format_description!("[weekday repr:short], [day] [month repr:short] [year] [hour]:[minute]:[second] GMT[end]")) {
-    //     let t = t.assume_utc();
-    //     return Some(t.unix_timestamp() * 1000 + i64::from(t.millisecond()));
-    // }
-
-    f64::NAN
-}
-
-/// Parses a date string according to the [`Date Time String Format`][spec].
-///
-/// [spec]: https://tc39.es/ecma262/#sec-date-time-string-format
-struct DateParser<'a> {
-    agent: &'a Agent,
-    input: std::iter::Peekable<std::slice::Iter<'a, u8>>,
-    year: i32,
-    month: u32,
-    day: u32,
-    hour: u32,
-    minute: u32,
-    second: u32,
-    millisecond: u32,
-    offset: i64,
-}
-
-// Copied from https://github.com/RoDmitry/atoi_simd/blob/master/src/fallback.rs,
-// which is based on https://rust-malaysia.github.io/code/2020/07/11/faster-integer-parsing.html.
-#[doc(hidden)]
-#[allow(clippy::inline_always)]
-mod fast_atoi {
-    #[inline(always)]
-    pub const fn process_8(mut val: u64, len: usize) -> u64 {
-        val <<= 64_usize.saturating_sub(len << 3); // << 3 - same as mult by 8
-        val = (val & 0x0F0F_0F0F_0F0F_0F0F).wrapping_mul(0xA01) >> 8;
-        val = (val & 0x00FF_00FF_00FF_00FF).wrapping_mul(0x64_0001) >> 16;
-        (val & 0x0000_FFFF_0000_FFFF).wrapping_mul(0x2710_0000_0001) >> 32
+    /// Parses a date string according to the [`Date Time String Format`][spec].
+    ///
+    /// [spec]: https://tc39.es/ecma262/#sec-date-time-string-format
+    struct DateParser<'a> {
+        agent: &'a Agent,
+        input: std::iter::Peekable<std::slice::Iter<'a, u8>>,
+        year: i32,
+        month: u32,
+        day: u32,
+        hour: u32,
+        minute: u32,
+        second: u32,
+        millisecond: u32,
+        offset: i64,
     }
 
-    #[inline(always)]
-    pub const fn process_4(mut val: u32, len: usize) -> u32 {
-        val <<= 32_usize.saturating_sub(len << 3); // << 3 - same as mult by 8
-        val = (val & 0x0F0F_0F0F).wrapping_mul(0xA01) >> 8;
-        (val & 0x00FF_00FF).wrapping_mul(0x64_0001) >> 16
-    }
-}
+    // Copied from https://github.com/RoDmitry/atoi_simd/blob/master/src/fallback.rs,
+    // which is based on https://rust-malaysia.github.io/code/2020/07/11/faster-integer-parsing.html.
+    #[doc(hidden)]
+    #[allow(clippy::inline_always)]
+    mod fast_atoi {
+        #[inline(always)]
+        pub const fn process_8(mut val: u64, len: usize) -> u64 {
+            val <<= 64_usize.saturating_sub(len << 3); // << 3 - same as mult by 8
+            val = (val & 0x0F0F_0F0F_0F0F_0F0F).wrapping_mul(0xA01) >> 8;
+            val = (val & 0x00FF_00FF_00FF_00FF).wrapping_mul(0x64_0001) >> 16;
+            (val & 0x0000_FFFF_0000_FFFF).wrapping_mul(0x2710_0000_0001) >> 32
+        }
 
-impl<'a> DateParser<'a> {
-    fn new(agent: &'a Agent, s: &'a str) -> Self {
-        Self {
-            agent,
-            input: s.as_bytes().iter().peekable(),
-            year: 0,
-            month: 1,
-            day: 1,
-            hour: 0,
-            minute: 0,
-            second: 0,
-            millisecond: 0,
-            offset: 0,
+        #[inline(always)]
+        pub const fn process_4(mut val: u32, len: usize) -> u32 {
+            val <<= 32_usize.saturating_sub(len << 3); // << 3 - same as mult by 8
+            val = (val & 0x0F0F_0F0F).wrapping_mul(0xA01) >> 8;
+            (val & 0x00FF_00FF).wrapping_mul(0x64_0001) >> 16
         }
     }
 
-    fn next_expect(&mut self, expect: u8) -> Option<()> {
-        self.input
-            .next()
-            .and_then(|c| if *c == expect { Some(()) } else { None })
-    }
-
-    fn next_ascii_digit(&mut self) -> Option<u8> {
-        self.input
-            .next()
-            .and_then(|c| if c.is_ascii_digit() { Some(*c) } else { None })
-    }
-
-    fn next_n_ascii_digits<const N: usize>(&mut self) -> Option<[u8; N]> {
-        let mut digits = [0; N];
-        for digit in &mut digits {
-            *digit = self.next_ascii_digit()?;
-        }
-        Some(digits)
-    }
-
-    fn parse_n_ascii_digits<const N: usize>(&mut self) -> Option<u64> {
-        assert!(N <= 8, "parse_n_ascii_digits parses no more than 8 digits");
-        if N == 0 {
-            return None;
-        }
-        let ascii_digits = self.next_n_ascii_digits::<N>()?;
-        match N {
-            1..4 => {
-                // When N is small, process digits naively.
-                let mut res = 0;
-                for digit in ascii_digits {
-                    res = res * 10 + u64::from(digit & 0xF);
-                }
-                Some(res)
-            }
-            4 => {
-                // Process digits as an u32 block.
-                let mut src = [0; 4];
-                src[..N].copy_from_slice(&ascii_digits);
-                let val = u32::from_le_bytes(src);
-                Some(u64::from(fast_atoi::process_4(val, N)))
-            }
-            _ => {
-                // Process digits as an u64 block.
-                let mut src = [0; 8];
-                src[..N].copy_from_slice(&ascii_digits);
-                let val = u64::from_le_bytes(src);
-                Some(fast_atoi::process_8(val, N))
+    impl<'a> DateParser<'a> {
+        fn new(agent: &'a Agent, s: &'a str) -> Self {
+            Self {
+                agent,
+                input: s.as_bytes().iter().peekable(),
+                year: 0,
+                month: 1,
+                day: 1,
+                hour: 0,
+                minute: 0,
+                second: 0,
+                millisecond: 0,
+                offset: 0,
             }
         }
-    }
 
-    fn finish(&mut self) -> Option<i64> {
-        if self.input.peek().is_some() {
-            return None;
+        fn next_expect(&mut self, expect: u8) -> Option<()> {
+            self.input
+                .next()
+                .and_then(|c| if *c == expect { Some(()) } else { None })
         }
 
-        let date = make_date(
-            make_day(self.year.into(), (self.month - 1).into(), self.day.into()),
-            make_time(
-                self.hour.into(),
-                self.minute.into(),
-                self.second.into(),
-                self.millisecond.into(),
-            ),
-        );
-
-        let date = date + (self.offset as f64) * MS_PER_MINUTE;
-
-        let t = time_clip(date);
-        if t.is_finite() { Some(t as i64) } else { None }
-    }
-
-    fn finish_local(&mut self) -> Option<i64> {
-        if self.input.peek().is_some() {
-            return None;
+        fn next_ascii_digit(&mut self) -> Option<u8> {
+            self.input
+                .next()
+                .and_then(|c| if c.is_ascii_digit() { Some(*c) } else { None })
         }
 
-        let date = make_date(
-            make_day(self.year.into(), (self.month - 1).into(), self.day.into()),
-            make_time(
-                self.hour.into(),
-                self.minute.into(),
-                self.second.into(),
-                self.millisecond.into(),
-            ),
-        );
+        fn next_n_ascii_digits<const N: usize>(&mut self) -> Option<[u8; N]> {
+            let mut digits = [0; N];
+            for digit in &mut digits {
+                *digit = self.next_ascii_digit()?;
+            }
+            Some(digits)
+        }
 
-        let t = time_clip(utc(self.agent, date));
-        if t.is_finite() { Some(t as i64) } else { None }
-    }
-
-    #[allow(clippy::as_conversions)]
-    fn parse(&mut self) -> Option<i64> {
-        self.parse_year()?;
-        match self.input.peek() {
-            Some(b'T') => return self.parse_time(),
-            None => return self.finish(),
-            _ => {}
-        }
-        self.next_expect(b'-')?;
-        self.month = self.parse_n_ascii_digits::<2>()? as u32;
-        if self.month < 1 || self.month > 12 {
-            return None;
-        }
-        match self.input.peek() {
-            Some(b'T') => return self.parse_time(),
-            None => return self.finish(),
-            _ => {}
-        }
-        self.next_expect(b'-')?;
-        self.day = self.parse_n_ascii_digits::<2>()? as u32;
-        if self.day < 1 || self.day > 31 {
-            return None;
-        }
-        match self.input.peek() {
-            Some(b'T') => self.parse_time(),
-            _ => self.finish(),
-        }
-    }
-
-    #[allow(clippy::as_conversions)]
-    fn parse_year(&mut self) -> Option<()> {
-        if let &&sign @ (b'+' | b'-') = self.input.peek()? {
-            // Consume the sign.
-            self.input.next();
-            let year = self.parse_n_ascii_digits::<6>()? as i32;
-            let neg = sign == b'-';
-            if neg && year == 0 {
+        fn parse_n_ascii_digits<const N: usize>(&mut self) -> Option<u64> {
+            assert!(N <= 8, "parse_n_ascii_digits parses no more than 8 digits");
+            if N == 0 {
                 return None;
             }
-            self.year = if neg { -year } else { year };
-        } else {
-            self.year = self.parse_n_ascii_digits::<4>()? as i32;
-        }
-        Some(())
-    }
-
-    #[allow(clippy::as_conversions)]
-    fn parse_time(&mut self) -> Option<i64> {
-        self.next_expect(b'T')?;
-        self.hour = self.parse_n_ascii_digits::<2>()? as u32;
-        if self.hour > 24 {
-            return None;
-        }
-        self.next_expect(b':')?;
-        self.minute = self.parse_n_ascii_digits::<2>()? as u32;
-        if self.minute > 59 {
-            return None;
-        }
-        match self.input.peek() {
-            Some(b':') => self.input.next(),
-            None => return self.finish_local(),
-            _ => {
-                self.parse_timezone()?;
-                return self.finish();
+            let ascii_digits = self.next_n_ascii_digits::<N>()?;
+            match N {
+                1..4 => {
+                    // When N is small, process digits naively.
+                    let mut res = 0;
+                    for digit in ascii_digits {
+                        res = res * 10 + u64::from(digit & 0xF);
+                    }
+                    Some(res)
+                }
+                4 => {
+                    // Process digits as an u32 block.
+                    let mut src = [0; 4];
+                    src[..N].copy_from_slice(&ascii_digits);
+                    let val = u32::from_le_bytes(src);
+                    Some(u64::from(fast_atoi::process_4(val, N)))
+                }
+                _ => {
+                    // Process digits as an u64 block.
+                    let mut src = [0; 8];
+                    src[..N].copy_from_slice(&ascii_digits);
+                    let val = u64::from_le_bytes(src);
+                    Some(fast_atoi::process_8(val, N))
+                }
             }
-        };
-        self.second = self.parse_n_ascii_digits::<2>()? as u32;
-        if self.second > 59 {
-            return None;
         }
-        match self.input.peek() {
-            Some(b'.') => self.input.next(),
-            None => return self.finish_local(),
-            _ => {
-                self.parse_timezone()?;
-                return self.finish();
-            }
-        };
-        self.millisecond = self.parse_n_ascii_digits::<3>()? as u32;
-        if self.input.peek().is_some() {
-            self.parse_timezone()?;
-            self.finish()
-        } else {
-            self.finish_local()
-        }
-    }
 
-    #[allow(clippy::as_conversions)]
-    fn parse_timezone(&mut self) -> Option<()> {
-        match self.input.next() {
-            Some(b'Z') => return Some(()),
-            Some(sign @ (b'+' | b'-')) => {
-                let neg = *sign == b'-';
-                let offset_hour = self.parse_n_ascii_digits::<2>()? as i64;
-                if offset_hour > 23 {
+        fn finish(&mut self) -> Option<i64> {
+            if self.input.peek().is_some() {
+                return None;
+            }
+
+            let date = make_date(
+                make_day(self.year.into(), (self.month - 1).into(), self.day.into()),
+                make_time(
+                    self.hour.into(),
+                    self.minute.into(),
+                    self.second.into(),
+                    self.millisecond.into(),
+                ),
+            );
+
+            let date = date + (self.offset as f64) * MS_PER_MINUTE;
+
+            let t = time_clip(date);
+            if t.is_finite() { Some(t as i64) } else { None }
+        }
+
+        fn finish_local(&mut self) -> Option<i64> {
+            if self.input.peek().is_some() {
+                return None;
+            }
+
+            let date = make_date(
+                make_day(self.year.into(), (self.month - 1).into(), self.day.into()),
+                make_time(
+                    self.hour.into(),
+                    self.minute.into(),
+                    self.second.into(),
+                    self.millisecond.into(),
+                ),
+            );
+
+            let t = time_clip(utc(self.agent, date));
+            if t.is_finite() { Some(t as i64) } else { None }
+        }
+
+        #[allow(clippy::as_conversions)]
+        fn parse(&mut self) -> Option<i64> {
+            self.parse_year()?;
+            match self.input.peek() {
+                Some(b'T') => return self.parse_time(),
+                None => return self.finish(),
+                _ => {}
+            }
+            self.next_expect(b'-')?;
+            self.month = self.parse_n_ascii_digits::<2>()? as u32;
+            if self.month < 1 || self.month > 12 {
+                return None;
+            }
+            match self.input.peek() {
+                Some(b'T') => return self.parse_time(),
+                None => return self.finish(),
+                _ => {}
+            }
+            self.next_expect(b'-')?;
+            self.day = self.parse_n_ascii_digits::<2>()? as u32;
+            if self.day < 1 || self.day > 31 {
+                return None;
+            }
+            match self.input.peek() {
+                Some(b'T') => self.parse_time(),
+                _ => self.finish(),
+            }
+        }
+
+        #[allow(clippy::as_conversions)]
+        fn parse_year(&mut self) -> Option<()> {
+            if let &&sign @ (b'+' | b'-') = self.input.peek()? {
+                // Consume the sign.
+                self.input.next();
+                let year = self.parse_n_ascii_digits::<6>()? as i32;
+                let neg = sign == b'-';
+                if neg && year == 0 {
                     return None;
                 }
-                self.offset = if neg { offset_hour } else { -offset_hour } * 60;
-                if self.input.peek().is_none() {
-                    return Some(());
-                }
-                self.next_expect(b':')?;
-                let offset_minute = self.parse_n_ascii_digits::<2>()? as i64;
-                if offset_minute > 59 {
-                    return None;
-                }
-                self.offset += if neg { offset_minute } else { -offset_minute };
+                self.year = if neg { -year } else { year };
+            } else {
+                self.year = self.parse_n_ascii_digits::<4>()? as i32;
             }
-            _ => return None,
+            Some(())
         }
-        Some(())
+
+        #[allow(clippy::as_conversions)]
+        fn parse_time(&mut self) -> Option<i64> {
+            self.next_expect(b'T')?;
+            self.hour = self.parse_n_ascii_digits::<2>()? as u32;
+            if self.hour > 24 {
+                return None;
+            }
+            self.next_expect(b':')?;
+            self.minute = self.parse_n_ascii_digits::<2>()? as u32;
+            if self.minute > 59 {
+                return None;
+            }
+            match self.input.peek() {
+                Some(b':') => self.input.next(),
+                None => return self.finish_local(),
+                _ => {
+                    self.parse_timezone()?;
+                    return self.finish();
+                }
+            };
+            self.second = self.parse_n_ascii_digits::<2>()? as u32;
+            if self.second > 59 {
+                return None;
+            }
+            match self.input.peek() {
+                Some(b'.') => self.input.next(),
+                None => return self.finish_local(),
+                _ => {
+                    self.parse_timezone()?;
+                    return self.finish();
+                }
+            };
+            self.millisecond = self.parse_n_ascii_digits::<3>()? as u32;
+            if self.input.peek().is_some() {
+                self.parse_timezone()?;
+                self.finish()
+            } else {
+                self.finish_local()
+            }
+        }
+
+        #[allow(clippy::as_conversions)]
+        fn parse_timezone(&mut self) -> Option<()> {
+            match self.input.next() {
+                Some(b'Z') => return Some(()),
+                Some(sign @ (b'+' | b'-')) => {
+                    let neg = *sign == b'-';
+                    let offset_hour = self.parse_n_ascii_digits::<2>()? as i64;
+                    if offset_hour > 23 {
+                        return None;
+                    }
+                    self.offset = if neg { offset_hour } else { -offset_hour } * 60;
+                    if self.input.peek().is_none() {
+                        return Some(());
+                    }
+                    self.next_expect(b':')?;
+                    let offset_minute = self.parse_n_ascii_digits::<2>()? as i64;
+                    if offset_minute > 59 {
+                        return None;
+                    }
+                    self.offset += if neg { offset_minute } else { -offset_minute };
+                }
+                _ => return None,
+            }
+            Some(())
+        }
     }
 }
