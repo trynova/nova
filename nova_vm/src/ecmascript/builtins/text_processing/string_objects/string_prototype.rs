@@ -2646,6 +2646,21 @@ fn string_pad<'gc>(
     Ok(String::concat(agent, strings.into_iter().collect::<Vec<String>>(), gc).into_value())
 }
 
+/// ### [22.1.3.17.3 ToZeroPaddedDecimalString ( n, minLength )](https://tc39.es/ecma262/#sec-tozeropaddeddecimalstring)
+///
+/// The abstract operation ToZeroPaddedDecimalString takes arguments n
+/// (a non-negative integer) and minLength (a non-negative integer) and returns
+/// a String. It performs the following steps when called:
+pub(crate) fn to_zero_padded_decimal_string(
+    n: impl ToString,
+    min_length: usize,
+) -> std::string::String {
+    // 1. Let S be the String representation of n, formatted as a decimal number.
+    let s = n.to_string();
+    // 2. Return StringPad(S, minLength, "0", start).
+    format!("{s:0>min_length$}")
+}
+
 /// ### [22.1.3.35.1 ThisStringValue ( value )](https://tc39.es/ecma262/#sec-thisstringvalue)
 ///
 /// The abstract operation ThisStringValue takes argument value (an ECMAScript
