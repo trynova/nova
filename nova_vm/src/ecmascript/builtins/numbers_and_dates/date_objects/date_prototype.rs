@@ -970,8 +970,10 @@ impl DatePrototype {
         }
         // 5. Assert: tv is an integral Number.
         assert!(tv.fract() == 0.0);
-        // 6. If tv corresponds with a year that cannot be represented in the Date Time String Format, throw a RangeError exception.
-        // 7. Return a String representation of tv in the Date Time String Format on the UTC time scale, including all format elements and the UTC offset representation "Z".
+        // 6. If tv corresponds with a year that cannot be represented in
+        // the Date Time String Format, throw a RangeError exception.
+        // 7. Return a String representation of tv in the Date Time String Format
+        // on the UTC time scale, including all format elements and the UTC offset representation "Z".
         // (The format is "YYYY-MM-DDTHH:mm:ss.sssZ")
         let year = year_from_time(tv);
         let month = month_from_time(tv);
@@ -991,7 +993,6 @@ impl DatePrototype {
     ///
     /// This method provides a String representation of a Date for use
     /// by JSON.stringify (25.5.2).
-    /// It performs the following steps when called:
     ///
     /// > #### Note 1
     /// >
@@ -1167,8 +1168,6 @@ impl DatePrototype {
     /// corresponding to the this value. The format of the String is based upon
     /// "HTTP-date" from RFC 7231, generalized to support the full range of
     /// times supported by ECMAScript Dates.
-    ///
-    /// It performs the following steps when called:
     fn to_utc_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1223,7 +1222,9 @@ impl DatePrototype {
         let year_sign = if yv >= 0 { "" } else { "-" };
         // 10. Let paddedYear be ToZeroPaddedDecimalString(abs(ℝ(yv)), 4).
         let padded_year = to_zero_padded_decimal_string(yv.abs(), 4);
-        // 11. Return the string-concatenation of weekday, ",", the code unit 0x0020 (SPACE), day, the code unit 0x0020 (SPACE), month, the code unit 0x0020 (SPACE), yearSign, paddedYear, the code unit 0x0020 (SPACE), and TimeString(tv).
+        // 11. Return the string-concatenation of weekday, ",", the code unit 0x0020 (SPACE),
+        // day, the code unit 0x0020 (SPACE), month, the code unit 0x0020 (SPACE), yearSign,
+        // paddedYear, the code unit 0x0020 (SPACE), and TimeString(tv).
         Ok(Value::from_string(
             agent,
             format!(
@@ -1399,7 +1400,6 @@ const MS_PER_DAY: f64 = MS_PER_HOUR * HOURS_PER_DAY;
 ///
 /// The abstract operation Day takes argument t (a finite time value) and
 /// returns an integral Number. It returns the day number of the day in which t falls.
-/// It performs the following steps when called:
 fn day(t: f64) -> f64 {
     // 1. Return 𝔽(floor(ℝ(t / msPerDay))).
     (t / MS_PER_DAY).floor()
@@ -1410,7 +1410,7 @@ fn day(t: f64) -> f64 {
 /// The abstract operation TimeWithinDay takes argument t (a finite time value)
 /// and returns an integral Number in the interval from +0𝔽 (inclusive) to
 /// msPerDay (exclusive). It returns the number of milliseconds since the start
-/// of the day in which t falls. It performs the following steps when called:
+/// of the day in which t falls.
 fn time_within_day(t: f64) -> f64 {
     // 1. Return 𝔽(ℝ(t) modulo ℝ(msPerDay)).
     t.rem_euclid(MS_PER_DAY)
@@ -1421,7 +1421,6 @@ fn time_within_day(t: f64) -> f64 {
 /// The abstract operation DaysInYear takes argument y (an integral Number) and
 /// returns 365𝔽 or 366𝔽. It returns the number of days in year y. Leap years
 /// have 366 days; all other years have 365.
-/// It performs the following steps when called:
 fn days_in_year(y: i32) -> u16 {
     // 1. Let ry be ℝ(y).
     let ry = y;
@@ -1445,7 +1444,7 @@ fn days_in_year(y: i32) -> u16 {
 ///
 /// The abstract operation DayFromYear takes argument y (an integral Number)
 /// and returns an integral Number. It returns the day number of the first day
-/// of year y. It performs the following steps when called:
+/// of year y.
 fn day_from_year(y: f64) -> f64 {
     // 1. Let ry be ℝ(y).
     let ry = y;
@@ -1475,7 +1474,6 @@ fn day_from_year(y: f64) -> f64 {
 ///
 /// The abstract operation TimeFromYear takes argument y (an integral Number)
 /// and returns a time value. It returns the time value of the start of year y.
-/// It performs the following steps when called:
 fn time_from_year(y: f64) -> f64 {
     // 1. Return msPerDay × DayFromYear(y).
     MS_PER_DAY * day_from_year(y)
@@ -1496,7 +1494,6 @@ fn year_from_time(t: f64) -> i32 {
 ///
 /// The abstract operation DayWithinYear takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 365𝔽.
-/// It performs the following steps when called:
 fn day_within_year(t: f64) -> u16 {
     // 1. Return Day(t) - DayFromYear(YearFromTime(t)).
     (day(t) - day_from_year(year_from_time(t).into())) as u16
@@ -1505,8 +1502,7 @@ fn day_within_year(t: f64) -> u16 {
 /// ### [21.4.1.10 InLeapYear ( t )](https://tc39.es/ecma262/#sec-inleapyear)
 ///
 /// The abstract operation InLeapYear takes argument t (a finite time value)
-/// and returns +0𝔽 or 1𝔽. It returns 1𝔽 if t is within a leap year and +0𝔽
-/// otherwise. It performs the following steps when called:
+/// and returns +0𝔽 or 1𝔽. It returns 1𝔽 if t is within a leap year and +0𝔽 otherwise.
 fn in_leap_year(t: f64) -> u16 {
     // 1. If DaysInYear(YearFromTime(t)) is 366𝔽, return 1𝔽; else return +0𝔽.
     if days_in_year(year_from_time(t)) == 366 {
@@ -1568,7 +1564,6 @@ fn month_from_time(t: f64) -> u8 {
 /// The abstract operation DateFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from 1𝔽 to 31𝔽.
 /// It returns the day of the month in which t falls.
-/// It performs the following steps when called:
 fn date_from_time(t: f64) -> u8 {
     // 1. Let inLeapYear be InLeapYear(t).
     let in_leap_year = in_leap_year(t);
@@ -1618,7 +1613,6 @@ fn date_from_time(t: f64) -> u8 {
 /// 2𝔽 specifies Tuesday; 3𝔽 specifies Wednesday; 4𝔽 specifies Thursday;
 /// 5𝔽 specifies Friday; and 6𝔽 specifies Saturday.
 /// Note that WeekDay(+0𝔽) = 4𝔽, corresponding to Thursday, 1 January 1970.
-///  It performs the following steps when called:
 fn week_day(t: f64) -> u8 {
     // 1. Return 𝔽(ℝ(Day(t) + 4𝔽) modulo 7).
     (day(t) + 4.0).rem_euclid(7.0) as u8
@@ -1629,7 +1623,6 @@ fn week_day(t: f64) -> u8 {
 /// The abstract operation HourFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 23𝔽.
 /// It returns the hour of the day in which t falls.
-/// It performs the following steps when called:
 fn hour_from_time(t: f64) -> u8 {
     // 1. Return 𝔽(floor(ℝ(t / msPerHour)) modulo HoursPerDay).
     ((t / MS_PER_HOUR).floor()).rem_euclid(HOURS_PER_DAY) as u8
@@ -1640,7 +1633,6 @@ fn hour_from_time(t: f64) -> u8 {
 /// The abstract operation MinFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 59𝔽.
 /// It returns the minute of the hour in which t falls.
-/// It performs the following steps when called:
 pub(super) fn min_from_time(t: f64) -> u8 {
     // 1. Return 𝔽(floor(ℝ(t / msPerMinute)) modulo MinutesPerHour).
     ((t / MS_PER_MINUTE).floor()).rem_euclid(MINUTES_PER_HOUR) as u8
@@ -1651,7 +1643,6 @@ pub(super) fn min_from_time(t: f64) -> u8 {
 /// The abstract operation SecFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 59𝔽.
 /// It returns the second of the minute in which t falls.
-/// It performs the following steps when called:
 fn sec_from_time(t: f64) -> u8 {
     // 1. Return 𝔽(floor(ℝ(t / msPerSecond)) modulo SecondsPerMinute).
     ((t / MS_PER_SECOND).floor()).rem_euclid(SECONDS_PER_MINUTE) as u8
@@ -1662,7 +1653,6 @@ fn sec_from_time(t: f64) -> u8 {
 /// The abstract operation msFromTime takes argument t (a finite time value)
 /// and returns an integral Number in the inclusive interval from +0𝔽 to 999𝔽.
 /// It returns the millisecond of the second in which t falls.
-/// It performs the following steps when called:
 fn ms_from_time(t: f64) -> u16 {
     // 1. Return 𝔽(ℝ(t) modulo ℝ(msPerSecond)).
     (t.rem_euclid(MS_PER_SECOND)) as u16
@@ -1680,7 +1670,7 @@ fn ms_from_time(t: f64) -> u16 {
 /// 999), and nanosecond (an integer in the inclusive interval from 0 to 999)
 /// and returns a BigInt. The returned value represents a number of nanoseconds
 /// since the epoch that corresponds to the given ISO 8601 calendar date and
-/// wall-clock time in UTC. It performs the following steps when called:
+/// wall-clock time in UTC.
 fn get_utc_epoch_nanoseconds(
     year: i32,
     month: u8,
@@ -1818,7 +1808,7 @@ fn get_named_time_zone_offset_nanoseconds(
 /// takes no arguments and returns a String. It returns a String representing
 /// the host environment's current time zone, which is either a String
 /// representing a UTC offset for which IsTimeZoneOffsetString returns true, or
-/// a primary time zone identifier. It performs the following steps when called:
+/// a primary time zone identifier.
 ///
 /// > #### Note
 /// >
@@ -1835,7 +1825,8 @@ fn get_named_time_zone_offset_nanoseconds(
 /// > SystemTimeZoneIdentifier returns "America/New_York".
 fn system_time_zone_identifier(_agent: &Agent) -> &'static str {
     // 1. If the implementation only supports the UTC time zone, return "UTC".
-    // 2. Let systemTimeZoneString be the String representing the host environment's current time zone, either a primary time zone identifier or an offset time zone identifier.
+    // 2. Let systemTimeZoneString be the String representing the host environment's
+    // current time zone, either a primary time zone identifier or an offset time zone identifier.
     // 3. Return systemTimeZoneString.
 
     // TODO: implement this
@@ -1848,7 +1839,7 @@ fn system_time_zone_identifier(_agent: &Agent) -> &'static str {
 /// returns an integral Number. It converts t from UTC to local time. The local
 /// political rules for standard time and daylight saving time in effect at t
 /// should be used to determine the result in the way specified in this
-/// section. It performs the following steps when called:
+/// section.
 ///
 /// > #### Note 1
 /// >
@@ -1903,7 +1894,6 @@ fn local_or_utc_time<const UTC: bool>(agent: &mut Agent, t: f64) -> f64 {
 /// value. It converts t from local time to a UTC time value. The local
 /// political rules for standard time and daylight saving time in effect at t
 /// should be used to determine the result in the way specified in this section.
-/// It performs the following steps when called:
 ///
 /// Input t is nominally a time value but may be any Number value.
 /// The algorithm must not limit t to the time value range, so that inputs
@@ -2009,7 +1999,6 @@ fn utc(agent: &Agent, t: f64) -> f64 {
 /// The abstract operation MakeTime takes arguments hour (a Number),
 /// min (a Number), sec (a Number), and ms (a Number) and returns a Number.
 /// It calculates a number of milliseconds.
-/// It performs the following steps when called:
 ///
 /// > #### Note
 /// >
@@ -2042,7 +2031,7 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
 ///
 /// The abstract operation MakeDay takes arguments year (a Number),
 /// month (a Number), and date (a Number) and returns a Number.
-/// It calculates a number of days. It performs the following steps when called:
+/// It calculates a number of days.
 fn make_day(year: f64, month: f64, date: f64) -> f64 {
     // 1. If year is not finite, month is not finite, or date is not finite, return NaN.
     if !year.is_finite() || !month.is_finite() || !date.is_finite() {
@@ -2098,7 +2087,8 @@ fn make_day(year: f64, month: f64, date: f64) -> f64 {
 
 /// ### [21.4.1.29 MakeDate ( day, time )](https://tc39.es/ecma262/#sec-makedate)
 ///
-/// The abstract operation MakeDate takes arguments day (a Number) and time (a Number) and returns a Number. It calculates a number of milliseconds. It performs the following steps when called:
+/// The abstract operation MakeDate takes arguments day (a Number) and time (a Number)
+/// and returns a Number. It calculates a number of milliseconds.
 pub(super) fn make_date(day: f64, time: f64) -> f64 {
     // 1. If day is not finite or time is not finite, return NaN.
     if !day.is_finite() || !time.is_finite() {
@@ -2148,7 +2138,6 @@ fn make_full_year(year: f64) -> f64 {
 ///
 /// The abstract operation TimeClip takes argument time (a Number) and returns
 /// a Number. It calculates a number of milliseconds.
-/// It performs the following steps when called:
 pub(crate) fn time_clip(time: f64) -> f64 {
     // 1. If time is not finite, return NaN.
     if !time.is_finite() {
@@ -2186,7 +2175,7 @@ fn is_time_zone_offset_string(_offset_string: &str) -> bool {
 /// The abstract operation ParseTimeZoneOffsetString takes argument
 /// offsetString (a String) and returns an integer. The return value is the UTC
 /// offset, as a number of nanoseconds, that corresponds to the String
-/// offsetString. It performs the following steps when called:
+/// offsetString.
 fn parse_time_zone_offset_string(_offset_string: &str) -> f64 {
     // 1. Let parseResult be ParseText(offsetString, UTCOffset).
     // 2. Assert: parseResult is not a List of errors.
@@ -2224,7 +2213,7 @@ fn parse_time_zone_offset_string(_offset_string: &str) -> f64 {
 /// ### [21.4.4.41.1 TimeString ( tv )](https://tc39.es/ecma262/#sec-timestring)
 ///
 /// The abstract operation TimeString takes argument tv (a Number, but not NaN)
-/// and returns a String. It performs the following steps when called:
+/// and returns a String.
 fn time_string(tv: f64) -> std::string::String {
     // 1. Let hour be ToZeroPaddedDecimalString(ℝ(HourFromTime(tv)), 2).
     let hour = to_zero_padded_decimal_string(hour_from_time(tv), 2);
@@ -2238,7 +2227,8 @@ fn time_string(tv: f64) -> std::string::String {
 
 /// ### [21.4.4.41.2 DateString ( tv )](https://tc39.es/ecma262/#sec-datestring)
 ///
-/// The abstract operation DateString takes argument tv (a Number, but not NaN) and returns a String. It performs the following steps when called:
+/// The abstract operation DateString takes argument tv (a Number, but not NaN)
+/// and returns a String.
 fn date_string(tv: f64) -> std::string::String {
     // 1. Let weekday be the Name of the entry in Table 65 with the Number WeekDay(tv).
     let weekday = match week_day(tv) {
@@ -2275,14 +2265,15 @@ fn date_string(tv: f64) -> std::string::String {
     let year_sign = if yv >= 0 { "" } else { "-" };
     // 6. Let paddedYear be ToZeroPaddedDecimalString(abs(ℝ(yv)), 4).
     let padded_year = to_zero_padded_decimal_string(yv.abs(), 4);
-    // 7. Return the string-concatenation of weekday, the code unit 0x0020 (SPACE), month, the code unit 0x0020 (SPACE), day, the code unit 0x0020 (SPACE), yearSign, and paddedYear.
+    // 7. Return the string-concatenation of weekday, the code unit 0x0020 (SPACE), month,
+    // the code unit 0x0020 (SPACE), day, the code unit 0x0020 (SPACE), yearSign, and paddedYear.
     format!("{weekday} {month} {day} {year_sign}{padded_year}")
 }
 
 /// ### [21.4.4.41.3 TimeZoneString ( tv )](https://tc39.es/ecma262/#sec-timezoneestring)
 ///
 /// The abstract operation TimeZoneString takes argument tv (an integral
-/// Number) and returns a String. It performs the following steps when called:
+/// Number) and returns a String.
 fn time_zone_string(agent: &Agent, tv: f64) -> std::string::String {
     // 1. Let systemTimeZoneIdentifier be SystemTimeZoneIdentifier().
     let system_time_zone_identifier = system_time_zone_identifier(agent);
@@ -2330,7 +2321,7 @@ fn time_zone_string(agent: &Agent, tv: f64) -> std::string::String {
 /// ### [21.4.4.41.4 ToDateString ( tv )](https://tc39.es/ecma262/#sec-todatestring)
 ///
 /// The abstract operation ToDateString takes argument tv (an integral Number
-/// or NaN) and returns a String. It performs the following steps when called:
+/// or NaN) and returns a String.
 fn to_date_string(agent: &Agent, tv: f64) -> std::string::String {
     // 1. If tv is NaN, return "Invalid Date".
     if tv.is_nan() {
