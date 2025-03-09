@@ -306,8 +306,6 @@ const MAX_SYSTEM_TIME_VALUE: u128 = SmallInteger::MAX_NUMBER as u128;
 
 impl DatePrototype {
     /// ### [21.4.4.2 Date.prototype.getDate ( )](https://tc39.es/ecma262/#sec-date.prototype.getdate)
-    ///
-    /// This method performs the following steps when called:
     fn get_date<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -330,8 +328,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.3 Date.prototype.getDay ( )](https://tc39.es/ecma262/#sec-date.prototype.getday)
-    ///
-    /// This method performs the following steps when called:
     fn get_day<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -354,8 +350,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.4 Date.prototype.getFullYear ( )](https://tc39.es/ecma262/#sec-date.prototype.getfullyear)
-    ///
-    /// This method performs the following steps when called:
     fn get_full_year<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -378,8 +372,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.5 Date.prototype.getHours ( )](https://tc39.es/ecma262/#sec-date.prototype.gethours)
-    ///
-    /// This method performs the following steps when called:
     fn get_hours<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -402,8 +394,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.6 Date.prototype.getMilliseconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getmilliseconds)
-    ///
-    /// This method performs the following steps when called:
     fn get_milliseconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -426,8 +416,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.7 Date.prototype.getMinutes ( )](https://tc39.es/ecma262/#sec-date.prototype.getminutes)
-    ///
-    /// This method performs the following steps when called:
     fn get_minutes<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -450,8 +438,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.8 Date.prototype.getMonth ( )](https://tc39.es/ecma262/#sec-date.prototype.getmonth)
-    ///
-    /// This method performs the following steps when called:
     fn get_month<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -474,8 +460,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.9 Date.prototype.getSeconds ( )](https://tc39.es/ecma262/#sec-date.prototype.getseconds)
-    ///
-    /// This method performs the following steps when called:
     fn get_seconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -498,8 +482,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.10 Date.prototype.getTime ( )](https://tc39.es/ecma262/#sec-date.prototype.gettime)
-    ///
-    /// This method performs the following steps when called:
     fn get_time<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -538,8 +520,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.20 Date.prototype.setDate ( date )](https://tc39.es/ecma262/#sec-date.prototype.setdate)
-    ///
-    /// This method performs the following steps when called:
     fn set_date<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -574,8 +554,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.21 Date.prototype.setFullYear ( year \[ , month \[ , date \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setfullyear)
-    ///
-    /// This method performs the following steps when called:
     ///
     /// The "length" property of this method is 3𝔽.
     ///
@@ -633,8 +611,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.22 Date.prototype.setHours ( hour \[ , min \[ , sec \[ , ms \] \] \] )](https://tc39.es/ecma262/#sec-date.prototype.sethours)
-    ///
-    /// This method performs the following steps when called:
     ///
     /// The "length" property of this method is 4𝔽.
     ///
@@ -699,8 +675,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.23 Date.prototype.setMilliseconds ( ms )](https://tc39.es/ecma262/#sec-date.prototype.setmilliseconds)
-    ///
-    /// This method performs the following steps when called:
     fn set_milliseconds<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -737,8 +711,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.24 Date.prototype.setMinutes ( min \[ , sec \[ , ms \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setminutes)
-    ///
-    /// This method performs the following steps when called:
     ///
     /// The "length" property of this method is 3𝔽.
     ///
@@ -795,8 +767,6 @@ impl DatePrototype {
 
     /// ### [21.4.4.25 Date.prototype.setMonth ( month \[ , date \] )](https://tc39.es/ecma262/#sec-date.prototype.setmonth)
     ///
-    /// This method performs the following steps when called:
-    ///
     /// The "length" property of this method is 2𝔽.
     ///
     /// > #### Note
@@ -846,8 +816,6 @@ impl DatePrototype {
 
     /// ### [21.4.4.26 Date.prototype.setSeconds ( sec \[ , ms \] )](https://tc39.es/ecma262/#sec-date.prototype.setseconds)
     ///
-    /// This method performs the following steps when called:
-    ///
     /// The "length" property of this method is 2𝔽.
     ///
     /// > #### Note
@@ -896,8 +864,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.27 Date.prototype.setTime ( time )](https://tc39.es/ecma262/#sec-date.prototype.settime)
-    ///
-    /// This method performs the following steps when called:
     fn set_time<'gc, const UTC: bool>(
         agent: &mut Agent,
         this_value: Value,
@@ -919,8 +885,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.35 Date.prototype.toDateString ( )](https://tc39.es/ecma262/#sec-date.prototype.todatestring)
-    ///
-    /// This method performs the following steps when called:
     fn to_date_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -947,8 +911,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.36 Date.prototype.toISOString ( )](https://tc39.es/ecma262/#sec-date.prototype.toisostring)
-    ///
-    /// This method performs the following steps when called:
     fn to_iso_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1102,8 +1064,6 @@ impl DatePrototype {
 
     /// ### [21.4.4.41 Date.prototype.toString ( )](https://tc39.es/ecma262/#sec-date.prototype.tostring)
     ///
-    /// This method performs the following steps when called:
-    ///
     /// > #### Note 1
     /// >
     /// > For any Date d such that d.[[DateValue]] is evenly divisible by 1000,
@@ -1131,8 +1091,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.42 Date.prototype.toTimeString ( )](https://tc39.es/ecma262/#sec-date.prototype.totimestring)
-    ///
-    /// This method performs the following steps when called:
     fn to_time_string<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -1236,8 +1194,6 @@ impl DatePrototype {
     }
 
     /// ### [21.4.4.44 Date.prototype.valueOf ( )](https://tc39.es/ecma262/#sec-date.prototype.valueof)
-    ///
-    /// This method performs the following steps when called:
     fn value_of<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -2037,7 +1993,7 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
 }
 
 /// ### [21.4.1.28 MakeDay ( year, month, date )](https://tc39.es/ecma262/#sec-makeday)
-/// 
+///
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L368
 ///
 /// The abstract operation MakeDay takes arguments year (a Number),
