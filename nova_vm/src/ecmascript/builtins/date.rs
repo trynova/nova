@@ -6,6 +6,8 @@ pub(crate) mod data;
 
 use core::ops::{Index, IndexMut};
 
+use data::DateValue;
+
 use crate::{
     ecmascript::{
         execution::{Agent, ProtoIntrinsics},
@@ -40,13 +42,13 @@ impl Date<'_> {
 
     /// ### get [[DateValue]]
     #[inline]
-    pub(crate) fn date_value(self, agent: &Agent) -> f64 {
+    pub(crate) fn date_value(self, agent: &Agent) -> DateValue {
         agent[self].date
     }
 
     /// ### set [[DateValue]]
     #[inline]
-    pub(crate) fn set_date_value(self, agent: &mut Agent, date: f64) {
+    pub(crate) fn set_date_value(self, agent: &mut Agent, date: DateValue) {
         agent[self].date = date;
     }
 

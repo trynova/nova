@@ -411,6 +411,10 @@ impl<'a> Value<'a> {
         Number::from_f64(agent, value, gc).into_value()
     }
 
+    pub fn from_i64(agent: &mut Agent, value: i64, gc: NoGcScope<'a, '_>) -> Value<'a> {
+        Number::from_i64(agent, value, gc).into_value()
+    }
+
     pub fn nan() -> Self {
         Number::nan().into_value()
     }

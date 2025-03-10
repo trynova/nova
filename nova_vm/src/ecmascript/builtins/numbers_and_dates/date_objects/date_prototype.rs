@@ -11,7 +11,11 @@ use crate::{
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
-            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic, date::Date,
+            ArgumentsList, Behaviour, Builtin, BuiltinIntrinsic,
+            date::{
+                Date,
+                data::{DateValue, time_clip},
+            },
             text_processing::string_objects::string_prototype::to_zero_padded_decimal_string,
         },
         execution::{Agent, JsResult, RealmIdentifier, agent::ExceptionType},
@@ -318,9 +322,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return DateFromTime(LocalTime(t)).
         Ok(Value::Integer(
             date_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -340,9 +344,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return WeekDay(LocalTime(t)).
         Ok(Value::Integer(
             week_day(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -362,9 +366,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return YearFromTime(LocalTime(t)).
         Ok(Value::Integer(
             year_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -384,9 +388,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return HourFromTime(LocalTime(t)).
         Ok(Value::Integer(
             hour_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -406,9 +410,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return msFromTime(LocalTime(t)).
         Ok(Value::Integer(
             ms_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -428,9 +432,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return MinFromTime(LocalTime(t)).
         Ok(Value::Integer(
             min_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -450,9 +454,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return MonthFromTime(LocalTime(t)).
         Ok(Value::Integer(
             month_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -472,9 +476,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return SecFromTime(LocalTime(t)).
         Ok(Value::Integer(
             sec_from_time(local_or_utc_time::<UTC>(agent, t)).into(),
@@ -492,11 +496,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Return dateObject.[[DateValue]].
-        Ok(Value::from_f64(
-            agent,
-            date_object.date_value(agent),
-            gc.into_nogc(),
-        ))
+        Ok(date_object.date_value(agent).into_value())
     }
 
     fn get_timezone_offset<'gc>(
@@ -511,9 +511,9 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.date_value(agent);
         // 4. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 5. Return (t - LocalTime(t)) / msPerMinute.
         let result = (t - local_time(agent, t)) / MS_PER_MINUTE;
         Ok(Value::from_f64(agent, result, gc.into_nogc()))
@@ -536,9 +536,9 @@ impl DatePrototype {
         // 4. Let dt be ? ToNumber(date).
         let dt = to_number(agent, date.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 6. Set t to LocalTime(t).
         let t = local_or_utc_time::<UTC>(agent, t);
         // 7. Let newDate be MakeDate(MakeDay(YearFromTime(t), MonthFromTime(t), dt), TimeWithinDay(t)).
@@ -551,7 +551,7 @@ impl DatePrototype {
         // 9. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.21 Date.prototype.setFullYear ( year \[ , month \[ , date \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setfullyear)
@@ -581,10 +581,10 @@ impl DatePrototype {
         // 4. Let y be ? ToNumber(year).
         let y = to_number(agent, year.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, set t to +0𝔽; otherwise, set t to LocalTime(t).
-        let t = if t.is_nan() {
-            0.0
-        } else {
+        let t = if let Some(t) = t.get_f64() {
             local_or_utc_time::<UTC>(agent, t)
+        } else {
+            0.0
         };
         // 6. If month is not present, let m be MonthFromTime(t); otherwise, let m be ? ToNumber(month).
         let m = if arguments.len() < 2 {
@@ -610,7 +610,7 @@ impl DatePrototype {
         // 10. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 11. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.22 Date.prototype.setHours ( hour \[ , min \[ , sec \[ , ms \] \] \] )](https://tc39.es/ecma262/#sec-date.prototype.sethours)
@@ -660,9 +660,9 @@ impl DatePrototype {
             None
         };
         // 8. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 9. Set t to LocalTime(t).
         let t = local_or_utc_time::<UTC>(agent, t);
         // 10. If min is not present, let m be MinFromTime(t).
@@ -678,7 +678,7 @@ impl DatePrototype {
         // 15. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 16. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.23 Date.prototype.setMilliseconds ( ms )](https://tc39.es/ecma262/#sec-date.prototype.setmilliseconds)
@@ -697,9 +697,9 @@ impl DatePrototype {
         // 4. Set ms to ? ToNumber(ms).
         let ms = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 6. Set t to LocalTime(t).
         let t = local_or_utc_time::<UTC>(agent, t);
         // 7. Let time be MakeTime(HourFromTime(t), MinFromTime(t), SecFromTime(t), ms).
@@ -714,7 +714,7 @@ impl DatePrototype {
         // 9. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 10. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.24 Date.prototype.setMinutes ( min \[ , sec \[ , ms \] \] )](https://tc39.es/ecma262/#sec-date.prototype.setminutes)
@@ -756,9 +756,9 @@ impl DatePrototype {
             None
         };
         // 7. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 8. Set t to LocalTime(t).
         let t = local_or_utc_time::<UTC>(agent, t);
         // 9. If sec is not present, let s be SecFromTime(t).
@@ -772,7 +772,7 @@ impl DatePrototype {
         // 13. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 14. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.25 Date.prototype.setMonth ( month \[ , date \] )](https://tc39.es/ecma262/#sec-date.prototype.setmonth)
@@ -806,9 +806,9 @@ impl DatePrototype {
             None
         };
         // 6. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 7. Set t to LocalTime(t).
         let t = local_or_utc_time::<UTC>(agent, t);
         // 8. If date is not present, let dt be DateFromTime(t).
@@ -823,7 +823,7 @@ impl DatePrototype {
         // 11. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.26 Date.prototype.setSeconds ( sec \[ , ms \] )](https://tc39.es/ecma262/#sec-date.prototype.setseconds)
@@ -857,9 +857,9 @@ impl DatePrototype {
             None
         };
         // 6. If t is NaN, return NaN.
-        if t.is_nan() {
+        let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
-        }
+        };
         // 7. Set t to LocalTime(t).
         let t = local_or_utc_time::<UTC>(agent, t);
         // 8. If ms is not present, let milli be msFromTime(t).
@@ -874,7 +874,7 @@ impl DatePrototype {
         // 11. Set dateObject.[[DateValue]] to u.
         date_object.get(agent).set_date_value(agent, u);
         // 12. Return u.
-        Ok(Value::from_f64(agent, u, gc.into_nogc()))
+        Ok(u.into_value())
     }
 
     /// ### [21.4.4.27 Date.prototype.setTime ( time )](https://tc39.es/ecma262/#sec-date.prototype.settime)
@@ -895,7 +895,7 @@ impl DatePrototype {
         // 5. Set dateObject.[[DateValue]] to v.
         date_object.get(agent).set_date_value(agent, v);
         // 6. Return v.
-        Ok(Value::from_f64(agent, v, gc.into_nogc()))
+        Ok(v.into_value())
     }
 
     /// ### [21.4.4.35 Date.prototype.toDateString ( )](https://tc39.es/ecma262/#sec-date.prototype.todatestring)
@@ -911,13 +911,13 @@ impl DatePrototype {
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
-        if tv.is_nan() {
+        let Some(tv) = tv.get_f64() else {
             return Ok(Value::from_static_str(
                 agent,
                 "Invalid Date",
                 gc.into_nogc(),
             ));
-        }
+        };
         // 5. Let t be LocalTime(tv).
         let t = local_time(agent, tv);
         // 6. Return DateString(t).
@@ -937,13 +937,13 @@ impl DatePrototype {
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, throw a RangeError exception.
-        if tv.is_nan() {
+        let Some(tv) = tv.get_f64() else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
                 "Invalid Date",
                 gc.into_nogc(),
             ));
-        }
+        };
         // 5. Assert: tv is an integral Number.
         assert!(tv.fract() == 0.0);
         // 6. If tv corresponds with a year that cannot be represented in
@@ -1117,13 +1117,13 @@ impl DatePrototype {
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
-        if tv.is_nan() {
+        let Some(tv) = tv.get_f64() else {
             return Ok(Value::from_static_str(
                 agent,
                 "Invalid Date",
                 gc.into_nogc(),
             ));
-        }
+        };
         // 5. Let t be LocalTime(tv).
         let t = local_time(agent, tv);
         // 6. Return the string-concatenation of TimeString(t) and TimeZoneString(tv).
@@ -1152,13 +1152,13 @@ impl DatePrototype {
         // 3. Let tv be dateObject.[[DateValue]].
         let tv = date_object.date_value(agent);
         // 4. If tv is NaN, return "Invalid Date".
-        if tv.is_nan() {
+        let Some(tv) = tv.get_f64() else {
             return Ok(Value::from_static_str(
                 agent,
                 "Invalid Date",
                 gc.into_nogc(),
             ));
-        }
+        };
         // 5. Let weekday be the Name of the entry in Table 65 with the Number WeekDay(tv).
         let weekday = match week_day(tv) {
             0 => "Sun",
@@ -1218,11 +1218,7 @@ impl DatePrototype {
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         // 3. Return dateObject.[[DateValue]].
-        Ok(Value::from_f64(
-            agent,
-            date_object.date_value(agent),
-            gc.into_nogc(),
-        ))
+        Ok(date_object.date_value(agent).into_value())
     }
 
     /// ### [21.4.4.45 Date.prototype \[ %Symbol.toPrimitive% \] ( hint )](https://tc39.es/ecma262/#sec-date.prototype-%symbol.toprimitive%)
@@ -2119,25 +2115,6 @@ pub(super) fn make_full_year(year: f64) -> f64 {
     truncated.into_f64()
 }
 
-/// ### [21.4.1.31 TimeClip ( time )](https://tc39.es/ecma262/#sec-timeclip)
-///
-/// The abstract operation TimeClip takes argument time (a Number) and returns
-/// a Number. It calculates a number of milliseconds.
-pub(super) fn time_clip(time: f64) -> f64 {
-    // 1. If time is not finite, return NaN.
-    if !time.is_finite() {
-        return f64::NAN;
-    }
-
-    // 2. If abs(ℝ(time)) > 8.64 × 10**15, return NaN.
-    if time.abs() > 8.64e15 {
-        return f64::NAN;
-    }
-
-    // 3. Return 𝔽(! ToIntegerOrInfinity(time)).
-    IntegerOrInfinity::from(time).into_f64()
-}
-
 /// ### [21.4.1.33.1 IsTimeZoneOffsetString ( offsetString )](https://tc39.es/ecma262/#sec-istimezoneoffsetstring)
 ///
 /// The abstract operation IsTimeZoneOffsetString takes argument offsetString
@@ -2307,11 +2284,11 @@ fn time_zone_string(agent: &Agent, tv: f64) -> std::string::String {
 ///
 /// The abstract operation ToDateString takes argument tv (an integral Number
 /// or NaN) and returns a String.
-pub(super) fn to_date_string(agent: &Agent, tv: f64) -> std::string::String {
+pub(super) fn to_date_string(agent: &Agent, tv: DateValue) -> std::string::String {
     // 1. If tv is NaN, return "Invalid Date".
-    if tv.is_nan() {
+    let Some(tv) = tv.get_f64() else {
         return "Invalid Date".to_string();
-    }
+    };
     // 2. Let t be LocalTime(tv).
     let t = local_time(agent, tv);
     // 3. Return the string-concatenation of DateString(t), the code unit 0x0020 (SPACE), TimeString(t), and TimeZoneString(tv).

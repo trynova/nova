@@ -4,12 +4,15 @@
 
 use std::time::SystemTime;
 
-use crate::ecmascript::builtins::ArgumentsList;
 use crate::ecmascript::builtins::Behaviour;
 use crate::ecmascript::builtins::Builtin;
 use crate::ecmascript::builtins::BuiltinIntrinsicConstructor;
 use crate::ecmascript::builtins::date::Date;
 use crate::ecmascript::builtins::ordinary::ordinary_create_from_constructor;
+use crate::ecmascript::builtins::{
+    ArgumentsList,
+    date::data::{DateValue, time_clip},
+};
 use crate::ecmascript::execution::Agent;
 use crate::ecmascript::execution::JsResult;
 use crate::ecmascript::execution::ProtoIntrinsics;
@@ -30,13 +33,7 @@ use crate::ecmascript::{
 use crate::engine::context::Bindable;
 use crate::engine::context::GcScope;
 use crate::heap::IntrinsicConstructorIndexes;
-use crate::{
-    SmallInteger,
-    ecmascript::{
-        abstract_operations::type_conversion::to_primitive,
-        numbers_and_dates::date_objects::date_prototype::time_clip,
-    },
-};
+use crate::{SmallInteger, ecmascript::abstract_operations::type_conversion::to_primitive};
 use crate::{
     ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder,
     engine::rootable::Scopable,
@@ -92,11 +89,7 @@ impl DateConstructor {
         // 1. If NewTarget is undefined, then
         let Some(new_target) = new_target else {
             // a. Let now be the time value (UTC) identifying the current time.
-            let now = SystemTime::now();
-            let now = now
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .expect("Time went backwards")
-                .as_millis() as f64;
+            let now = DateValue::now();
             // b. Return ToDateString(now).
             return Ok(Value::from_string(
                 agent,
@@ -110,10 +103,7 @@ impl DateConstructor {
             // 3. If numberOfArgs = 0, then
             0 => {
                 // a. Let dv be the time value (UTC) identifying the current time.
-                SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .expect("Time went backwards")
-                    .as_millis() as f64
+                DateValue::now()
             }
             // 4. Else if numberOfArgs = 1, then
             1 => {
@@ -122,7 +112,7 @@ impl DateConstructor {
                 // b. If value is an Object and value has a [[DateValue]] internal slot, then
                 let tv = if let Value::Date(date) = value {
                     // i. Let tv be value.[[DateValue]].
-                    date.date_value(agent)
+                    date.date_value(agent).get_f64().unwrap_or(f64::NAN)
                 }
                 // c. Else,
                 else {
@@ -335,11 +325,7 @@ impl DateConstructor {
         // 8. Let yr be MakeFullYear(y).
         let yr = make_full_year(y);
         // 9. Return TimeClip(MakeDate(MakeDay(yr, m, dt), MakeTime(h, min, s, milli))).
-        Ok(Value::from_f64(
-            agent,
-            time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))),
-            gc.into_nogc(),
-        ))
+        Ok(time_clip(make_date(make_day(yr, m, dt), make_time(h, min, s, milli))).into_value())
     }
 
     pub(crate) fn create_intrinsic(agent: &mut Agent, realm: RealmIdentifier) {
@@ -515,8 +501,7 @@ mod parse_date {
 
             let date = date + (self.offset as f64) * MS_PER_MINUTE;
 
-            let t = time_clip(date);
-            if t.is_finite() { Some(t as i64) } else { None }
+            time_clip(date).get_i64()
         }
 
         fn finish_local(&mut self) -> Option<i64> {
@@ -534,8 +519,7 @@ mod parse_date {
                 ),
             );
 
-            let t = time_clip(utc(self.agent, date));
-            if t.is_finite() { Some(t as i64) } else { None }
+            time_clip(utc(self.agent, date)).get_i64()
         }
 
         fn parse(&mut self) -> Option<i64> {
