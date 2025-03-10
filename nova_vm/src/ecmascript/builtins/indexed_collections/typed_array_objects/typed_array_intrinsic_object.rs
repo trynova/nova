@@ -1102,41 +1102,41 @@ impl TypedArrayPrototype {
         // 11. Repeat, while k < len,
         let result = match o {
             TypedArray::Int8Array(_) => {
-                search_typed_element::<i8>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<i8, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint8Array(_) => {
-                search_typed_element::<u8>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<u8, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint8ClampedArray(_) => {
-                search_typed_element::<U8Clamped>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<U8Clamped, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Int16Array(_) => {
-                search_typed_element::<i16>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<i16, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint16Array(_) => {
-                search_typed_element::<u16>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<u16, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Int32Array(_) => {
-                search_typed_element::<i32>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<i32, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Uint32Array(_) => {
-                search_typed_element::<u32>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<u32, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::BigInt64Array(_) => {
-                search_typed_element::<i64>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<i64, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::BigUint64Array(_) => {
-                search_typed_element::<u64>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<u64, true>(agent, o, search_element, k, len, gc.nogc())
             }
             #[cfg(feature = "proposal-float16array")]
             TypedArray::Float16Array(_) => {
-                search_typed_element::<f16>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<f16, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Float32Array(_) => {
-                search_typed_element::<f32>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<f32, true>(agent, o, search_element, k, len, gc.nogc())
             }
             TypedArray::Float64Array(_) => {
-                search_typed_element::<f64>(agent, o, search_element, k, len, true, gc.nogc())
+                search_typed_element::<f64, true>(agent, o, search_element, k, len, gc.nogc())
             }
         };
         Ok(result?.map_or(-1, |v| v as i64).try_into().unwrap())
@@ -1545,113 +1545,101 @@ impl TypedArrayPrototype {
         // 9. Repeat, while k ≥ 0,
         let o = o.get(agent);
         let result = match o {
-            TypedArray::Int8Array(_) => search_typed_element::<i8>(
+            TypedArray::Int8Array(_) => search_typed_element::<i8, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Uint8Array(_) => search_typed_element::<u8>(
+            TypedArray::Uint8Array(_) => search_typed_element::<u8, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Uint8ClampedArray(_) => search_typed_element::<U8Clamped>(
+            TypedArray::Uint8ClampedArray(_) => search_typed_element::<U8Clamped, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Int16Array(_) => search_typed_element::<i16>(
+            TypedArray::Int16Array(_) => search_typed_element::<i16, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Uint16Array(_) => search_typed_element::<u16>(
+            TypedArray::Uint16Array(_) => search_typed_element::<u16, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Int32Array(_) => search_typed_element::<i32>(
+            TypedArray::Int32Array(_) => search_typed_element::<i32, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Uint32Array(_) => search_typed_element::<u32>(
+            TypedArray::Uint32Array(_) => search_typed_element::<u32, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::BigInt64Array(_) => search_typed_element::<i64>(
+            TypedArray::BigInt64Array(_) => search_typed_element::<i64, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::BigUint64Array(_) => search_typed_element::<u64>(
+            TypedArray::BigUint64Array(_) => search_typed_element::<u64, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
             #[cfg(feature = "proposal-float16array")]
-            TypedArray::Float16Array(_) => search_typed_element::<f16>(
+            TypedArray::Float16Array(_) => search_typed_element::<f16, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Float32Array(_) => search_typed_element::<f32>(
+            TypedArray::Float32Array(_) => search_typed_element::<f32, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
-            TypedArray::Float64Array(_) => search_typed_element::<f64>(
+            TypedArray::Float64Array(_) => search_typed_element::<f64, false>(
                 agent,
                 o,
                 search_element.get(agent),
                 k,
                 len,
-                false,
                 gc.nogc(),
             ),
         };
@@ -2061,13 +2049,12 @@ pub(crate) fn require_internal_slot_typed_array<'a>(
     })
 }
 
-fn search_typed_element<T: Viewable + std::fmt::Debug>(
+fn search_typed_element<T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
     agent: &mut Agent,
     ta: TypedArray,
     search_element: Value,
     k: usize,
     len: usize,
-    ascending: bool,
     gc: NoGcScope,
 ) -> JsResult<Option<usize>> {
     let search_element = T::try_from_value(agent, search_element);
@@ -2110,7 +2097,8 @@ fn search_typed_element<T: Viewable + std::fmt::Debug>(
     // and here: We'll never try to access past the boundary of the slice if
     // the backing ArrayBuffer shrank.
     let len = len.min(slice.len());
-    if ascending {
+
+    if ASCENDING {
         if k >= len {
             return Ok(None);
         }
