@@ -1332,6 +1332,7 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
+        ProtoIntrinsics::Iterator => todo!(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
         ProtoIntrinsics::MapIterator => agent
             .heap
@@ -1502,6 +1503,7 @@ pub(crate) fn get_prototype_from_constructor<'a>(
             ProtoIntrinsics::Int32Array => Some(intrinsics.int32_array().into_function()),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Int8Array => Some(intrinsics.int8_array().into_function()),
+            ProtoIntrinsics::Iterator => Some(intrinsics.iterator().into_function()),
             ProtoIntrinsics::Map => Some(intrinsics.map().into_function()),
             ProtoIntrinsics::MapIterator => None,
             ProtoIntrinsics::Number => Some(intrinsics.number().into_function()),

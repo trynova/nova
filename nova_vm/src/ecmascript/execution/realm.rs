@@ -489,7 +489,7 @@ pub(crate) fn set_default_global_bindings<'a>(
         define_property!(intrinsic Int32Array, int32_array);
 
         // 19.3.20 Iterator ( . . . )
-        // TODO define_property!(intrinsic Iterator, iterator);
+        define_property!(intrinsic Iterator, iterator);
 
         // 19.3.21 Map ( . . . )
         define_property!(intrinsic Map, map);
@@ -517,10 +517,11 @@ pub(crate) fn set_default_global_bindings<'a>(
         define_property!(intrinsic RegExp, reg_exp);
 
         // 19.3.29 Set ( . . . )
+		#[cfg(feature = "set")]
         define_property!(intrinsic Set, set);
 
         // 19.3.30 SharedArrayBuffer ( . . . )
-        #[cfg(feature = "array-buffer")]
+        #[cfg(feature = "shared-array-buffer")]
         define_property!(intrinsic SharedArrayBuffer, shared_array_buffer);
 
         // 19.3.31 String ( . . . )

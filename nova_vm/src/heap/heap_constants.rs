@@ -209,6 +209,7 @@ pub(crate) enum IntrinsicConstructorIndexes {
     FinalizationRegistry,
 
     // Control abstraction objects
+    Iterator,
     Promise,
     GeneratorFunction,
     AsyncGeneratorFunction,
