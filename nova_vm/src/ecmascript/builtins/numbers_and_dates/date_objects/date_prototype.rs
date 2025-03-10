@@ -1453,6 +1453,8 @@ fn time_from_year(y: f64) -> f64 {
 ///
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L133
 ///
+/// Copyright (c) 2019 Jason Williams
+///
 /// The abstract operation YearFromTime takes argument t (a finite time value)
 /// and returns an integral Number. It returns the year in which t falls. It
 /// performs the following steps when called:
@@ -2009,6 +2011,8 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
 /// ### [21.4.1.28 MakeDay ( year, month, date )](https://tc39.es/ecma262/#sec-makeday)
 ///
 /// Ported from Boa JS engine. Source https://github.com/boa-dev/boa/blob/13a030a0aa452e6f78e4a7e8bbc0e11b878bbd58/core/engine/src/builtins/date/utils.rs#L368
+///
+/// Copyright (c) 2019 Jason Williams
 ///
 /// The abstract operation MakeDay takes arguments year (a Number),
 /// month (a Number), and date (a Number) and returns a Number.
