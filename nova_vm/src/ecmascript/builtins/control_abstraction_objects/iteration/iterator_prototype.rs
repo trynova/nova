@@ -3,9 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
-    get_iterator_direct, if_abrupt_close_iterator, iterator_close, iterator_step_value,
+    IteratorRecord, get_iterator_direct, if_abrupt_close_iterator, iterator_close,
+    iterator_step_value,
 };
-use crate::ecmascript::abstract_operations::operations_on_objects::call;
+use crate::ecmascript::abstract_operations::operations_on_objects::{call, throw_not_callable};
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::Object;
@@ -36,7 +37,7 @@ struct IteratorPrototypeForEach;
 impl Builtin for IteratorPrototypeForEach {
     const NAME: String<'static> = BUILTIN_STRING_MEMORY.forEach;
     const KEY: Option<PropertyKey<'static>> = None;
-    const LENGTH: u8 = 0;
+    const LENGTH: u8 = 1;
     const BEHAVIOUR: Behaviour = Behaviour::Regular(IteratorPrototype::for_each);
 }
 
@@ -86,12 +87,19 @@ impl IteratorPrototype {
         let scoped_procedure = Value::from(procedure).scope(agent, gc.nogc());
 
         // 5. Set iterated to ? GetIteratorDirect(O).
-        // if i rebind `iterated` here borrow checker complains
-        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow()).unbind()?;
-        let Some(iterated) = iterated else {
-            // what should happen here?
-            todo!();
+        let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
+            .unbind()
+            .bind(gc.nogc())?;
+        let Some(IteratorRecord {
+            iterator,
+            next_method,
+            ..
+        }) = iterated
+        else {
+            return Err(throw_not_callable(agent, gc.into_nogc()));
         };
+        let iterator = iterator.scope(agent, gc.nogc());
+        let next_method = next_method.scope(agent, gc.nogc());
 
         // 6. Let counter be 0.
         let mut counter = 0;
@@ -99,7 +107,11 @@ impl IteratorPrototype {
         // 7. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let value = iterator_step_value(agent, iterated, gc.reborrow())
+            let record = IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            };
+            let value = iterator_step_value(agent, record, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?;
             // b. If value is done, return undefined.
@@ -117,10 +129,16 @@ impl IteratorPrototype {
             )
             .unbind()
             .bind(gc.nogc());
+
             // d. IfAbruptCloseIterator(result, iterated).
-			if_abrupt_close_iterator!(agent, result, iterated, gc);
+            let record = IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            };
+            if_abrupt_close_iterator!(agent, result, record, gc);
+
             // e. Set counter to counter + 1.
-			counter += 1;
+            counter += 1;
         }
     }
 
@@ -133,7 +151,7 @@ impl IteratorPrototype {
             .with_property_capacity(2)
             .with_prototype(object_prototype)
             .with_builtin_function_property::<IteratorPrototypeIterator>()
-			.with_builtin_function_property::<IteratorPrototypeForEach>()
+            .with_builtin_function_property::<IteratorPrototypeForEach>()
             .build();
     }
 }

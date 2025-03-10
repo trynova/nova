@@ -81,7 +81,7 @@ pub(crate) fn get_iterator_direct<'gc>(
 ) -> JsResult<Option<IteratorRecord<'gc>>> {
     let obj = obj.bind(gc.nogc());
 
-	let scoped_obj = obj.scope(agent, gc.nogc());
+    let scoped_obj = obj.scope(agent, gc.nogc());
     // 1. Let nextMethod be ? Get(obj, "next").
     let next_method = get(
         agent,
@@ -97,13 +97,13 @@ pub(crate) fn get_iterator_direct<'gc>(
     };
 
     // 2. Let iteratorRecord be the Iterator Record { [[Iterator]]: obj, [[NextMethod]]: nextMethod, [[Done]]: false }.
-	let iterator_record = IteratorRecord {
-		iterator: scoped_obj.get(agent).bind(gc),
-		next_method,
-	};
+    let iterator_record = IteratorRecord {
+        iterator: scoped_obj.get(agent).bind(gc),
+        next_method,
+    };
 
     // 3. Return iteratorRecord.
-	Ok(Some(iterator_record))
+    Ok(Some(iterator_record))
 }
 
 /// ### [7.4.3 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
