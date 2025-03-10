@@ -68,7 +68,45 @@ pub(crate) struct ScopedIteratorRecord<'a> {
     pub(crate) done: bool,
 }
 
-/// ### [7.4.2 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
+/// ### [7.4.2 GetIteratorDirect ( obj )](https://tc39.es/ecma262/#sec-getiteratordirect)
+/// The abstract operation GetIteratorDirect takes argument obj (an Object) and returns
+/// either a normal completion containing an Iterator Record or a throw completion.
+///
+/// Note: Different from the spec, this method returns None if the iterator
+/// object's next method isn't callable.
+pub(crate) fn get_iterator_direct<'gc>(
+    agent: &mut Agent,
+    obj: Object,
+    mut gc: GcScope<'gc, '_>,
+) -> JsResult<Option<IteratorRecord<'gc>>> {
+    let obj = obj.bind(gc.nogc());
+
+    let scoped_obj = obj.scope(agent, gc.nogc());
+    // 1. Let nextMethod be ? Get(obj, "next").
+    let next_method = get(
+        agent,
+        obj.unbind(),
+        BUILTIN_STRING_MEMORY.next.into(),
+        gc.reborrow(),
+    )?
+    .unbind();
+    let gc = gc.into_nogc();
+
+    let Some(next_method) = is_callable(next_method, gc) else {
+        return Ok(None);
+    };
+
+    // 2. Let iteratorRecord be the Iterator Record { [[Iterator]]: obj, [[NextMethod]]: nextMethod, [[Done]]: false }.
+    let iterator_record = IteratorRecord {
+        iterator: scoped_obj.get(agent).bind(gc),
+        next_method,
+    };
+
+    // 3. Return iteratorRecord.
+    Ok(Some(iterator_record))
+}
+
+/// ### [7.4.3 GetIteratorFromMethod ( obj, method )](https://tc39.es/ecma262/#sec-getiteratorfrommethod)
 ///
 /// The abstract operation GetIteratorFromMethod takes arguments obj (an
 /// ECMAScript language value) and method (a function object) and returns
@@ -123,7 +161,7 @@ pub(crate) fn get_iterator_from_method<'a>(
     }))
 }
 
-/// ### [7.4.3 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
+/// ### [7.4.4 GetIterator ( obj, kind )](https://tc39.es/ecma262/#sec-getiterator)
 ///
 /// The abstract operation GetIterator takes arguments obj (an ECMAScript
 /// language value) and kind (sync or async) and returns either a normal
@@ -201,7 +239,7 @@ pub(crate) fn get_iterator<'a>(
     get_iterator_from_method(agent, scoped_obj.get(agent), method.unbind(), gc)
 }
 
-/// ### [7.4.4 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
+/// ### [7.4.6 IteratorNext ( iteratorRecord [ , value ] )](https://tc39.es/ecma262/#sec-iteratornext)
 ///
 /// The abstract operation IteratorNext takes argument iteratorRecord (an
 /// Iterator Record) and optional argument value (an ECMAScript language value)
@@ -243,7 +281,7 @@ pub(crate) fn iterator_next<'a>(
         )))
 }
 
-/// ### [7.4.5 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
+/// ### [7.4.7 IteratorComplete ( iterResult )](https://tc39.es/ecma262/#sec-iteratorcomplete)
 ///
 /// The abstract operation IteratorComplete takes argument iterResult (an
 /// Object) and returns either a normal completion containing a Boolean or a
@@ -259,7 +297,7 @@ fn iterator_complete(agent: &mut Agent, iter_result: Object, mut gc: GcScope) ->
     Ok(to_boolean(agent, done))
 }
 
-/// ### [7.4.6 IteratorValue ( iterResult )](https://tc39.es/ecma262/#sec-iteratorvalue)
+/// ### [7.4.8 IteratorValue ( iterResult )](https://tc39.es/ecma262/#sec-iteratorvalue)
 ///
 /// The abstract operation IteratorValue takes argument iterResult (an
 /// Object) and returns either a normal completion containing an ECMAScript
@@ -273,7 +311,7 @@ pub(crate) fn iterator_value<'a>(
     get(agent, iter_result, BUILTIN_STRING_MEMORY.value.into(), gc)
 }
 
-/// ### [7.4.7 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)
+/// ### [7.4.9 IteratorStep ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstep)
 ///
 /// The abstract operation IteratorStep takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing either
@@ -311,7 +349,7 @@ pub(crate) fn iterator_step<'a>(
     }))
 }
 
-/// ### [7.4.8 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
+/// ### [7.4.10 IteratorStepValue ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratorstepvalue)
 /// The abstract operation IteratorStepValue takes argument iteratorRecord
 /// (an Iterator Record) and returns either a normal completion containing
 /// either an ECMAScript language value or done, or a throw completion. It
@@ -377,7 +415,7 @@ pub(crate) fn iterator_step_value<'a>(
     value.map(Some)
 }
 
-/// ### [7.4.9 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
+/// ### [7.4.11 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
 ///
 /// The abstract operation IteratorClose takes arguments iteratorRecord (an
 /// Iterator Record) and completion (a Completion Record) and returns a
@@ -469,7 +507,7 @@ pub(crate) fn iterator_close_with_error(
     completion
 }
 
-/// ### [7.4.9 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
+/// ### [7.4.11 IteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-iteratorclose)
 ///
 /// The abstract operation IteratorClose takes arguments iteratorRecord (an
 /// Iterator Record) and completion (a Completion Record) and returns a
@@ -538,7 +576,7 @@ macro_rules! if_abrupt_close_iterator {
 
 pub(crate) use if_abrupt_close_iterator;
 
-/// ### [7.4.11 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
+/// ### [7.4.13 AsyncIteratorClose ( iteratorRecord, completion )](https://tc39.es/ecma262/#sec-asynciteratorclose)
 ///
 /// The abstract operation AsyncIteratorClose takes arguments iteratorRecord
 /// (an Iterator Record) and completion (a Completion Record) and returns a
@@ -566,7 +604,7 @@ pub(crate) fn async_iterator_close<'a>(
     todo!()
 }
 
-/// ### [7.4.12 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
+/// ### [7.4.14 CreateIterResultObject ( value, done )](https://tc39.es/ecma262/#sec-createiterresultobject)
 ///
 /// The abstract operation CreateIterResultObject takes arguments value (an
 /// ECMAScript language value) and done (a Boolean) and returns an Object that
@@ -597,7 +635,7 @@ pub(crate) fn create_iter_result_object<'a>(
     obj
 }
 
-/// ### [7.4.13 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
+/// ### [7.4.15 CreateListIteratorRecord ( list )](https://tc39.es/ecma262/#sec-createlistiteratorRecord)
 ///
 /// The abstract operation CreateListIteratorRecord takes argument list (a List
 /// of ECMAScript language values) and returns an Iterator Record. It creates
@@ -617,7 +655,7 @@ pub(crate) fn create_list_iterator_record<'a>(
     todo!()
 }
 
-/// ### [7.4.14 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)
+/// ### [7.4.16 IteratorToList ( iteratorRecord )](https://tc39.es/ecma262/#sec-iteratortolist)
 ///
 /// The abstract operation IteratorToList takes argument iteratorRecord (an
 /// Iterator Record) and returns either a normal completion containing a List
