@@ -1991,16 +1991,20 @@ pub(super) fn make_time(hour: f64, min: f64, sec: f64, ms: f64) -> f64 {
     }
 
     // 2. Let h be 𝔽(! ToIntegerOrInfinity(hour)).
-    let h = hour.abs().floor().copysign(hour);
+    // `hour` must be finite, so just use `trunc`.
+    let h = hour.trunc();
 
     // 3. Let m be 𝔽(! ToIntegerOrInfinity(min)).
-    let m = min.abs().floor().copysign(min);
+    // `min` must be finite, so just use `trunc`.
+    let m = min.trunc();
 
     // 4. Let s be 𝔽(! ToIntegerOrInfinity(sec)).
-    let s = sec.abs().floor().copysign(sec);
+    // `sec` must be finite, so just use `trunc`.
+    let s = sec.trunc();
 
     // 5. Let milli be 𝔽(! ToIntegerOrInfinity(ms)).
-    let milli = ms.abs().floor().copysign(ms);
+    // `ms` must be finite, so just use `trunc`.
+    let milli = ms.trunc();
 
     // 6. Return ((h × msPerHour + m × msPerMinute) + s × msPerSecond) + milli.
     ((h * MS_PER_HOUR + m * MS_PER_MINUTE) + s * MS_PER_SECOND) + milli
@@ -2022,13 +2026,16 @@ pub(super) fn make_day(year: f64, month: f64, date: f64) -> f64 {
     }
 
     // 2. Let y be 𝔽(! ToIntegerOrInfinity(year)).
-    let y = year.abs().floor().copysign(year);
+    // `year` must be finite, so just use `trunc`.
+    let y = year.trunc();
 
     // 3. Let m be 𝔽(! ToIntegerOrInfinity(month)).
-    let m = month.abs().floor().copysign(month);
+    // `month` must be finite, so just use `trunc`.
+    let m = month.trunc();
 
     // 4. Let dt be 𝔽(! ToIntegerOrInfinity(date)).
-    let dt = date.abs().floor().copysign(date);
+    // `date` must be finite, so just use `trunc`.
+    let dt = date.trunc();
 
     // 5. Let ym be y + 𝔽(floor(ℝ(m) / 12)).
     let ym = y + (m / 12.0).floor();

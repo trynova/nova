@@ -447,14 +447,6 @@ impl IntegerOrInfinity {
     pub(crate) fn into_i64(self) -> i64 {
         self.0
     }
-
-    pub(crate) fn into_f64(self) -> f64 {
-        match self {
-            Self::NEG_INFINITY => f64::NEG_INFINITY,
-            Self::POS_INFINITY => f64::INFINITY,
-            IntegerOrInfinity(i) => i as f64,
-        }
-    }
 }
 
 /// ### [7.1.5 ToIntegerOrInfinity ( argument )](https://tc39.es/ecma262/#sec-tointegerorinfinity)
