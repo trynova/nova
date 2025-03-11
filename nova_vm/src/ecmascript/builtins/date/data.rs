@@ -24,7 +24,8 @@ use crate::{
 /// - An integer in the range of -8,640,000,000,000,000 to 8,640,000,000,000,000,
 ///   which is represented as a non-max `i64`, and can also fit in `SmallInteger`
 #[derive(Debug, Clone, Copy)]
-pub struct DateValue(i64);
+#[repr(transparent)]
+pub(crate) struct DateValue(i64);
 
 impl DateValue {
     pub const NAN: Self = Self(i64::MAX);

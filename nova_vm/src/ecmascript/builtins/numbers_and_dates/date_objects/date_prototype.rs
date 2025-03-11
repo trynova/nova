@@ -7,7 +7,9 @@ use crate::{
     ecmascript::{
         abstract_operations::{
             operations_on_objects::invoke,
-            type_conversion::{IntegerOrInfinity, PreferredType, ordinary_to_primitive, to_object},
+            type_conversion::{
+                PreferredType, ordinary_to_primitive, to_integer_or_infinity_f64, to_object,
+            },
         },
         builders::ordinary_object_builder::OrdinaryObjectBuilder,
         builtins::{
@@ -2104,15 +2106,15 @@ pub(super) fn make_full_year(year: f64) -> f64 {
     }
 
     // 2. Let truncated be ! ToIntegerOrInfinity(year).
-    let truncated = IntegerOrInfinity::from(year);
+    let truncated = to_integer_or_infinity_f64(year);
 
     // 3. If truncated is in the inclusive interval from 0 to 99, return 1900𝔽 + 𝔽(truncated).
-    if let 0..=99 = truncated.into_i64() {
-        return 1900.0 + truncated.into_i64() as f64;
+    if let 0.0..=99.0 = truncated {
+        return 1900.0 + truncated;
     }
 
     // 4. Return 𝔽(truncated).
-    truncated.into_f64()
+    truncated
 }
 
 /// ### [21.4.1.33.1 IsTimeZoneOffsetString ( offsetString )](https://tc39.es/ecma262/#sec-istimezoneoffsetstring)
