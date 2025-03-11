@@ -416,6 +416,7 @@ tanh
 test
 then
 throw
+toArray
 toDateString
 toExponential
 toFixed

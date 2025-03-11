@@ -517,7 +517,7 @@ pub(crate) fn set_default_global_bindings<'a>(
         define_property!(intrinsic RegExp, reg_exp);
 
         // 19.3.29 Set ( . . . )
-		#[cfg(feature = "set")]
+        #[cfg(feature = "set")]
         define_property!(intrinsic Set, set);
 
         // 19.3.30 SharedArrayBuffer ( . . . )
