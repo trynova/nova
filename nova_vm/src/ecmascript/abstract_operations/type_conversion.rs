@@ -464,9 +464,8 @@ pub(crate) fn to_integer_or_infinity_f64(number: f64) -> f64 {
     } else {
         // 5. Let integer be floor(abs(ℝ(number))).
         // 6. If number < +0𝔽, set integer to -integer.
-        let integer = number.trunc();
         // 7. Return integer.
-        integer
+        number.trunc()
     }
 }
 

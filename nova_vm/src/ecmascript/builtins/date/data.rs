@@ -6,7 +6,7 @@ use std::time::SystemTime;
 
 use crate::{
     SmallInteger,
-    ecmascript::types::{IntoValue, Number, OrdinaryObject, Value},
+    ecmascript::types::{IntoValue, OrdinaryObject, Value},
     heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
@@ -34,7 +34,7 @@ impl DateValue {
         if self.0 == i64::MAX {
             None
         } else {
-            Some(self.0 as i64)
+            Some(self.0)
         }
     }
 
@@ -71,21 +71,14 @@ pub(crate) fn time_clip(time: f64) -> DateValue {
     DateValue(time.trunc() as i64)
 }
 
-impl<'a> Into<Number<'a>> for DateValue {
-    fn into(self) -> Number<'a> {
-        if let Some(value) = self.get_f64() {
-            // SAFETY: `value` is guaranteed to be in the range of `SmallInteger`.
-            Number::Integer(SmallInteger::try_from(value).unwrap())
-        } else {
-            Number::nan()
-        }
-    }
-}
-
 impl<'a> IntoValue<'a> for DateValue {
     fn into_value(self) -> Value<'a> {
-        let num: Number<'a> = self.into();
-        num.into_value()
+        if let Some(value) = self.get_f64() {
+            // SAFETY: `value` is guaranteed to be in the range of `SmallInteger`.
+            Value::Integer(SmallInteger::try_from(value).unwrap())
+        } else {
+            Value::nan()
+        }
     }
 }
 
