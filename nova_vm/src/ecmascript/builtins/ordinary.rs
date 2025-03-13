@@ -1332,14 +1332,17 @@ pub(crate) fn ordinary_object_create_with_intrinsics<'a>(
             .heap
             .create(TypedArrayHeapData::default())
             .into_object(),
-        ProtoIntrinsics::Iterator => agent.heap.create_object_with_prototype(
-            agent
-                .current_realm()
-                .intrinsics()
-                .iterator_prototype()
-                .into_object(),
-            &[],
-        ).into_object(),
+        ProtoIntrinsics::Iterator => agent
+            .heap
+            .create_object_with_prototype(
+                agent
+                    .current_realm()
+                    .intrinsics()
+                    .iterator_prototype()
+                    .into_object(),
+                &[],
+            )
+            .into_object(),
         ProtoIntrinsics::Map => agent.heap.create(MapHeapData::default()).into_object(),
         ProtoIntrinsics::MapIterator => agent
             .heap
