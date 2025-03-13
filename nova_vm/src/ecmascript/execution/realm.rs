@@ -332,745 +332,258 @@ pub(crate) fn set_default_global_bindings<'a>(
     let global = agent[realm_id].global_object.scope(agent, gc.nogc());
 
     // 2. For each property of the Global Object specified in clause 19, do
-    // a. Let name be the String value of the property name.
-    // b. Let desc be the fully populated data Property Descriptor for the
-    //    property, containing the specified attributes for the property. For
-    //    properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]]
-    //    attribute is the corresponding intrinsic object from realmRec.
-    // c. Perform ? DefinePropertyOrThrow(global, name, desc).
+    macro_rules! define_property {
+        (intrinsic $name:ident, $value:ident) => {
+            // most of the properties have this configuration
+            let value = agent.get_realm(realm_id).intrinsics().$value().into_value();
+            define_property!($name, value, Some(true), Some(false), Some(true));
+        };
+        ($name:ident, $value:ident, $writable:expr, $enumerable:expr, $configurable:expr) => {
+            // a. Let name be the String value of the property name.
+            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.$name);
+            let value = $value;
+
+            // b. Let desc be the fully populated data Property Descriptor for the
+            //    property, containing the specified attributes for the property. For
+            //    properties listed in 19.2, 19.3, or 19.4 the value of the [[Value]]
+            //    attribute is the corresponding intrinsic object from realmRec.
+            let desc = PropertyDescriptor {
+                value: Some(value),
+                writable: $writable,
+                enumerable: $enumerable,
+                configurable: $configurable,
+                ..Default::default()
+            };
+
+            // c. Perform ? DefinePropertyOrThrow(global, name, desc).
+            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        };
+    }
 
     // 19.1 Value Properties of the Global Object
     {
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.globalThis);
-
+        // 19.1.1 globalThis
         let global_env = agent[realm_id].global_env;
-        let desc = PropertyDescriptor {
-            value: Some(
-                global_env
-                    .unwrap()
-                    .get_this_binding(agent, gc.nogc())
-                    .into_value()
-                    .unbind(),
-            ),
-            ..Default::default()
-        };
+        let value = global_env
+            .unwrap()
+            .get_this_binding(agent, gc.nogc())
+            .into_value()
+            .unbind();
+        define_property!(globalThis, value, None, None, None);
 
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.1.2 Infinity
+        let value = Number::from_f64(agent, f64::INFINITY, gc.nogc())
+            .into_value()
+            .unbind();
+        define_property!(Infinity, value, Some(false), Some(false), Some(false));
 
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Infinity);
-        let value = Number::from_f64(agent, f64::INFINITY, gc.nogc());
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value().unbind()),
-            writable: Some(false),
-            enumerable: Some(false),
-            configurable: Some(false),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.1.3 NaN
+        let value = Number::from_f64(agent, f64::NAN, gc.nogc())
+            .into_value()
+            .unbind();
+        define_property!(NaN, value, Some(false), Some(false), Some(false));
 
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.NaN);
-        let value = Number::from_f64(agent, f64::NAN, gc.nogc());
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value().unbind()),
-            writable: Some(false),
-            enumerable: Some(false),
-            configurable: Some(false),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.undefined);
-        let desc = PropertyDescriptor {
-            value: Some(Value::Undefined),
-            writable: Some(false),
-            enumerable: Some(false),
-            configurable: Some(false),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.1.4 undefined
+        let value = Value::Undefined;
+        define_property!(undefined, value, Some(false), Some(false), Some(false));
     }
 
     // 19.2 Function Properties of the Global Object
     {
         // 19.2.1 eval ( x )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.eval);
-        let value = agent.get_realm(realm_id).intrinsics().eval();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic eval, eval);
 
         // 19.2.2 isFinite ( number )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.isFinite);
-        let value = agent.get_realm(realm_id).intrinsics().is_finite();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic isFinite, is_finite);
 
         // 19.2.3 isNaN ( number )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.isNaN);
-        let value = agent.get_realm(realm_id).intrinsics().is_nan();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic isNaN, is_nan);
 
         // 19.2.4 parseFloat ( string )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.parseFloat);
-        let value = agent.get_realm(realm_id).intrinsics().parse_float();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic parseFloat, parse_float);
 
         // 19.2.5 parseInt ( string, radix )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.parseInt);
-        let value = agent.get_realm(realm_id).intrinsics().parse_int();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic parseInt, parse_int);
 
         // 19.2.6.1 decodeURI ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURI);
-        let value = agent.get_realm(realm_id).intrinsics().decode_uri();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic decodeURI, decode_uri);
 
         // 19.2.6.2 decodeURIComponent ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.decodeURIComponent);
-        let value = agent
-            .get_realm(realm_id)
-            .intrinsics()
-            .decode_uri_component();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic decodeURIComponent, decode_uri_component);
 
         // 19.2.6.3 encodeURI ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURI);
-        let value = agent.get_realm(realm_id).intrinsics().encode_uri();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic encodeURI, encode_uri);
 
         // 19.2.6.4 encodeURIComponent ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.encodeURIComponent);
-        let value = agent
-            .get_realm(realm_id)
-            .intrinsics()
-            .encode_uri_component();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic encodeURIComponent, encode_uri_component);
     }
 
     // 19.3 Constructor Properties of the Global Object
     {
         // 19.3.1 AggregateError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.AggregateError);
-        let value = agent.get_realm(realm_id).intrinsics().aggregate_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic AggregateError, aggregate_error);
 
         // 19.3.2 Array ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Array);
-        let value = agent.get_realm(realm_id).intrinsics().array();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Array, array);
 
         // 19.3.3 ArrayBuffer ( . . . )
         #[cfg(feature = "array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ArrayBuffer);
-            let value = agent.get_realm(realm_id).intrinsics().array_buffer();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic ArrayBuffer, array_buffer);
+
         // 19.3.4 BigInt ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigInt);
-        let value = agent.get_realm(realm_id).intrinsics().big_int();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic BigInt, big_int);
 
         // 19.3.5 BigInt64Array ( . . . )
         #[cfg(feature = "array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigInt64Array);
-            let value = agent.get_realm(realm_id).intrinsics().big_int64_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic BigInt64Array, big_int64_array);
 
-            // 19.3.6 BigUint64Array ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.BigUint64Array);
-            let value = agent.get_realm(realm_id).intrinsics().big_uint64_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        // 19.3.6 BigUint64Array ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic BigUint64Array, big_uint64_array);
+
         // 19.3.7 Boolean ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Boolean);
-        let value = agent.get_realm(realm_id).intrinsics().boolean();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Boolean, boolean);
 
         // 19.3.8 DataView ( . . . )
         #[cfg(feature = "array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.DataView);
-            let value = agent.get_realm(realm_id).intrinsics().data_view();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic DataView, data_view);
+
+        // 19.3.9 Date ( . . . )
         #[cfg(feature = "date")]
-        {
-            // 19.3.9 Date ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Date);
-            let value = agent.get_realm(realm_id).intrinsics().date();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic Date, date);
+
         // 19.3.10 Error ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Error);
-        let value = agent.get_realm(realm_id).intrinsics().error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Error, error);
 
         // 19.3.11 EvalError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.EvalError);
-        let value = agent.get_realm(realm_id).intrinsics().eval_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic EvalError, eval_error);
 
         // 19.3.12 FinalizationRegistry ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.FinalizationRegistry);
-        let value = agent
-            .get_realm(realm_id)
-            .intrinsics()
-            .finalization_registry();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic FinalizationRegistry, finalization_registry);
 
-        // 19.3.13 Float32Array ( . . . )
+        // 19.3.13 Float16Array ( . . . )
+        #[cfg(feature = "proposal-float16array")]
+        define_property!(intrinsic Float16Array, float16_array);
+
+        // 19.3.14 Float32Array ( . . . )
         #[cfg(feature = "array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Float32Array);
-            let value = agent.get_realm(realm_id).intrinsics().float32_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Float32Array, float32_array);
 
-            // 19.3.14 Float64Array ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Float64Array);
-            let value = agent.get_realm(realm_id).intrinsics().float64_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
-        // 19.3.15 Function ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Function);
-        let value = agent.get_realm(realm_id).intrinsics().function();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        // 19.3.16 Int8Array ( . . . )
+        // 19.3.15 Float64Array ( . . . )
         #[cfg(feature = "array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int8Array);
-            let value = agent.get_realm(realm_id).intrinsics().int8_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Float64Array, float64_array);
 
-            // 19.3.17 Int16Array ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int16Array);
-            let value = agent.get_realm(realm_id).intrinsics().int16_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.16 Function ( . . . )
+        define_property!(intrinsic Function, function);
 
-            // 19.3.18 Int32Array ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Int32Array);
-            let value = agent.get_realm(realm_id).intrinsics().int32_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
-        // 19.3.19 Map ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Map);
-        let value = agent.get_realm(realm_id).intrinsics().map();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.17 Int8Array ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic Int8Array, int8_array);
 
-        // 19.3.20 Number ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Number);
-        let value = agent.get_realm(realm_id).intrinsics().number();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.18 Int16Array ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic Int16Array, int16_array);
 
-        // 19.3.21 Object ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Object);
-        let value = agent.get_realm(realm_id).intrinsics().object();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.19 Int32Array ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic Int32Array, int32_array);
 
-        // 19.3.22 Promise ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Promise);
-        let value = agent.get_realm(realm_id).intrinsics().promise();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.20 Iterator ( . . . )
+        define_property!(intrinsic Iterator, iterator);
 
-        // 19.3.23 Proxy ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Proxy);
-        let value = agent.get_realm(realm_id).intrinsics().proxy();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.21 Map ( . . . )
+        define_property!(intrinsic Map, map);
 
-        // 19.3.24 RangeError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RangeError);
-        let value = agent.get_realm(realm_id).intrinsics().range_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.22 Number ( . . . )
+        define_property!(intrinsic Number, number);
 
-        // 19.3.25 ReferenceError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.ReferenceError);
-        let value = agent.get_realm(realm_id).intrinsics().reference_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.23 Object ( . . . )
+        define_property!(intrinsic Object, object);
 
-        // 19.3.26 RegExp ( . . . )
+        // 19.3.24 Promise ( . . . )
+        define_property!(intrinsic Promise, promise);
+
+        // 19.3.25 Proxy ( . . . )
+        define_property!(intrinsic Proxy, proxy);
+
+        // 19.3.26 RangeError ( . . . )
+        define_property!(intrinsic RangeError, range_error);
+
+        // 19.3.27 ReferenceError ( . . . )
+        define_property!(intrinsic ReferenceError, reference_error);
+
+        // 19.3.28 RegExp ( . . . )
         #[cfg(feature = "regexp")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.RegExp);
-            let value = agent.get_realm(realm_id).intrinsics().reg_exp();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic RegExp, reg_exp);
 
-        // 19.3.27 Set ( . . . )
+        // 19.3.29 Set ( . . . )
         #[cfg(feature = "set")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Set);
-            let value = agent.get_realm(realm_id).intrinsics().set();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
-        // 19.3.28 SharedArrayBuffer ( . . . )
+        define_property!(intrinsic Set, set);
+
+        // 19.3.30 SharedArrayBuffer ( . . . )
         #[cfg(feature = "shared-array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SharedArrayBuffer);
-            let value = agent.get_realm(realm_id).intrinsics().shared_array_buffer();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
-        // 19.3.29 String ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.String);
-        let value = agent.get_realm(realm_id).intrinsics().string();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic SharedArrayBuffer, shared_array_buffer);
 
-        // 19.3.30 Symbol ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Symbol);
-        let value = agent.get_realm(realm_id).intrinsics().symbol();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.31 String ( . . . )
+        define_property!(intrinsic String, string);
 
-        // 19.3.31 SyntaxError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.SyntaxError);
-        let value = agent.get_realm(realm_id).intrinsics().syntax_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.32 Symbol ( . . . )
+        define_property!(intrinsic Symbol, symbol);
 
-        // 19.3.32 TypeError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.TypeError);
-        let value = agent.get_realm(realm_id).intrinsics().type_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.33 SyntaxError ( . . . )
+        define_property!(intrinsic SyntaxError, syntax_error);
 
-        // 19.3.33 Uint8Array ( . . . )
+        // 19.3.34 TypeError ( . . . )
+        define_property!(intrinsic TypeError, type_error);
+
+        // 19.3.35 Uint8Array ( . . . )
         #[cfg(feature = "array-buffer")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint8Array);
-            let value = agent.get_realm(realm_id).intrinsics().uint8_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Uint8Array, uint8_array);
 
-            // 19.3.34 Uint8ClampedArray ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint8ClampedArray);
-            let value = agent.get_realm(realm_id).intrinsics().uint8_clamped_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.36 Uint8ClampedArray ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic Uint8ClampedArray, uint8_clamped_array);
 
-            // 19.3.35 Uint16Array ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint16Array);
-            let value = agent.get_realm(realm_id).intrinsics().uint16_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.37 Uint16Array ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic Uint16Array, uint16_array);
 
-            // 19.3.36 Uint32Array ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Uint32Array);
-            let value = agent.get_realm(realm_id).intrinsics().uint32_array();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
-        // 19.3.37 URIError ( . . . )
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.URIError);
-        let value = agent.get_realm(realm_id).intrinsics().uri_error();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        // 19.3.38 Uint32Array ( . . . )
+        #[cfg(feature = "array-buffer")]
+        define_property!(intrinsic Uint32Array, uint32_array);
 
-        // 19.3.38 WeakMap ( . . . )
+        // 19.3.39 URIError ( . . . )
+        define_property!(intrinsic URIError, uri_error);
+
+        // 19.3.40 WeakMap ( . . . )
         #[cfg(feature = "weak-refs")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakMap);
-            let value = agent.get_realm(realm_id).intrinsics().weak_map();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-            // 19.3.39 WeakRef ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakRef);
-            let value = agent.get_realm(realm_id).intrinsics().weak_ref();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic WeakMap, weak_map);
 
-            // 19.3.40 WeakSet ( . . . )
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.WeakSet);
-            let value = agent.get_realm(realm_id).intrinsics().weak_set();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        // 19.3.41 WeakRef ( . . . )
+        #[cfg(feature = "weak-refs")]
+        define_property!(intrinsic WeakRef, weak_ref);
+
+        // 19.3.42 WeakSet ( . . . )
+        #[cfg(feature = "weak-refs")]
+        define_property!(intrinsic WeakSet, weak_set);
     }
 
     // 19.4 Other Properties of the Global Object
     {
         // 19.4.1 Atomics
         #[cfg(feature = "atomics")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Atomics);
-            let value = agent.get_realm(realm_id).intrinsics().atomics();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic Atomics, atomics);
+
         // 19.4.2 JSON
         #[cfg(feature = "json")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.JSON);
-            let value = agent.get_realm(realm_id).intrinsics().json();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic JSON, json);
 
         // 19.4.3 Math
         #[cfg(feature = "math")]
-        {
-            let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Math);
-            let value = agent.get_realm(realm_id).intrinsics().math();
-            let desc = PropertyDescriptor {
-                value: Some(value.into_value()),
-                writable: Some(true),
-                enumerable: Some(false),
-                configurable: Some(true),
-                ..Default::default()
-            };
-            define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
-        }
+        define_property!(intrinsic Math, math);
+
         // 19.4.4 Reflect
-        let name = PropertyKey::from(BUILTIN_STRING_MEMORY.Reflect);
-        let value = agent.get_realm(realm_id).intrinsics().reflect();
-        let desc = PropertyDescriptor {
-            value: Some(value.into_value()),
-            writable: Some(true),
-            enumerable: Some(false),
-            configurable: Some(true),
-            ..Default::default()
-        };
-        define_property_or_throw(agent, global.get(agent), name, desc, gc.reborrow())?;
+        define_property!(intrinsic Reflect, reflect);
     }
 
     // 3. Return global.
