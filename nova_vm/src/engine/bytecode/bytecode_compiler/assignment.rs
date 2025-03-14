@@ -21,20 +21,21 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             ast::AssignmentTarget::ArrayAssignmentTarget(_)
             | ast::AssignmentTarget::ObjectAssignmentTarget(_) => {
                 match self.operator {
-                    AssignmentOperator::Assign | AssignmentOperator::LogicalAnd => {}
-                    AssignmentOperator::LogicalNullish | AssignmentOperator::LogicalOr => return,
+                    AssignmentOperator::Assign | AssignmentOperator::LogicalAnd => {
+                        self.right.compile(ctx);
+                        if is_reference(&self.right) {
+                            ctx.add_instruction(Instruction::GetValue);
+                        }
+                        ctx.add_instruction(Instruction::LoadCopy);
+                        self.left.compile(ctx);
+                        ctx.add_instruction(Instruction::Store);
+                    }
+                    AssignmentOperator::LogicalNullish | AssignmentOperator::LogicalOr => {},
                     _ => {
                         // TODO: throw
                     }
                 }
-
-                self.right.compile(ctx);
-
-                if is_reference(&self.right) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
-
-                self.left.compile(ctx);
+                return;
             }
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
@@ -175,7 +176,7 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::AssignmentTarget::ArrayAssignmentTarget(array) => {
-                ctx.add_instruction(Instruction::GetIteratorAsync);
+                ctx.add_instruction(Instruction::GetIteratorSync);
 
                 for element in &array.elements {
                     ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
@@ -202,7 +203,10 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
                 ctx.add_instruction(Instruction::PutValue);
             }
             ast::AssignmentTarget::ObjectAssignmentTarget(object) => {
-                for property in &object.properties {
+                if object.properties.len() > 1 {
+                    ctx.add_instruction(Instruction::LoadCopy);
+                }
+                for (index, property) in object.properties.iter().enumerate() {
                     match property {
                         ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(prop) => {
                             prop.compile(ctx);
@@ -211,11 +215,18 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
                             prop.compile(ctx);
                         }
                     }
+                    if index + 2 < object.properties.len() {
+                        ctx.add_instruction(Instruction::StoreCopy);
+                    } else if index + 2 == object.properties.len() {
+                        ctx.add_instruction(Instruction::Store);
+                    }
                 }
             }
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
+                ctx.add_instruction(Instruction::Load);
                 expression.compile(ctx);
+                ctx.add_instruction(Instruction::Store);
                 ctx.add_instruction(Instruction::PutValue);
             }
             ast::AssignmentTarget::TSAsExpression(_)
@@ -305,7 +316,7 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyProperty<'_> {
                 ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
             }
         }
-
+        ctx.add_instruction(Instruction::GetValue);
         self.binding.compile(ctx);
     }
 }
