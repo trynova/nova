@@ -1,3 +1,7 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 use oxc_ast::ast::{self, AssignmentOperator};
 
 use crate::ecmascript::types::String;
@@ -89,26 +93,26 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             // restore it later.
             ctx.add_instruction(Instruction::LoadCopy);
 
-            let jump_to_end = match self.operator {
+            match self.operator {
                 AssignmentOperator::LogicalAnd => {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is false, return lval.
-                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)
                 }
                 AssignmentOperator::LogicalOr => {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is true, return lval.
-                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue)
+                    ctx.add_instruction(Instruction::LogicalNot);
                 }
                 AssignmentOperator::LogicalNullish => {
                     // 3. If lval is neither undefined nor null, return lval.
                     ctx.add_instruction(Instruction::IsNullOrUndefined);
-                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)
                 }
                 _ => unreachable!(),
             };
+
+            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
 
             // We're returning the right expression, so we discard the left
             // value at the top of the stack.
