@@ -176,21 +176,7 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::AssignmentTarget::ArrayAssignmentTarget(array) => {
-                ctx.add_instruction(Instruction::GetIteratorSync);
-
-                for element in &array.elements {
-                    ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
-                    if let Some(element) = element {
-                        element.compile(ctx);
-                    }
-                }
-
-                if let Some(rest) = &array.rest {
-                    ctx.add_instruction(Instruction::IteratorRestIntoArray);
-                    rest.target.compile(ctx);
-                } else {
-                    ctx.add_instruction(Instruction::IteratorClose);
-                }
+                array.compile(ctx);
             }
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
                 identifier.compile(ctx);
@@ -203,33 +189,7 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
                 ctx.add_instruction(Instruction::PutValue);
             }
             ast::AssignmentTarget::ObjectAssignmentTarget(object) => {
-                ctx.add_instruction(Instruction::ToObject);
-                if object.properties.len() > 1 || object.rest.is_some() {
-                    ctx.add_instruction(Instruction::LoadCopy);
-                }
-                for (index, property) in object.properties.iter().enumerate() {
-                    match property {
-                        ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(prop) => {
-                            prop.compile(ctx);
-                        }
-                        ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(prop) => {
-                            prop.compile(ctx);
-                        }
-                    }
-                    let offset = if object.rest.is_some() {
-                        index + 1
-                    } else {
-                        index + 2
-                    };
-                    if offset < object.properties.len() {
-                        ctx.add_instruction(Instruction::StoreCopy);
-                    } else if offset == object.properties.len() {
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                }
-                if let Some(_rest) = &object.rest {
-                    todo!()
-                }
+                object.compile(ctx);
             }
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
@@ -247,39 +207,52 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
     }
 }
 
-impl CompileEvaluation for ast::AssignmentTargetMaybeDefault<'_> {
+impl CompileEvaluation for ast::ArrayAssignmentTarget<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        match self {
-            ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
-                ctx.add_instruction(Instruction::LoadCopy);
-                ctx.add_instruction(Instruction::IsUndefined);
-                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
-                ctx.add_instruction(Instruction::Store);
-                if is_anonymous_function_definition(&target.init) {
-                    if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
-                        &target.binding
-                    {
-                        let identifier_string = ctx.create_identifier(&identifier.name);
-                        ctx.add_instruction_with_constant(
-                            Instruction::StoreConstant,
-                            identifier_string,
-                        );
-                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
-                    }
-                }
-                target.init.compile(ctx);
-                ctx.name_identifier = None;
-                if is_reference(&target.init) {
-                    ctx.add_instruction(Instruction::GetValue);
-                }
-                ctx.add_instruction(Instruction::Load);
-                ctx.set_jump_target_here(jump_slot);
-                ctx.add_instruction(Instruction::Store);
-                target.binding.compile(ctx);
+        ctx.add_instruction(Instruction::GetIteratorSync);
+        for element in &self.elements {
+            ctx.add_instruction(Instruction::IteratorStepValueOrUndefined);
+            if let Some(element) = element {
+                element.compile(ctx);
             }
-            _ => {
-                self.to_assignment_target().compile(ctx);
+        }
+        if let Some(rest) = &self.rest {
+            ctx.add_instruction(Instruction::IteratorRestIntoArray);
+            rest.target.compile(ctx);
+        } else {
+            ctx.add_instruction(Instruction::IteratorClose);
+        }
+    }
+}
+
+impl CompileEvaluation for ast::ObjectAssignmentTarget<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        ctx.add_instruction(Instruction::ToObject);
+        if self.properties.len() > 1 || self.rest.is_some() {
+            ctx.add_instruction(Instruction::LoadCopy);
+        }
+        for (index, property) in self.properties.iter().enumerate() {
+            match property {
+                ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(prop) => {
+                    prop.compile(ctx);
+                }
+                ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(prop) => {
+                    prop.compile(ctx);
+                }
             }
+            let offset = if self.rest.is_some() {
+                index + 1
+            } else {
+                index + 2
+            };
+            if offset < self.properties.len() {
+                ctx.add_instruction(Instruction::StoreCopy);
+            } else if offset == self.properties.len() {
+                ctx.add_instruction(Instruction::Store);
+            }
+        }
+        if let Some(_rest) = &self.rest {
+            todo!()
         }
     }
 }
@@ -339,5 +312,42 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyProperty<'_> {
         }
         ctx.add_instruction(Instruction::GetValue);
         self.binding.compile(ctx);
+    }
+}
+
+impl CompileEvaluation for ast::AssignmentTargetMaybeDefault<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
+                ctx.add_instruction(Instruction::LoadCopy);
+                ctx.add_instruction(Instruction::IsUndefined);
+                let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.add_instruction(Instruction::Store);
+                if is_anonymous_function_definition(&target.init) {
+                    if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
+                        &target.binding
+                    {
+                        let identifier_string = ctx.create_identifier(&identifier.name);
+                        ctx.add_instruction_with_constant(
+                            Instruction::StoreConstant,
+                            identifier_string,
+                        );
+                        ctx.name_identifier = Some(NamedEvaluationParameter::Result);
+                    }
+                }
+                target.init.compile(ctx);
+                ctx.name_identifier = None;
+                if is_reference(&target.init) {
+                    ctx.add_instruction(Instruction::GetValue);
+                }
+                ctx.add_instruction(Instruction::Load);
+                ctx.set_jump_target_here(jump_slot);
+                ctx.add_instruction(Instruction::Store);
+                target.binding.compile(ctx);
+            }
+            _ => {
+                self.to_assignment_target().compile(ctx);
+            }
+        }
     }
 }
