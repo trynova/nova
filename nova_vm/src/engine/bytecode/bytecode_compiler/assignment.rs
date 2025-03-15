@@ -242,8 +242,10 @@ impl CompileEvaluation for ast::AssignmentTargetMaybeDefault<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
             ast::AssignmentTargetMaybeDefault::AssignmentTargetWithDefault(target) => {
+                ctx.add_instruction(Instruction::LoadCopy);
                 ctx.add_instruction(Instruction::IsUndefined);
                 let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+                ctx.add_instruction(Instruction::Store);
                 if is_anonymous_function_definition(&target.init) {
                     if let ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) =
                         &target.binding
@@ -261,7 +263,9 @@ impl CompileEvaluation for ast::AssignmentTargetMaybeDefault<'_> {
                 if is_reference(&target.init) {
                     ctx.add_instruction(Instruction::GetValue);
                 }
+                ctx.add_instruction(Instruction::Load);
                 ctx.set_jump_target_here(jump_slot);
+                ctx.add_instruction(Instruction::Store);
                 target.binding.compile(ctx);
             }
             _ => {
@@ -280,8 +284,10 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyIdentifier<'_> {
         );
         ctx.add_instruction(Instruction::GetValue);
         if let Some(init) = &self.init {
+            ctx.add_instruction(Instruction::LoadCopy);
             ctx.add_instruction(Instruction::IsUndefined);
             let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            ctx.add_instruction(Instruction::Store);
             if is_anonymous_function_definition(&init) {
                 let identifier_string = ctx.create_identifier(&self.binding.name);
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
@@ -292,7 +298,9 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyIdentifier<'_> {
             if is_reference(init) {
                 ctx.add_instruction(Instruction::GetValue);
             }
+            ctx.add_instruction(Instruction::Load);
             ctx.set_jump_target_here(jump_slot);
+            ctx.add_instruction(Instruction::Store);
         }
         self.binding.compile(ctx);
         ctx.add_instruction(Instruction::PutValue);
