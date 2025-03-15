@@ -372,8 +372,12 @@ impl CompileEvaluation for ast::Class<'_> {
                             &property_definition.value,
                         );
                     } else {
+                        let ast::PropertyKey::StaticIdentifier(key) = &property_definition.key
+                        else {
+                            unreachable!()
+                        };
                         instance_fields.push(PropertyInitializerField::Static((
-                            &property_definition.key,
+                            key,
                             &property_definition.value,
                         )));
                     }
@@ -521,7 +525,7 @@ impl CompileEvaluation for ast::Class<'_> {
 
 #[derive(Debug)]
 enum PropertyInitializerField<'a, 'gc> {
-    Static((&'a ast::PropertyKey<'a>, &'a Option<ast::Expression<'a>>)),
+    Static((&'a ast::IdentifierName<'a>, &'a Option<ast::Expression<'a>>)),
     Computed((String<'gc>, &'a Option<ast::Expression<'a>>)),
 }
 
