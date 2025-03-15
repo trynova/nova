@@ -10645,7 +10645,6 @@
   "language/expressions/assignment/dstr/array-rest-iter-thrw-close-err.js": "CRASH",
   "language/expressions/assignment/dstr/array-rest-iter-thrw-close.js": "CRASH",
   "language/expressions/assignment/dstr/array-rest-lref-err.js": "CRASH",
-  "language/expressions/assignment/dstr/obj-prop-name-evaluation-error.js": "CRASH",
   "language/expressions/assignment/dstr/obj-rest-computed-property-no-strict.js": "CRASH",
   "language/expressions/assignment/dstr/obj-rest-computed-property.js": "CRASH",
   "language/expressions/assignment/dstr/obj-rest-descriptors.js": "CRASH",

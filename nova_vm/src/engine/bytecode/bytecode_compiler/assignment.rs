@@ -321,7 +321,11 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyProperty<'_> {
             ast::PropertyKey::PrivateIdentifier(_) => todo!(),
             _ => {
                 ctx.add_instruction(Instruction::Load);
-                self.name.to_expression().compile(ctx);
+                let name = self.name.to_expression();
+                name.compile(ctx);
+                if is_reference(name) {
+                    ctx.add_instruction(Instruction::GetValue);
+                }
                 ctx.add_instruction(Instruction::EvaluatePropertyAccessWithExpressionKey);
             }
         }
