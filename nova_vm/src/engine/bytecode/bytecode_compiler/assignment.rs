@@ -203,6 +203,7 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
                 ctx.add_instruction(Instruction::PutValue);
             }
             ast::AssignmentTarget::ObjectAssignmentTarget(object) => {
+                ctx.add_instruction(Instruction::ToObject);
                 if object.properties.len() > 1 {
                     ctx.add_instruction(Instruction::LoadCopy);
                 }
