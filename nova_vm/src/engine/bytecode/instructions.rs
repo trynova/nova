@@ -75,8 +75,7 @@ pub enum Instruction {
     ///
     /// This instruction has the number of argument values that need to be
     /// popped from the stack (last to first) as an argument, the value on the
-    /// stack afterwards is the constructor to
-    /// call.
+    /// stack afterwards is the constructor to call.
     EvaluateNew,
     /// Store SuperCall() as the result value.
     ///
@@ -361,6 +360,8 @@ pub enum Instruction {
     IteratorClose,
     /// Perform AsyncCloseIterator on the current iterator
     AsyncIteratorClose,
+    /// Store GetNewTarget() as the result value.
+    GetNewTarget,
 }
 
 impl Instruction {
