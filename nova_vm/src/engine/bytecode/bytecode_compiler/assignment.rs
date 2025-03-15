@@ -30,7 +30,7 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                         self.left.compile(ctx);
                         ctx.add_instruction(Instruction::Store);
                     }
-                    AssignmentOperator::LogicalNullish | AssignmentOperator::LogicalOr => {},
+                    AssignmentOperator::LogicalNullish | AssignmentOperator::LogicalOr => {}
                     _ => {
                         // TODO: throw
                     }
@@ -204,7 +204,7 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
             }
             ast::AssignmentTarget::ObjectAssignmentTarget(object) => {
                 ctx.add_instruction(Instruction::ToObject);
-                if object.properties.len() > 1 {
+                if object.properties.len() > 1 || object.rest.is_some() {
                     ctx.add_instruction(Instruction::LoadCopy);
                 }
                 for (index, property) in object.properties.iter().enumerate() {
@@ -216,11 +216,19 @@ impl CompileEvaluation for ast::AssignmentTarget<'_> {
                             prop.compile(ctx);
                         }
                     }
-                    if index + 2 < object.properties.len() {
+                    let offset = if object.rest.is_some() {
+                        index + 1
+                    } else {
+                        index + 2
+                    };
+                    if offset < object.properties.len() {
                         ctx.add_instruction(Instruction::StoreCopy);
-                    } else if index + 2 == object.properties.len() {
+                    } else if offset == object.properties.len() {
                         ctx.add_instruction(Instruction::Store);
                     }
+                }
+                if let Some(_rest) = &object.rest {
+                    todo!()
                 }
             }
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
