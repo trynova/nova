@@ -138,7 +138,7 @@ fn for_in_of_body_evaluation(
         lhs.is_assignment_target_pattern()
     };
     // 5. If destructuring is true and lhsKind is ASSIGNMENT, then
-    let _assignment_pattern = if destructuring && lhs_kind == LeftHandSideKind::Assignment {
+    let assignment_pattern = if destructuring && lhs_kind == LeftHandSideKind::Assignment {
         // a. Assert: lhs is a LeftHandSideExpression.
         // b. Let assignmentPattern be the AssignmentPattern that is covered by lhs.
         Some(match lhs {
@@ -176,7 +176,14 @@ fn for_in_of_body_evaluation(
                 // 1. If lhsKind is ASSIGNMENT, then
                 if lhs_kind == LeftHandSideKind::Assignment {
                     // a. Let status be Completion(DestructuringAssignmentEvaluation of assignmentPattern with argument nextValue).
-                    todo!();
+                    match assignment_pattern.unwrap() {
+                        AssignmentPattern::ArrayAssignmentTarget(lhs) => {
+                            lhs.compile(ctx);
+                        }
+                        AssignmentPattern::ObjectAssignmentTarget(lhs) => {
+                            lhs.compile(ctx);
+                        }
+                    }
                 } else {
                     // 2. Else,
                     // a. Assert: lhsKind is VAR-BINDING.
