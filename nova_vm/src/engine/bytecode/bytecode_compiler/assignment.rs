@@ -245,6 +245,7 @@ impl CompileEvaluation for ast::ObjectAssignmentTarget<'_> {
             } else {
                 index + 2
             };
+            #[allow(clippy::comparison_chain)]
             if offset < self.properties.len() {
                 ctx.add_instruction(Instruction::StoreCopy);
             } else if offset == self.properties.len() {
@@ -270,7 +271,7 @@ impl CompileEvaluation for ast::AssignmentTargetPropertyIdentifier<'_> {
             ctx.add_instruction(Instruction::IsUndefined);
             let jump_slot = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
             ctx.add_instruction(Instruction::Store);
-            if is_anonymous_function_definition(&init) {
+            if is_anonymous_function_definition(init) {
                 let identifier_string = ctx.create_identifier(&self.binding.name);
                 ctx.add_instruction_with_constant(Instruction::StoreConstant, identifier_string);
                 ctx.name_identifier = Some(NamedEvaluationParameter::Result);
