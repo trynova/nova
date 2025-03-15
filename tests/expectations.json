@@ -19856,7 +19856,7 @@
   "staging/sm/class/newTargetProxyNative.js": "FAIL",
   "staging/sm/class/parenExprToString.js": "CRASH",
   "staging/sm/class/strictExecution.js": "FAIL",
-  "staging/sm/class/superCallBaseInvoked.js": "CRASH",
+  "staging/sm/class/superCallBaseInvoked.js": "FAIL",
   "staging/sm/class/superCallInvalidBase.js": "FAIL",
   "staging/sm/class/superCallOrder.js": "FAIL",
   "staging/sm/class/superElemDelete.js": "CRASH",

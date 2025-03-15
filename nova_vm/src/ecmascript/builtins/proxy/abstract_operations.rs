@@ -10,7 +10,7 @@ use crate::{
     engine::context::NoGcScope,
 };
 
-use super::Proxy;
+use super::{Proxy, data::ProxyHeapData};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct NonRevokedProxy<'a> {
@@ -28,22 +28,16 @@ pub(crate) fn validate_non_revoked_proxy<'a>(
     proxy: Proxy,
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<NonRevokedProxy<'a>> {
-    let proxy_data = &agent[proxy];
-
-    // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
-    let Some(target) = proxy_data.proxy_target else {
+    let ProxyHeapData::NonRevoked {
+        proxy_handler: handler,
+        proxy_target: target,
+    } = agent[proxy]
+    else {
+        // 1. If proxy.[[ProxyTarget]] is null, throw a TypeError exception.
+        // 2. Assert: proxy.[[ProxyHandler]] is not null.
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
             "Proxy target is missing",
-            gc,
-        ));
-    };
-
-    // 2. Assert: proxy.[[ProxyHandler]] is not null.
-    let Some(handler) = proxy_data.proxy_handler else {
-        return Err(agent.throw_exception_with_static_message(
-            ExceptionType::TypeError,
-            "Proxy handler is missing",
             gc,
         ));
     };
