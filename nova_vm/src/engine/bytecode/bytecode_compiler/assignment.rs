@@ -232,14 +232,7 @@ impl CompileEvaluation for ast::ObjectAssignmentTarget<'_> {
             ctx.add_instruction(Instruction::LoadCopy);
         }
         for (index, property) in self.properties.iter().enumerate() {
-            match property {
-                ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(prop) => {
-                    prop.compile(ctx);
-                }
-                ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(prop) => {
-                    prop.compile(ctx);
-                }
-            }
+            property.compile(ctx);
             let offset = if self.rest.is_some() {
                 index + 1
             } else {
@@ -254,6 +247,19 @@ impl CompileEvaluation for ast::ObjectAssignmentTarget<'_> {
         }
         if let Some(_rest) = &self.rest {
             todo!()
+        }
+    }
+}
+
+impl CompileEvaluation for ast::AssignmentTargetProperty<'_> {
+    fn compile(&self, ctx: &mut CompileContext) {
+        match self {
+            ast::AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(identifier) => {
+                identifier.compile(ctx);
+            }
+            ast::AssignmentTargetProperty::AssignmentTargetPropertyProperty(property) => {
+                property.compile(ctx);
+            }
         }
     }
 }
