@@ -24,21 +24,18 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             }
             ast::AssignmentTarget::ArrayAssignmentTarget(_)
             | ast::AssignmentTarget::ObjectAssignmentTarget(_) => {
-                match self.operator {
-                    AssignmentOperator::Assign | AssignmentOperator::LogicalAnd => {
-                        self.right.compile(ctx);
-                        if is_reference(&self.right) {
-                            ctx.add_instruction(Instruction::GetValue);
-                        }
-                        ctx.add_instruction(Instruction::LoadCopy);
-                        self.left.compile(ctx);
-                        ctx.add_instruction(Instruction::Store);
-                    }
-                    AssignmentOperator::LogicalNullish | AssignmentOperator::LogicalOr => {}
-                    _ => {
-                        // TODO: throw
-                    }
+                assert_eq!(
+                    self.operator,
+                    AssignmentOperator::Assign,
+                    "SyntaxError: Invalid left-hand side in assignment expression"
+                );
+                self.right.compile(ctx);
+                if is_reference(&self.right) {
+                    ctx.add_instruction(Instruction::GetValue);
                 }
+                ctx.add_instruction(Instruction::LoadCopy);
+                self.left.compile(ctx);
+                ctx.add_instruction(Instruction::Store);
                 return;
             }
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
