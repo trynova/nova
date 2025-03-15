@@ -1,4 +1,4 @@
-use oxc_ast::ast::{self, AssignmentOperator, BinaryOperator};
+use oxc_ast::ast::{self, AssignmentOperator};
 
 use crate::ecmascript::types::String;
 use crate::engine::Instruction;
@@ -49,7 +49,12 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
         };
 
         if self.operator == AssignmentOperator::Assign {
-            ctx.add_instruction(Instruction::PushReference);
+            let is_rhs_literal = self.right.is_literal();
+
+            if !is_rhs_literal {
+                ctx.add_instruction(Instruction::PushReference);
+            }
+
             self.right.compile(ctx);
 
             if is_reference(&self.right) {
@@ -57,7 +62,11 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             }
 
             ctx.add_instruction(Instruction::LoadCopy);
-            ctx.add_instruction(Instruction::PopReference);
+
+            if !is_rhs_literal {
+                ctx.add_instruction(Instruction::PopReference);
+            }
+
             ctx.add_instruction(Instruction::PutValue);
 
             // ... Return rval.
@@ -75,26 +84,26 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             // restore it later.
             ctx.add_instruction(Instruction::LoadCopy);
 
-            match self.operator {
+            let jump_to_end = match self.operator {
                 AssignmentOperator::LogicalAnd => {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is false, return lval.
+                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)
                 }
                 AssignmentOperator::LogicalOr => {
                     // 3. Let lbool be ToBoolean(lval).
                     // Note: We do not directly call ToBoolean: JumpIfNot does.
                     // 4. If lbool is true, return lval.
-                    ctx.add_instruction(Instruction::LogicalNot);
+                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue)
                 }
                 AssignmentOperator::LogicalNullish => {
                     // 3. If lval is neither undefined nor null, return lval.
                     ctx.add_instruction(Instruction::IsNullOrUndefined);
+                    ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot)
                 }
                 _ => unreachable!(),
-            }
-
-            let jump_to_end = ctx.add_instruction_with_jump_slot(Instruction::JumpIfNot);
+            };
 
             // We're returning the right expression, so we discard the left
             // value at the top of the stack.
@@ -145,21 +154,7 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
 
             // 5. Let assignmentOpText be the source text matched by AssignmentOperator.
             // 6. Let opText be the sequence of Unicode code points associated with assignmentOpText in the following table:
-            let op_text = match self.operator {
-                AssignmentOperator::Addition => BinaryOperator::Addition,
-                AssignmentOperator::Subtraction => BinaryOperator::Subtraction,
-                AssignmentOperator::Multiplication => BinaryOperator::Multiplication,
-                AssignmentOperator::Division => BinaryOperator::Division,
-                AssignmentOperator::Remainder => BinaryOperator::Remainder,
-                AssignmentOperator::ShiftLeft => BinaryOperator::ShiftLeft,
-                AssignmentOperator::ShiftRight => BinaryOperator::ShiftRight,
-                AssignmentOperator::ShiftRightZeroFill => BinaryOperator::ShiftRightZeroFill,
-                AssignmentOperator::BitwiseOR => BinaryOperator::BitwiseOR,
-                AssignmentOperator::BitwiseXOR => BinaryOperator::BitwiseXOR,
-                AssignmentOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
-                AssignmentOperator::Exponential => BinaryOperator::Exponential,
-                _ => unreachable!(),
-            };
+            let op_text = self.operator.to_binary_operator().unwrap();
             // 7. Let r be ? ApplyStringOrNumericBinaryOperator(lval, opText, rval).
             ctx.add_instruction(Instruction::ApplyStringOrNumericBinaryOperator(op_text));
             ctx.add_instruction(Instruction::LoadCopy);
