@@ -14,51 +14,6 @@ use super::{
 
 impl CompileEvaluation for ast::AssignmentExpression<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
-        if self.operator == AssignmentOperator::Assign {
-            let reference_loaded = match &self.left {
-                ast::AssignmentTarget::AssignmentTargetIdentifier(_)
-                | ast::AssignmentTarget::ArrayAssignmentTarget(_)
-                | ast::AssignmentTarget::ObjectAssignmentTarget(_) => false,
-                ast::AssignmentTarget::ComputedMemberExpression(expression) => {
-                    expression.compile(ctx);
-                    true
-                }
-                ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
-                ast::AssignmentTarget::StaticMemberExpression(expression) => {
-                    expression.compile(ctx);
-                    true
-                }
-                ast::AssignmentTarget::TSAsExpression(_)
-                | ast::AssignmentTarget::TSSatisfiesExpression(_)
-                | ast::AssignmentTarget::TSNonNullExpression(_)
-                | ast::AssignmentTarget::TSTypeAssertion(_)
-                | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
-            };
-
-            if reference_loaded {
-                ctx.add_instruction(Instruction::PushReference);
-            }
-
-            self.right.compile(ctx);
-            if is_reference(&self.right) {
-                ctx.add_instruction(Instruction::GetValue);
-            }
-
-            ctx.add_instruction(Instruction::LoadCopy);
-
-            if reference_loaded {
-                ctx.add_instruction(Instruction::PopReference);
-                ctx.add_instruction(Instruction::PutValue);
-            } else {
-                self.left.compile(ctx);
-            }
-
-            // ... Return rval.
-            ctx.add_instruction(Instruction::Store);
-
-            return;
-        }
-
         // 1. Let lref be ? Evaluation of LeftHandSideExpression.
         match &self.left {
             ast::AssignmentTarget::AssignmentTargetIdentifier(identifier) => {
@@ -68,7 +23,24 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 expression.compile(ctx);
             }
             ast::AssignmentTarget::ArrayAssignmentTarget(_)
-            | ast::AssignmentTarget::ObjectAssignmentTarget(_) => todo!("SyntaxError"),
+            | ast::AssignmentTarget::ObjectAssignmentTarget(_) => {
+                match self.operator {
+                    AssignmentOperator::Assign | AssignmentOperator::LogicalAnd => {
+                        self.right.compile(ctx);
+                        if is_reference(&self.right) {
+                            ctx.add_instruction(Instruction::GetValue);
+                        }
+                        ctx.add_instruction(Instruction::LoadCopy);
+                        self.left.compile(ctx);
+                        ctx.add_instruction(Instruction::Store);
+                    }
+                    AssignmentOperator::LogicalNullish | AssignmentOperator::LogicalOr => {}
+                    _ => {
+                        // TODO: throw
+                    }
+                }
+                return;
+            }
             ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
                 expression.compile(ctx);
@@ -80,7 +52,30 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
             | ast::AssignmentTarget::TSInstantiationExpression(_) => unreachable!(),
         };
 
-        if matches!(
+        if self.operator == AssignmentOperator::Assign {
+            let is_rhs_literal = self.right.is_literal();
+
+            if !is_rhs_literal {
+                ctx.add_instruction(Instruction::PushReference);
+            }
+
+            self.right.compile(ctx);
+
+            if is_reference(&self.right) {
+                ctx.add_instruction(Instruction::GetValue);
+            }
+
+            ctx.add_instruction(Instruction::LoadCopy);
+
+            if !is_rhs_literal {
+                ctx.add_instruction(Instruction::PopReference);
+            }
+
+            ctx.add_instruction(Instruction::PutValue);
+
+            // ... Return rval.
+            ctx.add_instruction(Instruction::Store);
+        } else if matches!(
             self.operator,
             AssignmentOperator::LogicalAnd
                 | AssignmentOperator::LogicalNullish
