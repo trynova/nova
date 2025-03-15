@@ -3991,9 +3991,8 @@ fn flatten_into_array(
     // 2. Let targetIndex be start.
     let mut target_index = start;
     // 3. Let sourceIndex be +0𝔽.
-    let mut source_index = 0;
     // 4. Repeat, while ℝ(sourceIndex) < sourceLen,
-    while source_index < source_len {
+    for source_index in 0..source_len {
         // a. Let P be ! ToString(sourceIndex).
         let source_index_number = Number::try_from(source_index).unwrap();
         let p = PropertyKey::try_from(source_index).unwrap();
@@ -4002,7 +4001,6 @@ fn flatten_into_array(
         // c. If exists is true, then
         if !exists {
             // d. Set sourceIndex to sourceIndex + 1𝔽.
-            source_index += 1;
             continue;
         }
         // i. Let element be ? Get(source, P).
@@ -4037,7 +4035,7 @@ fn flatten_into_array(
         }
         // v. If shouldFlatten is true, then
         if should_flatten {
-            // Note: Element is necessary an Array.
+            // Note: Element is necessarily an Array.
             let element = Object::try_from(element)
                 .unwrap()
                 .bind(gc.nogc())
@@ -4077,9 +4075,9 @@ fn flatten_into_array(
                 gc.reborrow(),
             )?;
             // 3. Set targetIndex to targetIndex + 1.
+            target_index += 1;
         }
         // d. Set sourceIndex to sourceIndex + 1𝔽.
-        source_index += 1;
     }
     // 5. Return targetIndex.
     Ok(target_index)
