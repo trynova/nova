@@ -6,7 +6,7 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, try_get},
+            operations_on_objects::{call_function, try_get, try_set},
             testing_and_comparison::{is_array, is_callable, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
@@ -1780,13 +1780,88 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.map)
+    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.reverse as defined in 23.1.3.26.
     fn reverse<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let gc = gc.nogc();
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc)?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let o = ta_record.object;
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, gc),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc)
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
+        } as i64;
+        let scoped_o = o.scope(agent, gc);
+        // 4. Let middle be floor(len / 2).
+        let middle = len / 2;
+        // 5. Let lower be 0.
+        let mut lower: i64 = 0;
+        // 6. Repeat, while lower ≠ middle,
+        while lower != middle {
+            // a. Let upper be len - lower - 1.
+            let upper = len - lower - 1;
+            // b. Let upperP be ! ToString(𝔽(upper)).
+            let upper_p = PropertyKey::Integer(upper.try_into().unwrap());
+            // c. Let lowerP be ! ToString(𝔽(lower)).
+            let lower_p = PropertyKey::Integer(lower.try_into().unwrap());
+            // d. Let lowerValue be ! Get(O, lowerP).
+            let lower_value = unwrap_try(try_get(
+                agent,
+                scoped_o.get(agent).into_object(),
+                lower_p.unbind(),
+                gc,
+            ));
+            // e. Let upperValue be ! Get(O, upperP).
+            let upper_value = unwrap_try(try_get(
+                agent,
+                scoped_o.get(agent).into_object(),
+                upper_p.unbind(),
+                gc,
+            ));
+            // f. Perform ! Set(O, lowerP, upperValue, true).
+            try_set(
+                agent,
+                scoped_o.get(agent).into_object(),
+                lower_p,
+                upper_value.unbind(),
+                true,
+                gc,
+            );
+            // g. Perform ! Set(O, upperP, lowerValue, true).
+            try_set(
+                agent,
+                scoped_o.get(agent).into_object(),
+                upper_p,
+                lower_value,
+                true,
+                gc,
+            );
+            // h. Set lower to lower + 1.
+            lower += 1;
+        }
+        let o = scoped_o.get(agent);
+        // 7. Return O.
+        Ok(o.into_value())
     }
 
     fn set<'gc>(
