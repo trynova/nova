@@ -106,23 +106,10 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
     /// current context.
     pub(crate) fn compile_class_static_field(
         &mut self,
-        property_key: &ast::PropertyKey<'_>,
-        value: &Option<ast::Expression<'_>>,
+        identifier_name: &ast::IdentifierName,
+        value: &Option<ast::Expression>,
     ) {
-        let identifier = match property_key {
-            ast::PropertyKey::StaticIdentifier(identifier_name) => {
-                String::from_str(self.agent, identifier_name.name.as_str(), self.gc)
-            }
-            ast::PropertyKey::PrivateIdentifier(_private_identifier) => todo!(),
-            ast::PropertyKey::BooleanLiteral(_boolean_literal) => todo!(),
-            ast::PropertyKey::NullLiteral(_null_literal) => todo!(),
-            ast::PropertyKey::NumericLiteral(_numeric_literal) => todo!(),
-            ast::PropertyKey::BigIntLiteral(_big_int_literal) => todo!(),
-            ast::PropertyKey::RegExpLiteral(_reg_exp_literal) => todo!(),
-            ast::PropertyKey::StringLiteral(_string_literal) => todo!(),
-            ast::PropertyKey::TemplateLiteral(_template_literal) => todo!(),
-            _ => unreachable!(),
-        };
+        let identifier = String::from_str(self.agent, identifier_name.name.as_str(), self.gc);
         // Turn the static name to a 'this' property access.
         self.add_instruction(Instruction::ResolveThisBinding);
         self.add_instruction_with_identifier(
@@ -2263,16 +2250,6 @@ impl CompileEvaluation for ast::VariableDeclaration<'_> {
             }
             ast::VariableDeclarationKind::Using => todo!(),
             ast::VariableDeclarationKind::AwaitUsing => todo!(),
-        }
-    }
-}
-
-impl CompileEvaluation for ast::Declaration<'_> {
-    fn compile(&self, ctx: &mut CompileContext) {
-        match self {
-            ast::Declaration::VariableDeclaration(x) => x.compile(ctx),
-            ast::Declaration::FunctionDeclaration(x) => x.compile(ctx),
-            other => todo!("{other:?}"),
         }
     }
 }
