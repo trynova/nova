@@ -2386,6 +2386,16 @@ impl<'a> Vm {
                         .unbind(),
                 );
             }
+            Instruction::GetNewTarget => {
+                // 1. Let envRec be GetThisEnvironment().
+                let env_rec = get_this_environment(agent);
+                // 2. Assert: envRec has a [[NewTarget]] field.
+                let EnvironmentIndex::Function(env_rec) = env_rec else {
+                    unreachable!()
+                };
+                // 3. Return envRec.[[NewTarget]].
+                vm.result = Some(agent[env_rec].new_target.unwrap().into_value());
+            }
             other => todo!("{other:?}"),
         }
 

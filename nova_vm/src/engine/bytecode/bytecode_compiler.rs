@@ -1414,8 +1414,12 @@ impl CompileEvaluation for ast::ImportExpression<'_> {
 }
 
 impl CompileEvaluation for ast::MetaProperty<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        if self.meta.name == "new" && self.property.name == "target" {
+            ctx.add_instruction(Instruction::GetNewTarget);
+        } else {
+            todo!();
+        }
     }
 }
 
