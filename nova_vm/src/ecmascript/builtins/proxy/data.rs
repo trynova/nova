@@ -8,21 +8,42 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ProxyHeapData {
-    /// [[ProxyTarget]]
-    pub(crate) proxy_target: Option<Object<'static>>,
-    /// [[ProxyHandler]]
-    pub(crate) proxy_handler: Option<Object<'static>>,
+pub enum ProxyHeapData {
+    /// Proxy has not been revoked.
+    NonRevoked {
+        /// [[ProxyTarget]]
+        proxy_target: Object<'static>,
+        /// [[ProxyHandler]]
+        proxy_handler: Object<'static>,
+    },
+    /// A callable Proxy was revoked.
+    RevokedCallable,
+    /// A non-callable Proxy was revoked.
+    Revoked,
 }
 
 impl HeapMarkAndSweep for ProxyHeapData {
     fn mark_values(&self, queues: &mut WorkQueues) {
-        self.proxy_target.mark_values(queues);
-        self.proxy_handler.mark_values(queues);
+        let Self::NonRevoked {
+            proxy_target,
+            proxy_handler,
+        } = self
+        else {
+            return;
+        };
+        proxy_target.mark_values(queues);
+        proxy_handler.mark_values(queues);
     }
 
     fn sweep_values(&mut self, compactions: &CompactionLists) {
-        self.proxy_target.sweep_values(compactions);
-        self.proxy_handler.sweep_values(compactions);
+        let Self::NonRevoked {
+            proxy_target,
+            proxy_handler,
+        } = self
+        else {
+            return;
+        };
+        proxy_target.sweep_values(compactions);
+        proxy_handler.sweep_values(compactions);
     }
 }
