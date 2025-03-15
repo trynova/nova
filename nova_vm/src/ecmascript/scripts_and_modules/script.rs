@@ -307,6 +307,7 @@ pub fn script_evaluation<'gc>(
         // a. Set result to Completion(Evaluation of script).
         // b. If result.[[Type]] is normal and result.[[Value]] is empty, then
         // i. Set result to NormalCompletion(undefined).
+        println!("bytecode: {:?}", bytecode);
         let result = Vm::execute(agent, bytecode, None, gc).into_js_result();
         // SAFETY: The bytecode is not accessible by anyone and no one will try
         // to re-run it.

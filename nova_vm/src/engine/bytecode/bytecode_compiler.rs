@@ -76,6 +76,7 @@ pub(crate) struct CompileContext<'agent, 'gc, 'scope> {
     /// In a `(a?.b)?.()` chain the evaluation of `(a?.b)` must be considered a
     /// reference.
     is_call_optional_chain_this: bool,
+    current_value: Option<Value<'gc>>,
 }
 
 impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
@@ -98,6 +99,7 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
             current_break: None,
             optional_chains: None,
             is_call_optional_chain_this: false,
+            current_value: None,
         }
     }
 
@@ -356,8 +358,11 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         instruction: Instruction,
         identifier: String<'gc>,
     ) {
+        println!("Debug: Adding identifier to instruction {:?}", instruction);
+
         debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_identifier_index());
+        debug_assert!(instruction.has_identifier_index()); // ここで panic する
+
         self._push_instruction(instruction);
         let identifier = self.add_identifier(identifier);
         self.add_index(identifier);
@@ -507,6 +512,7 @@ impl CompileEvaluation for ast::NumericLiteral<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         let constant = ctx.agent.heap.create(self.value);
         ctx.add_instruction_with_constant(Instruction::StoreConstant, constant);
+        ctx.current_value = Some(constant.into_value());
     }
 }
 
@@ -2935,6 +2941,53 @@ impl CompileEvaluation for ast::ContinueStatement<'_> {
     }
 }
 
+#[cfg(feature = "typescript")]
+impl CompileEvaluation for ast::TSEnumDeclaration<'_> {
+    fn compile<'gc>(&self, ctx: &mut CompileContext<'_, 'gc, '_>) {
+        let is_const = self.r#const;
+        if is_const {
+            return;
+        }
+        ctx.add_instruction(Instruction::ObjectCreate);
+        let mut next_value = 0.0;
+
+        for prop in self.members.iter() {
+            let key = match &prop.id {
+                ast::TSEnumMemberName::Identifier(ident) => {
+                    String::from_str(ctx.agent, ident.name.as_str(), ctx.gc)
+                }
+                ast::TSEnumMemberName::String(string) => {
+                    String::from_str(ctx.agent, string.value.as_str(), ctx.gc)
+                }
+            };
+
+            let mut needs_get_value = false;
+
+            let value: Value<'gc>;
+            if let Some(expr) = &prop.initializer {
+                expr.compile(ctx);
+                println!("expr: {:?}", expr);
+                needs_get_value = is_reference(expr);
+                value = ctx
+                    .current_value
+                    .take()
+                    .unwrap_or(Value::from_f64(ctx.agent, next_value, ctx.gc));
+            } else {
+                value = Value::from_f64(ctx.agent, next_value, ctx.gc);
+            }
+
+            ctx.add_instruction(Instruction::Load);
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, key.into_value());
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, value);
+
+            ctx.add_instruction(Instruction::GetValue);
+
+            ctx.add_instruction(Instruction::ObjectDefineProperty);
+        }
+
+        ctx.add_instruction(Instruction::Store);
+    }
+}
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
@@ -2972,8 +3025,9 @@ impl CompileEvaluation for ast::Statement<'_> {
             Statement::TSTypeAliasDeclaration(_) | Statement::TSInterfaceDeclaration(_) => {
                 unreachable!()
             }
-            Statement::TSEnumDeclaration(_)
-            | Statement::TSExportAssignment(_)
+            #[cfg(feature = "typescript")]
+            Statement::TSEnumDeclaration(x) => x.compile(ctx),
+            Statement::TSExportAssignment(_)
             | Statement::TSImportEqualsDeclaration(_)
             | Statement::TSModuleDeclaration(_)
             | Statement::TSNamespaceExportDeclaration(_) => unreachable!(),
