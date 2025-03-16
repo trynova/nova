@@ -244,6 +244,8 @@ impl IteratorPrototype {
         // 6. Let counter be 0.
         let mut counter = 0;
 
+        let mut scoped_value = Value::Undefined.scope_static(gc.nogc());
+
         // 7. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
@@ -259,7 +261,8 @@ impl IteratorPrototype {
             let Some(value) = value else {
                 return Ok(Value::Undefined);
             };
-            let scoped_value = value.scope(agent, gc.nogc());
+            // SAFETY: scoped_value is never shared.
+            unsafe { scoped_value.replace(agent, value.unbind()) };
 
             // c. Let result be Completion(Call(predicate, undefined, « value, 𝔽(counter) »)).
             let result = call(
@@ -501,7 +504,8 @@ impl IteratorPrototype {
             let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. Set accumulator to result.
-            accumulator = result.scope(agent, gc.nogc());
+            // SAFETY: accumulator is never shared.
+            unsafe { accumulator.replace(agent, result.unbind()) };
 
             // f. Set counter to counter + 1.
             counter += 1;

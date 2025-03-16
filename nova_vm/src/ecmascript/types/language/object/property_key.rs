@@ -37,7 +37,10 @@ pub enum PropertyKey<'a> {
 }
 
 impl<'a> PropertyKey<'a> {
-    pub const fn scope_static(self) -> Scoped<'static, PropertyKey<'static>> {
+    pub const fn scope_static<'scope>(
+        self,
+        _gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, PropertyKey<'static>> {
         let key_root_repr = match self {
             PropertyKey::Integer(small_integer) => PropertyKeyRootRepr::Integer(small_integer),
             PropertyKey::SmallString(small_string) => {

@@ -373,7 +373,10 @@ impl<'a> Value<'a> {
     /// ## Panics
     ///
     /// If the Value is not stack-only, this method will panic.
-    pub const fn scope_static(self) -> Scoped<'static, Value<'static>> {
+    pub const fn scope_static<'scope>(
+        self,
+        _gc: NoGcScope<'_, 'scope>,
+    ) -> Scoped<'scope, Value<'static>> {
         let key_root_repr = match self {
             Value::Undefined => ValueRootRepr::Undefined,
             Value::Null => ValueRootRepr::Null,
