@@ -113,6 +113,7 @@ impl<'a> TryFrom<Object<'a>> for SetIterator<'a> {
 impl<'a> InternalSlots<'a> for SetIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::SetIterator;
 
+    #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }

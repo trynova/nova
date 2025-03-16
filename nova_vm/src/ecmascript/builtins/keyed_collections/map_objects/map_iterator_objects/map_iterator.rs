@@ -113,6 +113,7 @@ impl<'a> TryFrom<Object<'a>> for MapIterator<'a> {
 impl<'a> InternalSlots<'a> for MapIterator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::MapIterator;
 
+    #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }
