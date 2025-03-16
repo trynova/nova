@@ -51,7 +51,7 @@ impl IteratorConstructor {
         {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
-                "Iterator is abstract",
+                "Iterator constructor can't be used directly",
                 gc.into_nogc(),
             ));
         }
