@@ -42,6 +42,19 @@ impl IteratorConstructor {
                 gc.nogc(),
             ));
         };
+        if new_target
+            == agent
+                .running_execution_context()
+                .function
+                .unwrap()
+                .into_object()
+        {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Iterator is abstract",
+                gc.into_nogc(),
+            ));
+        }
 
         // 2. Return ? OrdinaryCreateFromConstructor(NewTarget, "%Iterator.prototype%").
         ordinary_create_from_constructor(

@@ -4,7 +4,7 @@
 
 use crate::ecmascript::abstract_operations::operations_on_iterator_objects::{
     IteratorRecord, get_iterator_direct, if_abrupt_close_iterator, iterator_close,
-    iterator_step_value,
+    iterator_close_with_error, iterator_step_value,
 };
 use crate::ecmascript::abstract_operations::operations_on_objects::{call, throw_not_callable};
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_callable;
@@ -12,6 +12,7 @@ use crate::ecmascript::abstract_operations::type_conversion::to_boolean;
 use crate::ecmascript::builtins::Array;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::{IntoValue, Object};
+use crate::engine::Scoped;
 use crate::engine::context::{Bindable, GcScope};
 use crate::engine::rootable::Scopable;
 use crate::{
@@ -128,7 +129,6 @@ impl IteratorPrototype {
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
-        let scoped_o = o.scope(agent, nogc);
         // 5. Set iterated to ? GetIteratorDirect(O).
         let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
             .unbind()
@@ -150,11 +150,11 @@ impl IteratorPrototype {
         // 7. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, record, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?;
 
@@ -175,15 +175,15 @@ impl IteratorPrototype {
             .bind(gc.nogc());
 
             // d. IfAbruptCloseIterator(result, iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let result = if_abrupt_close_iterator!(agent, result, record, gc);
+            let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. If ToBoolean(result) is false, return ? IteratorClose(iterated, NormalCompletion(false)).
             if !to_boolean(agent, result) {
-                return iterator_close(agent, scoped_o.get(agent), Ok(Value::from(false)), gc);
+                return iterator_close(agent, iterator.get(agent), Ok(Value::from(false)), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -222,11 +222,10 @@ impl IteratorPrototype {
                 nogc,
             );
             // b. Return ? IteratorClose(iterated, error).
-            return iterator_close(agent, o.unbind(), Err(error), gc);
+            return Err(iterator_close_with_error(agent, o.unbind(), error, gc));
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
-        let scoped_o = o.scope(agent, nogc);
         // 5. Set iterated to ? GetIteratorDirect(O).
         let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
             .unbind()
@@ -248,11 +247,11 @@ impl IteratorPrototype {
         // 7. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, record, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?;
 
@@ -274,15 +273,15 @@ impl IteratorPrototype {
             .bind(gc.nogc());
 
             // d. IfAbruptCloseIterator(result, iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let result = if_abrupt_close_iterator!(agent, result, record, gc);
+            let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. If ToBoolean(result) is true, return ? IteratorClose(iterated, NormalCompletion(value)).
             if to_boolean(agent, result) {
-                return iterator_close(agent, scoped_o.get(agent), Ok(scoped_value.get(agent)), gc);
+                return iterator_close(agent, iterator.get(agent), Ok(scoped_value.get(agent)), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -346,11 +345,11 @@ impl IteratorPrototype {
         // 7. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, record, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?;
             // b. If value is done, return undefined.
@@ -370,11 +369,11 @@ impl IteratorPrototype {
             .bind(gc.nogc());
 
             // d. IfAbruptCloseIterator(result, iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            if_abrupt_close_iterator!(agent, result, record, gc);
+            if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. Set counter to counter + 1.
             counter += 1;
@@ -391,6 +390,7 @@ impl IteratorPrototype {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
         let reducer = arguments.get(0).bind(nogc);
+        let has_initial_value = arguments.len() > 1;
         let initial_value = arguments.get(1).bind(nogc);
         let scoped_initial_value = initial_value.scope(agent, nogc);
 
@@ -433,47 +433,43 @@ impl IteratorPrototype {
         let iterator = iterator.scope(agent, gc.nogc());
         let next_method = next_method.scope(agent, gc.nogc());
 
-        let (accumulator, mut counter) = match scoped_initial_value.get(agent).bind(gc.nogc()) {
+        let (mut accumulator, mut counter) = if !has_initial_value {
             // 6. If initialValue is not present, then
-            Value::Null | Value::Undefined => {
-                // a. Let accumulator be ? IteratorStepValue(iterated).
-                let record = IteratorRecord {
-                    iterator: iterator.get(agent),
-                    next_method: next_method.get(agent),
-                };
-                let accumulator = iterator_step_value(agent, record, gc.reborrow())
-                    .unbind()
-                    .bind(gc.nogc())?;
+            // a. Let accumulator be ? IteratorStepValue(iterated).
+            let iterated = IteratorRecord {
+                iterator: iterator.get(agent),
+                next_method: next_method.get(agent),
+            };
+            let accumulator = iterator_step_value(agent, iterated, gc.reborrow())
+                .unbind()
+                .bind(gc.nogc())?;
 
-                // b. If accumulator is done, throw a TypeError exception.
-                let Some(accumulator) = accumulator else {
-                    return Err(agent.throw_exception_with_static_message(
-                        ExceptionType::TypeError,
-                        "'this' was done",
-                        gc.into_nogc(),
-                    ));
-                };
+            // b. If accumulator is done, throw a TypeError exception.
+            let Some(accumulator) = accumulator else {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "'this' was done",
+                    gc.into_nogc(),
+                ));
+            };
 
-                // c. Let counter be 1.
-                (accumulator, 1)
-            }
-            initial_value => {
-                // 7. Else,
-                // a. Let accumulator be initialValue.
-                // b. Let counter be 0.
-                (initial_value, 0)
-            }
+            // c. Let counter be 1.
+            (accumulator.scope(agent, gc.nogc()), 1)
+        } else {
+            // 7. Else,
+            // a. Let accumulator be initialValue.
+            // b. Let counter be 0.
+            (scoped_initial_value, 0)
         };
-        let mut accumulator = accumulator.scope(agent, gc.nogc());
 
         // 8. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, record, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?;
 
@@ -498,11 +494,11 @@ impl IteratorPrototype {
             .bind(gc.nogc());
 
             // d. IfAbruptCloseIterator(result, iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let result = if_abrupt_close_iterator!(agent, result, record, gc);
+            let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. Set accumulator to result.
             accumulator = result.scope(agent, gc.nogc());
@@ -547,7 +543,6 @@ impl IteratorPrototype {
         };
         let scoped_predicate = Value::from(predicate).scope(agent, nogc);
 
-        let scoped_o = o.scope(agent, nogc);
         // 5. Set iterated to ? GetIteratorDirect(O).
         let iterated = get_iterator_direct(agent, o.unbind(), gc.reborrow())
             .unbind()
@@ -569,11 +564,11 @@ impl IteratorPrototype {
         // 7. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, record, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?;
 
@@ -594,15 +589,15 @@ impl IteratorPrototype {
             .bind(gc.nogc());
 
             // d. IfAbruptCloseIterator(result, iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let result = if_abrupt_close_iterator!(agent, result, record, gc);
+            let result = if_abrupt_close_iterator!(agent, result, iterated, gc);
 
             // e. If ToBoolean(result) is true, return ? IteratorClose(iterated, NormalCompletion(true)).
             if to_boolean(agent, result) {
-                return iterator_close(agent, scoped_o.get(agent), Ok(Value::from(true)), gc);
+                return iterator_close(agent, iterator.get(agent), Ok(Value::from(true)), gc);
             }
 
             // f. Set counter to counter + 1.
@@ -646,27 +641,33 @@ impl IteratorPrototype {
         let next_method = next_method.scope(agent, gc.nogc());
 
         // 4. Let items be a new empty List.
-        let mut items: Vec<Value> = Vec::new();
+        let mut items: Vec<Scoped<Value>> = Vec::new();
 
         // 5. Repeat,
         loop {
             // a. Let value be ? IteratorStepValue(iterated).
-            let record = IteratorRecord {
+            let iterated = IteratorRecord {
                 iterator: iterator.get(agent),
                 next_method: next_method.get(agent),
             };
-            let value = iterator_step_value(agent, record, gc.reborrow())
+            let value = iterator_step_value(agent, iterated, gc.reborrow())
                 .unbind()
                 .bind(gc.nogc())?
                 .map(|x| x.scope(agent, gc.nogc()));
 
             // b. If value is done, return CreateArrayFromList(items).
             let Some(value) = value else {
-                return Ok(Array::from_slice(agent, &items, gc.into_nogc()).into_value());
+                let gc = gc.into_nogc();
+
+                // should reuse the allocation
+                let unscoped: Vec<Value> =
+                    items.into_iter().map(|x| x.get(agent).bind(gc)).collect();
+
+                return Ok(Array::from_slice(agent, &unscoped, gc).into_value());
             };
 
             // c. Append value to items.
-            items.push(value.get(agent));
+            items.push(value);
         }
     }
 
