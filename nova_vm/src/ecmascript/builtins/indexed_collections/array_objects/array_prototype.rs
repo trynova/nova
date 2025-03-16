@@ -1006,7 +1006,8 @@ impl ArrayPrototype {
         let mut k = 0;
         // 6. Let to be 0.
         let mut to: u32 = 0;
-        let mut scoped_k_value: Scoped<'_, Value<'static>> = Value::Undefined.scope_static();
+        let mut scoped_k_value: Scoped<'_, Value<'static>> =
+            Value::Undefined.scope_static(gc.nogc());
         // 7. Repeat, while k < len,
         while k < len {
             // a. Let Pk be ! ToString(𝔽(k)).
@@ -2190,7 +2191,7 @@ impl ArrayPrototype {
         // 7. If initialValue is present,
         // a. Set accumulator to initialValue.
         let initial_value_is_none = initial_value.is_none();
-        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static());
+        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static(gc.nogc()));
 
         // 8. Else,
         if initial_value_is_none {
@@ -2349,7 +2350,7 @@ impl ArrayPrototype {
         // 7. If initialValue is present, then
         // a. Set accumulator to initialValue.
         let no_initial_value = initial_value.is_none();
-        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static());
+        let mut accumulator = initial_value.unwrap_or(Value::Undefined.scope_static(gc.nogc()));
 
         // 8. Else,
         if no_initial_value {

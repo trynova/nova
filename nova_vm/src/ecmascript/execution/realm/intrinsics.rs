@@ -92,6 +92,7 @@ use crate::{
                 array_iterator_objects::array_iterator_prototype::ArrayIteratorPrototype,
                 array_prototype::ArrayPrototype,
             },
+            iteration::iterator_constructor::IteratorConstructor,
             keyed_collections::map_objects::{
                 map_constructor::MapConstructor,
                 map_iterator_objects::map_iterator_prototype::MapIteratorPrototype,
@@ -199,6 +200,7 @@ pub enum ProtoIntrinsics {
     Int32Array,
     #[cfg(feature = "array-buffer")]
     Int8Array,
+    Iterator,
     Map,
     MapIterator,
     Number,
@@ -367,6 +369,7 @@ impl Intrinsics {
         AsyncFunctionConstructor::create_intrinsic(agent, realm);
         ReflectObject::create_intrinsic(agent, realm);
         ProxyConstructor::create_intrinsic(agent, realm);
+        IteratorConstructor::create_intrinsic(agent, realm);
     }
 
     // Suggest to inline this: The intrinsic default proto is often statically
@@ -424,6 +427,7 @@ impl Intrinsics {
             ProtoIntrinsics::Int32Array => self.int32_array_prototype().into(),
             #[cfg(feature = "array-buffer")]
             ProtoIntrinsics::Int8Array => self.int8_array_prototype().into(),
+            ProtoIntrinsics::Iterator => self.iterator_prototype().into(),
             ProtoIntrinsics::Map => self.map_prototype().into(),
             ProtoIntrinsics::MapIterator => self.map_iterator_prototype().into(),
             ProtoIntrinsics::Promise => self.promise_prototype().into(),
@@ -1059,6 +1063,13 @@ impl Intrinsics {
     /// %isNaN%
     pub(crate) fn is_nan(&self) -> BuiltinFunction<'static> {
         IntrinsicFunctionIndexes::IsNaN
+            .get_builtin_function_index(self.builtin_function_index_base)
+            .into()
+    }
+
+    /// %Iterator%
+    pub(crate) fn iterator(&self) -> BuiltinFunction<'static> {
+        IntrinsicConstructorIndexes::Iterator
             .get_builtin_function_index(self.builtin_function_index_base)
             .into()
     }

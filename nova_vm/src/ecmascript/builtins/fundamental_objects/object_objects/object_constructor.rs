@@ -1286,8 +1286,8 @@ pub fn add_entries_from_iterable_from_entries<'a>(
     let next_method = next_method.scope(agent, gc.nogc());
 
     // 2. Repeat,
-    let mut scoped_k = Value::Undefined.scope_static();
-    let mut scoped_v = Value::Undefined.scope_static();
+    let mut scoped_k = Value::Undefined.scope_static(gc.nogc());
+    let mut scoped_v = Value::Undefined.scope_static(gc.nogc());
     loop {
         // a. Let next be ? IteratorStepValue(iteratorRecord).
         let next = iterator_step_value(

@@ -149,7 +149,7 @@ impl JSONObject {
             let root_name = String::EMPTY_STRING
                 .to_property_key()
                 .unbind()
-                .scope_static();
+                .scope_static(gc.nogc());
 
             // c. Perform ! CreateDataPropertyOrThrow(root, rootName, unfiltered).
             unwrap_try(try_create_data_property_or_throw(
@@ -240,7 +240,8 @@ fn internalize_json_property<'gc, 'a>(
             // iii. Repeat, while I < len,
             while i < len {
                 // 1. Let prop be ! ToString(𝔽(I)).
-                let prop = PropertyKey::from(SmallInteger::try_from(i).unwrap()).scope_static();
+                let prop =
+                    PropertyKey::from(SmallInteger::try_from(i).unwrap()).scope_static(gc.nogc());
 
                 // 2. Let newElement be ? InternalizeJSONProperty(val, prop, reviver).
                 let new_element = internalize_json_property(
