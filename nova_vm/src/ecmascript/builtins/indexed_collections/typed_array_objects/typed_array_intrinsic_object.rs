@@ -1780,13 +1780,69 @@ impl TypedArrayPrototype {
         todo!()
     }
 
+    /// ### [23.2.3.25 %TypedArray%.prototype.reverse ( )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.prototype.map)
+    /// The interpretation and use of the arguments of this method are the same as for Array.prototype.reverse as defined in 23.1.3.26.
     fn reverse<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
+        agent: &mut Agent,
+        this_value: Value,
         _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!()
+        let gc = gc.nogc();
+        // 1. Let O be the this value.
+        let o = this_value;
+        // 2. Let taRecord be ? ValidateTypedArray(O, seq-cst).
+        let ta_record = validate_typed_array(agent, o, Ordering::SeqCst, gc)?;
+        // 3. Let len be TypedArrayLength(taRecord).
+        let o = ta_record.object;
+        let len = match o {
+            TypedArray::Int8Array(_)
+            | TypedArray::Uint8Array(_)
+            | TypedArray::Uint8ClampedArray(_) => typed_array_length::<u8>(agent, &ta_record, gc),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
+            TypedArray::Int16Array(_) | TypedArray::Uint16Array(_) => {
+                typed_array_length::<u16>(agent, &ta_record, gc)
+            }
+            TypedArray::Int32Array(_)
+            | TypedArray::Uint32Array(_)
+            | TypedArray::Float32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
+            TypedArray::BigInt64Array(_)
+            | TypedArray::BigUint64Array(_)
+            | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
+        } as i64;
+        // 4. Let middle be floor(len / 2).
+        // 5. Let lower be 0.
+        let len = len as usize;
+        let o = o.scope(agent, gc).get(agent);
+        // 6. Repeat, while lower ≠ middle,
+        //    a. Let upper be len - lower - 1.
+        //    b. Let upperP be ! ToString(𝔽(upper)).
+        //    c. Let lowerP be ! ToString(𝔽(lower)).
+        //    d. Let lowerValue be ! Get(O, lowerP).
+        //    e. Let upperValue be ! Get(O, upperP).
+        //    f. Perform ! Set(O, lowerP, upperValue, true).
+        //    g. Perform ! Set(O, upperP, lowerValue, true).
+        //    h. Set lower to lower + 1.
+        match o {
+            TypedArray::Int8Array(_) => reverse_typed_array::<i8>(agent, o, len, gc)?,
+            TypedArray::Uint8Array(_) => reverse_typed_array::<u8>(agent, o, len, gc)?,
+            TypedArray::Uint8ClampedArray(_) => {
+                reverse_typed_array::<U8Clamped>(agent, o, len, gc)?
+            }
+            TypedArray::Int16Array(_) => reverse_typed_array::<i16>(agent, o, len, gc)?,
+            TypedArray::Uint16Array(_) => reverse_typed_array::<u16>(agent, o, len, gc)?,
+            TypedArray::Int32Array(_) => reverse_typed_array::<i32>(agent, o, len, gc)?,
+            TypedArray::Uint32Array(_) => reverse_typed_array::<u32>(agent, o, len, gc)?,
+            TypedArray::BigInt64Array(_) => reverse_typed_array::<i64>(agent, o, len, gc)?,
+            TypedArray::BigUint64Array(_) => reverse_typed_array::<u64>(agent, o, len, gc)?,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => reverse_typed_array::<f16>(agent, o, len, gc)?,
+            TypedArray::Float32Array(_) => reverse_typed_array::<f32>(agent, o, len, gc)?,
+            TypedArray::Float64Array(_) => reverse_typed_array::<f64>(agent, o, len, gc)?,
+        };
+        // 7. Return O.
+        Ok(o.into_value())
     }
 
     fn set<'gc>(
@@ -2149,4 +2205,39 @@ fn search_typed_element<T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
         }
         Ok(slice[..=k].iter().rposition(|&r| r == search_element))
     }
+}
+
+fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    gc: NoGcScope,
+) -> JsResult<()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &mut byte_slice[byte_offset..end_index]
+    } else {
+        &mut byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+    let slice = &mut slice[..len];
+    slice.reverse();
+    Ok(())
 }
