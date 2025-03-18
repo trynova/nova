@@ -6,7 +6,7 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, try_get, try_set},
+            operations_on_objects::{call_function, try_get},
             testing_and_comparison::{is_array, is_callable, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
@@ -1811,55 +1811,36 @@ impl TypedArrayPrototype {
             | TypedArray::BigUint64Array(_)
             | TypedArray::Float64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
         } as i64;
-        let scoped_o = o.scope(agent, gc);
         // 4. Let middle be floor(len / 2).
-        let middle = len / 2;
         // 5. Let lower be 0.
-        let mut lower: i64 = 0;
+        let len = len as usize;
+        let o = o.scope(agent, gc).get(agent);
         // 6. Repeat, while lower ≠ middle,
-        while lower != middle {
-            // a. Let upper be len - lower - 1.
-            let upper = len - lower - 1;
-            // b. Let upperP be ! ToString(𝔽(upper)).
-            let upper_p = PropertyKey::Integer(upper.try_into().unwrap());
-            // c. Let lowerP be ! ToString(𝔽(lower)).
-            let lower_p = PropertyKey::Integer(lower.try_into().unwrap());
-            // d. Let lowerValue be ! Get(O, lowerP).
-            let lower_value = unwrap_try(try_get(
-                agent,
-                scoped_o.get(agent).into_object(),
-                lower_p.unbind(),
-                gc,
-            ));
-            // e. Let upperValue be ! Get(O, upperP).
-            let upper_value = unwrap_try(try_get(
-                agent,
-                scoped_o.get(agent).into_object(),
-                upper_p.unbind(),
-                gc,
-            ));
-            // f. Perform ! Set(O, lowerP, upperValue, true).
-            try_set(
-                agent,
-                scoped_o.get(agent).into_object(),
-                lower_p,
-                upper_value.unbind(),
-                true,
-                gc,
-            );
-            // g. Perform ! Set(O, upperP, lowerValue, true).
-            try_set(
-                agent,
-                scoped_o.get(agent).into_object(),
-                upper_p,
-                lower_value,
-                true,
-                gc,
-            );
-            // h. Set lower to lower + 1.
-            lower += 1;
-        }
-        let o = scoped_o.get(agent);
+        //    a. Let upper be len - lower - 1.
+        //    b. Let upperP be ! ToString(𝔽(upper)).
+        //    c. Let lowerP be ! ToString(𝔽(lower)).
+        //    d. Let lowerValue be ! Get(O, lowerP).
+        //    e. Let upperValue be ! Get(O, upperP).
+        //    f. Perform ! Set(O, lowerP, upperValue, true).
+        //    g. Perform ! Set(O, upperP, lowerValue, true).
+        //    h. Set lower to lower + 1.
+        match o {
+            TypedArray::Int8Array(_) => reverse_typed_array::<i8>(agent, o, len, gc)?,
+            TypedArray::Uint8Array(_) => reverse_typed_array::<u8>(agent, o, len, gc)?,
+            TypedArray::Uint8ClampedArray(_) => {
+                reverse_typed_array::<U8Clamped>(agent, o, len, gc)?
+            }
+            TypedArray::Int16Array(_) => reverse_typed_array::<i16>(agent, o, len, gc)?,
+            TypedArray::Uint16Array(_) => reverse_typed_array::<u16>(agent, o, len, gc)?,
+            TypedArray::Int32Array(_) => reverse_typed_array::<i32>(agent, o, len, gc)?,
+            TypedArray::Uint32Array(_) => reverse_typed_array::<u32>(agent, o, len, gc)?,
+            TypedArray::BigInt64Array(_) => reverse_typed_array::<i64>(agent, o, len, gc)?,
+            TypedArray::BigUint64Array(_) => reverse_typed_array::<u64>(agent, o, len, gc)?,
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => reverse_typed_array::<f16>(agent, o, len, gc)?,
+            TypedArray::Float32Array(_) => reverse_typed_array::<f32>(agent, o, len, gc)?,
+            TypedArray::Float64Array(_) => reverse_typed_array::<f64>(agent, o, len, gc)?,
+        };
         // 7. Return O.
         Ok(o.into_value())
     }
@@ -2224,4 +2205,50 @@ fn search_typed_element<T: Viewable + std::fmt::Debug, const ASCENDING: bool>(
         }
         Ok(slice[..=k].iter().rposition(|&r| r == search_element))
     }
+}
+
+fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
+    agent: &mut Agent,
+    ta: TypedArray,
+    len: usize,
+    gc: NoGcScope,
+) -> JsResult<()> {
+    let array_buffer = ta.get_viewed_array_buffer(agent, gc);
+    let byte_offset = ta.byte_offset(agent);
+    let byte_length = ta.byte_length(agent);
+    let byte_slice = array_buffer.as_slice(agent);
+    if byte_slice.is_empty() {
+        return Ok(());
+    }
+    let byte_slice = if let Some(byte_length) = byte_length {
+        let end_index = byte_offset + byte_length;
+        if end_index > byte_slice.len() {
+            return Ok(());
+        }
+        &byte_slice[byte_offset..end_index]
+    } else {
+        &byte_slice[byte_offset..]
+    };
+    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+    if !head.is_empty() {
+        return Err(agent.throw_exception_with_static_message(
+            ExceptionType::TypeError,
+            "TypedArray is not properly aligned",
+            gc,
+        ));
+    }
+
+    // Fast path: If there’s only one element, reversing it won’t change anything, so return immediately.
+    let len = len.min(slice.len());
+    if len <= 1 {
+        return Ok(());
+    }
+
+    let mut temp = slice[..len].to_vec();
+    temp.reverse();
+    let block = agent[array_buffer].get_data_block_mut();
+    for (i, &value) in temp.iter().enumerate() {
+        block.set_offset_by_byte::<T>(byte_offset + i * std::mem::size_of::<T>(), value);
+    }
+    Ok(())
 }
