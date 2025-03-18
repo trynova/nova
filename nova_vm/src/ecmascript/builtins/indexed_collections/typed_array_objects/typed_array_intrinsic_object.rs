@@ -2216,7 +2216,7 @@ fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
     let array_buffer = ta.get_viewed_array_buffer(agent, gc);
     let byte_offset = ta.byte_offset(agent);
     let byte_length = ta.byte_length(agent);
-    let byte_slice = array_buffer.as_slice(agent);
+    let byte_slice = array_buffer.as_mut_slice(agent);
     if byte_slice.is_empty() {
         return Ok(());
     }
@@ -2225,11 +2225,11 @@ fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
         if end_index > byte_slice.len() {
             return Ok(());
         }
-        &byte_slice[byte_offset..end_index]
+        &mut byte_slice[byte_offset..end_index]
     } else {
-        &byte_slice[byte_offset..]
+        &mut byte_slice[byte_offset..]
     };
-    let (head, slice, _) = unsafe { byte_slice.align_to::<T>() };
+    let (head, slice, _) = unsafe { byte_slice.align_to_mut::<T>() };
     if !head.is_empty() {
         return Err(agent.throw_exception_with_static_message(
             ExceptionType::TypeError,
@@ -2237,18 +2237,7 @@ fn reverse_typed_array<T: Viewable + Copy + std::fmt::Debug>(
             gc,
         ));
     }
-
-    // Fast path: If there’s only one element, reversing it won’t change anything, so return immediately.
-    let len = len.min(slice.len());
-    if len <= 1 {
-        return Ok(());
-    }
-
-    let mut temp = slice[..len].to_vec();
-    temp.reverse();
-    let block = agent[array_buffer].get_data_block_mut();
-    for (i, &value) in temp.iter().enumerate() {
-        block.set_offset_by_byte::<T>(byte_offset + i * std::mem::size_of::<T>(), value);
-    }
+    let slice = &mut slice[..len];
+    slice.reverse();
     Ok(())
 }
