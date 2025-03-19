@@ -18,7 +18,7 @@ use crate::{
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
         scripts_and_modules::ScriptOrModule,
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
-    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::HeapRootData, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
+    }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
 use core::{any::Any, cell::RefCell, ptr::NonNull};
 
@@ -294,6 +294,8 @@ pub struct Agent {
     /// TODO: With Realm-specific heaps we'll need a side-table to define which
     /// Realm a particular stack value points to.
     pub(crate) stack_refs: RefCell<Vec<HeapRootData>>,
+    /// Temporary storage for on-stack heap root collections.
+    pub(crate) stack_ref_collections: RefCell<Vec<HeapRootCollectionData>>,
     /// Temporary storage for on-stack VMs.
     pub(crate) vm_stack: Vec<NonNull<Vm>>,
 }
@@ -308,6 +310,7 @@ impl Agent {
             host_hooks,
             execution_context_stack: Vec::new(),
             stack_refs: RefCell::new(Vec::with_capacity(64)),
+            stack_ref_collections: RefCell::new(Vec::with_capacity(32)),
             vm_stack: Vec::with_capacity(16),
         }
     }

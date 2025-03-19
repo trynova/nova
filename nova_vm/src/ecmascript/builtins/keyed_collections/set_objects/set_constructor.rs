@@ -228,7 +228,7 @@ impl SetConstructor {
                 agent,
                 adder.get(agent),
                 scoped_set.get(agent).into_value(),
-                Some(ArgumentsList(&[next.unbind()])),
+                Some(ArgumentsList::from_mut_slice(&mut [next.unbind()])),
                 gc.reborrow(),
             );
             // d. IfAbruptCloseIterator(status, iteratorRecord).

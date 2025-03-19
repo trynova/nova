@@ -168,7 +168,10 @@ impl IteratorPrototype {
                 agent,
                 scoped_predicate.get(agent),
                 Value::Undefined,
-                Some(ArgumentsList(&[value.unbind(), counter.into()])),
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    value.unbind(),
+                    counter.into(),
+                ])),
                 gc.reborrow(),
             )
             .unbind()
@@ -269,7 +272,10 @@ impl IteratorPrototype {
                 agent,
                 scoped_predicate.get(agent),
                 Value::Undefined,
-                Some(ArgumentsList(&[value.unbind(), counter.into()])),
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    value.unbind(),
+                    counter.into(),
+                ])),
                 gc.reborrow(),
             )
             .unbind()
@@ -365,7 +371,10 @@ impl IteratorPrototype {
                 agent,
                 scoped_procedure.get(agent),
                 Value::Undefined,
-                Some(ArgumentsList(&[value.unbind(), counter.into()])),
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    value.unbind(),
+                    counter.into(),
+                ])),
                 gc.reborrow(),
             )
             .unbind()
@@ -486,7 +495,7 @@ impl IteratorPrototype {
                 agent,
                 scoped_reducer.get(agent),
                 Value::Undefined,
-                Some(ArgumentsList(&[
+                Some(ArgumentsList::from_mut_slice(&mut [
                     accumulator.get(agent),
                     value.unbind(),
                     counter.into(),
@@ -586,7 +595,10 @@ impl IteratorPrototype {
                 agent,
                 scoped_predicate.get(agent),
                 Value::Undefined,
-                Some(ArgumentsList(&[value.unbind(), counter.into()])),
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    value.unbind(),
+                    counter.into(),
+                ])),
                 gc.reborrow(),
             )
             .unbind()

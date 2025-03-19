@@ -503,7 +503,10 @@ pub(crate) fn add_entries_from_iterable<'a>(
             agent,
             adder.get(agent),
             target.get(agent).into_value(),
-            Some(ArgumentsList(&[k.get(agent), v.unbind()])),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                k.get(agent),
+                v.unbind(),
+            ])),
             gc.reborrow(),
         );
         let iterator_record = IteratorRecord {

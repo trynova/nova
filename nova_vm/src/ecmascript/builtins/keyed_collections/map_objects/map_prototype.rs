@@ -272,7 +272,7 @@ impl MapPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         v.unbind(),
                         k.unbind(),
                         m.into_value().unbind(),

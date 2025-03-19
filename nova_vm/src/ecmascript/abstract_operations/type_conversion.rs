@@ -113,7 +113,7 @@ pub(crate) fn to_primitive_object<'a, 'gc>(
             agent,
             exotic_to_prim.unbind(),
             scoped_input.get(agent).into_value().unbind(),
-            Some(ArgumentsList(&[hint.into()])),
+            Some(ArgumentsList::from_mut_slice(&mut [hint.into()])),
             gc.reborrow(),
         )?
         .unbind();

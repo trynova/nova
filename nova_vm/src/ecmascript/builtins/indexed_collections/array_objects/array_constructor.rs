@@ -390,7 +390,7 @@ impl ArrayConstructor {
                         agent,
                         mapping.get(agent),
                         scoped_this_arg.get(agent),
-                        Some(ArgumentsList(&[next.unbind(), fk])),
+                        Some(ArgumentsList::from_mut_slice(&mut [next.unbind(), fk])),
                         gc.reborrow(),
                     )
                     .unbind()
@@ -445,7 +445,7 @@ impl ArrayConstructor {
             construct(
                 agent,
                 c,
-                Some(ArgumentsList(&[len_value])),
+                Some(ArgumentsList::from_mut_slice(&mut [len_value])),
                 None,
                 gc.reborrow(),
             )?
@@ -481,7 +481,7 @@ impl ArrayConstructor {
                     agent,
                     mapping.get(agent),
                     scoped_this_arg.get(agent),
-                    Some(ArgumentsList(&[k_value.unbind(), fk])),
+                    Some(ArgumentsList::from_mut_slice(&mut [k_value.unbind(), fk])),
                     gc.reborrow(),
                 )?
             } else {
@@ -624,7 +624,9 @@ fn array_of_generic<'gc>(
     let a = construct(
         agent,
         c.unbind(),
-        Some(ArgumentsList(&[len_number.into_value()])),
+        Some(ArgumentsList::from_mut_slice(
+            &mut [len_number.into_value()],
+        )),
         None,
         gc.reborrow(),
     )?

@@ -167,8 +167,8 @@ impl ReflectObject {
             agent,
             target.get(agent),
             this_argument.get(agent),
-            Some(ArgumentsList(
-                &args.into_iter().map(|v| v.unbind()).collect::<Vec<_>>(),
+            Some(ArgumentsList::from_mut_slice(
+                &mut args.into_iter().map(|v| v.unbind()).collect::<Vec<_>>(),
             )),
             gc,
         )
@@ -218,8 +218,8 @@ impl ReflectObject {
         construct(
             agent,
             target.get(agent),
-            Some(ArgumentsList(
-                &args.into_iter().map(|v| v.unbind()).collect::<Vec<_>>(),
+            Some(ArgumentsList::from_mut_slice(
+                &mut args.into_iter().map(|v| v.unbind()).collect::<Vec<_>>(),
             )),
             Some(new_target.get(agent)),
             gc,

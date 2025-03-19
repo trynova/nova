@@ -123,6 +123,19 @@ impl<'a, 'b> GcScope<'a, 'b> {
         }
     }
 
+    /// Create a GcScope marker that inherits the current GcScope's garbage
+    /// collector lifetime but creates a new scope lifetime. This should be
+    /// used when deeper JavaScript call stacks are entered.
+    #[inline]
+    pub(crate) fn subscope(&mut self) -> GcScope<'a, '_> {
+        Self {
+            gc: GcToken,
+            scope: ScopeToken,
+            _gc_marker: PhantomData,
+            _scope_marker: PhantomData,
+        }
+    }
+
     /// Create a NoGcScope marker that is used to bind the garbage collector
     /// lifetime to various engine values. Existence of the NoGcScope is a
     /// build-time proof that garbage collection cannot happen.

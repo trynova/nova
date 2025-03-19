@@ -1235,17 +1235,17 @@ pub(crate) fn invoke<'gc>(
         let scoped_arguments = arguments_list
             .iter()
             .map(|v| v.scope(agent, gc.nogc()))
-            .collect::<Vec<_>>();
+            .collect::<Box<[_]>>();
         let func = get_v(agent, v.unbind(), p.unbind(), gc.reborrow())?;
-        let arguments = scoped_arguments
+        let mut arguments = scoped_arguments
             .into_iter()
             .map(|v| v.get(agent))
-            .collect::<Vec<_>>();
+            .collect::<Box<[Value<'static>]>>();
         call(
             agent,
             func.unbind(),
             scoped_v.get(agent),
-            Some(ArgumentsList(&arguments)),
+            Some(ArgumentsList::from_mut_slice(&mut arguments)),
             gc,
         )
     }
@@ -2224,7 +2224,7 @@ pub(crate) fn group_by_property<'gc, 'scope>(
             agent,
             callback_fn.get(agent),
             Value::Undefined,
-            Some(ArgumentsList(&[value.unbind(), fk])),
+            Some(ArgumentsList::from_mut_slice(&mut [value.unbind(), fk])),
             gc.reborrow(),
         );
 
@@ -2348,7 +2348,7 @@ pub(crate) fn group_by_collection<'gc, 'scope>(
             agent,
             callback_fn.get(agent),
             Value::Undefined,
-            Some(ArgumentsList(&[value.unbind(), fk])),
+            Some(ArgumentsList::from_mut_slice(&mut [value.unbind(), fk])),
             gc.reborrow(),
         )
         .unbind()

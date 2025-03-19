@@ -1057,7 +1057,7 @@ fn ordinary_set_with_own_descriptor(
         agent,
         setter,
         receiver,
-        Some(ArgumentsList(&[value.unbind()])),
+        Some(ArgumentsList::from_mut_slice(&mut [value.unbind()])),
         gc,
     )?;
 
