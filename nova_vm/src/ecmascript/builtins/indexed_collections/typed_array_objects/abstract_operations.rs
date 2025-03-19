@@ -2,15 +2,17 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use num_traits::ToPrimitive;
+
 use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, length_of_array_like, set, try_set},
+            operations_on_objects::{construct, get, length_of_array_like, set, try_set},
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
-            ArrayBuffer,
+            ArgumentsList, ArrayBuffer,
             array_buffer::{
                 Ordering, ViewedArrayBufferByteLength, allocate_array_buffer,
                 array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
@@ -25,8 +27,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, Number,
-            Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
+            BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, IntoValue,
+            Number, Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -1157,4 +1159,119 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
 
     // 9. Return unused.
     Ok(())
+}
+
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
+/// and argumentList (a List of ECMAScript language values)
+/// and returns either a normal completion containing a TypedArray or a throw completion.
+/// It is used to specify the creation of a new TypedArray using a constructor function.
+pub(crate) fn typed_array_create_from_constructor<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    arguments_list: ArgumentsList,
+    mut gc: GcScope,
+) -> JsResult<TypedArray<'a>> {
+    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let new_typed_array = construct(
+        agent,
+        constructor,
+        Some(arguments_list),
+        None,
+        gc.reborrow(),
+    )?;
+    // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
+    let ta_record = validate_typed_array(
+        agent,
+        new_typed_array.into_value().unbind(),
+        Ordering::SeqCst,
+        gc.nogc(),
+    )?;
+    let o = ta_record.object;
+    let scoped_o = o.scope(agent, gc.nogc());
+    // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
+    if arguments_list.len() == 1 && arguments_list[0].is_number() {
+        let o = scoped_o.get(agent);
+        // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+        if match o {
+            TypedArray::Int8Array(_) => {
+                is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Uint8Array(_) => {
+                is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Uint8ClampedArray(_) => {
+                is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) => {
+                is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Uint16Array(_) => {
+                is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int32Array(_) => {
+                is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Uint32Array(_) => {
+                is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigInt64Array(_) => {
+                is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::BigUint64Array(_) => {
+                is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Float32Array(_) => {
+                is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Float64Array(_) => {
+                is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc.nogc())
+            }
+        } {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc.nogc(),
+            ));
+        }
+        // b. Let length be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc())
+            }
+            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
+            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
+            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
+            TypedArray::BigUint64Array(_) => {
+                typed_array_length::<u64>(agent, &ta_record, gc.nogc())
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
+            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
+        } as i64;
+        // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
+        let arguments_list = arguments_list[0]
+            .to_real(agent, gc.reborrow())?
+            .to_i64()
+            .unwrap();
+        if len < arguments_list {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc.nogc(),
+            ));
+        }
+    };
+    let o = scoped_o.get(agent);
+    // 4. Return newTypedArray.
+    Ok(o)
 }
