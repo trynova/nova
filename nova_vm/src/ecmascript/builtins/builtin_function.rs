@@ -47,7 +47,9 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     pub fn from_mut_value(value: &'slice mut Value<'value>) -> Self {
         Self {
             // SAFETY: The Value lifetime is moved over to the PhantomData.
-            slice: core::slice::from_mut(unsafe { core::mem::transmute(value) }),
+            slice: core::slice::from_mut(unsafe {
+                core::mem::transmute::<&'slice mut Value<'value>, &'slice mut Value<'static>>(value)
+            }),
             value: PhantomData,
         }
     }
@@ -56,7 +58,11 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
     pub fn from_mut_slice(slice: &'slice mut [Value<'value>]) -> Self {
         Self {
             // SAFETY: The Value lifetime is moved over to the PhantomData.
-            slice: unsafe { core::mem::transmute(slice) },
+            slice: unsafe {
+                core::mem::transmute::<&'slice mut [Value<'value>], &'slice mut [Value<'static>]>(
+                    slice,
+                )
+            },
             value: PhantomData,
         }
     }
@@ -71,11 +77,11 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
         R: 'a,
     {
         if cfg!(feature = "interleaved-gc") {
-            // First replace the arguments with an empty slice. Note: This is
+            // First take the arguments from ArgumentsList. Note: This is
             // strictly extra work from a computational standpoint, but makes
             // the code safer from a memory stand point. Any errors will also
             // become more obvious.
-            let slice = core::mem::replace(&mut self.slice, &mut []);
+            let slice = core::mem::take(&mut self.slice);
             // SAFETY: We push the slice to the heap temporarily, for which we
             // need to transmute its lifetime to static. This is strictly not
             // correct: The slice points either to the stack or to a Vec owned

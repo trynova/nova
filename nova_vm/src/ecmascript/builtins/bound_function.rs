@@ -334,7 +334,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
             agent[bound_args]
                 .iter()
                 .for_each(|item| args.push(item.unwrap().unbind()));
-            args.extend_from_slice(&mut arguments_list.unbind());
+            args.extend_from_slice(&arguments_list.unbind());
             // 5. Return ? Call(target, boundThis, args).
             call_function(
                 agent,

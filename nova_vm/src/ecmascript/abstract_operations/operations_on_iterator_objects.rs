@@ -261,9 +261,7 @@ pub(crate) fn iterator_next<'a>(
         agent,
         iterator_record.next_method,
         iterator_record.iterator.into(),
-        value
-            .as_mut()
-            .map(|data| ArgumentsList::from_mut_value(data)),
+        value.as_mut().map(ArgumentsList::from_mut_value),
         gc.reborrow(),
     )?
     .unbind();
