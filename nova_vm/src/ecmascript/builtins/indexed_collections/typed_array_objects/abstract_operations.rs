@@ -2,8 +2,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use num_traits::ToPrimitive;
-
 use crate::{
     SmallInteger,
     ecmascript::{
@@ -1172,11 +1170,17 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     arguments: ArgumentsList,
     mut gc: GcScope,
 ) -> JsResult<TypedArray<'a>> {
-    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let constructor = constructor.bind(gc.nogc());
     let arguments = arguments.bind(gc.nogc());
+    let first_arg = if arguments.len() == 1 && arguments[0].is_number() {
+        Some(Number::try_from(arguments[0]).unwrap().into_i64(agent))
+    } else {
+        None
+    };
+    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
-        constructor,
+        constructor.unbind(),
         Some(arguments.unbind()),
         None,
         gc.reborrow(),
@@ -1191,7 +1195,7 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     let o = ta_record.object;
     let scoped_o = o.scope(agent, gc.nogc());
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
-    if arguments.unbind().len() == 1 && arguments[0].unbind().is_number() {
+    if let Some(first_arg) = first_arg {
         let o = scoped_o.get(agent);
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
         if match o {
@@ -1260,12 +1264,7 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
             TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
         } as i64;
         // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
-        let arguments_list = arguments[0]
-            .unbind()
-            .to_real(agent, gc.reborrow())?
-            .to_i64()
-            .unwrap();
-        if len < arguments_list {
+        if len < first_arg {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "TypedArray out of bounds",
