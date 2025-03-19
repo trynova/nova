@@ -140,7 +140,7 @@ impl TypedArrayIntrinsicObject {
             typed_array_create_from_constructor_with_length(agent, c, len, gc.reborrow())?;
         // 5. Let k be 0.
         // 6. Repeat, while k < len,
-        for (k, &k_value) in arguments.into_iter().enumerate() {
+        for (k, &k_value) in arguments.iter().enumerate() {
             // a. Let kValue be items[k].
             // b. Let Pk be ! ToString(𝔽(k)).
             let pk = PropertyKey::try_from(k).unwrap();
