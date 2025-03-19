@@ -1169,14 +1169,15 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
 pub(crate) fn typed_array_create_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
-    arguments_list: ArgumentsList,
+    arguments: ArgumentsList,
     mut gc: GcScope,
 ) -> JsResult<TypedArray<'a>> {
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let arguments = arguments.bind(gc.nogc());
     let new_typed_array = construct(
         agent,
         constructor,
-        Some(arguments_list),
+        Some(arguments.unbind()),
         None,
         gc.reborrow(),
     )?;
@@ -1190,7 +1191,7 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     let o = ta_record.object;
     let scoped_o = o.scope(agent, gc.nogc());
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
-    if arguments_list.len() == 1 && arguments_list[0].is_number() {
+    if arguments.unbind().len() == 1 && arguments[0].unbind().is_number() {
         let o = scoped_o.get(agent);
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
         if match o {
@@ -1259,7 +1260,8 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
             TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
         } as i64;
         // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
-        let arguments_list = arguments_list[0]
+        let arguments_list = arguments[0]
+            .unbind()
             .to_real(agent, gc.reborrow())?
             .to_i64()
             .unwrap();
