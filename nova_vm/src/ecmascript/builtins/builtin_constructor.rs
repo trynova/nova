@@ -378,6 +378,8 @@ fn builtin_call_or_construct<'a>(
     gc: GcScope<'a, '_>,
 ) -> JsResult<Object<'a>> {
     let f = f.bind(gc.nogc());
+    let arguments_list = arguments_list.bind(gc.nogc());
+    let new_target = new_target.bind(gc.nogc());
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -410,9 +412,14 @@ fn builtin_call_or_construct<'a>(
     // the specification of F. If thisArgument is uninitialized, the this value is uninitialized; otherwise,
     // thisArgument provides the this value. argumentsList provides the named parameters. newTarget provides the NewTarget value.
     let result = if heap_data.is_derived {
-        derived_class_default_constructor(agent, arguments_list, new_target.into_object(), gc)
+        derived_class_default_constructor(
+            agent,
+            arguments_list.unbind(),
+            new_target.into_object().unbind(),
+            gc,
+        )
     } else {
-        base_class_default_constructor(agent, new_target.into_object(), gc)
+        base_class_default_constructor(agent, new_target.into_object().unbind(), gc)
     };
     // 11. NOTE: If F is defined in this document, “the specification of F” is the behaviour specified for it via
     // algorithm steps or other means.

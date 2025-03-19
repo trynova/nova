@@ -250,7 +250,7 @@ pub(crate) fn iterator_next<'a>(
     iterator_record: IteratorRecord,
     // SAFETY: The value is immediately passed to Call and never used again:
     // We don't need to bind/unbind/worry about its lifetime.
-    value: Option<Value<'static>>,
+    mut value: Option<Value<'static>>,
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<Object<'a>> {
     // 1. If value is not present, then
@@ -261,9 +261,7 @@ pub(crate) fn iterator_next<'a>(
         agent,
         iterator_record.next_method,
         iterator_record.iterator.into(),
-        value
-            .as_ref()
-            .map(|data| ArgumentsList(core::slice::from_ref(data))),
+        value.as_mut().map(ArgumentsList::from_mut_value),
         gc.reborrow(),
     )?
     .unbind();

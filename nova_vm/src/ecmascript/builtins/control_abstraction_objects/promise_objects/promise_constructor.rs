@@ -110,7 +110,7 @@ impl PromiseConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let executor = args.get(0);
+        let executor = args.get(0).bind(gc.nogc());
 
         // 1. If NewTarget is undefined, throw a TypeError exception.
         let Some(new_target) = new_target else {
@@ -181,7 +181,10 @@ impl PromiseConstructor {
             agent,
             executor.get(agent),
             Value::Undefined,
-            Some(ArgumentsList(&[resolve_function, reject_function])),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                resolve_function,
+                reject_function,
+            ])),
             gc.reborrow(),
         ) {
             // a. Perform ? Call(resolvingFunctions.[[Reject]], undefined, « completion.[[Value]] »).
@@ -299,7 +302,7 @@ impl PromiseConstructor {
             agent,
             arguments.get(0),
             Value::Undefined,
-            Some(ArgumentsList(&arguments.0[1..])),
+            Some(arguments.slice_from(1)),
             gc.reborrow(),
         );
         let promise = match status {

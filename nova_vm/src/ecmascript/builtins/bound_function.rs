@@ -312,6 +312,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let arguments_list = arguments_list.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function;
         // 2. Let boundThis be F.[[BoundThis]].
@@ -322,19 +323,26 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         if bound_args.is_empty() {
             // Optimisation: If only `this` is bound, then we can pass the
             // arguments list without changes to the bound function.
-            call_function(agent, target, bound_this, Some(arguments_list), gc)
+            call_function(agent, target, bound_this, Some(arguments_list.unbind()), gc)
         } else {
             // Note: We currently cannot optimise against an empty arguments
             // list, as we must create a Vec from the bound_args ElementsVector
             // in any case to use it as arguments. A slice pointing to it would
             // be unsound as calling to JS may invalidate the slice pointer.
-            let mut args = Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
+            let mut args: Vec<Value<'static>> =
+                Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
             agent[bound_args]
                 .iter()
-                .for_each(|item| args.push(item.unwrap()));
-            args.extend_from_slice(&arguments_list);
+                .for_each(|item| args.push(item.unwrap().unbind()));
+            args.extend_from_slice(&arguments_list.unbind());
             // 5. Return ? Call(target, boundThis, args).
-            call_function(agent, target, bound_this, Some(ArgumentsList(&args)), gc)
+            call_function(
+                agent,
+                target,
+                bound_this,
+                Some(ArgumentsList::from_mut_slice(&mut args)),
+                gc,
+            )
         }
     }
 
@@ -351,6 +359,7 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Object<'gc>> {
+        let arguments_list = arguments_list.bind(gc.nogc());
         let new_target = new_target.bind(gc.nogc());
         // 1. Let target be F.[[BoundTargetFunction]].
         let target = agent[self].bound_target_function.bind(gc.nogc());
@@ -372,13 +381,13 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
         let mut args = Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
         agent[bound_args]
             .iter()
-            .for_each(|item| args.push(item.unwrap()));
-        args.extend_from_slice(&arguments_list);
+            .for_each(|item| args.push(item.unwrap().unbind()));
+        args.extend_from_slice(&arguments_list.unbind());
         // 6. Return ? Construct(target, args, newTarget).
         construct(
             agent,
             target.unbind(),
-            Some(ArgumentsList(&args)),
+            Some(ArgumentsList::from_mut_slice(&mut args)),
             Some(new_target.unbind()),
             gc,
         )

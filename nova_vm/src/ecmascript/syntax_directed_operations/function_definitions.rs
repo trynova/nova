@@ -292,6 +292,7 @@ pub(crate) fn evaluate_function_body<'gc>(
     arguments_list: ArgumentsList,
     gc: GcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
+    let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -304,7 +305,7 @@ pub(crate) fn evaluate_function_body<'gc>(
         agent[function_object].compiled_bytecode = Some(exe);
         exe
     };
-    Vm::execute(agent, exe, Some(arguments_list.0), gc).into_js_result()
+    Vm::execute(agent, exe, Some(arguments_list.unbind().as_slice()), gc).into_js_result()
 }
 
 /// ### [15.8.4 Runtime Semantics: EvaluateAsyncFunctionBody](https://tc39.es/ecma262/#sec-runtime-semantics-evaluateasyncfunctionbody)
@@ -314,6 +315,7 @@ pub(crate) fn evaluate_async_function_body<'a>(
     arguments_list: ArgumentsList,
     mut gc: GcScope<'a, '_>,
 ) -> Promise<'a> {
+    let arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     let scoped_function_object = function_object.scope(agent, gc.nogc());
     // 1. Let promiseCapability be ! NewPromiseCapability(%Promise%).
@@ -337,7 +339,8 @@ pub(crate) fn evaluate_async_function_body<'a>(
 
     // AsyncFunctionStart will run the function until it returns, throws or gets suspended with
     // an await.
-    match Vm::execute(agent, exe, Some(arguments_list.0), gc.reborrow()) {
+    let arguments_list: &[Value<'static>] = &arguments_list.unbind();
+    match Vm::execute(agent, exe, Some(arguments_list), gc.reborrow()) {
         ExecutionResult::Return(result) => {
             // [27.7.5.2 AsyncBlockStart ( promiseCapability, asyncBody, asyncContext )](https://tc39.es/ecma262/#sec-asyncblockstart)
             // 2. e. If result is a normal completion, then
@@ -389,6 +392,7 @@ pub(crate) fn evaluate_generator_body<'gc>(
     arguments_list: ArgumentsList,
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
+    let mut arguments_list = arguments_list.bind(gc.nogc());
     let function_object = function_object.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
     //function_declaration_instantiation(agent, function_object, arguments_list)?;
@@ -402,15 +406,29 @@ pub(crate) fn evaluate_generator_body<'gc>(
     // "%GeneratorFunction.prototype.prototype%", « [[GeneratorState]],
     // [[GeneratorContext]], [[GeneratorBrand]] »).
     // 3. Set G.[[GeneratorBrand]] to empty.
-    let generator = ordinary_create_from_constructor(
-        agent,
-        function_object.into_function().unbind(),
-        ProtoIntrinsics::Generator,
-        gc.reborrow(),
-    )?
-    .unbind();
+    let generator = {
+        let mut args = arguments_list.unbind();
+        let function_object = function_object.into_function().unbind();
+        let generator = args
+            .with_scoped(
+                agent,
+                |agent, gc| {
+                    ordinary_create_from_constructor(
+                        agent,
+                        function_object,
+                        ProtoIntrinsics::Generator,
+                        gc,
+                    )
+                },
+                gc.reborrow(),
+            )?
+            .unbind();
+        arguments_list = args;
+        generator
+    };
     let gc = gc.into_nogc();
     let generator = generator.bind(gc);
+    let arguments_list = arguments_list.bind(gc);
     let Object::Generator(generator) = generator else {
         unreachable!()
     };
@@ -420,7 +438,13 @@ pub(crate) fn evaluate_generator_body<'gc>(
     let data = CompileFunctionBodyData::new(agent, scoped_function_object.get(agent));
     let executable = Executable::compile_function_body(agent, data, gc);
     agent[generator].generator_state = Some(GeneratorState::Suspended(SuspendedGeneratorState {
-        vm_or_args: VmOrArguments::Arguments(arguments_list.0.into()),
+        vm_or_args: VmOrArguments::Arguments(
+            arguments_list
+                .as_slice()
+                .iter()
+                .map(|v| v.unbind())
+                .collect(),
+        ),
         executable,
         execution_context: agent.running_execution_context().clone(),
     }));
@@ -442,6 +466,7 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     mut gc: GcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
     let function_object = function_object.bind(gc.nogc());
+    let mut arguments_list = arguments_list.bind(gc.nogc());
     // 1. Perform ? FunctionDeclarationInstantiation(functionObject, argumentsList).
 
     let scoped_function_object = function_object.scope(agent, gc.nogc());
@@ -449,23 +474,41 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     //    "%AsyncGeneratorPrototype%", « [[AsyncGeneratorState]],
     //    [[AsyncGeneratorContext]], [[AsyncGeneratorQueue]],
     //    [[GeneratorBrand]] »).
-    let generator = ordinary_create_from_constructor(
-        agent,
-        function_object.into_function().unbind(),
-        ProtoIntrinsics::AsyncGenerator,
-        gc.reborrow(),
-    )?;
+    let generator = {
+        let function_object = function_object.into_function().unbind();
+        let mut args = arguments_list.unbind();
+        let generator = args
+            .with_scoped(
+                agent,
+                |agent, gc| {
+                    ordinary_create_from_constructor(
+                        agent,
+                        function_object,
+                        ProtoIntrinsics::AsyncGenerator,
+                        gc,
+                    )
+                },
+                gc.reborrow(),
+            )?
+            .unbind()
+            .bind(gc.nogc());
+        arguments_list = args.bind(gc.nogc());
+        generator
+    };
     let Object::AsyncGenerator(generator) = generator else {
         unreachable!()
     };
     let generator = generator.unbind();
+    let arguments_list = arguments_list.unbind();
     let gc = gc.into_nogc();
     let generator = generator.bind(gc);
+    let arguments_list = arguments_list.bind(gc);
 
     // 3. Set generator.[[GeneratorBrand]] to empty.
     // 4. Set generator.[[AsyncGeneratorState]] to suspended-start.
     // 5. Perform AsyncGeneratorStart(generator, FunctionBody).
-    let function_object = scoped_function_object.get(agent).bind(gc);
+    // SAFETY: scoped_function_object is never shared.
+    let function_object = unsafe { scoped_function_object.take(agent).bind(gc) };
     let executable = if let Some(exe) = agent[function_object].compiled_bytecode {
         exe
     } else {
@@ -476,7 +519,11 @@ pub(crate) fn evaluate_async_generator_body<'gc>(
     };
     agent[generator].executable = Some(executable);
     agent[generator].async_generator_state = Some(AsyncGeneratorState::SuspendedStart {
-        arguments: arguments_list.0.into(),
+        arguments: arguments_list
+            .as_slice()
+            .iter()
+            .map(|v| v.unbind())
+            .collect(),
         execution_context: agent.running_execution_context().clone(),
         queue: VecDeque::new(),
     });

@@ -5,7 +5,7 @@
 mod global;
 mod scoped;
 
-use private::RootableSealed;
+use private::{RootableCollectionSealed, RootableSealed};
 
 #[cfg(feature = "date")]
 use crate::ecmascript::builtins::date::Date;
@@ -80,11 +80,11 @@ use crate::{
             FINALIZATION_REGISTRY_DISCRIMINANT, GENERATOR_DISCRIMINANT, HeapNumber, HeapString,
             ITERATOR_DISCRIMINANT, IntoObject, MAP_DISCRIMINANT, MAP_ITERATOR_DISCRIMINANT,
             MODULE_DISCRIMINANT, NUMBER_DISCRIMINANT, OBJECT_DISCRIMINANT, Object, OrdinaryObject,
-            PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, STRING_DISCRIMINANT, SYMBOL_DISCRIMINANT,
-            Symbol, bigint::HeapBigInt,
+            PROMISE_DISCRIMINANT, PROXY_DISCRIMINANT, PropertyKey, STRING_DISCRIMINANT,
+            SYMBOL_DISCRIMINANT, Symbol, Value, bigint::HeapBigInt,
         },
     },
-    heap::HeapMarkAndSweep,
+    heap::{CompactionLists, HeapMarkAndSweep, WorkQueues},
 };
 
 mod private {
@@ -104,7 +104,7 @@ mod private {
     use crate::ecmascript::builtins::{weak_map::WeakMap, weak_ref::WeakRef, weak_set::WeakSet};
     use crate::ecmascript::{
         builtins::{
-            Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
+            ArgumentsList, Array, BuiltinConstructorFunction, BuiltinFunction, ECMAScriptFunction,
             async_generator_objects::AsyncGenerator,
             bound_function::BoundFunction,
             embedder_object::EmbedderObject,
@@ -183,10 +183,16 @@ mod private {
     impl RootableSealed for WeakRef<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakSet<'_> {}
+
+    /// Marker trait to make RootableSealed not implementable outside of nova_vm.
+    pub trait RootableCollectionSealed {}
+    impl RootableCollectionSealed for ArgumentsList<'_, '_> {}
+    impl RootableCollectionSealed for Vec<Value<'_>> {}
+    impl RootableCollectionSealed for Vec<PropertyKey<'_>> {}
 }
 
 pub use global::Global;
-pub use scoped::{Scopable, Scoped};
+pub use scoped::{Scopable, Scoped, ScopedCollection};
 
 use super::context::Bindable;
 
@@ -630,6 +636,60 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::PromiseReaction(promise_reaction) => {
                 promise_reaction.sweep_values(compactions)
             }
+        }
+    }
+}
+
+pub trait RootableCollection: core::fmt::Debug + RootableCollectionSealed {
+    /// Convert a rootable collection value to a heap data representation.
+    fn to_heap_data(self) -> HeapRootCollectionData;
+
+    /// Convert the rooted collection's heap data value to the type itself.
+    ///
+    /// ## Panics
+    ///
+    /// If the heap data does not match the type, the method should panic.
+    fn from_heap_data(value: HeapRootCollectionData) -> Self;
+}
+
+#[derive(Debug)]
+#[repr(u8)]
+pub enum HeapRootCollectionData {
+    /// Empty heap root collection data slot: The data was taken from heap.
+    Empty,
+    /// Not like the others: Arguments list cannot be given to the heap as
+    /// owned, they can only be borrowed. Thus, they have no scoping API but
+    /// instead have a `with_scoped` API that takes a callback, stores the list
+    /// on the heap temporarily, performs the callback, removes the list from
+    /// the heap and then returns control to the caller.
+    ///
+    /// As the arguments list is taken as an exclusive reference to the
+    /// method, we're guaranteed that the list stored here
+    ArgumentsList(&'static mut [Value<'static>]),
+    ValueVec(Vec<Value<'static>>),
+    PropertyKeyVec(Vec<PropertyKey<'static>>),
+}
+
+impl HeapMarkAndSweep for HeapRootCollectionData {
+    fn mark_values(&self, queues: &mut WorkQueues) {
+        match self {
+            Self::Empty => {}
+            Self::ArgumentsList(slice) => {
+                slice.mark_values(queues);
+            }
+            Self::ValueVec(values) => values.as_slice().mark_values(queues),
+            Self::PropertyKeyVec(items) => items.as_slice().mark_values(queues),
+        }
+    }
+
+    fn sweep_values(&mut self, compactions: &CompactionLists) {
+        match self {
+            Self::Empty => {}
+            Self::ArgumentsList(slice) => {
+                slice.sweep_values(compactions);
+            }
+            Self::ValueVec(values) => values.as_slice().sweep_values(compactions),
+            Self::PropertyKeyVec(items) => items.as_slice().sweep_values(compactions),
         }
     }
 }

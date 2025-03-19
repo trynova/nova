@@ -28,10 +28,11 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let args = args.bind(gc.nogc());
         if args.len() == 0 {
             println!();
         } else {
-            println!("{}", args[0].to_string(agent, gc)?.as_str(agent));
+            println!("{}", args[0].unbind().to_string(agent, gc)?.as_str(agent));
         }
         Ok(Value::Undefined)
     }
@@ -43,6 +44,7 @@ pub fn initialize_global_object(agent: &mut Agent, global: Object, mut gc: GcSco
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let args = args.bind(gc.nogc());
         if args.len() != 1 {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,
@@ -118,6 +120,7 @@ pub fn initialize_global_object_with_internals(agent: &mut Agent, global: Object
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let args = args.bind(gc.nogc());
         let Value::ArrayBuffer(array_buffer) = args.get(0) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::Error,

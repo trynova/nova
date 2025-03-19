@@ -328,7 +328,7 @@ impl SetPrototype {
                     agent,
                     callback_fn.get(agent),
                     scoped_this_arg.get(agent),
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         e.unbind(),
                         e.unbind(),
                         s.into_value().unbind(),

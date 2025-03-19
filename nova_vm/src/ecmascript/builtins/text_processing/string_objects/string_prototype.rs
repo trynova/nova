@@ -1253,7 +1253,10 @@ impl StringPrototype {
                     agent,
                     replacer.unbind(),
                     scoped_search_value.get(agent),
-                    Some(ArgumentsList(&[o.get(agent), replace_value.get(agent)])),
+                    Some(ArgumentsList::from_mut_slice(&mut [
+                        o.get(agent),
+                        replace_value.get(agent),
+                    ])),
                     gc,
                 );
             }
@@ -1284,16 +1287,15 @@ impl StringPrototype {
             };
 
             // Let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(position), string »)).
-            let args = &[
-                search_string.unbind().into_value(),
-                Number::from(position as u32).into_value(),
-                s.get(agent).into_value().unbind(),
-            ];
             let result = call_function(
                 agent,
                 functional_replace.unbind(),
                 Value::Undefined,
-                Some(ArgumentsList(args)),
+                Some(ArgumentsList::from_mut_slice(&mut [
+                    search_string.unbind().into_value(),
+                    Number::from(position as u32).into_value(),
+                    s.get(agent).into_value().unbind(),
+                ])),
                 gc.reborrow(),
             )?;
 
@@ -1369,7 +1371,10 @@ impl StringPrototype {
                     agent,
                     replacer.unbind(),
                     scoped_search_value.get(agent),
-                    Some(ArgumentsList(&[o.get(agent), replace_value.get(agent)])),
+                    Some(ArgumentsList::from_mut_slice(&mut [
+                        o.get(agent),
+                        replace_value.get(agent),
+                    ])),
                     gc,
                 );
             }
@@ -1427,7 +1432,7 @@ impl StringPrototype {
                     agent,
                     functional_replace.get(agent),
                     Value::Undefined,
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         search_string_root.get(agent).into_value(),
                         Number::from(position as u32).into_value(),
                         s.get(agent).into_value(),
@@ -1594,7 +1599,10 @@ impl StringPrototype {
                     agent,
                     splitter.unbind(),
                     separator.get(agent),
-                    Some(ArgumentsList(&[o.get(agent), limit.get(agent)])),
+                    Some(ArgumentsList::from_mut_slice(&mut [
+                        o.get(agent),
+                        limit.get(agent),
+                    ])),
                     gc,
                 );
             }

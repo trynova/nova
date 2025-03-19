@@ -68,7 +68,10 @@ impl PromisePrototype {
             agent,
             this_value,
             BUILTIN_STRING_MEMORY.then.into(),
-            Some(ArgumentsList(&[Value::Undefined, on_rejected])),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                Value::Undefined,
+                on_rejected,
+            ])),
             gc,
         )
     }
@@ -88,13 +91,14 @@ impl PromisePrototype {
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let gc = gc.into_nogc();
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "'this' is not a promise",
-                gc.nogc(),
+                gc,
             ));
         };
 

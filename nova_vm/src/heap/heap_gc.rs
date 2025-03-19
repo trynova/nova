@@ -74,6 +74,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
         heap,
         execution_context_stack,
         stack_refs,
+        stack_ref_collections,
         vm_stack,
         options: _,
         symbol_id: _,
@@ -96,6 +97,10 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
         .borrow()
         .iter()
         .for_each(|value| value.mark_values(&mut queues));
+    stack_ref_collections
+        .borrow()
+        .iter()
+        .for_each(|collection| collection.mark_values(&mut queues));
     vm_stack.iter().for_each(|vm_ptr| {
         unsafe { vm_ptr.as_ref() }.mark_values(&mut queues);
     });
@@ -1035,6 +1040,7 @@ fn sweep(
         heap,
         execution_context_stack,
         stack_refs,
+        stack_ref_collections,
         vm_stack,
         options: _,
         symbol_id: _,
@@ -1541,6 +1547,12 @@ fn sweep(
         }
         if !stack_refs.borrow().is_empty() {
             stack_refs
+                .borrow_mut()
+                .iter_mut()
+                .for_each(|entry| entry.sweep_values(&compactions));
+        }
+        if !stack_ref_collections.borrow().is_empty() {
+            stack_ref_collections
                 .borrow_mut()
                 .iter_mut()
                 .for_each(|entry| entry.sweep_values(&compactions));

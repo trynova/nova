@@ -329,6 +329,7 @@ impl<'a> TryFrom<Value<'a>> for Generator<'a> {
 impl<'a> InternalSlots<'a> for Generator<'a> {
     const DEFAULT_PROTOTYPE: ProtoIntrinsics = ProtoIntrinsics::Generator;
 
+    #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }

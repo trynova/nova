@@ -50,6 +50,7 @@ where
     }
 
     /// ## \[\[GetPrototypeOf\]\]
+    #[inline(always)]
     fn internal_get_prototype_of<'gc>(
         self,
         agent: &mut Agent,
@@ -83,6 +84,7 @@ where
     }
 
     /// ## \[\[SetPrototypeOf\]\]
+    #[inline(always)]
     fn internal_set_prototype_of(
         self,
         agent: &mut Agent,
@@ -117,6 +119,7 @@ where
     }
 
     /// ## \[\[IsExtensible\]\]
+    #[inline(always)]
     fn internal_is_extensible(
         self,
         agent: &mut Agent,
@@ -145,6 +148,7 @@ where
     }
 
     /// ## \[\[PreventExtensions\]\]
+    #[inline(always)]
     fn internal_prevent_extensions(self, agent: &mut Agent, gc: GcScope) -> JsResult<bool> {
         Ok(unwrap_try(
             self.try_prevent_extensions(agent, gc.into_nogc()),
@@ -172,6 +176,7 @@ where
     }
 
     /// ## \[\[GetOwnProperty\]\]
+    #[inline(always)]
     fn internal_get_own_property(
         self,
         agent: &mut Agent,
@@ -212,6 +217,7 @@ where
     }
 
     /// ## \[\[DefineOwnProperty\]\]
+    #[inline(always)]
     fn internal_define_own_property(
         self,
         agent: &mut Agent,
@@ -362,6 +368,7 @@ where
     /// method cannot be completed without calling into JavaScript, then `None`
     /// is returned. It is preferable to call this method first and only call
     /// the main method if this returns None.
+    #[inline(always)]
     fn try_set(
         self,
         agent: &mut Agent,
@@ -375,6 +382,7 @@ where
     }
 
     /// ## \[\[Set\]\]
+    #[inline(always)]
     fn internal_set(
         self,
         agent: &mut Agent,
@@ -408,6 +416,7 @@ where
     }
 
     /// ## \[\[Delete\]\]
+    #[inline(always)]
     fn internal_delete(
         self,
         agent: &mut Agent,

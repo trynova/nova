@@ -299,7 +299,9 @@ impl ArrayBufferPrototype {
         let Object::ArrayBuffer(new) = construct(
             agent,
             ctor.into_function(),
-            Some(ArgumentsList(&[(new_len as i64).try_into().unwrap()])),
+            Some(ArgumentsList::from_mut_slice(&mut [(new_len as i64)
+                .try_into()
+                .unwrap()])),
             None,
             gc.reborrow(),
         )?

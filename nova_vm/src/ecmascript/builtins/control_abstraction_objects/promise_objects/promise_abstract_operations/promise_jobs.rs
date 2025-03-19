@@ -69,7 +69,10 @@ impl PromiseResolveThenableJob {
             agent,
             then.unbind(),
             thenable.unbind(),
-            Some(ArgumentsList(&[resolve_function, reject_function])),
+            Some(ArgumentsList::from_mut_slice(&mut [
+                resolve_function,
+                reject_function,
+            ])),
             gc.reborrow(),
         );
 
@@ -139,7 +142,7 @@ impl PromiseReactionJob {
                 agent,
                 callback,
                 Value::Undefined,
-                Some(ArgumentsList(&[argument])),
+                Some(ArgumentsList::from_mut_slice(&mut [argument])),
                 gc.reborrow(),
             ),
             PromiseReactionHandler::Await(await_reaction) => {

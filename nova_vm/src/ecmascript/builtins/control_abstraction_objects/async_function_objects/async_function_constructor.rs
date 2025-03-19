@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -54,7 +54,7 @@ impl AsyncFunctionConstructor {
             constructor,
             DynamicFunctionKind::Async,
             parameter_args,
-            body_arg,
+            body_arg.unbind(),
             gc,
         )?
         .into_value())

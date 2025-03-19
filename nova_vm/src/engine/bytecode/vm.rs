@@ -973,12 +973,19 @@ impl<'a> Vm {
                         Value::Undefined
                     } else {
                         // 3. Set val to ? GetValue(val).
-                        with_vm_gc(agent, vm, |agent, gc| get_value(agent, &reference, gc), gc)?
+                        with_vm_gc(
+                            agent,
+                            vm,
+                            |agent, gc| get_value(agent, &reference, gc),
+                            gc.reborrow(),
+                        )?
+                        .unbind()
+                        .bind(gc.nogc())
                     }
                 } else {
                     vm.result.unwrap().bind(gc.nogc())
                 };
-                vm.result = Some(typeof_operator(agent, val).into_value())
+                vm.result = Some(typeof_operator(agent, val, gc.nogc()).into_value())
             }
             Instruction::ObjectCreate => {
                 let object = ordinary_object_create_with_intrinsics(
@@ -1457,7 +1464,7 @@ impl<'a> Vm {
                     }
                 } else {
                     let func = func.unbind();
-                    let args = args.unbind();
+                    let mut args = args.unbind();
                     with_vm_gc(
                         agent,
                         vm,
@@ -1466,7 +1473,7 @@ impl<'a> Vm {
                                 agent,
                                 func,
                                 Value::Undefined,
-                                Some(ArgumentsList(&args)),
+                                Some(ArgumentsList::from_mut_slice(args.as_mut_slice())),
                                 gc,
                             )
                         },
@@ -1500,13 +1507,21 @@ impl<'a> Vm {
                     // a. Let thisValue be undefined.
                     Value::Undefined
                 };
-                let args = vm.get_call_args(instr, gc.nogc()).unbind();
+                let mut args = vm.get_call_args(instr, gc.nogc()).unbind();
                 let func = vm.stack.pop().unwrap().unbind();
                 let this_value = this_value.unbind();
                 let result = with_vm_gc(
                     agent,
                     vm,
-                    |agent, gc| call(agent, func, this_value, Some(ArgumentsList(&args)), gc),
+                    |agent, gc| {
+                        call(
+                            agent,
+                            func,
+                            this_value,
+                            Some(ArgumentsList::from_mut_slice(args.as_mut_slice())),
+                            gc,
+                        )
+                    },
                     gc.reborrow(),
                 )?;
                 vm.result = Some(result.unbind());
@@ -1536,11 +1551,19 @@ impl<'a> Vm {
                 };
 
                 let constructor = constructor.unbind();
-                let args = args.unbind();
+                let mut args = args.unbind();
                 let result = with_vm_gc(
                     agent,
                     vm,
-                    |agent, gc| construct(agent, constructor, Some(ArgumentsList(&args)), None, gc),
+                    |agent, gc| {
+                        construct(
+                            agent,
+                            constructor,
+                            Some(ArgumentsList::from_mut_slice(args.as_mut_slice())),
+                            None,
+                            gc,
+                        )
+                    },
                     gc,
                 )?;
                 vm.result = Some(result.unbind().into_value());
@@ -1589,7 +1612,7 @@ impl<'a> Vm {
                 // 6. Let result be ? Construct(func, argList, newTarget).
                 let result = {
                     let func = func.unbind();
-                    let arg_list = arg_list.unbind();
+                    let mut arg_list = arg_list.unbind();
                     let new_target = new_target.unbind();
                     let result = with_vm_gc(
                         agent,
@@ -1598,7 +1621,7 @@ impl<'a> Vm {
                             construct(
                                 agent,
                                 func,
-                                Some(ArgumentsList(&arg_list)),
+                                Some(ArgumentsList::from_mut_slice(arg_list.as_mut_slice())),
                                 Some(new_target),
                                 gc,
                             )
@@ -2616,7 +2639,7 @@ fn apply_string_or_numeric_binary_operator<'gc>(
 
 /// ### [13.5.3 The typeof operator](https://tc39.es/ecma262/#sec-typeof-operator)
 #[inline]
-fn typeof_operator(_: &mut Agent, val: Value) -> String<'static> {
+fn typeof_operator(agent: &Agent, val: Value, gc: NoGcScope) -> String<'static> {
     match val {
         // 4. If val is undefined, return "undefined".
         Value::Undefined => BUILTIN_STRING_MEMORY.undefined,
@@ -2691,8 +2714,13 @@ fn typeof_operator(_: &mut Agent, val: Value) -> String<'static> {
         Value::BuiltinPromiseResolvingFunction(_) |
         Value::BuiltinPromiseCollectorFunction |
         Value::BuiltinProxyRevokerFunction => BUILTIN_STRING_MEMORY.function,
-        // TODO: Check [[Call]] slot for Proxy
-        Value::Proxy(_) => todo!(),
+        Value::Proxy(proxy) => {
+            if proxy.is_callable(agent, gc) {
+                BUILTIN_STRING_MEMORY.function
+            } else {
+                BUILTIN_STRING_MEMORY.object
+            }
+        },
     }
 }
 
@@ -2742,7 +2770,9 @@ pub(crate) fn instanceof_operator<'a>(
             agent,
             inst_of_handler.unbind(),
             target.into_value(),
-            Some(ArgumentsList(&[value.into_value().unbind()])),
+            Some(ArgumentsList::from_mut_slice(&mut [value
+                .into_value()
+                .unbind()])),
             gc.reborrow(),
         )?;
         Ok(to_boolean(agent, result))

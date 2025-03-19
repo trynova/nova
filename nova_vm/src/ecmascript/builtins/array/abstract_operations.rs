@@ -163,7 +163,7 @@ pub(crate) fn array_species_create<'a>(
     construct(
         agent,
         c.unbind(),
-        Some(ArgumentsList(&[length.unbind()])),
+        Some(ArgumentsList::from_mut_value(&mut length.unbind())),
         None,
         gc,
     )

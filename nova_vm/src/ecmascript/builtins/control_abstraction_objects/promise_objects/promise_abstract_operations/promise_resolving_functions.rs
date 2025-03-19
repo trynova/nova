@@ -256,10 +256,12 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         args: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let arg = args.get(0);
+        let arg = args.get(0).bind(gc.nogc());
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {
-            PromiseResolvingFunctionType::Resolve => promise_capability.resolve(agent, arg, gc),
+            PromiseResolvingFunctionType::Resolve => {
+                promise_capability.resolve(agent, arg.unbind(), gc)
+            }
             PromiseResolvingFunctionType::Reject => promise_capability.reject(agent, arg),
         };
         Ok(Value::Undefined)

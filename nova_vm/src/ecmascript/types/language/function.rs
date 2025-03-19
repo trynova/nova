@@ -635,10 +635,15 @@ impl Function<'_> {
         self,
         agent: &mut Agent,
         this_argument: Value<'static>,
-        args: &[Value<'static>],
+        args: &mut [Value<'static>],
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        self.internal_call(agent, this_argument, ArgumentsList(args), gc)
+        self.internal_call(
+            agent,
+            this_argument,
+            ArgumentsList::from_mut_slice(args),
+            gc,
+        )
     }
 }
 

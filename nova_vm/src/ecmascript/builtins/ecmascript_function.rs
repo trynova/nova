@@ -553,6 +553,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     ) -> JsResult<Object<'gc>> {
         let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
+        let mut arguments_list = arguments_list.bind(gc.nogc());
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self_fn]
             .ecmascript_function
@@ -563,16 +564,26 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             let scoped_self_fn = self_fn.scope(agent, gc.nogc());
             let scoped_new_target = new_target.scope(agent, gc.nogc());
             // a. Let thisArgument be ? OrdinaryCreateFromConstructor(newTarget, "%Object.prototype%").
-            let this_argument = ordinary_create_from_constructor(
-                agent,
-                new_target.unbind(),
-                ProtoIntrinsics::Object,
-                gc.reborrow(),
-            )?
-            .unbind()
-            .bind(gc.nogc());
+            let unbound_new_target = new_target.unbind();
+            let mut args = arguments_list.unbind();
+            let this_argument = args
+                .with_scoped(
+                    agent,
+                    |agent, gc| {
+                        ordinary_create_from_constructor(
+                            agent,
+                            unbound_new_target,
+                            ProtoIntrinsics::Object,
+                            gc,
+                        )
+                    },
+                    gc.reborrow(),
+                )?
+                .unbind()
+                .bind(gc.nogc());
             self_fn = scoped_self_fn.get(agent).bind(gc.nogc());
             new_target = scoped_new_target.get(agent).bind(gc.nogc());
+            arguments_list = args.bind(gc.nogc());
             Some(this_argument)
         } else {
             None
@@ -614,8 +625,12 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         let scoped_this_argument = this_argument.map(|f| f.scope(agent, gc.nogc()));
 
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
-        let result =
-            ordinary_call_evaluate_body(agent, self_fn.unbind(), arguments_list, gc.reborrow());
+        let result = ordinary_call_evaluate_body(
+            agent,
+            self_fn.unbind(),
+            arguments_list.unbind(),
+            gc.reborrow(),
+        );
         // 9. Remove calleeContext from the execution context stack and restore
         //    callerContext as the running execution context.
         agent.execution_context_stack.pop();

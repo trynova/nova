@@ -2,12 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use core::ops::{Deref, Index, IndexMut};
+use core::{
+    marker::PhantomData,
+    ops::{Deref, Index, IndexMut},
+};
 
-use crate::ecmascript::types::{function_try_get, function_try_has_property, function_try_set};
-use crate::engine::context::{Bindable, GcScope, NoGcScope};
-use crate::engine::rootable::{HeapRootData, HeapRootRef, Rootable};
-use crate::engine::{Scoped, TryResult};
 use crate::{
     ecmascript::{
         execution::{
@@ -21,8 +20,13 @@ use crate::{
             function_create_backing_object, function_internal_define_own_property,
             function_internal_delete, function_internal_get, function_internal_get_own_property,
             function_internal_has_property, function_internal_own_property_keys,
-            function_internal_set,
+            function_internal_set, function_try_get, function_try_has_property, function_try_set,
         },
+    },
+    engine::{
+        Scoped, TryResult,
+        context::{Bindable, GcScope, NoGcScope},
+        rootable::{HeapRootCollectionData, HeapRootData, HeapRootRef, Rootable},
     },
     heap::{
         CompactionLists, CreateHeapData, Heap, HeapMarkAndSweep, IntrinsicConstructorIndexes,
@@ -31,21 +35,175 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ArgumentsList<'a>(pub(crate) &'a [Value<'static>]);
+#[derive(Debug, Default)]
+#[repr(transparent)]
+pub struct ArgumentsList<'slice, 'value> {
+    slice: &'slice mut [Value<'static>],
+    value: PhantomData<Value<'value>>,
+}
 
-impl<'a> Deref for ArgumentsList<'a> {
-    type Target = &'a [Value<'static>];
+impl<'slice, 'value> ArgumentsList<'slice, 'value> {
+    /// Create an ArgumentsList from a single Value.
+    pub fn from_mut_value(value: &'slice mut Value<'value>) -> Self {
+        Self {
+            // SAFETY: The Value lifetime is moved over to the PhantomData.
+            slice: core::slice::from_mut(unsafe {
+                core::mem::transmute::<&'slice mut Value<'value>, &'slice mut Value<'static>>(value)
+            }),
+            value: PhantomData,
+        }
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+    /// Create an ArgumentsList from a Value slice.
+    pub fn from_mut_slice(slice: &'slice mut [Value<'value>]) -> Self {
+        Self {
+            // SAFETY: The Value lifetime is moved over to the PhantomData.
+            slice: unsafe {
+                core::mem::transmute::<&'slice mut [Value<'value>], &'slice mut [Value<'static>]>(
+                    slice,
+                )
+            },
+            value: PhantomData,
+        }
+    }
+
+    pub fn with_scoped<'a, R>(
+        &mut self,
+        agent: &mut Agent,
+        work: impl FnOnce(&mut Agent, GcScope<'a, '_>) -> R,
+        mut gc: GcScope<'a, '_>,
+    ) -> R
+    where
+        R: 'a,
+    {
+        if cfg!(feature = "interleaved-gc") {
+            // First take the arguments from ArgumentsList. Note: This is
+            // strictly extra work from a computational standpoint, but makes
+            // the code safer from a memory stand point. Any errors will also
+            // become more obvious.
+            let slice = core::mem::take(&mut self.slice);
+            // SAFETY: We push the slice to the heap temporarily, for which we
+            // need to transmute its lifetime to static. This is strictly not
+            // correct: The slice points either to the stack or to a Vec owned
+            // by an above call frame. But! We give our best possible guarantee
+            // that the slice will be taken out of the heap before the end of
+            // this call. As long as that holds, then this is all perfectly
+            // legal. Note that unwinding of panics will break that guarantee
+            // currently.
+            let slice = unsafe {
+                std::mem::transmute::<&mut [Value<'static>], &'static mut [Value<'static>]>(slice)
+            };
+            // We store the slice's data for validity checking later.
+            let slice_ptr = slice.as_mut_ptr();
+            let slice_len = slice.len();
+            // Now we push the slice onto the heap.
+            let len = {
+                let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
+                let len = stack_ref_collections.len();
+                stack_ref_collections.push(HeapRootCollectionData::ArgumentsList(slice));
+                // Elsewhere we make assumptions about the size of the stack.
+                // Thus check it here as well.
+                u32::try_from(len).unwrap()
+            };
+            // Once the slice is on the heap, we can perform the user's work.
+            let result = work(agent, gc.subscope());
+            // After the user's work is done, we can get to work returning the
+            // slice from the heap.
+            let stack_data = {
+                // We look at the slot where we put the slice in and check that
+                // it contains an arguments list.
+                let mut stack_ref_collections = agent.stack_ref_collections.borrow_mut();
+                debug_assert!(stack_ref_collections.len() >= len as usize);
+                let stack_slot = &mut stack_ref_collections[len as usize];
+                if !matches!(stack_slot, HeapRootCollectionData::ArgumentsList(_)) {
+                    unreachable!()
+                }
+                // We take the slice back from the heap by replacing the data
+                // with an empty collection, and then truncate the heap stack
+                // to its previous size.
+                let stack_data = core::mem::replace(stack_slot, HeapRootCollectionData::Empty);
+                stack_ref_collections.truncate(len as usize);
+                stack_data
+            };
+            let HeapRootCollectionData::ArgumentsList(slice) = stack_data else {
+                unreachable!()
+            };
+            // Confirm that we have the right slice and that no funny business
+            // has occurred.
+            assert_eq!(slice.as_mut_ptr(), slice_ptr);
+            assert_eq!(slice.len(), slice_len);
+            // Now that we have our slice back, we can place it back where it
+            // came from. The end result is that the slice has temporarily been
+            // held by the heap and has been given back to the caller. While
+            // the heap held it, the caller couldn't have done so, and thus the
+            // exclusive reference requirement cannot have been broken by this
+            // method.
+            // The only thing we can break here is the lifetime requirement,
+            // and that is only possible if the user method panicked and that
+            // panic was caught and recovered from above us. ie. We're not
+            // panic safe currently.
+            debug_assert!(core::mem::replace(&mut self.slice, slice).is_empty());
+            result
+        } else {
+            work(agent, gc)
+        }
+    }
+
+    pub(crate) fn slice_from(self, start: usize) -> ArgumentsList<'slice, 'value> {
+        ArgumentsList {
+            slice: &mut self.slice[start..],
+            value: PhantomData,
+        }
+    }
+
+    /// Access the Values in an ArgumentsList as a slice.
+    pub fn as_slice(&self) -> &[Value<'value>] {
+        self.slice
+    }
+
+    pub(crate) fn into_raw_parts_mut(self) -> (*mut Value<'static>, usize) {
+        (self.slice.as_mut_ptr(), self.slice.len())
+    }
+
+    /// Get a Value by index from an ArgumentsList.
+    ///
+    /// If a Value with that index isn't present, `undefined` is returned.
+    #[inline]
+    pub fn get(&self, index: usize) -> Value<'value> {
+        *self.slice.get(index).unwrap_or(&Value::Undefined)
+    }
+
+    /// Get a Value by index from an ArgumentsList if present.
+    ///
+    /// If a Value with that index isn't present, None.
+    #[inline]
+    pub fn get_if_present(&self, index: usize) -> Option<Value<'value>> {
+        self.slice.get(index).copied()
     }
 }
 
-impl ArgumentsList<'_> {
-    #[inline]
-    pub fn get(&self, index: usize) -> Value {
-        *self.0.get(index).unwrap_or(&Value::Undefined)
+// SAFETY: Properly implemented as a lifetime transmute.
+unsafe impl<'slice> Bindable for ArgumentsList<'slice, '_> {
+    type Of<'a> = ArgumentsList<'slice, 'a>;
+
+    fn unbind(self) -> Self::Of<'static> {
+        unsafe {
+            core::mem::transmute::<ArgumentsList<'slice, '_>, ArgumentsList<'slice, 'static>>(self)
+        }
+    }
+
+    fn bind<'a>(self, _gc: NoGcScope<'a, '_>) -> Self::Of<'a> {
+        unsafe {
+            core::mem::transmute::<ArgumentsList<'slice, '_>, ArgumentsList<'slice, 'a>>(self)
+        }
+    }
+}
+
+impl<'value> Deref for ArgumentsList<'_, 'value> {
+    type Target = [Value<'value>];
+
+    fn deref(&self) -> &Self::Target {
+        self.slice
     }
 }
 
@@ -429,7 +587,9 @@ pub(crate) fn builtin_call_or_construct<'gc>(
     gc: GcScope<'gc, '_>,
 ) -> JsResult<Value<'gc>> {
     let f = f.bind(gc.nogc());
-    let new_target = new_target.map(|f| f.bind(gc.nogc()));
+    let this_argument = this_argument.bind(gc.nogc());
+    let arguments_list = arguments_list.bind(gc.nogc());
+    let new_target = new_target.bind(gc.nogc());
     // 1. Let callerContext be the running execution context.
     let caller_context = agent.running_execution_context();
     // 2. If callerContext is not already suspended, suspend callerContext.
@@ -472,16 +632,16 @@ pub(crate) fn builtin_call_or_construct<'gc>(
             } else {
                 func(
                     agent,
-                    this_argument.unwrap_or(Value::Undefined),
-                    arguments_list,
+                    this_argument.unwrap_or(Value::Undefined).unbind(),
+                    arguments_list.unbind(),
                     gc,
                 )
             }
         }
         Behaviour::Constructor(func) => func(
             agent,
-            this_argument.unwrap_or(Value::Undefined),
-            arguments_list,
+            this_argument.unwrap_or(Value::Undefined).unbind(),
+            arguments_list.unbind(),
             new_target.map(|target| target.into_object().unbind()),
             gc,
         ),

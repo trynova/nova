@@ -143,7 +143,7 @@ impl FunctionPrototype {
             agent,
             func.get(agent),
             this_arg.get(agent),
-            Some(ArgumentsList(&args_list.unbind())),
+            Some(ArgumentsList::from_mut_slice(&mut args_list.unbind())),
             gc,
         )
     }
@@ -169,6 +169,7 @@ impl FunctionPrototype {
         let this_value = this_value.bind(gc.nogc());
         let this_arg = args.get(0).bind(gc.nogc());
         let args = if args.len() > 1 { &args[1..] } else { &[] };
+        let args_len = args.len();
         // 1. Let Target be the this value.
         let target = this_value;
         // 2. If IsCallable(Target) is false, throw a TypeError exception.
@@ -245,7 +246,7 @@ impl FunctionPrototype {
                 match target_len {
                     Number::Integer(target_len) => {
                         // 3. Let argCount be the number of elements in args.
-                        let arg_count = args.len();
+                        let arg_count = args_len;
                         // 4. Set L to max(targetLenAsInt - argCount, 0).
                         l = 0.max(target_len.into_i64() - arg_count as i64) as usize;
                     }
@@ -266,7 +267,7 @@ impl FunctionPrototype {
                                     .into_i64();
                             // 2. Assert: targetLenAsInt is finite.
                             // 3. Let argCount be the number of elements in args.
-                            let arg_count = args.len();
+                            let arg_count = args_len;
                             // 4. Set L to max(targetLenAsInt - argCount, 0).
                             l = 0.max(target_len_as_int - arg_count as i64) as usize;
                         }
@@ -327,7 +328,11 @@ impl FunctionPrototype {
             ));
         };
         // TODO: PrepareForTailCall
-        let args = ArgumentsList(if args.len() > 0 { &args[1..] } else { &args });
+        let args = if args.len() > 0 {
+            args.slice_from(1)
+        } else {
+            args
+        };
         call_function(agent, func.unbind(), this_arg.unbind(), Some(args), gc)
     }
 

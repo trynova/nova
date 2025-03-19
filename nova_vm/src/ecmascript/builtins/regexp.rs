@@ -136,6 +136,7 @@ impl<'a> InternalSlots<'a> for RegExp<'a> {
         backing_object
     }
 
+    #[inline(always)]
     fn get_backing_object(self, agent: &Agent) -> Option<OrdinaryObject<'static>> {
         agent[self].object_index
     }

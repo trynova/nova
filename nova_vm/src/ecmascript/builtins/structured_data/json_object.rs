@@ -321,7 +321,7 @@ fn internalize_json_property<'gc, 'a>(
         agent,
         reviver.get(agent),
         holder.get(agent).into_value(),
-        Some(ArgumentsList(&[name, val])),
+        Some(ArgumentsList::from_mut_slice(&mut [name, val])),
         gc,
     )
 }

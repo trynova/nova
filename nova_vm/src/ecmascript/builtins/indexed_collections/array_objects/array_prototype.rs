@@ -368,7 +368,7 @@ impl ArrayPrototype {
         let nogc = gc.nogc();
         let this_value = this_value.bind(nogc);
         let mut items = items
-            .0
+            .as_slice()
             .iter()
             .map(|i| i.scope(agent, gc.nogc()))
             .collect::<Vec<_>>();
@@ -794,7 +794,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList(&[k_value.unbind(), f_k])),
+                    Some(ArgumentsList::from_mut_slice(&mut [k_value.unbind(), f_k])),
                     gc.reborrow(),
                 )?;
                 let test_result = to_boolean(agent, test_result);
@@ -1025,7 +1025,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
@@ -1347,7 +1347,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
@@ -1916,7 +1916,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
@@ -2247,7 +2247,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     Value::Undefined,
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         accumulator.get(agent),
                         k_value.unbind(),
                         Number::from(k_int).into_value(),
@@ -2405,7 +2405,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     Value::Undefined,
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         accumulator.get(agent),
                         k_value.unbind(),
                         Number::try_from(k).unwrap().into(),
@@ -2979,7 +2979,7 @@ impl ArrayPrototype {
                     agent,
                     callback_fn.get(agent),
                     this_arg.get(agent),
-                    Some(ArgumentsList(&[
+                    Some(ArgumentsList::from_mut_slice(&mut [
                         k_value.unbind(),
                         k.try_into().unwrap(),
                         o.get(agent).into_value(),
@@ -3502,7 +3502,7 @@ impl ArrayPrototype {
                 slice[..arg_count].copy_from_slice(unsafe {
                     // SAFETY: Option<Value> is an extra variant of the Value enum.
                     // The transmute effectively turns Value into Some(Value).
-                    core::mem::transmute::<&[Value], &[Option<Value>]>(items.0)
+                    core::mem::transmute::<&[Value], &[Option<Value>]>(items.as_slice())
                 });
                 return Ok(final_len.unwrap().into());
             }
@@ -3917,7 +3917,7 @@ pub(crate) fn find_via_predicate<'gc, T: 'static + Rootable + InternalMethods<'s
             agent,
             predicate.get(agent),
             this_arg.get(agent),
-            Some(ArgumentsList(&[
+            Some(ArgumentsList::from_mut_slice(&mut [
                 k_value.unbind(),
                 Number::try_from(k).unwrap().into_value(),
                 o.get(agent).into_value(),
@@ -4015,7 +4015,7 @@ fn flatten_into_array(
                 agent,
                 mapper_function.get(agent),
                 this_arg.as_ref().unwrap().get(agent),
-                Some(ArgumentsList(&[
+                Some(ArgumentsList::from_mut_slice(&mut [
                     element.unbind(),
                     source_index_number.into_value(),
                     source.get(agent).into_value(),
@@ -4232,7 +4232,7 @@ fn compare_array_elements(
             agent,
             comparator.get(agent),
             Value::Undefined,
-            Some(ArgumentsList(&[x.unbind(), y.unbind()])),
+            Some(ArgumentsList::from_mut_slice(&mut [x.unbind(), y.unbind()])),
             gc.reborrow(),
         )?;
         let v = to_number(agent, v.unbind(), gc.reborrow())?;

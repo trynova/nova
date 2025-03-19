@@ -7,10 +7,12 @@ use core::marker::PhantomData;
 use crate::{
     ecmascript::execution::Agent,
     engine::{
-        context::{Bindable, NoGcScope},
+        context::{Bindable, NoGcScope, ScopeToken},
         rootable::{HeapRootRef, Rootable},
     },
 };
+
+use super::RootableCollection;
 
 /// # Scoped heap root
 ///
@@ -26,7 +28,7 @@ use crate::{
 pub struct Scoped<'a, T: 'static + Rootable> {
     pub(crate) inner: T::RootRepr,
     _marker: PhantomData<T>,
-    _scope: PhantomData<&'a ()>,
+    _scope: PhantomData<&'a ScopeToken>,
 }
 
 impl<T: 'static + Rootable> Scoped<'static, T> {
@@ -271,6 +273,30 @@ impl<'scope, T: Rootable> Scoped<'scope, T> {
         *heap_slot = heap_data;
         Self {
             inner: T::from_heap_ref(heap_root_ref),
+            _marker: PhantomData,
+            _scope: PhantomData,
+        }
+    }
+}
+
+/// # Scoped heap root collection
+#[derive(Debug, Hash, Clone)]
+#[repr(transparent)]
+pub struct ScopedCollection<'a, T: 'static + RootableCollection> {
+    /// Index to Agent's stack_ref_collections
+    pub(crate) inner: u32,
+    _marker: PhantomData<T>,
+    _scope: PhantomData<&'a ScopeToken>,
+}
+
+impl<'a, T: 'static + RootableCollection> ScopedCollection<'a, T> {
+    pub(crate) fn new(agent: &mut Agent, rootable: T, _gc: NoGcScope<'_, 'a>) -> Self {
+        let heap_data = rootable.to_heap_data();
+        let inner = u32::try_from(agent.stack_ref_collections.borrow().len())
+            .expect("ScopedCollections stack overflowed");
+        agent.stack_ref_collections.borrow_mut().push(heap_data);
+        Self {
+            inner,
             _marker: PhantomData,
             _scope: PhantomData,
         }

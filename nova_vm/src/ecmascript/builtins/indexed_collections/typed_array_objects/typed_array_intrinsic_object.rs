@@ -654,7 +654,7 @@ impl TypedArrayPrototype {
                 agent,
                 callback.get(agent),
                 this_arg.get(agent),
-                Some(ArgumentsList(&[
+                Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
                     Number::try_from(k).unwrap().into_value(),
                     o.into_value().unbind(),
@@ -934,7 +934,7 @@ impl TypedArrayPrototype {
                 agent,
                 callback.get(agent),
                 this_arg.get(agent),
-                Some(ArgumentsList(&[
+                Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
                     fk.unbind(),
                     o.into_value().unbind(),
@@ -1920,7 +1920,7 @@ impl TypedArrayPrototype {
                 agent,
                 callback.get(agent),
                 this_arg.get(agent),
-                Some(ArgumentsList(&[
+                Some(ArgumentsList::from_mut_slice(&mut [
                     k_value.unbind(),
                     Number::try_from(k).unwrap().into_value().unbind(),
                     o.into_value().unbind(),
