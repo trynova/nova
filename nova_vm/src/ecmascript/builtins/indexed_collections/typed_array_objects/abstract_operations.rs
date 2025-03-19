@@ -1171,17 +1171,34 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     mut gc: GcScope,
 ) -> JsResult<TypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
-    let arguments = arguments.bind(gc.nogc());
     let first_arg = if arguments.len() == 1 && arguments[0].is_number() {
         Some(Number::try_from(arguments[0]).unwrap().into_i64(agent))
     } else {
         None
     };
+    typed_array_create_from_constructor_with_length(
+        agent,
+        constructor.unbind(),
+        first_arg,
+        gc.reborrow(),
+    )
+}
+
+pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    length: Option<i64>,
+    mut gc: GcScope,
+) -> JsResult<TypedArray<'a>> {
+    let constructor = constructor.bind(gc.nogc());
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
         constructor.unbind(),
-        Some(arguments.unbind()),
+        Some(ArgumentsList::from_mut_slice(&mut [Value::try_from(
+            length.unwrap(),
+        )
+        .unwrap()])),
         None,
         gc.reborrow(),
     )?;
@@ -1195,7 +1212,7 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     let o = ta_record.object;
     let scoped_o = o.scope(agent, gc.nogc());
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
-    if let Some(first_arg) = first_arg {
+    if let Some(first_arg) = length {
         let o = scoped_o.get(agent);
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
         if match o {

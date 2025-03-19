@@ -46,7 +46,7 @@ use crate::{
 
 use super::abstract_operations::{
     is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
-    typed_array_byte_length, typed_array_create_from_constructor, typed_array_length,
+    typed_array_byte_length, typed_array_create_from_constructor_with_length, typed_array_length,
     validate_typed_array,
 };
 
@@ -135,14 +135,9 @@ impl TypedArrayIntrinsicObject {
             ));
         };
         // 4. Let newObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
-        let len = len.to_i64().unwrap();
-        let len_value = Value::try_from(len).unwrap();
-        let new_obj = typed_array_create_from_constructor(
-            agent,
-            c,
-            ArgumentsList(&[len_value]),
-            gc.reborrow(),
-        )?;
+        let len = len.to_i64();
+        let new_obj =
+            typed_array_create_from_constructor_with_length(agent, c, len, gc.reborrow())?;
         // 5. Let k be 0.
         // 6. Repeat, while k < len,
         for (k, &k_value) in arguments.into_iter().enumerate() {
