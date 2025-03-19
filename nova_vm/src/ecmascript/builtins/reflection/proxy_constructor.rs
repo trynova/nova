@@ -5,7 +5,7 @@
 use crate::ecmascript::builtins::proxy::proxy_create;
 use crate::ecmascript::execution::agent::ExceptionType;
 use crate::ecmascript::types::IntoValue;
-use crate::engine::context::GcScope;
+use crate::engine::context::{Bindable, GcScope};
 use crate::{
     ecmascript::{
         builders::builtin_function_builder::BuiltinFunctionBuilder,
@@ -47,8 +47,8 @@ impl ProxyConstructor {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
-        let target = arguments.get(0);
-        let handler = arguments.get(1);
+        let target = arguments.get(0).bind(gc);
+        let handler = arguments.get(1).bind(gc);
         // 1. If NewTarget is undefined, throw a TypeError exception.
         if new_target.is_none() {
             return Err(agent.throw_exception_with_static_message(

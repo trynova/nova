@@ -499,10 +499,12 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let x = arguments.get(0).bind(gc.nogc());
+        let y = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let ny be ? ToNumber(y).
-        let ny = to_number(agent, arguments.get(0), gc.reborrow())?.into_f64(agent);
+        let ny = to_number(agent, x.unbind(), gc.reborrow())?.into_f64(agent);
         // 2. Let nx be ? ToNumber(x).
-        let nx = to_number(agent, arguments.get(1), gc.reborrow())?.into_f64(agent);
+        let nx = to_number(agent, y.get(agent), gc.reborrow())?.into_f64(agent);
 
         // 3. If ny is NaN or nx is NaN, return NaN.
         if ny.is_nan() || nx.is_nan() {
@@ -662,14 +664,14 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let n = arguments.get(0);
+        let n = arguments.get(0).bind(gc.nogc());
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
             return Ok(n.unbind());
         }
 
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, n, gc.reborrow())?;
+        let n = to_number(agent, n.unbind(), gc.reborrow())?;
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
@@ -824,7 +826,7 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let n = arguments.get(0);
+        let n = arguments.get(0).bind(gc.nogc());
 
         // 4. If n is an integral Number, return n.
         if n.is_integer() {
@@ -832,7 +834,7 @@ impl MathObject {
         }
 
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, n, gc.reborrow())?;
+        let n = to_number(agent, n.unbind(), gc.reborrow())?;
 
         // 4. If n is an integral Number, return n.
         if n.is_integer(agent) {
@@ -946,17 +948,20 @@ impl MathObject {
         ))
     }
 
+    /// ### [21.3.2.20 Math.imul ( x, y )](https://tc39.es/ecma262/#sec-math.imul)
     fn imul<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let x = arguments.get(0).bind(gc.nogc());
+        let y = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let a be ℝ(? ToUint32(x)).
-        let a = to_uint32(agent, arguments.get(0), gc.reborrow())?;
+        let a = to_uint32(agent, x.unbind(), gc.reborrow())?;
 
         // 2. Let b be ℝ(? ToUint32(y)).
-        let b = to_uint32(agent, arguments.get(1), gc.reborrow())?;
+        let b = to_uint32(agent, y.get(agent), gc.reborrow())?;
 
         // 3. Let product be (a × b) modulo 2**32.
         let product = a.wrapping_mul(b);
@@ -1291,8 +1296,8 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let base = arguments.get(0);
-        let exponent = arguments.get(1);
+        let base = arguments.get(0).bind(gc.nogc());
+        let exponent = arguments.get(1).bind(gc.nogc());
         let (base, exponent) = if let (Ok(base), Ok(exponent)) =
             (Number::try_from(base), Number::try_from(exponent))
         {
@@ -1305,7 +1310,7 @@ impl MathObject {
             (base.bind(gc.nogc()), exponent.bind(gc.nogc()))
         } else {
             let exponent = exponent.scope(agent, gc.nogc());
-            let base = to_number(agent, base, gc.reborrow())?
+            let base = to_number(agent, base.unbind(), gc.reborrow())?
                 .unbind()
                 .scope(agent, gc.nogc());
             let exponent = to_number(agent, exponent.get(agent), gc.reborrow())?.unbind();
@@ -1361,12 +1366,12 @@ impl MathObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let n = arguments.get(0);
+        let n = arguments.get(0).bind(gc.nogc());
         if n.is_integer() {
             return Ok(n.unbind());
         }
         // 1. Let n be ? ToNumber(x).
-        let n = to_number(agent, n, gc.reborrow())?;
+        let n = to_number(agent, n.unbind(), gc.reborrow())?;
 
         // 2. If n is not finite or n is an integral Number, return n.
         if !n.is_finite(agent) || n.is_integer(agent) {
@@ -1623,7 +1628,7 @@ impl MathObject {
             operations_on_objects::throw_not_callable,
         };
 
-        let items = arguments.get(0);
+        let items = arguments.get(0).bind(gc.nogc());
 
         // 1. Perform ? RequireObjectCoercible(items).
         require_object_coercible(agent, items, gc.nogc())?;
@@ -1632,7 +1637,7 @@ impl MathObject {
         let Some(IteratorRecord {
             iterator,
             next_method,
-        }) = get_iterator(agent, items, false, gc.reborrow())?
+        }) = get_iterator(agent, items.unbind(), false, gc.reborrow())?
             .unbind()
             .bind(gc.nogc())
         else {

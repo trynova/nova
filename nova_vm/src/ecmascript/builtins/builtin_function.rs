@@ -151,7 +151,10 @@ impl<'slice, 'value> ArgumentsList<'slice, 'value> {
 
     pub(crate) fn slice_from(self, start: usize) -> ArgumentsList<'slice, 'value> {
         ArgumentsList {
-            slice: &mut self.slice[start..],
+            slice: self
+                .slice
+                .split_at_mut_checked(start)
+                .map_or(&mut [], |(_, tail)| tail),
             value: PhantomData,
         }
     }

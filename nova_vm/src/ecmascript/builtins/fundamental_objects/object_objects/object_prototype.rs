@@ -101,12 +101,12 @@ impl ObjectPrototype {
         arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let v = arguments.get(0);
+        let v = arguments.get(0).bind(gc.nogc());
         let Ok(v) = Object::try_from(v) else {
             return Ok(false.into());
         };
         let o = to_object(agent, this_value, gc.nogc())?;
-        let result = is_prototype_of_loop(agent, o.unbind(), v, gc)?;
+        let result = is_prototype_of_loop(agent, o.unbind(), v.unbind(), gc)?;
         Ok(result.into())
     }
 

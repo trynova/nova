@@ -1547,13 +1547,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
     fn internal_call<'gc>(
         self,
         agent: &mut Agent,
-        _: Value,
-        arguments: ArgumentsList,
+        this_argument: Value,
+        arguments_list: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let nogc = gc.nogc();
-        let mut this_argument = arguments.get(1).bind(nogc);
-        let mut arguments_list = arguments.get(2).bind(nogc);
+        let mut this_argument = this_argument.bind(nogc);
+        let mut arguments_list = arguments_list.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
         // 3. Let handler be O.[[ProxyHandler]].
@@ -1571,20 +1571,24 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             let scoped_handler = handler.scope(agent, nogc);
             let scoped_target = target.scope(agent, nogc);
             let scoped_this_argument = this_argument.scope(agent, nogc);
-            let scoped_arguments_list = arguments_list.scope(agent, nogc);
-            let trap = get_object_method(
-                agent,
-                handler.unbind(),
-                BUILTIN_STRING_MEMORY.apply.into(),
-                gc.reborrow(),
-            )?
-            .map(Function::unbind);
+            let mut args = arguments_list.unbind();
+            let trap = {
+                let handler = handler.unbind();
+                args.with_scoped(
+                    agent,
+                    |agent, gc| {
+                        get_object_method(agent, handler, BUILTIN_STRING_MEMORY.apply.into(), gc)
+                    },
+                    gc.reborrow(),
+                )?
+                .unbind()
+            };
             let gc = gc.nogc();
             let trap = trap.map(|f| f.bind(gc));
             handler = scoped_handler.get(agent).bind(gc);
             target = scoped_target.get(agent).bind(gc);
             this_argument = scoped_this_argument.get(agent).bind(gc);
-            arguments_list = scoped_arguments_list.get(agent).bind(gc);
+            arguments_list = args.bind(gc);
             trap
         };
         // 6. If trap is undefined, then
@@ -1594,14 +1598,12 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
                 agent,
                 target.into_value().unbind(),
                 this_argument.unbind(),
-                Some(ArgumentsList::from_mut_slice(
-                    &mut [arguments_list.unbind()],
-                )),
+                Some(arguments_list.unbind()),
                 gc,
             );
         };
         // 7. Let argArray be CreateArrayFromList(argumentsList).
-        let arg_array = create_array_from_list(agent, &[arguments_list], gc.nogc());
+        let arg_array = create_array_from_list(agent, arguments_list.as_slice(), gc.nogc());
         // 8. Return ? Call(trap, handler, « target, thisArgument, argArray »).
         call_function(
             agent,
@@ -1624,6 +1626,7 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Object<'gc>> {
         let nogc = gc.nogc();
+        let mut arguments_list = arguments_list.bind(gc.nogc());
         let mut new_target = new_target.bind(nogc);
         // 1. Perform ? ValidateNonRevokedProxy(O).
         // 2. Let target be O.[[ProxyTarget]].
@@ -1644,18 +1647,29 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             let scoped_new_target = new_target.scope(agent, nogc);
             let scoped_target = target.scope(agent, nogc);
             let scoped_handler = handler.scope(agent, nogc);
-            let trap = get_object_method(
-                agent,
-                handler.unbind(),
-                BUILTIN_STRING_MEMORY.construct.into(),
-                gc.reborrow(),
-            )?
-            .map(Function::unbind);
+            let mut args = arguments_list.unbind();
+            let trap = {
+                let handler = handler.unbind();
+                args.with_scoped(
+                    agent,
+                    |agent, gc| {
+                        get_object_method(
+                            agent,
+                            handler,
+                            BUILTIN_STRING_MEMORY.construct.into(),
+                            gc,
+                        )
+                    },
+                    gc.reborrow(),
+                )
+            }?
+            .unbind();
             let gc = gc.nogc();
             let trap = trap.map(|f| f.bind(gc));
             new_target = scoped_new_target.get(agent).bind(gc);
             target = scoped_target.get(agent).bind(gc);
             handler = scoped_handler.get(agent).bind(gc);
+            arguments_list = args.bind(gc);
             trap
         };
         // 7. If trap is undefined, then
@@ -1664,13 +1678,13 @@ impl<'a> InternalMethods<'a> for Proxy<'a> {
             return construct(
                 agent,
                 target.unbind(),
-                Some(arguments_list),
+                Some(arguments_list.unbind()),
                 Some(new_target.unbind()),
                 gc,
             );
         };
         // 8. Let argArray be CreateArrayFromList(argumentsList).
-        let arg_array = create_array_from_list(agent, &arguments_list, gc.nogc());
+        let arg_array = create_array_from_list(agent, arguments_list.as_slice(), gc.nogc());
         // 9. Let newObj be ? Call(trap, handler, « target, argArray, newTarget »).
         let new_obj = call_function(
             agent,

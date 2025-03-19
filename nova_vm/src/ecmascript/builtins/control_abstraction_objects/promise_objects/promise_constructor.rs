@@ -274,13 +274,17 @@ impl PromiseConstructor {
         Ok(Promise::resolve(agent, arguments.get(0), gc).into_value())
     }
 
-    /// Defined in the [`Promise.try` proposal](https://tc39.es/proposal-promise-try)
+    /// ### [1 Promise.try ( callbackfn, ...args )](https://tc39.es/proposal-promise-try)
+    ///
+    /// `Promise.try` proposal.
     fn r#try<'gc>(
         agent: &mut Agent,
         this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let callback_fn = arguments.get(0).bind(gc.nogc());
+        let args = arguments.slice_from(1).bind(gc.nogc());
         // 1. Let C be the this value.
         // 2. If C is not an Object, throw a TypeError exception.
         if is_constructor(agent, this_value).is_none() {
@@ -300,9 +304,9 @@ impl PromiseConstructor {
         // 4. Let status be Completion(Call(callbackfn, undefined, args)).
         let status = call(
             agent,
-            arguments.get(0),
+            callback_fn.unbind(),
             Value::Undefined,
-            Some(arguments.slice_from(1)),
+            Some(args.unbind()),
             gc.reborrow(),
         );
         let promise = match status {

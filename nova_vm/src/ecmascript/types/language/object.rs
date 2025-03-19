@@ -3576,18 +3576,14 @@ impl<'a> InternalMethods<'a> for Object<'a> {
         self,
         agent: &mut Agent,
         this_value: Value,
-        arguments_list: ArgumentsList,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         match self {
-            Object::BoundFunction(data) => {
-                data.internal_call(agent, this_value, arguments_list, gc)
-            }
-            Object::BuiltinFunction(data) => {
-                data.internal_call(agent, this_value, arguments_list, gc)
-            }
+            Object::BoundFunction(data) => data.internal_call(agent, this_value, arguments, gc),
+            Object::BuiltinFunction(data) => data.internal_call(agent, this_value, arguments, gc),
             Object::ECMAScriptFunction(data) => {
-                data.internal_call(agent, this_value, arguments_list, gc)
+                data.internal_call(agent, this_value, arguments, gc)
             }
             Object::EmbedderObject(_) => todo!(),
             _ => unreachable!(),
@@ -3597,19 +3593,19 @@ impl<'a> InternalMethods<'a> for Object<'a> {
     fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Object<'gc>> {
         match self {
             Object::BoundFunction(data) => {
-                data.internal_construct(agent, arguments_list, new_target, gc)
+                data.internal_construct(agent, arguments, new_target, gc)
             }
             Object::BuiltinFunction(data) => {
-                data.internal_construct(agent, arguments_list, new_target, gc)
+                data.internal_construct(agent, arguments, new_target, gc)
             }
             Object::ECMAScriptFunction(data) => {
-                data.internal_construct(agent, arguments_list, new_target, gc)
+                data.internal_construct(agent, arguments, new_target, gc)
             }
             _ => unreachable!(),
         }

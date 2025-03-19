@@ -325,10 +325,12 @@ impl<'a> InternalMethods<'a> for BoundFunction<'a> {
             // arguments list without changes to the bound function.
             call_function(agent, target, bound_this, Some(arguments_list.unbind()), gc)
         } else {
-            // Note: We currently cannot optimise against an empty arguments
-            // list, as we must create a Vec from the bound_args ElementsVector
-            // in any case to use it as arguments. A slice pointing to it would
-            // be unsound as calling to JS may invalidate the slice pointer.
+            // Note: We cannot optimise against an empty arguments list, as we
+            // must create a Vec from the bound_args ElementsVector in any case
+            // to use it as arguments. A slice pointing to it would be unsound
+            // as calling to JS may invalidate the slice pointer. Arguments
+            // must also be given as exclusive slice, which we couldn't provide
+            // if we were basing it on the ElementsVector's data in the heap.
             let mut args: Vec<Value<'static>> =
                 Vec::with_capacity(bound_args.len() as usize + arguments_list.len());
             agent[bound_args]

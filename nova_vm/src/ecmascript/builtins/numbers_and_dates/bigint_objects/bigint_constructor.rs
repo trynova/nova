@@ -8,6 +8,7 @@ use num_traits::Pow;
 use crate::ecmascript::abstract_operations::testing_and_comparison::is_integral_number;
 use crate::ecmascript::abstract_operations::type_conversion::PreferredType;
 use crate::ecmascript::abstract_operations::type_conversion::to_big_int;
+use crate::ecmascript::abstract_operations::type_conversion::to_big_int_primitive;
 use crate::ecmascript::abstract_operations::type_conversion::to_index;
 use crate::ecmascript::abstract_operations::type_conversion::to_primitive;
 use crate::ecmascript::builders::builtin_function_builder::BuiltinFunctionBuilder;
@@ -31,6 +32,7 @@ use crate::ecmascript::types::{String, Value};
 
 use crate::SmallInteger;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::heap::CreateHeapData;
 use crate::heap::IntrinsicConstructorIndexes;
 
@@ -74,8 +76,13 @@ impl BigIntConstructor {
                 gc.nogc(),
             ));
         }
-        let value = arguments.get(0);
-        let prim = to_primitive(agent, value, Some(PreferredType::Number), gc.reborrow())?;
+        let value = arguments.get(0).bind(gc.nogc());
+        let prim = to_primitive(
+            agent,
+            value.unbind(),
+            Some(PreferredType::Number),
+            gc.reborrow(),
+        )?;
         if let Ok(prim) = Number::try_from(prim) {
             if !prim.is_integer(agent) {
                 return Err(agent.throw_exception_with_static_message(
@@ -87,17 +94,21 @@ impl BigIntConstructor {
 
             Ok(BigInt::from_i64(agent, prim.into_i64(agent)).into_value())
         } else {
-            to_big_int(agent, value, gc.reborrow()).map(|result| result.into_value().unbind())
+            to_big_int_primitive(agent, prim.unbind(), gc.into_nogc())
+                .map(|result| result.into_value())
         }
     }
 
+    /// ### [21.2.2.1 BigInt.asIntN ( bits, bigint )](https://tc39.es/ecma262/#sec-bigint.asintn)
     fn as_int_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
+        let bits = arguments.get(0).bind(gc.nogc());
+        let bigint = arguments.get(1).scope(agent, gc.nogc());
+        let bits = to_index(agent, bits.unbind(), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
@@ -105,7 +116,7 @@ impl BigIntConstructor {
                 gc.nogc(),
             ));
         };
-        let bigint = to_big_int(agent, arguments.get(1), gc.reborrow())?;
+        let bigint = to_big_int(agent, bigint.get(agent), gc.reborrow())?;
         if bits == 0 {
             return Ok(BigInt::zero().into_value());
         }
@@ -169,13 +180,16 @@ impl BigIntConstructor {
         }
     }
 
+    /// ### [21.2.2.2 BigInt.asUintN ( bits, bigint )](https://tc39.es/ecma262/#sec-bigint.asuintn)
     fn as_uint_n<'gc>(
         agent: &mut Agent,
         _this_value: Value,
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let bits = to_index(agent, arguments.get(0), gc.reborrow())?;
+        let bits = arguments.get(0).bind(gc.nogc());
+        let bigint = arguments.get(1).scope(agent, gc.nogc());
+        let bits = to_index(agent, bits.unbind(), gc.reborrow())?;
         let Ok(bits) = u32::try_from(bits) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::RangeError,
@@ -183,7 +197,7 @@ impl BigIntConstructor {
                 gc.nogc(),
             ));
         };
-        let bigint = to_big_int(agent, arguments.get(1), gc.reborrow())?;
+        let bigint = to_big_int(agent, bigint.get(agent), gc.reborrow())?;
         match bigint {
             BigInt::BigInt(_) => todo!(),
             BigInt::SmallBigInt(int) => {

@@ -5,6 +5,7 @@
 use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
 use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::{
@@ -176,7 +177,7 @@ impl ArrayBufferPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let new_length = arguments.get(0);
+        let new_length = arguments.get(0).bind(gc.nogc());
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferMaxByteLength]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
@@ -194,7 +195,7 @@ impl ArrayBufferPrototype {
                 res? as usize
             } else {
                 let scoped_o = o.scope(agent, gc.nogc());
-                let res = to_index(agent, new_length, gc.reborrow())?;
+                let res = to_index(agent, new_length.unbind(), gc.reborrow())?;
                 o = scoped_o.get(agent).bind(gc.nogc());
                 res as usize
             };
@@ -242,8 +243,8 @@ impl ArrayBufferPrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let start = arguments.get(0);
-        let end = arguments.get(1);
+        let start = arguments.get(0).bind(gc.nogc());
+        let end = arguments.get(1).scope(agent, gc.nogc());
         // 1. Let O be the this value.
         // 2. Perform ? RequireInternalSlot(O, [[ArrayBufferData]]).
         // 3. If IsSharedArrayBuffer(O) is true, throw a TypeError exception.´
@@ -261,7 +262,7 @@ impl ArrayBufferPrototype {
 
         let scoped_o = o.scope(agent, gc.nogc());
         // 6. Let relativeStart be ? ToIntegerOrInfinity(start).
-        let relative_start = to_integer_or_infinity(agent, start, gc.reborrow())?;
+        let relative_start = to_integer_or_infinity(agent, start.unbind(), gc.reborrow())?;
         // 7. If relativeStart = -∞, let first be 0.
         let first = if relative_start.is_neg_infinity() {
             0
@@ -274,11 +275,12 @@ impl ArrayBufferPrototype {
         };
 
         // 10. If end is undefined, let relativeEnd be len;
+        let end = end.get(agent).bind(gc.nogc());
         let final_end = if end.is_undefined() {
             len
         } else {
             // else let relativeEnd be ? ToIntegerOrInfinity(end).
-            let relative_end = to_integer_or_infinity(agent, end, gc.reborrow())?;
+            let relative_end = to_integer_or_infinity(agent, end.unbind(), gc.reborrow())?;
             // 11. If relativeEnd = -∞, let final be 0.
             if relative_end.is_neg_infinity() {
                 0

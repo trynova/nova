@@ -729,10 +729,10 @@ impl GlobalObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let x = arguments.get(0);
+        let x = arguments.get(0).bind(gc.nogc());
 
         // 1. Return ? PerformEval(x, false, false).
-        perform_eval(agent, x, false, false, gc.reborrow()).map(|v| v.unbind())
+        perform_eval(agent, x.unbind(), false, false, gc.reborrow()).map(|v| v.unbind())
     }
 
     /// ### [19.2.2 isFinite ( number )](https://tc39.es/ecma262/#sec-isfinite-number)
@@ -744,9 +744,9 @@ impl GlobalObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let number = arguments.get(0);
+        let number = arguments.get(0).bind(gc.nogc());
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number, gc.reborrow())?;
+        let num = to_number(agent, number.unbind(), gc.reborrow())?;
         // 2. If num is not finite, return false.
         // 3. Otherwise, return true.
         Ok(num.is_finite(agent).into())
@@ -765,9 +765,9 @@ impl GlobalObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let number = arguments.get(0);
+        let number = arguments.get(0).bind(gc.nogc());
         // 1. Let num be ? ToNumber(number).
-        let num = to_number(agent, number, gc.reborrow())?;
+        let num = to_number(agent, number.unbind(), gc.reborrow())?;
         // 2. If num is NaN, return true.
         // 3. Otherwise, return false.
         Ok(num.is_nan(agent).into())
@@ -787,10 +787,10 @@ impl GlobalObject {
             return Ok(Value::nan());
         }
 
-        let string = arguments.get(0);
+        let string = arguments.get(0).bind(gc.nogc());
 
         // 1. Let inputString be ? ToString(string).
-        let input_string = to_string(agent, string, gc.reborrow())?;
+        let input_string = to_string(agent, string.unbind(), gc.reborrow())?;
 
         // 2. Let trimmedString be ! TrimString(inputString, start).
         let trimmed_string = input_string
@@ -852,8 +852,8 @@ impl GlobalObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let string = arguments.get(0);
-        let radix = arguments.get(1);
+        let string = arguments.get(0).bind(gc.nogc());
+        let radix = arguments.get(1).bind(gc.nogc());
 
         // OPTIMIZATION: If the string is empty, undefined, null or a boolean, return NaN.
         if string.is_undefined()
@@ -872,12 +872,15 @@ impl GlobalObject {
             }
         }
 
+        let radix = radix.scope(agent, gc.nogc());
+
         // 1. Let inputString be ? ToString(string).
-        let mut s = to_string(agent, string, gc.reborrow())?
+        let mut s = to_string(agent, string.unbind(), gc.reborrow())?
             .unbind()
             .bind(gc.nogc());
 
         // 6. Let R be ℝ(? ToInt32(radix)).
+        let radix = radix.get(agent).bind(gc.nogc());
         let r = if let Value::Integer(radix) = radix {
             radix.into_i64() as i32
         } else if radix.is_undefined() {
@@ -887,7 +890,7 @@ impl GlobalObject {
             to_int32_number(agent, radix)
         } else {
             let s_root = s.scope(agent, gc.nogc());
-            let radix = to_int32(agent, radix, gc.reborrow())?;
+            let radix = to_int32(agent, radix.unbind(), gc.reborrow())?;
             s = s_root.get(agent).bind(gc.nogc());
             radix
         };

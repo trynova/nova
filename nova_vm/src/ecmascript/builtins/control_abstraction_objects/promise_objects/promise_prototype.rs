@@ -85,6 +85,7 @@ impl PromisePrototype {
         todo!()
     }
 
+    /// ### [27.2.5.4 Promise.prototype.then ( onFulfilled, onRejected )](https://tc39.es/ecma262/#sec-promise.prototype.then)
     fn then<'gc>(
         agent: &mut Agent,
         this_value: Value,
@@ -92,6 +93,8 @@ impl PromisePrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let gc = gc.into_nogc();
+        let on_fulfilled = args.get(0).bind(gc);
+        let on_rejected = args.get(1).bind(gc);
         // 1. Let promise be the this value.
         // 2. If IsPromise(promise) is false, throw a TypeError exception.
         let Value::Promise(promise) = this_value else {
@@ -111,8 +114,8 @@ impl PromisePrototype {
         perform_promise_then(
             agent,
             promise,
-            args.get(0),
-            args.get(1),
+            on_fulfilled,
+            on_rejected,
             Some(result_capability),
         );
         Ok(result_capability.promise().into_value())
