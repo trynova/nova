@@ -743,7 +743,6 @@
   "built-ins/Atomics/xor/validate-arraytype-before-value-coercion.js": "CRASH",
   "built-ins/BigInt/asUintN/arithmetic.js": "CRASH",
   "built-ins/BigInt/asUintN/bigint-tobigint.js": "CRASH",
-  "built-ins/BigInt/constructor-coercion.js": "FAIL",
   "built-ins/BigInt/non-integer-rangeerror.js": "FAIL",
   "built-ins/BigInt/prototype/toString/a-z.js": "CRASH",
   "built-ins/BigInt/prototype/toString/default-radix.js": "CRASH",

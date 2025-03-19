@@ -690,6 +690,7 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let ms = arguments.get(0).bind(gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
@@ -697,7 +698,7 @@ impl DatePrototype {
         // 3. Let t be dateObject.[[DateValue]].
         let t = date_object.get(agent).date_value(agent);
         // 4. Set ms to ? ToNumber(ms).
-        let ms = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let ms = to_number(agent, ms.unbind(), gc.reborrow())?.to_real(agent);
         // 5. If t is NaN, return NaN.
         let Some(t) = t.get_f64() else {
             return Ok(Value::nan());
@@ -886,12 +887,13 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
+        let time = arguments.get(0).bind(gc.nogc());
         // 1. Let dateObject be the this value.
         // 2. Perform ? RequireInternalSlot(dateObject, [[DateValue]]).
         let date_object = require_internal_slot_date(agent, this_value, gc.nogc())?;
         let date_object = date_object.scope(agent, gc.nogc());
         // 3. Let t be ? ToNumber(time).
-        let t = to_number(agent, arguments.get(0), gc.reborrow())?.to_real(agent);
+        let t = to_number(agent, time.unbind(), gc.reborrow())?.to_real(agent);
         // 4. Let v be TimeClip(t).
         let v = time_clip(t);
         // 5. Set dateObject.[[DateValue]] to v.
@@ -1237,7 +1239,7 @@ impl DatePrototype {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let hint = arguments.get(0);
+        let hint = arguments.get(0).bind(gc.nogc());
         // 1. Let O be the this value.
         // 2. If O is not an Object, throw a TypeError exception.
         let Ok(o) = Object::try_from(this_value) else {
@@ -1262,7 +1264,9 @@ impl DatePrototype {
             // a. Throw a TypeError exception.
             let error_message = format!(
                 "Expected 'hint' to be \"string\", \"default\", or \"number\", got {}",
-                hint.string_repr(agent, gc.reborrow()).as_str(agent)
+                hint.unbind()
+                    .string_repr(agent, gc.reborrow())
+                    .as_str(agent)
             );
             return Err(agent.throw_exception(ExceptionType::TypeError, error_message, gc.nogc()));
         };

@@ -50,8 +50,8 @@ impl AggregateErrorConstructor {
         new_target: Option<Object>,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let errors = arguments.get(0);
-        let message = arguments.get(1);
+        let errors = arguments.get(0).scope(agent, gc.nogc());
+        let message = arguments.get(1).scope(agent, gc.nogc());
         let options = arguments.get(2);
         // 1. If NewTarget is undefined, let newTarget be the active function object; else let newTarget be NewTarget.
         let new_target = new_target.map_or_else(
@@ -67,10 +67,11 @@ impl AggregateErrorConstructor {
         )?;
         let o = Error::try_from(o.unbind()).unwrap();
         // 3. If message is not undefined, then
+        let message = message.get(agent).bind(gc.nogc());
         let message = if !message.is_undefined() {
             // a. Let msg be ? ToString(message).
             Some(
-                to_string(agent, message, gc.reborrow())?
+                to_string(agent, message.unbind(), gc.reborrow())?
                     .unbind()
                     .scope(agent, gc.nogc()),
             )
@@ -86,7 +87,7 @@ impl AggregateErrorConstructor {
         heap_data.message = message;
         heap_data.cause = cause.map(|c| c.unbind());
         // 5. Let errorsList be ? IteratorToList(? GetIterator(errors, sync)).
-        let Some(iterator_record) = get_iterator(agent, errors.unbind(), false, gc.reborrow())?
+        let Some(iterator_record) = get_iterator(agent, errors.get(agent), false, gc.reborrow())?
         else {
             return Err(throw_not_callable(agent, gc.into_nogc()));
         };

@@ -253,16 +253,18 @@ impl<'a> InternalMethods<'a> for BuiltinPromiseResolvingFunction<'a> {
         self,
         agent: &mut Agent,
         _this_value: Value,
-        args: ArgumentsList,
+        arguments_list: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let arg = args.get(0).bind(gc.nogc());
+        let arguments_list = arguments_list.get(0).bind(gc.nogc());
         let promise_capability = agent[self].promise_capability;
         match agent[self].resolve_type {
             PromiseResolvingFunctionType::Resolve => {
-                promise_capability.resolve(agent, arg.unbind(), gc)
+                promise_capability.resolve(agent, arguments_list.unbind(), gc)
             }
-            PromiseResolvingFunctionType::Reject => promise_capability.reject(agent, arg),
+            PromiseResolvingFunctionType::Reject => {
+                promise_capability.reject(agent, arguments_list)
+            }
         };
         Ok(Value::Undefined)
     }

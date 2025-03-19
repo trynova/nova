@@ -60,7 +60,7 @@ impl BigIntPrototype {
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         let _x = this_big_int_value(agent, this_value, gc.nogc())?;
-        let radix = arguments.get(0);
+        let radix = arguments.get(0).bind(gc.nogc());
         if radix.is_undefined() || radix == Value::from(10u8) {
             // BigInt::to_string_radix_10(agent, x).map(|result| result.into_value())
             todo!();

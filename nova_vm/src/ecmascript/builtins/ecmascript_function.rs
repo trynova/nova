@@ -547,13 +547,13 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
     fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments: ArgumentsList,
         new_target: Function,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Object<'gc>> {
         let mut self_fn = self.bind(gc.nogc());
         let mut new_target = new_target.bind(gc.nogc());
-        let mut arguments_list = arguments_list.bind(gc.nogc());
+        let mut arguments_list = arguments.bind(gc.nogc());
         // 2. Let kind be F.[[ConstructorKind]].
         let is_base = !agent[self_fn]
             .ecmascript_function

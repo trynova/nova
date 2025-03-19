@@ -549,23 +549,19 @@ impl<'a> InternalMethods<'a> for Function<'a> {
         self,
         agent: &mut Agent,
         this_argument: Value,
-        arguments_list: ArgumentsList,
+        arguments: ArgumentsList,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         match self {
-            Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments_list, gc),
-            Function::BuiltinFunction(x) => {
-                x.internal_call(agent, this_argument, arguments_list, gc)
-            }
-            Function::ECMAScriptFunction(x) => {
-                x.internal_call(agent, this_argument, arguments_list, gc)
-            }
+            Function::BoundFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
+            Function::BuiltinFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
+            Function::ECMAScriptFunction(x) => x.internal_call(agent, this_argument, arguments, gc),
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_call(agent, this_argument, arguments_list, gc)
+                x.internal_call(agent, this_argument, arguments, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_call(agent, this_argument, arguments_list, gc)
+                x.internal_call(agent, this_argument, arguments, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),
@@ -575,26 +571,22 @@ impl<'a> InternalMethods<'a> for Function<'a> {
     fn internal_construct<'gc>(
         self,
         agent: &mut Agent,
-        arguments_list: ArgumentsList,
+        arguments: ArgumentsList,
         new_target: Function,
         gc: GcScope<'gc, '_>,
     ) -> JsResult<Object<'gc>> {
         match self {
-            Function::BoundFunction(x) => {
-                x.internal_construct(agent, arguments_list, new_target, gc)
-            }
-            Function::BuiltinFunction(x) => {
-                x.internal_construct(agent, arguments_list, new_target, gc)
-            }
+            Function::BoundFunction(x) => x.internal_construct(agent, arguments, new_target, gc),
+            Function::BuiltinFunction(x) => x.internal_construct(agent, arguments, new_target, gc),
             Function::ECMAScriptFunction(x) => {
-                x.internal_construct(agent, arguments_list, new_target, gc)
+                x.internal_construct(agent, arguments, new_target, gc)
             }
             Function::BuiltinGeneratorFunction => todo!(),
             Function::BuiltinConstructorFunction(x) => {
-                x.internal_construct(agent, arguments_list, new_target, gc)
+                x.internal_construct(agent, arguments, new_target, gc)
             }
             Function::BuiltinPromiseResolvingFunction(x) => {
-                x.internal_construct(agent, arguments_list, new_target, gc)
+                x.internal_construct(agent, arguments, new_target, gc)
             }
             Function::BuiltinPromiseCollectorFunction => todo!(),
             Function::BuiltinProxyRevokerFunction => todo!(),

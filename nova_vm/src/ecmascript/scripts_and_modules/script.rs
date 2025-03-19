@@ -1083,8 +1083,8 @@ mod test {
             const LENGTH: u8 = 1;
 
             const BEHAVIOUR: Behaviour = Behaviour::Regular(
-                |_: &mut Agent, _: Value, arguments_list: ArgumentsList, _: GcScope| {
-                    let arg_0 = arguments_list.get(0);
+                |_: &mut Agent, _: Value, arguments: ArgumentsList, _: GcScope| {
+                    let arg_0 = arguments.get(0);
                     if Value::Boolean(true) == arg_0 {
                         Ok(Value::from(3))
                     } else {

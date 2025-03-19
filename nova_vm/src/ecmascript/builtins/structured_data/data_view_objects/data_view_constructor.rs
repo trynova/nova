@@ -2,12 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::ecmascript::abstract_operations::type_conversion::try_to_index;
 use crate::ecmascript::builtins::array_buffer::{
     ViewedArrayBufferByteLength, ViewedArrayBufferByteOffset,
 };
-use crate::engine::TryResult;
 use crate::engine::context::{Bindable, GcScope};
+use crate::engine::rootable::Scopable;
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_index,
@@ -51,33 +50,30 @@ impl DataViewConstructor {
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
         // 1. If NewTarget is undefined, throw a TypeError exception.
-        let Some(new_target) = new_target else {
+        let Some(new_target) = new_target.bind(gc.nogc()) else {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
                 "calling a builtin DataView constructor without new is forbidden",
                 gc.nogc(),
             ));
         };
-        let new_target = Function::try_from(new_target).unwrap();
+        let new_target = Function::try_from(new_target)
+            .unwrap()
+            .scope(agent, gc.nogc());
 
-        let buffer = arguments.get(0);
-        let byte_offset = arguments.get(1);
-        let byte_length = arguments.get(2);
+        let buffer = arguments.get(0).bind(gc.nogc());
+        let byte_offset = arguments.get(1).bind(gc.nogc());
+        let byte_length = arguments.get(2).scope(agent, gc.nogc());
 
         // 2. Perform ? RequireInternalSlot(buffer, [[ArrayBufferData]]).
-        let mut buffer = require_internal_slot_array_buffer(agent, buffer, gc.nogc())?;
-        let scoped_buffer = buffer.scope(agent, gc.nogc());
+        let scoped_buffer =
+            require_internal_slot_array_buffer(agent, buffer, gc.nogc())?.scope(agent, gc.nogc());
 
         // 3. Let offset be ? ToIndex(byteOffset).
-        let offset = if let TryResult::Continue(res) = try_to_index(agent, byte_offset, gc.nogc()) {
-            res? as usize
-        } else {
-            let res = to_index(agent, byte_offset, gc.reborrow())?;
-            buffer = scoped_buffer.get(agent).bind(gc.nogc());
-            res as usize
-        };
+        let offset = to_index(agent, byte_offset.unbind(), gc.reborrow())? as usize;
 
         // 4. If IsDetachedBuffer(buffer) is true, throw a TypeError exception.
+        let buffer = scoped_buffer.get(agent).bind(gc.nogc());
         if is_detached_buffer(agent, buffer) {
             return Err(agent.throw_exception_with_static_message(
                 ExceptionType::TypeError,
@@ -102,6 +98,7 @@ impl DataViewConstructor {
         let buffer_is_fixed_length = is_fixed_length_array_buffer(agent, buffer);
 
         // 8. If byteLength is undefined, then
+        let byte_length = byte_length.get(agent).bind(gc.nogc());
         let view_byte_length = if byte_length.is_undefined() {
             // a. If bufferIsFixedLength is true, then
             if buffer_is_fixed_length {
@@ -115,7 +112,7 @@ impl DataViewConstructor {
         } else {
             // 9. Else,
             // a. Let viewByteLength be ? ToIndex(byteLength).
-            let view_byte_length = to_index(agent, byte_length, gc.reborrow())? as usize;
+            let view_byte_length = to_index(agent, byte_length.unbind(), gc.reborrow())? as usize;
             // b. If offset + viewByteLength > bufferByteLength, throw a RangeError exception.
             if offset + view_byte_length > buffer_byte_length {
                 return Err(agent.throw_exception_with_static_message(
@@ -130,7 +127,7 @@ impl DataViewConstructor {
         // 10. Let O be ? OrdinaryCreateFromConstructor(NewTarget, "%DataView.prototype%", « [[DataView]], [[ViewedArrayBuffer]], [[ByteLength]], [[ByteOffset]] »).
         let o = ordinary_create_from_constructor(
             agent,
-            new_target,
+            new_target.get(agent),
             ProtoIntrinsics::DataView,
             gc.reborrow(),
         )?

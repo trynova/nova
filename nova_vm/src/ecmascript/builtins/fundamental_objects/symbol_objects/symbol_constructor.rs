@@ -73,11 +73,11 @@ impl SymbolConstructor {
                 gc.nogc(),
             ));
         }
-        let description = arguments.get(0);
+        let description = arguments.get(0).bind(gc.nogc());
         let desc_string = if description.is_undefined() {
             None
         } else {
-            Some(to_string(agent, description, gc)?.unbind())
+            Some(to_string(agent, description.unbind(), gc)?.unbind())
         };
 
         Ok(agent

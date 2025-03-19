@@ -94,11 +94,11 @@ impl JSONObject {
         arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let text = arguments.get(0);
-        let reviver = arguments.get(1);
+        let text = arguments.get(0).bind(gc.nogc());
+        let reviver = arguments.get(1).scope(agent, gc.nogc());
 
         // 1. Let jsonString be ? ToString(text).
-        let json_string = to_string(agent, text, gc.reborrow())?.unbind();
+        let json_string = to_string(agent, text.unbind(), gc.reborrow())?.unbind();
 
         // 2. Parse StringToCodePoints(jsonString) as a JSON text as specified in ECMA-404. Throw a SyntaxError exception if it is not a valid JSON text as defined in that specification.
         let json_value = match sonic_rs::from_str::<sonic_rs::Value>(json_string.as_str(agent)) {
@@ -133,6 +133,7 @@ impl JSONObject {
         );
 
         // 11. If IsCallable(reviver) is true, then
+        let reviver = reviver.get(agent).bind(gc.nogc());
         if let Some(reviver) = is_callable(reviver, gc.nogc()) {
             let reviver = reviver.bind(gc.nogc());
             // a. Let root be OrdinaryObjectCreate(%Object.prototype%).
