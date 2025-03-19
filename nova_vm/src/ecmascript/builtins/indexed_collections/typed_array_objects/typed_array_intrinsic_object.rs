@@ -2,12 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use num_traits::ToPrimitive;
+
 use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, try_get},
-            testing_and_comparison::{is_array, is_callable, same_value_zero},
+            operations_on_objects::{call_function, set, try_get},
+            testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
                 to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
                 try_to_string,
@@ -44,7 +46,8 @@ use crate::{
 
 use super::abstract_operations::{
     is_typed_array_out_of_bounds, make_typed_array_with_buffer_witness_record,
-    typed_array_byte_length, typed_array_length, validate_typed_array,
+    typed_array_byte_length, typed_array_create_from_constructor, typed_array_length,
+    validate_typed_array,
 };
 
 pub struct TypedArrayIntrinsicObject;
@@ -68,7 +71,7 @@ struct TypedArrayOf;
 impl Builtin for TypedArrayOf {
     const BEHAVIOUR: Behaviour = Behaviour::Regular(TypedArrayIntrinsicObject::of);
     const LENGTH: u8 = 0;
-    const NAME: String<'static> = BUILTIN_STRING_MEMORY.fromCodePoint;
+    const NAME: String<'static> = BUILTIN_STRING_MEMORY.of;
 }
 struct TypedArrayGetSpecies;
 impl Builtin for TypedArrayGetSpecies {
@@ -112,13 +115,53 @@ impl TypedArrayIntrinsicObject {
         is_array(agent, arguments.get(0), gc.nogc()).map(Value::Boolean)
     }
 
+    /// ### [23.2.2.2 %TypedArray%.of ( ...items )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-properties-of-the-%typedarray%-intrinsic-object)
     fn of<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        // 1. Let len be the number of elements in items.
+        let len = arguments.len();
+        // 2. Let C be the this value.
+        let c = this_value;
+        // 3. If IsConstructor(C) is false, throw a TypeError exception.
+        let Some(c) = is_constructor(agent, c) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a constructor",
+                gc.nogc(),
+            ));
+        };
+        // 4. Let newObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
+        let len = len.to_i64().unwrap();
+        let len_value = Value::try_from(len).unwrap();
+        let new_obj = typed_array_create_from_constructor(
+            agent,
+            c,
+            ArgumentsList(&[len_value]),
+            gc.reborrow(),
+        )?;
+        // 5. Let k be 0.
+        // 6. Repeat, while k < len,
+        for (k, &k_value) in arguments.into_iter().enumerate() {
+            // a. Let kValue be items[k].
+            // b. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::try_from(k).unwrap();
+            // c. Perform ? Set(newObj, Pk, kValue, true).
+            set(
+                agent,
+                new_obj.into_object(),
+                pk,
+                k_value,
+                true,
+                gc.reborrow(),
+            )?;
+            // d. Set k to k + 1.
+        }
+        // 7. Return newObj.
+        Ok(new_obj.into_value())
     }
 
     fn get_species<'gc>(
