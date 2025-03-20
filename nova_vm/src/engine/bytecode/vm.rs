@@ -337,7 +337,6 @@ impl<'a> Vm {
         let mut instr_count = 0u8;
 
         let instructions = executable.get_instructions(agent);
-        println!("instructions: {:?}", instructions);
         while let Some(instr) = get_instruction(instructions, &mut self.ip) {
             #[cfg(feature = "interleaved-gc")]
             if do_gc {
@@ -416,8 +415,6 @@ impl<'a> Vm {
         if agent.options.print_internals {
             eprintln!("Executing instruction {:?}", instr.kind);
         }
-        // println!("vm.result: {:?}", vm.result);
-        println!("instr.kind: {:?}", instr.kind);
         match instr.kind {
             Instruction::ArrayCreate => {
                 let result =

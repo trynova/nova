@@ -358,10 +358,8 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         instruction: Instruction,
         identifier: String<'gc>,
     ) {
-        println!("Debug: Adding identifier to instruction {:?}", instruction);
-
         debug_assert_eq!(instruction.argument_count(), 1);
-        debug_assert!(instruction.has_identifier_index()); // ここで panic する
+        debug_assert!(instruction.has_identifier_index());
 
         self._push_instruction(instruction);
         let identifier = self.add_identifier(identifier);
@@ -2948,46 +2946,55 @@ impl CompileEvaluation for ast::TSEnumDeclaration<'_> {
         if is_const {
             return;
         }
+        let enum_name = self.id.name;
+        println!("{:?}", enum_name);
+
+        // TODO: implement var Foo
+
         ctx.add_instruction(Instruction::ObjectCreate);
+        ctx.add_instruction(Instruction::Store);
+        ctx.add_instruction(Instruction::LoadCopy);
+        ctx.add_instruction(Instruction::Load);
         let mut next_value = 0.0;
-
         for prop in self.members.iter() {
-            let key = match &prop.id {
-                ast::TSEnumMemberName::Identifier(ident) => {
-                    String::from_str(ctx.agent, ident.name.as_str(), ctx.gc)
-                }
-                ast::TSEnumMemberName::String(string) => {
-                    String::from_str(ctx.agent, string.value.as_str(), ctx.gc)
-                }
+            let key_str = match &prop.id {
+                ast::TSEnumMemberName::Identifier(ident) => ident.name.as_str(),
+                ast::TSEnumMemberName::String(string) => string.value.as_str(),
             };
-
-            let mut needs_get_value = false;
-
+            let key = String::from_str(ctx.agent, key_str, ctx.gc);
             let value: Value<'gc>;
             if let Some(expr) = &prop.initializer {
                 expr.compile(ctx);
-                println!("expr: {:?}", expr);
-                needs_get_value = is_reference(expr);
+                if is_reference(expr) {
+                    ctx.add_instruction(Instruction::GetValue);
+                }
                 value = ctx
                     .current_value
                     .take()
                     .unwrap_or(Value::from_f64(ctx.agent, next_value, ctx.gc));
+
+                if value.is_number() {
+                    next_value += 1.0;
+                } else {
+                    next_value += 1.0;
+                }
             } else {
                 value = Value::from_f64(ctx.agent, next_value, ctx.gc);
+                next_value += 1.0;
             }
-
-            ctx.add_instruction(Instruction::Load);
             ctx.add_instruction_with_constant(Instruction::LoadConstant, key.into_value());
-            ctx.add_instruction_with_constant(Instruction::LoadConstant, value);
-
-            ctx.add_instruction(Instruction::GetValue);
-
+            ctx.add_instruction_with_constant(Instruction::StoreConstant, value);
             ctx.add_instruction(Instruction::ObjectDefineProperty);
+            if value.is_number() {
+                ctx.add_instruction_with_constant(Instruction::LoadConstant, value);
+                ctx.add_instruction_with_constant(Instruction::StoreConstant, key.into_value());
+                ctx.add_instruction(Instruction::ObjectDefineProperty);
+            }
         }
-
         ctx.add_instruction(Instruction::Store);
     }
 }
+
 impl CompileEvaluation for ast::Statement<'_> {
     fn compile(&self, ctx: &mut CompileContext) {
         match self {
