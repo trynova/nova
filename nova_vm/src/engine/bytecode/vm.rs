@@ -602,8 +602,6 @@ impl<'a> Vm {
                     gc.reborrow(),
                 )?;
                 let key = key.unbind().bind(gc.nogc());
-                // println!("vm.stack: {:?}", vm.stack);
-                // println!("vm.result.take {:?}", vm.result);
                 let value = vm.result.take().unwrap().bind(gc.nogc());
                 let object = vm.stack.last().unwrap().bind(gc.nogc());
                 let object = Object::try_from(object).unwrap();
