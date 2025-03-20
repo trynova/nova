@@ -1175,9 +1175,7 @@ fn typed_array_create_from_constructor_internal<'a>(
     let ta_record =
         validate_typed_array(agent, new_typed_array.into_value(), Ordering::SeqCst, gc)?;
     let o = ta_record.object;
-    let scoped_o = o.scope(agent, gc);
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
-    let o = scoped_o.get(agent);
     if let Some(first_arg) = length {
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
         if match o {
@@ -1244,7 +1242,6 @@ fn typed_array_create_from_constructor_internal<'a>(
             ));
         };
     }
-    let o = scoped_o.get(agent);
     // 4. Return newTypedArray.
     Ok(o)
 }
