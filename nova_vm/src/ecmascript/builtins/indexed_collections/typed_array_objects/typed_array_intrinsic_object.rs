@@ -136,10 +136,18 @@ impl TypedArrayIntrinsicObject {
         };
         // 4. Let newObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
         let len = len.to_i64();
-        let new_obj =
-            typed_array_create_from_constructor_with_length(agent, c, len, gc.reborrow())?;
+        let c = c.scope(agent, gc.nogc());
+        let new_obj = typed_array_create_from_constructor_with_length(
+            agent,
+            c.get(agent),
+            len,
+            gc.reborrow(),
+        )?
+        .unbind()
+        .bind(gc.nogc());
         // 5. Let k be 0.
         // 6. Repeat, while k < len,
+        let scoped_new_obj = new_obj.scope(agent, gc.nogc());
         for (k, &k_value) in arguments.iter().enumerate() {
             // a. Let kValue be items[k].
             // b. Let Pk be ! ToString(𝔽(k)).
@@ -147,16 +155,16 @@ impl TypedArrayIntrinsicObject {
             // c. Perform ? Set(newObj, Pk, kValue, true).
             set(
                 agent,
-                new_obj.into_object(),
+                scoped_new_obj.get(agent).into_object(),
                 pk,
                 k_value,
                 true,
                 gc.reborrow(),
-            )?;
+            )?
             // d. Set k to k + 1.
         }
         // 7. Return newObj.
-        Ok(new_obj.into_value())
+        Ok(scoped_new_obj.get(agent).into_value())
     }
 
     fn get_species<'gc>(

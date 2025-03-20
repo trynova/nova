@@ -1168,7 +1168,7 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     agent: &mut Agent,
     constructor: Function,
     arguments: ArgumentsList,
-    mut gc: GcScope,
+    gc: GcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
     let first_arg = if arguments.len() == 1 && arguments[0].is_number() {
@@ -1176,19 +1176,14 @@ pub(crate) fn typed_array_create_from_constructor<'a>(
     } else {
         None
     };
-    typed_array_create_from_constructor_with_length(
-        agent,
-        constructor.unbind(),
-        first_arg,
-        gc.reborrow(),
-    )
+    typed_array_create_from_constructor_with_length(agent, constructor.unbind(), first_arg, gc)
 }
 
 pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     agent: &mut Agent,
     constructor: Function,
     length: Option<i64>,
-    mut gc: GcScope,
+    mut gc: GcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
