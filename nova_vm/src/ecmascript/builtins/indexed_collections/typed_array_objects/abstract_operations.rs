@@ -1164,49 +1164,21 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
 /// and argumentList (a List of ECMAScript language values)
 /// and returns either a normal completion containing a TypedArray or a throw completion.
 /// It is used to specify the creation of a new TypedArray using a constructor function.
-pub(crate) fn typed_array_create_from_constructor<'a>(
+fn typed_array_create_from_constructor_internal<'a>(
     agent: &mut Agent,
-    constructor: Function,
-    arguments: ArgumentsList,
-    gc: GcScope<'a, '_>,
-) -> JsResult<TypedArray<'a>> {
-    let constructor = constructor.bind(gc.nogc());
-    let first_arg = if arguments.len() == 1 && arguments[0].is_number() {
-        Some(Number::try_from(arguments[0]).unwrap().into_i64(agent))
-    } else {
-        None
-    };
-    typed_array_create_from_constructor_with_length(agent, constructor.unbind(), first_arg, gc)
-}
-
-pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
-    agent: &mut Agent,
-    constructor: Function,
+    new_typed_array: Object<'_>,
     length: Option<i64>,
-    mut gc: GcScope<'a, '_>,
+    gc: NoGcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
-    let constructor = constructor.bind(gc.nogc());
-    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
-    let new_typed_array = construct(
-        agent,
-        constructor.unbind(),
-        Some(ArgumentsList::from_mut_slice(&mut [Value::try_from(
-            length.unwrap(),
-        )
-        .unwrap()])),
-        None,
-        gc.reborrow(),
-    )?;
     // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
     let new_typed_array = new_typed_array.unbind();
-    let gc = gc.into_nogc();
     let ta_record =
         validate_typed_array(agent, new_typed_array.into_value(), Ordering::SeqCst, gc)?;
     let o = ta_record.object;
     let scoped_o = o.scope(agent, gc);
     // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
+    let o = scoped_o.get(agent);
     if let Some(first_arg) = length {
-        let o = scoped_o.get(agent);
         // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
         if match o {
             TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
@@ -1270,9 +1242,65 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
                 "TypedArray out of bounds",
                 gc,
             ));
-        }
-    };
+        };
+    }
     let o = scoped_o.get(agent);
     // 4. Return newTypedArray.
     Ok(o)
+}
+
+pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    length: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let constructor = constructor.bind(gc.nogc());
+    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let new_typed_array = construct(
+        agent,
+        constructor.unbind(),
+        Some(ArgumentsList::from_mut_slice(&mut [Value::try_from(
+            length,
+        )
+        .unwrap()])),
+        None,
+        gc.reborrow(),
+    )?;
+    typed_array_create_from_constructor_internal(
+        agent,
+        new_typed_array.unbind(),
+        Some(length),
+        gc.nogc(),
+    )
+    .unbind()
+    .bind(gc.into_nogc())
+}
+
+pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    array_buffer: ArrayBuffer,
+    byte_offset: i64,
+    length: Option<i64>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let constructor = constructor.bind(gc.nogc());
+    let mut args = Vec::with_capacity(3);
+    args.push(array_buffer.into_value());
+    args.push(Value::try_from(byte_offset).unwrap());
+    if let Some(len) = length {
+        args.push(Value::try_from(len).unwrap());
+    }
+    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let new_typed_array = construct(
+        agent,
+        constructor.unbind(),
+        Some(ArgumentsList::from_mut_slice(&mut args)),
+        None,
+        gc.reborrow(),
+    )?;
+    typed_array_create_from_constructor_internal(agent, new_typed_array.unbind(), length, gc.nogc())
+        .unbind()
+        .bind(gc.into_nogc())
 }

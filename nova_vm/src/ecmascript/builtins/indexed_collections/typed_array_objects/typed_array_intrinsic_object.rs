@@ -135,7 +135,7 @@ impl TypedArrayIntrinsicObject {
             ));
         };
         // 4. Let newObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
-        let len = len.to_i64();
+        let len = len.to_i64().unwrap();
         let c = c.scope(agent, gc.nogc());
         let new_obj = typed_array_create_from_constructor_with_length(
             agent,
