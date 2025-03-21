@@ -38,7 +38,7 @@ impl CompileEvaluation for ast::AssignmentExpression<'_> {
                 ctx.add_instruction(Instruction::Store);
                 return;
             }
-            ast::AssignmentTarget::PrivateFieldExpression(_) => todo!(),
+            ast::AssignmentTarget::PrivateFieldExpression(expression) => expression.compile(ctx),
             ast::AssignmentTarget::StaticMemberExpression(expression) => {
                 expression.compile(ctx);
             }

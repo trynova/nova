@@ -21,7 +21,7 @@ use crate::{
     },
 };
 use ahash::{AHashMap, AHashSet};
-use oxc_ast::ast::{self, MethodDefinitionKind};
+use oxc_ast::ast::{self, MethodDefinitionKind, PropertyKey};
 use oxc_ecmascript::{BoundNames, PrivateBoundIdentifiers, PropName};
 
 use super::IndexType;
@@ -372,14 +372,21 @@ impl CompileEvaluation for ast::Class<'_> {
                             &property_definition.value,
                         );
                     } else {
-                        let ast::PropertyKey::StaticIdentifier(key) = &property_definition.key
-                        else {
-                            unreachable!()
-                        };
-                        instance_fields.push(PropertyInitializerField::Static((
-                            key,
-                            &property_definition.value,
-                        )));
+                        match &property_definition.key {
+                            ast::PropertyKey::StaticIdentifier(key) => {
+                                instance_fields.push(PropertyInitializerField::Static((
+                                    key,
+                                    &property_definition.value,
+                                )));
+                            }
+                            ast::PropertyKey::PrivateIdentifier(key) => {
+                                instance_fields.push(PropertyInitializerField::Private((
+                                    key,
+                                    &property_definition.value,
+                                )));
+                            }
+                            _ => unreachable!(),
+                        }
                     }
                 }
                 ast::ClassElement::AccessorProperty(_) => todo!(),
@@ -443,6 +450,9 @@ impl CompileEvaluation for ast::Class<'_> {
                 match ele {
                     PropertyInitializerField::Static((property_key, value)) => {
                         constructor_ctx.compile_class_static_field(property_key, value);
+                    }
+                    PropertyInitializerField::Private((property_key, value)) => {
+                        constructor_ctx.compile_class_private_field(property_key, value);
                     }
                     PropertyInitializerField::Computed((key_id, value)) => {
                         constructor_ctx.compile_class_computed_field(key_id, value);
@@ -526,6 +536,12 @@ impl CompileEvaluation for ast::Class<'_> {
 #[derive(Debug)]
 enum PropertyInitializerField<'a, 'gc> {
     Static((&'a ast::IdentifierName<'a>, &'a Option<ast::Expression<'a>>)),
+    Private(
+        (
+            &'a ast::PrivateIdentifier<'a>,
+            &'a Option<ast::Expression<'a>>,
+        ),
+    ),
     Computed((String<'gc>, &'a Option<ast::Expression<'a>>)),
 }
 
@@ -613,18 +629,28 @@ fn define_constructor_method(
 /// at the top of the stack. The object is second on the stack.
 fn define_method(class_element: &ast::MethodDefinition, ctx: &mut CompileContext) -> IndexType {
     // 1. Let propKey be ? Evaluation of ClassElementName.
-    if let Some(prop_name) = class_element.prop_name() {
-        let prop_name = String::from_str(ctx.agent, prop_name.0, ctx.gc);
-        ctx.add_instruction_with_constant(Instruction::LoadConstant, prop_name);
-    } else {
-        // Computed method name.
-        let key = class_element.key.as_expression().unwrap();
-        key.compile(ctx);
-        if is_reference(key) {
-            ctx.add_instruction(Instruction::GetValue);
+    match &class_element.key {
+        PropertyKey::PrivateIdentifier(private_id) => {
+            let name = private_id.name;
+            let name = String::from_str(ctx.agent, &name, ctx.gc);
+            ctx.add_instruction_with_constant(Instruction::LoadConstant, name);
         }
-        ctx.add_instruction(Instruction::Load);
-    };
+        _ => {
+            if let Some(prop_name) = class_element.prop_name() {
+                let prop_name = String::from_str(ctx.agent, prop_name.0, ctx.gc);
+                ctx.add_instruction_with_constant(Instruction::LoadConstant, prop_name);
+            } else {
+                // Computed method name.
+                let key = class_element.key.as_expression().unwrap();
+                key.compile(ctx);
+                if is_reference(key) {
+                    ctx.add_instruction(Instruction::GetValue);
+                }
+                ctx.add_instruction(Instruction::Load);
+            };
+        }
+    }
+
     // stack: [key, object]
 
     // 2. Let env be the running execution context's LexicalEnvironment.
