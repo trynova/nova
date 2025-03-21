@@ -137,6 +137,43 @@ impl<'a, 'gc, 'scope> CompileContext<'a, 'gc, 'scope> {
         self.add_instruction(Instruction::PutValue);
     }
 
+    /// Compile a class private field with an optional initializer into the
+    /// current context
+    pub(crate) fn compile_class_private_field(
+        &mut self,
+        private_identifier: &ast::PrivateIdentifier,
+        value: &Option<ast::Expression>,
+    ) {
+        let identifier = String::from_str(self.agent, private_identifier.name.as_str(), self.gc);
+        // Turn the private name to a 'this' property access.
+        self.add_instruction(Instruction::ResolveThisBinding);
+        self.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            identifier,
+        );
+
+        if let Some(value) = value {
+            // Minor optimisation: We do not need to push and pop the
+            // reference if we know we're not using the reference stack.
+            let is_literal = value.is_literal();
+            if !is_literal {
+                self.add_instruction(Instruction::PushReference);
+            }
+            value.compile(self);
+            if is_reference(value) {
+                self.add_instruction(Instruction::GetValue);
+            }
+            if !is_literal {
+                self.add_instruction(Instruction::PopReference);
+            }
+        } else {
+            // Same optimisation is unconditionally valid here.
+            self.add_instruction_with_constant(Instruction::StoreConstant, Value::Undefined);
+        }
+
+        self.add_instruction(Instruction::PutValue);
+    }
+
     /// Compile a class computed field with an optional initializer into the
     /// current context.
     pub(crate) fn compile_class_computed_field(
@@ -1279,8 +1316,44 @@ impl CompileEvaluation for ast::StaticMemberExpression<'_> {
 }
 
 impl CompileEvaluation for ast::PrivateFieldExpression<'_> {
-    fn compile(&self, _ctx: &mut CompileContext) {
-        todo!()
+    fn compile(&self, ctx: &mut CompileContext) {
+        // 1. Let baseReference be ? Evaluation of MemberExpression.
+        self.object.compile(ctx);
+
+        // 2. Let baseValue be ? GetValue(baseReference).
+        if is_reference(&self.object) {
+            ctx.add_instruction(Instruction::GetValue);
+        }
+
+        if self.optional {
+            // Optional Chains
+
+            // Load copy of baseValue to stack.
+            ctx.add_instruction(Instruction::LoadCopy);
+            // 3. If baseValue is either undefined or null, then
+            ctx.add_instruction(Instruction::IsNullOrUndefined);
+            // a. Return undefined
+
+            // To return undefined we jump over the property access.
+            let jump_over_property_access =
+                ctx.add_instruction_with_jump_slot(Instruction::JumpIfTrue);
+
+            // Register our jump slot to the chain nullish case handling.
+            ctx.optional_chains
+                .as_mut()
+                .unwrap()
+                .push(jump_over_property_access);
+
+            // Return copy of baseValue from stack if it is not.
+            ctx.add_instruction(Instruction::Store);
+        }
+
+        // 4. Return EvaluatePropertyAccessWithIdentifierKey(baseValue, PrivateIdentifier, strict).
+        let identifier = String::from_str(ctx.agent, self.field.name.as_str(), ctx.gc);
+        ctx.add_instruction_with_identifier(
+            Instruction::EvaluatePropertyAccessWithIdentifierKey,
+            identifier,
+        );
     }
 }
 
