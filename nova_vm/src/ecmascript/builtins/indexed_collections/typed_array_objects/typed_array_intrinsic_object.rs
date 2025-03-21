@@ -868,7 +868,7 @@ impl TypedArrayPrototype {
             }
         } as i64;
         let o = o.into_object().scope(agent, gc.nogc());
-        // 4. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
+        // 4. Let findRec be ? FindViaPredicate(O, len, descending, predicate, thisArg).
         let find_rec = find_via_predicate(agent, o, len, false, predicate, this_arg, gc)?;
         // 5. Return findRec.[[Index]].
         Ok(Number::try_from(find_rec.0).unwrap().into_value())

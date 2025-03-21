@@ -1350,7 +1350,7 @@ impl StringPrototype {
 
         // 2. If searchValue is neither undefined nor null, then
         if !search_value.is_null() && !search_value.is_undefined() {
-            // a. Let isRegExp be ? IsRegExp(searchValue).
+            // a. Let isRegExp be ? IsRegExp(searchValue).
             let is_reg_exp = false;
 
             // b. If isRegExp is true, then
@@ -1427,7 +1427,7 @@ impl StringPrototype {
             // 14. For each element p of matchPositions, do
             let functional_replace = functional_replace.scope(agent, gc.nogc());
             for p in match_positions {
-                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
+                // b. let replacement be ? ToString(? Call(replaceValue, undefined, « searchString, 𝔽(p), string »)).
                 let replacement = call_function(
                     agent,
                     functional_replace.get(agent),

@@ -3365,7 +3365,8 @@ impl ArrayPrototype {
         args: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let comparator = args.get(0);
+        let this_value = this_value.bind(gc.nogc());
+        let comparator = args.get(0).bind(gc.nogc());
         // 1. If comparator is not undefined and IsCallable(comparator) is false, throw a TypeError exception.
         let comparator = if comparator.is_undefined() {
             None
@@ -3477,7 +3478,7 @@ impl ArrayPrototype {
         items: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        let this_value = this_value.unbind();
+        let this_value = this_value.bind(gc.nogc());
         // Fast path: Array is dense and contains no descriptors. No JS
         // functions can thus be called by unshift.
         if let Value::Array(array) = this_value {
@@ -3533,15 +3534,15 @@ impl ArrayPrototype {
             while k > 0 {
                 // i. Let from be ! ToString(𝔽(k - 1)).
                 let from = (k - 1).try_into().unwrap();
-                // ii. Let to be ! ToString(𝔽(k + argCount - 1)).
+                // ii. Let to be ! ToString(𝔽(k + argCount - 1)).
                 let to = (k + arg_count as i64 - 1).try_into().unwrap();
                 // iii. Let fromPresent be ? HasProperty(O, from).
                 let from_present = has_property(agent, o.get(agent), from, gc.reborrow())?;
                 // iv. If fromPresent is true, then
                 if from_present {
-                    // 1. Let fromValue be ? Get(O, from).
+                    // 1. Let fromValue be ? Get(O, from).
                     let from_value = get(agent, o.get(agent), from, gc.reborrow())?;
-                    // 2. Perform ? Set(O, to, fromValue, true).
+                    // 2. Perform ? Set(O, to, fromValue, true).
                     set(
                         agent,
                         o.get(agent),
@@ -3562,7 +3563,7 @@ impl ArrayPrototype {
             // d. Let j be +0𝔽.
             // e. For each element E of items, do
             for (j, e) in items.iter().enumerate() {
-                // i. Perform ? Set(O, ! ToString(j), E, true).
+                // i. Perform ? Set(O, ! ToString(j), E, true).
                 // ii. Set j to j + 1𝔽.
                 set(
                     agent,
@@ -3574,7 +3575,7 @@ impl ArrayPrototype {
                 )?;
             }
         }
-        // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
+        // 5. Perform ? Set(O, "length", 𝔽(len + argCount), true).
         let len: Value = (len + arg_count as i64).try_into().unwrap();
         set(
             agent,

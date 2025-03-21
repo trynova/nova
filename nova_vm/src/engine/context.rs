@@ -4,21 +4,62 @@
 
 use core::marker::PhantomData;
 
-/// # ZST type representing access to the garbage collector.
+/// # ZST type representing lifetime of garbage collected data
 ///
-/// Access to a garbage collected type's heap data should mainly require
-/// holding a `ContextRef<'gc, GcToken>`. Borrowing the heap data should bind
-/// to the `'gc` lifetime.
+/// Lifetime of garbage collected heap data is represented by an exclusive
+/// borrow of this token. Creating a handle to such data requires holding a
+/// `NoGcScope<'gc, 'scope>` which wraps a shared borrow of this token, and
+/// the handle should bind to the `'gc` lifetime. Triggering garbage collection
+/// requires holding the exclusive `GcScope<'gc, 'scope>`, which invalidates
+/// all bound handles.
+///
+/// ## Accessing garbage collected data
+///
+/// Direct access to heap data necessarily goes through the `Agent` and any
+/// borrows from the heap likewise must derive from the `Agent` lifetime. If
+/// any garbage collected data is copied or cloned from the heap, then it
+/// should bind to the `'gc` lifetime as mentioned above. Generally access to
+/// the heap will then require both `Agent` and `NoGcScope<'gc, 'scope>`.
 // Note: non-exhaustive to make sure this is not constructable on the outside.
 #[non_exhaustive]
 #[derive(Debug)]
 pub(crate) struct GcToken;
 
-/// # ZST type representing a JavaScript call scope
+/// # ZST type representing lifetime of scoped data in the current call stack
 ///
-/// Access to scoped root values should mainly require holding a
-/// `ContextRef<'scope, ScopeToken>`. In limited cases, borrowing heap data can
-/// bind to the `'scope` lifetime.
+/// Lifetime of scoped root values on the heap is represented by a shared
+/// borrow of this token. Creating a handle to such data requires holding a
+/// `NoGcScope<'gc, 'scope>` which wraps the shared borrow of this token, and
+/// the handle should bind to the `'scope'` lifetime. The lifetime ends at some
+/// (usually indeterminate) point up in the call stack, where the scoped root
+/// value stacks are truncated back to their previous length, at which point
+/// the data is no longer accessible.
+///
+/// ## Accessing scoped data
+///
+/// Direct access to scoped data necessarily goes through the `Agent` and any
+/// borrows from the heap likewise should derive from the `Agent` lifetime. In
+/// limited cases, borrowing scoped data as shared can bind to the `'scope`
+/// lifetime. This is only valid if the borrowed data is
+///
+/// 1. currently scoped in this call stack,
+/// 2. held behind a non-null pointer or static reference, and
+/// 3. guaranteed to not be mutated by garbage collection.
+///
+/// If all these are true, then the call graph may hold a shared reference to
+/// the data since garbage collection is guaranteed to not deallocate,
+/// invalidated, or access the data through an exclusive reference.
+///
+/// For example, the bytecode instructions data held by an `Executable` in the
+/// heap can be accessed with the `'scope` lifetime during execution if the
+/// `Executable` is scoped (or otherwise known to not be garbage collected;
+/// this probably is true by virtue of a function being on the execution
+/// context stack during exeuction) because the instructions are held behind a
+/// pointer, pointing to a leaked boxed slice's memory that the garbage
+/// collector never accesses at all (and thus never mutates either). Even
+/// though the heap data that holds the boxed slice's pointer may move, it does
+/// not invalidate the pointed-to memory, and the scoping of the `Executable`
+/// guarantees that the memory will likewise not be deallocated.
 // Note: non-exhaustive to make sure this is not constructable on the outside.
 #[non_exhaustive]
 #[derive(Debug)]

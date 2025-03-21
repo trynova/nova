@@ -147,7 +147,8 @@ impl ObjectPrototype {
         _arguments: ArgumentsList,
         mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        match this_value.bind(gc.nogc()) {
+        let this_value = this_value.bind(gc.nogc());
+        match this_value {
             // 1. If the this value is undefined, return "[object Undefined]".
             Value::Undefined => Ok(BUILTIN_STRING_MEMORY._object_Undefined_.into_value()),
             // 2. If the this value is null, return "[object Null]".
