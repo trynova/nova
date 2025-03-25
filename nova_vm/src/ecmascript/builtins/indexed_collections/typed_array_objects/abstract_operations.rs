@@ -1160,10 +1160,9 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
 }
 
 /// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
-/// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
-/// and argumentList (a List of ECMAScript language values)
-/// and returns either a normal completion containing a TypedArray or a throw completion.
-/// It is used to specify the creation of a new TypedArray using a constructor function.
+///
+/// ### NOTE
+/// This method implements steps 2 onwards of the TypedArrayCreateFromConstructor abstract operation.
 fn typed_array_create_from_constructor_internal<'a>(
     agent: &mut Agent,
     new_typed_array: Object<'_>,
@@ -1246,6 +1245,11 @@ fn typed_array_create_from_constructor_internal<'a>(
     Ok(o)
 }
 
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
+/// and argumentList (a List of ECMAScript language values)
+/// and returns either a normal completion containing a TypedArray or a throw completion.
+/// It is used to specify the creation of a new TypedArray using a constructor function.
 pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     agent: &mut Agent,
     constructor: Function,
@@ -1274,6 +1278,11 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     .bind(gc.into_nogc())
 }
 
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
+/// and argumentList (a List of ECMAScript language values)
+/// and returns either a normal completion containing a TypedArray or a throw completion.
+/// It is used to specify the creation of a new TypedArray using a constructor function.
 pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     agent: &mut Agent,
     constructor: Function,
