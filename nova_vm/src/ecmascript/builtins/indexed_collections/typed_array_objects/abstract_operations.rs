@@ -1288,17 +1288,24 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
     mut gc: GcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
     let constructor = constructor.bind(gc.nogc());
-    let mut args = Vec::with_capacity(3);
-    args.push(array_buffer.into_value());
-    args.push(Value::try_from(byte_offset).unwrap());
-    if let Some(len) = length {
-        args.push(Value::try_from(len).unwrap());
-    }
+    let array_buffer = array_buffer.bind(gc.nogc());
+    let args: &mut [Value] = if let Some(length) = length {
+        &mut [
+            array_buffer.into_value().unbind(),
+            Value::try_from(byte_offset).unwrap(),
+            Value::try_from(length).unwrap(),
+        ]
+    } else {
+        &mut [
+            array_buffer.into_value().unbind(),
+            Value::try_from(byte_offset).unwrap(),
+        ]
+    };
     // 1. Let newTypedArray be ? Construct(constructor, argumentList).
     let new_typed_array = construct(
         agent,
         constructor.unbind(),
-        Some(ArgumentsList::from_mut_slice(&mut args)),
+        Some(ArgumentsList::from_mut_slice(args)),
         None,
         gc.reborrow(),
     )?;
