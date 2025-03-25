@@ -6,11 +6,11 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{get, length_of_array_like, set, try_set},
+            operations_on_objects::{construct, get, length_of_array_like, set, try_set},
             type_conversion::{to_big_int, to_index, to_number},
         },
         builtins::{
-            ArrayBuffer,
+            ArgumentsList, ArrayBuffer,
             array_buffer::{
                 Ordering, ViewedArrayBufferByteLength, allocate_array_buffer,
                 array_buffer_byte_length, clone_array_buffer, get_value_from_buffer,
@@ -25,8 +25,8 @@ use crate::{
         },
         execution::{Agent, JsResult, ProtoIntrinsics, agent::ExceptionType},
         types::{
-            BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, Number,
-            Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
+            BigInt, Function, InternalSlots, IntoFunction, IntoNumeric, IntoObject, IntoValue,
+            Number, Numeric, Object, PropertyKey, U8Clamped, Value, Viewable,
         },
     },
     engine::{
@@ -1157,4 +1157,162 @@ pub(crate) fn allocate_typed_array_buffer<T: Viewable>(
 
     // 9. Return unused.
     Ok(())
+}
+
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+///
+/// ### NOTE
+/// This method implements steps 2 onwards of the TypedArrayCreateFromConstructor abstract operation.
+fn typed_array_create_from_constructor_internal<'a>(
+    agent: &mut Agent,
+    new_typed_array: Object<'_>,
+    length: Option<i64>,
+    gc: NoGcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
+    let ta_record =
+        validate_typed_array(agent, new_typed_array.into_value(), Ordering::SeqCst, gc)?;
+    let o = ta_record.object;
+    // 3. If the number of elements in argumentList is 1 and argumentList[0] is a Number, then
+    if let Some(first_arg) = length {
+        // a. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
+        if match o {
+            TypedArray::Int8Array(_) => is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc),
+            TypedArray::Uint8Array(_) => is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc),
+            TypedArray::Uint8ClampedArray(_) => {
+                is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
+            }
+            TypedArray::Int16Array(_) => is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc),
+            TypedArray::Uint16Array(_) => {
+                is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc)
+            }
+            TypedArray::Int32Array(_) => is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc),
+            TypedArray::Uint32Array(_) => {
+                is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc)
+            }
+            TypedArray::BigInt64Array(_) => {
+                is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc)
+            }
+            TypedArray::BigUint64Array(_) => {
+                is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
+            }
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => {
+                is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
+            }
+            TypedArray::Float32Array(_) => {
+                is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
+            }
+            TypedArray::Float64Array(_) => {
+                is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
+            }
+        } {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc,
+            ));
+        }
+        // b. Let length be TypedArrayLength(taRecord).
+        let len = match o {
+            TypedArray::Int8Array(_) => typed_array_length::<i8>(agent, &ta_record, gc),
+            TypedArray::Uint8Array(_) => typed_array_length::<u8>(agent, &ta_record, gc),
+            TypedArray::Uint8ClampedArray(_) => {
+                typed_array_length::<U8Clamped>(agent, &ta_record, gc)
+            }
+            TypedArray::Int16Array(_) => typed_array_length::<i16>(agent, &ta_record, gc),
+            TypedArray::Uint16Array(_) => typed_array_length::<u16>(agent, &ta_record, gc),
+            TypedArray::Int32Array(_) => typed_array_length::<i32>(agent, &ta_record, gc),
+            TypedArray::Uint32Array(_) => typed_array_length::<u32>(agent, &ta_record, gc),
+            TypedArray::BigInt64Array(_) => typed_array_length::<i64>(agent, &ta_record, gc),
+            TypedArray::BigUint64Array(_) => typed_array_length::<u64>(agent, &ta_record, gc),
+            #[cfg(feature = "proposal-float16array")]
+            TypedArray::Float16Array(_) => typed_array_length::<f16>(agent, &ta_record, gc),
+            TypedArray::Float32Array(_) => typed_array_length::<f32>(agent, &ta_record, gc),
+            TypedArray::Float64Array(_) => typed_array_length::<f64>(agent, &ta_record, gc),
+        } as i64;
+        // c. If length < ℝ(argumentList[0]), throw a TypeError exception.
+        if len < first_arg {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "TypedArray out of bounds",
+                gc,
+            ));
+        };
+    }
+    // 4. Return newTypedArray.
+    Ok(o)
+}
+
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
+/// and argumentList (a List of ECMAScript language values)
+/// and returns either a normal completion containing a TypedArray or a throw completion.
+/// It is used to specify the creation of a new TypedArray using a constructor function.
+pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    length: i64,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let constructor = constructor.bind(gc.nogc());
+    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let new_typed_array = construct(
+        agent,
+        constructor.unbind(),
+        Some(ArgumentsList::from_mut_value(
+            &mut Value::try_from(length).unwrap(),
+        )),
+        None,
+        gc.reborrow(),
+    )?;
+    typed_array_create_from_constructor_internal(
+        agent,
+        new_typed_array.unbind(),
+        Some(length),
+        gc.into_nogc(),
+    )
+}
+
+/// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
+/// The abstract operation TypedArrayCreateFromConstructor takes arguments constructor (a constructor)
+/// and argumentList (a List of ECMAScript language values)
+/// and returns either a normal completion containing a TypedArray or a throw completion.
+/// It is used to specify the creation of a new TypedArray using a constructor function.
+pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
+    agent: &mut Agent,
+    constructor: Function,
+    array_buffer: ArrayBuffer,
+    byte_offset: i64,
+    length: Option<i64>,
+    mut gc: GcScope<'a, '_>,
+) -> JsResult<TypedArray<'a>> {
+    let constructor = constructor.bind(gc.nogc());
+    let array_buffer = array_buffer.bind(gc.nogc());
+    let args: &mut [Value] = if let Some(length) = length {
+        &mut [
+            array_buffer.into_value().unbind(),
+            Value::try_from(byte_offset).unwrap(),
+            Value::try_from(length).unwrap(),
+        ]
+    } else {
+        &mut [
+            array_buffer.into_value().unbind(),
+            Value::try_from(byte_offset).unwrap(),
+        ]
+    };
+    // 1. Let newTypedArray be ? Construct(constructor, argumentList).
+    let new_typed_array = construct(
+        agent,
+        constructor.unbind(),
+        Some(ArgumentsList::from_mut_slice(args)),
+        None,
+        gc.reborrow(),
+    )?;
+    typed_array_create_from_constructor_internal(
+        agent,
+        new_typed_array.unbind(),
+        length,
+        gc.into_nogc(),
+    )
 }
