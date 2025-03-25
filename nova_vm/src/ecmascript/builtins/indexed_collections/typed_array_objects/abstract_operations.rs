@@ -1260,10 +1260,9 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
     let new_typed_array = construct(
         agent,
         constructor.unbind(),
-        Some(ArgumentsList::from_mut_slice(&mut [Value::try_from(
-            length,
-        )
-        .unwrap()])),
+        Some(ArgumentsList::from_mut_value(
+            &mut Value::try_from(length).unwrap(),
+        )),
         None,
         gc.reborrow(),
     )?;
