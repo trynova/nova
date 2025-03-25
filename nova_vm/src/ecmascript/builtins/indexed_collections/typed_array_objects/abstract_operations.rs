@@ -1170,7 +1170,6 @@ fn typed_array_create_from_constructor_internal<'a>(
     gc: NoGcScope<'a, '_>,
 ) -> JsResult<TypedArray<'a>> {
     // 2. Let taRecord be ? ValidateTypedArray(newTypedArray, seq-cst).
-    let new_typed_array = new_typed_array.unbind();
     let ta_record =
         validate_typed_array(agent, new_typed_array.into_value(), Ordering::SeqCst, gc)?;
     let o = ta_record.object;
