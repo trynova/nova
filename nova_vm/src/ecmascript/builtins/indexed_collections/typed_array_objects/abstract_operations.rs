@@ -1271,10 +1271,8 @@ pub(crate) fn typed_array_create_from_constructor_with_length<'a>(
         agent,
         new_typed_array.unbind(),
         Some(length),
-        gc.nogc(),
+        gc.into_nogc(),
     )
-    .unbind()
-    .bind(gc.into_nogc())
 }
 
 /// ### [23.2.4.2 TypedArrayCreateFromConstructor ( constructor, argumentList )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-typedarraycreatefromconstructor)
@@ -1305,7 +1303,10 @@ pub(crate) fn typed_array_create_from_constructor_with_buffer<'a>(
         None,
         gc.reborrow(),
     )?;
-    typed_array_create_from_constructor_internal(agent, new_typed_array.unbind(), length, gc.nogc())
-        .unbind()
-        .bind(gc.into_nogc())
+    typed_array_create_from_constructor_internal(
+        agent,
+        new_typed_array.unbind(),
+        length,
+        gc.into_nogc(),
+    )
 }
