@@ -8,11 +8,15 @@ use crate::{
     SmallInteger,
     ecmascript::{
         abstract_operations::{
-            operations_on_objects::{call_function, set, try_get},
+            operations_on_iterator_objects::{get_iterator_from_method, iterator_to_list},
+            operations_on_objects::{
+                call_function, get, get_method, length_of_array_like, set, throw_not_callable,
+                try_get,
+            },
             testing_and_comparison::{is_array, is_callable, is_constructor, same_value_zero},
             type_conversion::{
-                to_boolean, to_integer_or_infinity, to_string, try_to_integer_or_infinity,
-                try_to_string,
+                to_boolean, to_integer_or_infinity, to_object, to_string,
+                try_to_integer_or_infinity, try_to_string,
             },
         },
         builders::{
@@ -97,13 +101,181 @@ impl TypedArrayIntrinsicObject {
         ))
     }
 
+    /// ### [23.2.2.1 %TypedArray%.from ( source [ , mapper [ , thisArg ] ] )](https://tc39.es/ecma262/multipage/indexed-collections.html#sec-%typedarray%.from)
     fn from<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _arguments: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        let this_value = this_value.bind(gc.nogc());
+        let source = arguments.get(0).bind(gc.nogc());
+        let mapper = arguments.get(1).bind(gc.nogc());
+        let this_arg = arguments.get(2).bind(gc.nogc());
+
+        // 1. Let C be the this value.
+        let c = this_value;
+        // 2. If IsConstructor(C) is false, throw a TypeError exception.
+        let Some(c) = is_constructor(agent, c) else {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Not a constructor",
+                gc.nogc(),
+            ));
+        };
+        // 3. If mapper is undefined, then
+        let mapping = if mapper.is_undefined() {
+            // a. Let mapping be false.
+            None
+        } else {
+            // 3. Else,
+            //  a. If IsCallable(mapper) is false, throw a TypeError exception.
+            let Some(mapper) = is_callable(mapper, gc.nogc()) else {
+                return Err(agent.throw_exception_with_static_message(
+                    ExceptionType::TypeError,
+                    "The map function of Array.from is not callable",
+                    gc.nogc(),
+                ));
+            };
+            //  b. Let mapping be true.
+            Some(mapper.scope(agent, gc.nogc()))
+        };
+        let scoped_c = c.scope(agent, gc.nogc());
+        let scoped_source = source.scope(agent, gc.nogc());
+        let scoped_this_arg = this_arg.scope(agent, gc.nogc());
+        // 5. Let usingIterator be ? GetMethod(source, %Symbol.iterator%).
+        let using_iterator = get_method(
+            agent,
+            source.unbind(),
+            WellKnownSymbolIndexes::Iterator.into(),
+            gc.reborrow(),
+        )?;
+        // 6. If usingIterator is not undefined, then
+        if let Some(using_iterator) = using_iterator {
+            // a. Let values be ? IteratorToList(? GetIteratorFromMethod(source, usingIterator)).
+            let Some(iterator_record) = get_iterator_from_method(
+                agent,
+                scoped_source.get(agent),
+                using_iterator.unbind(),
+                gc.reborrow(),
+            )?
+            else {
+                return Err(throw_not_callable(agent, gc.into_nogc()));
+            };
+            let values = iterator_to_list(agent, iterator_record.unbind(), gc.reborrow())?;
+            // b. Let len be the number of elements in values.
+            let len = values.len().to_i64().unwrap();
+            // c. Let targetObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
+            let target_obj = typed_array_create_from_constructor_with_length(
+                agent,
+                scoped_c.get(agent),
+                len,
+                gc.reborrow(),
+            )?
+            .unbind()
+            .bind(gc.nogc());
+            let scoped_target_obj = target_obj.scope(agent, gc.nogc());
+            // d. Let k be 0.
+            // e. Repeat, while k < len,
+            for (k, k_value) in values.iter().enumerate() {
+                // 𝔽(k)
+                //  i. Let Pk be ! ToString(𝔽(k)).
+                // ii. Let kValue be the first element of values.
+                // iii. Remove the first element from values.
+                let sk = SmallInteger::from(k as u32);
+                let fk = Number::from(sk).into_value();
+                let pk = PropertyKey::from(sk);
+                //  iv. If mapping is true, then
+                let mapped_value = if let Some(mapper) = &mapping {
+                    //  1. Let mappedValue be ? Call(mapper, thisArg, « kValue, 𝔽(k) »).
+                    call_function(
+                        agent,
+                        mapper.get(agent),
+                        scoped_this_arg.get(agent),
+                        Some(ArgumentsList::from_mut_slice(&mut [
+                            k_value.get(agent).unbind(),
+                            fk,
+                        ])),
+                        gc.reborrow(),
+                    )?
+                } else {
+                    // v. Else,
+                    //      1. Let mappedValue be kValue.
+                    k_value.get(agent)
+                };
+                // vi. Perform ? Set(targetObj, Pk, mappedValue, true).
+                set(
+                    agent,
+                    scoped_target_obj.get(agent).into_object(),
+                    pk,
+                    mapped_value.unbind(),
+                    true,
+                    gc.reborrow(),
+                )?;
+                // vii. Set k to k + 1.
+            }
+            // f. Assert: values is now an empty List.
+            // g. Return targetObj.
+            let target_obj = scoped_target_obj.get(agent);
+            return Ok(target_obj.into_value());
+        }
+        // 7. NOTE: source is not an iterable object, so assume it is already an array-like object.
+        // 8. Let arrayLike be ! ToObject(source).
+        let array_like = to_object(agent, scoped_source.get(agent), gc.nogc())
+            .unwrap()
+            .scope(agent, gc.nogc());
+        // 9. Let len be ? LengthOfArrayLike(arrayLike).
+        let len = length_of_array_like(agent, array_like.get(agent), gc.reborrow())?;
+        // 10. Let targetObj be ? TypedArrayCreateFromConstructor(C, « 𝔽(len) »).
+        let target_obj = typed_array_create_from_constructor_with_length(
+            agent,
+            scoped_c.get(agent),
+            len,
+            gc.reborrow(),
+        )?
+        .unbind()
+        .bind(gc.nogc());
+        let scoped_target_obj = target_obj.scope(agent, gc.nogc());
+        // 11. Let k be 0.
+        let mut k = 0;
+        // 12. Repeat, while k < len,
+        while k < len {
+            let sk = SmallInteger::from(k as u32);
+            // 𝔽(k)
+            let fk = Number::from(sk).into_value();
+            // a. Let Pk be ! ToString(𝔽(k)).
+            let pk = PropertyKey::from(sk);
+            // b. Let kValue be ? Get(arrayLike, Pk).
+            let k_value = get(agent, array_like.get(agent), pk, gc.reborrow())?;
+            // c. If mapping is true, then
+            let mapped_value = if let Some(mapper) = &mapping {
+                // i. Let mappedValue be ? Call(mapper, thisArg, « kValue, 𝔽(k) »).
+                call_function(
+                    agent,
+                    mapper.get(agent),
+                    scoped_this_arg.get(agent),
+                    Some(ArgumentsList::from_mut_slice(&mut [k_value.unbind(), fk])),
+                    gc.reborrow(),
+                )?
+            } else {
+                // d. Else,
+                // i. Let mappedValue be kValue.
+                k_value
+            };
+            // e. Perform ? Set(targetObj, Pk, mappedValue, true).
+            set(
+                agent,
+                scoped_target_obj.get(agent).into_object(),
+                pk,
+                mapped_value.unbind(),
+                true,
+                gc.reborrow(),
+            )?;
+            // f. Set k to k + 1.
+            k += 1;
+        }
+        let target_obj = scoped_target_obj.get(agent);
+        Ok(target_obj.into_value())
     }
 
     fn is_array<'gc>(
