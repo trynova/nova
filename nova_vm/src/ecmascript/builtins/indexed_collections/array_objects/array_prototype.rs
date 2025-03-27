@@ -3415,12 +3415,130 @@ impl ArrayPrototype {
     }
 
     fn to_spliced<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
+        agent: &mut Agent,
+        this_value: Value,
+        arguments: ArgumentsList,
+        mut gc: GcScope<'gc, '_>,
     ) -> JsResult<Value<'gc>> {
-        todo!();
+        let start = arguments.get(0).bind(gc.nogc()).scope(agent, gc.nogc());
+        let skip_count = arguments.get(1).bind(gc.nogc()).scope(agent, gc.nogc());
+        let items = if arguments.len() > 2 {
+            arguments[2..]
+                .iter()
+                .map(|v| v.scope(agent, gc.nogc()))
+                .collect()
+        } else {
+            vec![]
+        };
+        // 1. Let O be ? ToObject(this value).
+        let o = to_object(agent, this_value, gc.nogc())?.scope(agent, gc.nogc());
+        // 2. Let len be ? LengthOfArrayLike(O).
+        let len =
+            usize::try_from(length_of_array_like(agent, o.get(agent), gc.reborrow())?).unwrap();
+        // 3. Let relativeStart be ? ToIntegerOrInfinity(start).
+        let relative_start = to_integer_or_infinity(agent, start.get(agent), gc.reborrow())?;
+        let actual_start = if relative_start.is_neg_infinity() {
+            // 4. If relativeStart = -∞, let actualStart be 0.
+            0
+        } else if relative_start.is_negative() {
+            // 5. Else if relativeStart < 0, let actualStart be max(len + relativeStart, 0).
+            (len as i64 + relative_start.into_i64()).max(0) as usize
+        } else {
+            // 6. Else, let actualStart be min(relativeStart, len).
+            (relative_start.into_i64().min(len as i64)) as usize
+        };
+        // 7. Let insertCount be the number of elements in items.
+        let insert_count = items.len();
+        // 8. If start is not present, then
+        let actual_skip_count = if arguments.len() == 0 {
+            // a. Let actualSkipCount be 0.
+            0
+        } else if arguments.len() == 1 {
+            // 9. Else if skipCount is not present, then
+            // a. Let actualSkipCount be len - actualStart.
+            len - actual_start
+        } else {
+            // 10. Else,
+            //     a. Let dc be ? ToIntegerOrInfinity(skipCount).
+            let dc = to_integer_or_infinity(agent, skip_count.get(agent), gc.reborrow())?;
+            //     b. Let actualSkipCount be the result of clamping dc between 0 and len - actualStart.
+            (dc.into_i64().max(0) as usize).min(len - actual_start)
+        };
+        // 11. Let newLen be len + insertCount - actualSkipCount.
+        let new_len = len + insert_count - actual_skip_count;
+        if new_len > SmallInteger::MAX_NUMBER as usize {
+            return Err(agent.throw_exception_with_static_message(
+                ExceptionType::TypeError,
+                "Target index overflowed",
+                gc.nogc(),
+            ));
+        };
+        // 13. Let A be ? ArrayCreate(newLen).
+        let a = array_create(agent, new_len, new_len, None, gc.nogc())?;
+        let scoped_a = a.scope(agent, gc.nogc());
+        // 14. Let i be 0.
+        let mut i = 0;
+        // 15. Let r be actualStart + actualSkipCount.
+        let mut r = actual_start + actual_skip_count;
+        // 16. Repeat, while i < actualStart,
+        while i < actual_start {
+            // a. Let Pi be ! ToString(𝔽(i)).
+            let pi = i.try_into().unwrap();
+            // b. Let iValue be ? Get(O, Pi).
+            let i_value = get(agent, o.get(agent), pi, gc.reborrow())?;
+            // c. Perform ! CreateDataPropertyOrThrow(A, Pi, iValue).
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                scoped_a.get(agent),
+                pi,
+                i_value.unbind(),
+                gc.nogc(),
+            ))
+            .unwrap();
+            // d. Set i to i + 1.
+            i += 1;
+        }
+        // 17. For each element E of items, do
+        for e in items {
+            // a. Let Pi be ! ToString(𝔽(i)).
+            let pi = i.try_into().unwrap();
+            // b. Perform ! CreateDataPropertyOrThrow(A, Pi, E).
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                scoped_a.get(agent),
+                pi,
+                e.get(agent).unbind(),
+                gc.nogc(),
+            ))
+            .unwrap();
+            // d. Set i to i + 1.
+            i += 1;
+        }
+        // 18. Repeat, while i < newLen,
+        while i < new_len {
+            // a. Let Pi be ! ToString(𝔽(i)).
+            let pi = i.try_into().unwrap();
+            // b. Let from be ! ToString(𝔽(r)).
+            let from = r.try_into().unwrap();
+            // c. Let fromValue be ? Get(O, from).
+            let from_value = get(agent, o.get(agent), from, gc.reborrow())?;
+            // d. Perform ! CreateDataPropertyOrThrow(A, Pi, fromValue).
+            unwrap_try(try_create_data_property_or_throw(
+                agent,
+                scoped_a.get(agent),
+                pi,
+                from_value.unbind(),
+                gc.nogc(),
+            ))
+            .unwrap();
+            // d. Set i to i + 1.
+            i += 1;
+            // f. Set r to r + 1.
+            r += 1;
+        }
+        let a = scoped_a.get(agent);
+        // 19. Return A.
+        Ok(a.into_value())
     }
 
     /// ### [23.1.3.36 Array.prototype.toString ( )](https://tc39.es/ecma262/#sec-array.prototype.tostring)
