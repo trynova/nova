@@ -2203,15 +2203,6 @@ impl TypedArrayPrototype {
         todo!();
     }
 
-    fn to_spliced<'gc>(
-        _agent: &mut Agent,
-        _this_value: Value,
-        _: ArgumentsList,
-        _gc: GcScope<'gc, '_>,
-    ) -> JsResult<Value<'gc>> {
-        todo!();
-    }
-
     /// ### [23.2.3.35 %TypedArray%.prototype.values ( )](https://tc39.es/ecma262/#sec-get-%typedarray%.prototype-%symbol.tostringtag%)
     fn values<'gc>(
         agent: &mut Agent,
