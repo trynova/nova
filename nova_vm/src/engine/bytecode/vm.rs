@@ -42,7 +42,7 @@ use crate::{
             ordinary_function_create, set_function_name,
         },
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, JsResult, ProtoIntrinsics,
+            Agent, Environment, JsResult, ProtoIntrinsics,
             agent::{ExceptionType, JsError, resolve_binding},
             get_this_environment, new_class_static_element_environment,
             new_declarative_environment,
@@ -149,11 +149,11 @@ enum ContinuationKind {
 
 /// Indicates a place to jump after an exception is thrown.
 #[derive(Debug)]
-struct ExceptionJumpTarget {
+struct ExceptionJumpTarget<'a> {
     /// Instruction pointer.
     ip: usize,
     /// The lexical environment which contains this exception jump target.
-    lexical_environment: EnvironmentIndex,
+    lexical_environment: Environment<'a>,
 }
 
 /// ## Notes
@@ -167,7 +167,7 @@ pub(crate) struct Vm {
     stack: Vec<Value<'static>>,
     reference_stack: Vec<Reference<'static>>,
     iterator_stack: Vec<VmIterator>,
-    exception_jump_target_stack: Vec<ExceptionJumpTarget>,
+    exception_jump_target_stack: Vec<ExceptionJumpTarget<'static>>,
     result: Option<Value<'static>>,
     reference: Option<Reference<'static>>,
 }
@@ -190,7 +190,7 @@ pub(crate) struct SuspendedVm {
     iterator_stack: Box<[VmIterator]>,
     /// Note: Exception jump stack is non-empty only if the code awaits inside
     /// a try block. This means that often no heap data clone is required.
-    exception_jump_target_stack: Box<[ExceptionJumpTarget]>,
+    exception_jump_target_stack: Box<[ExceptionJumpTarget<'static>]>,
 }
 
 impl SuspendedVm {
@@ -392,12 +392,7 @@ impl<'a> Vm {
     fn handle_error(&mut self, agent: &mut Agent, err: JsError) -> bool {
         if let Some(ejt) = self.exception_jump_target_stack.pop() {
             self.ip = ejt.ip;
-            agent
-                .running_execution_context_mut()
-                .ecmascript_code
-                .as_mut()
-                .unwrap()
-                .lexical_environment = ejt.lexical_environment;
+            agent.set_current_lexical_environment(ejt.lexical_environment);
             self.result = Some(err.value());
             true
         } else {
@@ -500,15 +495,13 @@ impl<'a> Vm {
             }
             Instruction::ResolveThisBinding => {
                 // 1. Let envRec be GetThisEnvironment().
-                let env_rec = get_this_environment(agent);
+                let env_rec = get_this_environment(agent, gc.nogc());
                 // 2. Return ? envRec.GetThisBinding().
                 let result = match env_rec {
-                    EnvironmentIndex::Declarative(_) => unreachable!(),
-                    EnvironmentIndex::Function(idx) => idx.get_this_binding(agent, gc.nogc())?,
-                    EnvironmentIndex::Global(idx) => {
-                        idx.get_this_binding(agent, gc.nogc()).into_value()
-                    }
-                    EnvironmentIndex::Object(_) => unreachable!(),
+                    Environment::Declarative(_) => unreachable!(),
+                    Environment::Function(idx) => idx.get_this_binding(agent, gc.nogc())?,
+                    Environment::Global(idx) => idx.get_this_binding(agent, gc.nogc()).into_value(),
+                    Environment::Object(_) => unreachable!(),
                 };
                 vm.result = Some(result.unbind());
             }
@@ -635,16 +628,9 @@ impl<'a> Vm {
                     .bind(gc.nogc());
 
                 // 2. Let env be the running execution context's LexicalEnvironment.
+                let env = agent.current_lexical_environment(gc.nogc());
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment: env,
-                    private_environment: private_env,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
+                let private_env = agent.current_private_environment(gc.nogc());
                 // Note: Non-constructor methods never have a function
                 // prototype.
                 // 4. If functionPrototype is present, then
@@ -735,16 +721,9 @@ impl<'a> Vm {
                 .unbind()
                 .bind(gc.nogc());
                 // 2. Let env be the running execution context's LexicalEnvironment.
+                let env = agent.current_lexical_environment(gc.nogc());
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment: env,
-                    private_environment: private_env,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
+                let private_env = agent.current_private_environment(gc.nogc());
                 // 5. Let formalParameterList be an instance of the production FormalParameters : [empty] .
                 // We have to create a temporary allocator to create the empty
                 // items Vec. The allocator will never be asked to allocate
@@ -835,16 +814,9 @@ impl<'a> Vm {
                 .unbind()
                 .bind(gc.nogc());
                 // 2. Let env be the running execution context's LexicalEnvironment.
+                let env = agent.current_lexical_environment(gc.nogc());
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment: env,
-                    private_environment: private_env,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
+                let private_env = agent.current_private_environment(gc.nogc());
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     source_code: None,
@@ -1050,20 +1022,13 @@ impl<'a> Vm {
                 let function_expression = expression.get();
                 let identifier = *identifier;
                 // 2. Let env be the LexicalEnvironment of the running execution context.
+                let env = agent.current_lexical_environment(gc.nogc());
                 // 3. Let privateEnv be the running execution context's PrivateEnvironment.
+                let private_env = agent.current_private_environment(gc.nogc());
                 // 4. Let sourceText be the source text matched by ArrowFunction.
                 // 5. Let closure be OrdinaryFunctionCreate(%Function.prototype%, sourceText, ArrowParameters, ConciseBody, LEXICAL-THIS, env, privateEnv).
                 // 6. Perform SetFunctionName(closure, name).
                 // 7. Return closure.
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment,
-                    private_environment,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
                 // 1. If name is not present, set name to "".
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
@@ -1075,8 +1040,8 @@ impl<'a> Vm {
                     is_async: function_expression.r#async,
                     is_generator: false,
                     lexical_this: true,
-                    env: lexical_environment,
-                    private_env: private_environment,
+                    env,
+                    private_env,
                 };
                 let mut function = ordinary_function_create(agent, params, gc.nogc());
                 let name = if let Some(parameter) = &identifier {
@@ -1148,15 +1113,6 @@ impl<'a> Vm {
                 let function_expression = expression.get();
                 let identifier = *identifier;
                 let compiled_bytecode = *compiled_bytecode;
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment,
-                    private_environment,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
 
                 let (name, env, init_binding) = if let Some(parameter) = identifier {
                     debug_assert!(function_expression.id.is_none());
@@ -1181,15 +1137,25 @@ impl<'a> Vm {
                     )?
                     .unbind()
                     .bind(gc.nogc());
-                    (name, lexical_environment, false)
+                    (name, agent.current_lexical_environment(gc.nogc()), false)
                 } else if let Some(binding_identifier) = &function_expression.id {
                     let name = String::from_str(agent, &binding_identifier.name, gc.nogc());
-                    let func_env = new_declarative_environment(agent, Some(lexical_environment));
+                    let func_env = new_declarative_environment(
+                        agent,
+                        Some(agent.current_lexical_environment(gc.nogc())),
+                        gc.nogc(),
+                    );
                     func_env.create_immutable_binding(agent, name, false);
-                    (name.into(), EnvironmentIndex::Declarative(func_env), true)
+                    (name.into(), Environment::Declarative(func_env), true)
                 } else {
-                    (String::EMPTY_STRING.into(), lexical_environment, false)
+                    (
+                        String::EMPTY_STRING.into(),
+                        agent.current_lexical_environment(gc.nogc()),
+                        false,
+                    )
                 };
+
+                let private_env = agent.current_private_environment(gc.nogc());
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype: None,
                     source_code: None,
@@ -1201,7 +1167,7 @@ impl<'a> Vm {
                     is_generator: function_expression.generator,
                     lexical_this: false,
                     env,
-                    private_env: private_environment,
+                    private_env,
                 };
                 let function = ordinary_function_create(agent, params, gc.nogc());
                 if let Some(compiled_bytecode) = compiled_bytecode {
@@ -1294,15 +1260,8 @@ impl<'a> Vm {
                 let is_null_derived_class = !has_constructor_parent
                     && unwrap_try(proto.try_get_prototype_of(agent, gc.nogc())).is_none();
 
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment,
-                    private_environment,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
+                let env = agent.current_lexical_environment(gc.nogc());
+                let private_env = agent.current_private_environment(gc.nogc());
 
                 let params = OrdinaryFunctionCreateParams {
                     function_prototype,
@@ -1314,8 +1273,8 @@ impl<'a> Vm {
                     is_async: function_expression.r#async,
                     is_generator: function_expression.generator,
                     lexical_this: false,
-                    env: lexical_environment,
-                    private_env: private_environment,
+                    env,
+                    private_env,
                 };
                 let function = ordinary_function_create(agent, params, gc.nogc());
                 if let Some(compiled_bytecode) = compiled_bytecode {
@@ -1368,16 +1327,9 @@ impl<'a> Vm {
                 };
                 let proto = Object::try_from(*vm.stack.last().unwrap()).unwrap();
 
-                let ECMAScriptCodeEvaluationState {
-                    lexical_environment,
-                    private_environment,
-                    source_code,
-                    ..
-                } = *agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap();
+                let env = agent.current_lexical_environment(gc.nogc());
+                let private_env = agent.current_private_environment(gc.nogc());
+                let source_code = agent.current_source_code();
 
                 let function = create_builtin_constructor(
                     agent,
@@ -1387,8 +1339,8 @@ impl<'a> Vm {
                         prototype: function_prototype,
                         prototype_property: proto,
                         compiled_initializer_bytecode,
-                        env: lexical_environment,
-                        private_env: private_environment,
+                        env,
+                        private_env,
                         source_code,
                         source_text: Span::new(0, 0),
                     },
@@ -1569,7 +1521,7 @@ impl<'a> Vm {
                 vm.result = Some(result.unbind().into_value());
             }
             Instruction::EvaluateSuper => {
-                let EnvironmentIndex::Function(this_env) = get_this_environment(agent) else {
+                let Environment::Function(this_env) = get_this_environment(agent, gc.nogc()) else {
                     unreachable!();
                 };
                 // 1. Let newTarget be GetNewTarget().
@@ -1631,7 +1583,7 @@ impl<'a> Vm {
                     result.unbind().bind(gc.nogc())
                 };
                 // 7. Let thisER be GetThisEnvironment().
-                let EnvironmentIndex::Function(this_er) = get_this_environment(agent) else {
+                let Environment::Function(this_er) = get_this_environment(agent, gc.nogc()) else {
                     unreachable!();
                 };
                 // 8. Perform ? thisER.BindThisValue(result).
@@ -1916,20 +1868,10 @@ impl<'a> Vm {
 
                 // 10.2.11 FunctionDeclarationInstantiation
                 // 28.b. Let varEnv be NewDeclarativeEnvironment(env).
-                let env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment;
-                let var_env = new_declarative_environment(agent, Some(env));
+                let env = agent.current_lexical_environment(gc.nogc());
+                let var_env = new_declarative_environment(agent, Some(env), gc.nogc());
                 // c. Set the VariableEnvironment of calleeContext to varEnv.
-                agent
-                    .running_execution_context_mut()
-                    .ecmascript_code
-                    .as_mut()
-                    .unwrap()
-                    .variable_environment = EnvironmentIndex::Declarative(var_env);
+                agent.set_current_variable_environment(var_env.into());
 
                 // e. For each element n of varNames, do
                 for _ in 0..num_variables {
@@ -1944,7 +1886,11 @@ impl<'a> Vm {
                 // 30. If strict is false, then
                 let lex_env = if !strict {
                     // a. Let lexEnv be NewDeclarativeEnvironment(varEnv).
-                    new_declarative_environment(agent, Some(EnvironmentIndex::Declarative(var_env)))
+                    new_declarative_environment(
+                        agent,
+                        Some(Environment::Declarative(var_env)),
+                        gc.nogc(),
+                    )
                 } else {
                     // 31. Else,
                     // a. Let lexEnv be varEnv.
@@ -1952,80 +1898,40 @@ impl<'a> Vm {
                 };
 
                 // 32. Set the LexicalEnvironment of calleeContext to lexEnv.
-                agent
-                    .running_execution_context_mut()
-                    .ecmascript_code
-                    .as_mut()
-                    .unwrap()
-                    .lexical_environment = EnvironmentIndex::Declarative(lex_env);
+                agent.set_current_lexical_environment(lex_env.into());
             }
             Instruction::EnterDeclarativeEnvironment => {
-                let outer_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment;
-                let new_env = new_declarative_environment(agent, Some(outer_env));
-                agent
-                    .running_execution_context_mut()
-                    .ecmascript_code
-                    .as_mut()
-                    .unwrap()
-                    .lexical_environment = EnvironmentIndex::Declarative(new_env);
+                let outer_env = agent.current_lexical_environment(gc.nogc());
+                let new_env = new_declarative_environment(agent, Some(outer_env), gc.nogc());
+                agent.set_current_lexical_environment(new_env.into());
             }
             Instruction::EnterClassStaticElementEnvironment => {
-                let class_constructor = Function::try_from(*vm.stack.last().unwrap()).unwrap();
-                let local_env = new_class_static_element_environment(agent, class_constructor);
-                let local_env = EnvironmentIndex::Function(local_env);
+                let class_constructor = Function::try_from(*vm.stack.last().unwrap())
+                    .unwrap()
+                    .bind(gc.nogc());
+                let local_env =
+                    new_class_static_element_environment(agent, class_constructor, gc.nogc());
+                let local_env = Environment::Function(local_env);
 
-                let current_context = agent
-                    .running_execution_context_mut()
-                    .ecmascript_code
-                    .as_mut()
-                    .unwrap();
-                current_context.lexical_environment = local_env;
-                current_context.variable_environment = local_env;
+                agent.set_current_lexical_environment(local_env);
+                agent.set_current_variable_environment(local_env);
             }
             Instruction::ExitDeclarativeEnvironment => {
                 let old_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment
-                    .get_outer_env(agent)
+                    .current_lexical_environment(gc.nogc())
+                    .get_outer_env(agent, gc.nogc())
                     .unwrap();
-                agent
-                    .running_execution_context_mut()
-                    .ecmascript_code
-                    .as_mut()
-                    .unwrap()
-                    .lexical_environment = old_env;
+                agent.set_current_lexical_environment(old_env);
             }
             Instruction::ExitVariableEnvironment => {
                 let old_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .variable_environment
-                    .get_outer_env(agent)
+                    .current_variable_environment(gc.nogc())
+                    .get_outer_env(agent, gc.nogc())
                     .unwrap();
-                agent
-                    .running_execution_context_mut()
-                    .ecmascript_code
-                    .as_mut()
-                    .unwrap()
-                    .variable_environment = old_env;
+                agent.set_current_variable_environment(old_env);
             }
             Instruction::CreateMutableBinding => {
-                let lex_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment;
+                let lex_env = agent.current_lexical_environment(gc.nogc());
                 let name =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
 
@@ -2038,12 +1944,7 @@ impl<'a> Vm {
                 .unwrap();
             }
             Instruction::CreateImmutableBinding => {
-                let lex_env = agent
-                    .running_execution_context()
-                    .ecmascript_code
-                    .as_ref()
-                    .unwrap()
-                    .lexical_environment;
+                let lex_env = agent.current_lexical_environment(gc.nogc());
                 let name =
                     executable.fetch_identifier(agent, instr.args[0].unwrap() as usize, gc.nogc());
                 lex_env
@@ -2065,12 +1966,7 @@ impl<'a> Vm {
             Instruction::PushExceptionJumpTarget => {
                 vm.exception_jump_target_stack.push(ExceptionJumpTarget {
                     ip: instr.args[0].unwrap() as usize,
-                    lexical_environment: agent
-                        .running_execution_context()
-                        .ecmascript_code
-                        .as_ref()
-                        .unwrap()
-                        .lexical_environment,
+                    lexical_environment: agent.current_lexical_environment(gc.nogc()).unbind(),
                 });
             }
             Instruction::PopExceptionJumpTarget => {
@@ -2093,11 +1989,8 @@ impl<'a> Vm {
                     // Lexical binding, const [] = a; or let [] = a;
                     Some(
                         agent
-                            .running_execution_context()
-                            .ecmascript_code
-                            .as_ref()
-                            .unwrap()
-                            .lexical_environment,
+                            .current_lexical_environment(gc.nogc())
+                            .scope(agent, gc.nogc()),
                     )
                 } else {
                     // Var binding, var [] = a;
@@ -2112,11 +2005,8 @@ impl<'a> Vm {
                     // Lexical binding, const {} = a; or let {} = a;
                     Some(
                         agent
-                            .running_execution_context()
-                            .ecmascript_code
-                            .as_ref()
-                            .unwrap()
-                            .lexical_environment,
+                            .current_lexical_environment(gc.nogc())
+                            .scope(agent, gc.nogc()),
                     )
                 } else {
                     // Var binding, var {} = a;
@@ -2272,6 +2162,7 @@ impl<'a> Vm {
                             result?
                         } else {
                             let referenced_name = referenced_name.unbind();
+                            let base = base.unbind();
                             with_vm_gc(
                                 agent,
                                 vm,
@@ -2411,9 +2302,9 @@ impl<'a> Vm {
             }
             Instruction::GetNewTarget => {
                 // 1. Let envRec be GetThisEnvironment().
-                let env_rec = get_this_environment(agent);
+                let env_rec = get_this_environment(agent, gc.nogc());
                 // 2. Assert: envRec has a [[NewTarget]] field.
-                let EnvironmentIndex::Function(env_rec) = env_rec else {
+                let Environment::Function(env_rec) = env_rec else {
                     unreachable!()
                 };
                 // 3. Return envRec.[[NewTarget]].
@@ -2811,7 +2702,7 @@ fn with_vm_gc<'a, 'b, R: 'a>(
     }
 }
 
-impl HeapMarkAndSweep for ExceptionJumpTarget {
+impl HeapMarkAndSweep for ExceptionJumpTarget<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             ip: _,

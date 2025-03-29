@@ -57,8 +57,8 @@ use crate::{
             proxy::Proxy,
         },
         execution::{
-            Agent, DeclarativeEnvironmentIndex, Environments, FunctionEnvironmentIndex,
-            GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
+            Agent, DeclarativeEnvironment, Environments, FunctionEnvironment, GlobalEnvironment,
+            ObjectEnvironment, RealmIdentifier,
         },
         scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
         types::{
@@ -269,7 +269,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
             }
         });
 
-        let mut declarative_environment_marks: Box<[DeclarativeEnvironmentIndex]> =
+        let mut declarative_environment_marks: Box<[DeclarativeEnvironment]> =
             queues.declarative_environments.drain(..).collect();
         declarative_environment_marks.sort();
         declarative_environment_marks.iter().for_each(|&idx| {
@@ -283,7 +283,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 declarative_environments.get(index).mark_values(&mut queues);
             }
         });
-        let mut function_environment_marks: Box<[FunctionEnvironmentIndex]> =
+        let mut function_environment_marks: Box<[FunctionEnvironment]> =
             queues.function_environments.drain(..).collect();
         function_environment_marks.sort();
         function_environment_marks.iter().for_each(|&idx| {
@@ -297,7 +297,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 function_environments.get(index).mark_values(&mut queues);
             }
         });
-        let mut global_environment_marks: Box<[GlobalEnvironmentIndex]> =
+        let mut global_environment_marks: Box<[GlobalEnvironment]> =
             queues.global_environments.drain(..).collect();
         global_environment_marks.sort();
         global_environment_marks.iter().for_each(|&idx| {
@@ -311,7 +311,7 @@ pub fn heap_gc(agent: &mut Agent, root_realms: &mut [Option<RealmIdentifier>], g
                 global_environments.get(index).mark_values(&mut queues);
             }
         });
-        let mut object_environment_marks: Box<[ObjectEnvironmentIndex]> =
+        let mut object_environment_marks: Box<[ObjectEnvironment]> =
             queues.object_environments.drain(..).collect();
         object_environment_marks.sort();
         object_environment_marks.iter().for_each(|&idx| {

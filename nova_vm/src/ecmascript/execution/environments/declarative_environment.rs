@@ -4,7 +4,7 @@
 
 use ahash::AHashMap;
 
-use super::{DeclarativeEnvironmentIndex, OuterEnv};
+use super::{DeclarativeEnvironment, OuterEnv};
 use crate::{
     ecmascript::{
         execution::{Agent, JsResult, agent::ExceptionType},
@@ -21,11 +21,11 @@ use crate::{
 /// VariableDeclarations, and Catch clauses that directly associate identifier
 /// bindings with ECMAScript language values.
 #[derive(Debug, Clone)]
-pub(crate) struct DeclarativeEnvironment {
+pub struct DeclarativeEnvironmentRecord {
     /// ### \[\[OuterEnv\]\]
     ///
     /// See [OuterEnv].
-    pub(crate) outer_env: OuterEnv,
+    pub(crate) outer_env: OuterEnv<'static>,
 
     /// The environment's bindings.
     pub(crate) bindings: AHashMap<String<'static>, Binding>,
@@ -40,18 +40,18 @@ pub(crate) struct Binding {
     pub(super) deletable: bool,
 }
 
-impl DeclarativeEnvironment {
+impl DeclarativeEnvironmentRecord {
     /// ### [9.1.2.2 NewDeclarativeEnvironment ( E )](https://tc39.es/ecma262/#sec-newdeclarativeenvironment)
     ///
     /// The abstract operation NewDeclarativeEnvironment takes argument E (an
     /// Environment Record or null) and returns a Declarative Environment
     /// Record.
-    pub(crate) fn new(outer_env: OuterEnv) -> DeclarativeEnvironment {
+    pub(crate) fn new(outer_env: OuterEnv) -> DeclarativeEnvironmentRecord {
         // 1. Let env be a new Declarative Environment Record containing no bindings.
         // 2. Set env.[[OuterEnv]] to E.
         // 3. Return env.
-        DeclarativeEnvironment {
-            outer_env,
+        DeclarativeEnvironmentRecord {
+            outer_env: outer_env.unbind(),
             bindings: AHashMap::default(),
         }
     }
@@ -151,7 +151,7 @@ impl DeclarativeEnvironment {
     }
 }
 
-impl HeapMarkAndSweep for DeclarativeEnvironment {
+impl HeapMarkAndSweep for DeclarativeEnvironmentRecord {
     fn mark_values(&self, queues: &mut WorkQueues) {
         let Self {
             outer_env,
@@ -185,7 +185,7 @@ impl HeapMarkAndSweep for DeclarativeEnvironment {
     }
 }
 
-impl DeclarativeEnvironmentIndex {
+impl DeclarativeEnvironment<'_> {
     /// ### [9.1.1.1.1 HasBinding ( N )](https://tc39.es/ecma262/#sec-declarative-environment-records-hasbinding-n)
     ///
     /// The HasBinding concrete method of a Declarative Environment Record
@@ -388,7 +388,7 @@ impl DeclarativeEnvironmentIndex {
     }
 }
 
-impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
+impl HeapMarkAndSweep for DeclarativeEnvironment<'static> {
     fn mark_values(&self, queues: &mut WorkQueues) {
         queues.declarative_environments.push(*self);
     }
@@ -409,16 +409,17 @@ impl HeapMarkAndSweep for DeclarativeEnvironmentIndex {
 /// The abstract operation NewDeclarativeEnvironment takes argument E (an
 /// Environment Record or null) and returns a Declarative Environment
 /// Record.
-pub(crate) fn new_declarative_environment(
+pub(crate) fn new_declarative_environment<'a>(
     agent: &mut Agent,
     outer_env: OuterEnv,
-) -> DeclarativeEnvironmentIndex {
+    gc: NoGcScope<'a, '_>,
+) -> DeclarativeEnvironment<'a> {
     // 1. Let env be a new Declarative Environment Record containing no bindings.
     // 2. Set env.[[OuterEnv]] to E.
     agent
         .heap
         .environments
-        .push_declarative_environment(DeclarativeEnvironment::new(outer_env));
+        .push_declarative_environment(DeclarativeEnvironmentRecord::new(outer_env), gc);
     // 3. Return env.
-    DeclarativeEnvironmentIndex::last(&agent.heap.environments.declarative)
+    DeclarativeEnvironment::last(&agent.heap.environments.declarative)
 }

@@ -15,9 +15,9 @@ use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_object,
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext,
-            FunctionEnvironmentIndex, JsResult, PrivateEnvironmentIndex, ProtoIntrinsics,
-            RealmIdentifier, ThisBindingStatus,
+            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext,
+            FunctionEnvironment, JsResult, PrivateEnvironment, ProtoIntrinsics, RealmIdentifier,
+            ThisBindingStatus,
             agent::{
                 ExceptionType::{self, SyntaxError},
                 get_active_script_or_module,
@@ -182,10 +182,10 @@ pub enum ThisMode {
 #[derive(Debug)]
 pub(crate) struct ECMAScriptFunctionObjectHeapData {
     /// \[\[Environment]]
-    pub environment: EnvironmentIndex,
+    pub environment: Environment<'static>,
 
     /// \[\[PrivateEnvironment]]
-    pub private_environment: Option<PrivateEnvironmentIndex>,
+    pub private_environment: Option<PrivateEnvironment<'static>>,
 
     /// \[\[FormalParameters]]
     ///
@@ -250,8 +250,8 @@ pub(crate) struct OrdinaryFunctionCreateParams<'agent, 'program, 'gc> {
     pub is_async: bool,
     pub is_generator: bool,
     pub lexical_this: bool,
-    pub env: EnvironmentIndex,
-    pub private_env: Option<PrivateEnvironmentIndex>,
+    pub env: Environment<'gc>,
+    pub private_env: Option<PrivateEnvironment<'gc>>,
 }
 
 impl Index<ECMAScriptFunction<'_>> for Agent {
@@ -500,14 +500,15 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         // 1. Let callerContext be the running execution context.
         let _ = agent.running_execution_context();
         // 2. Let calleeContext be PrepareForOrdinaryCall(F, undefined).
-        let callee_context = prepare_for_ordinary_call(agent, self, None);
+        let callee_context = prepare_for_ordinary_call(agent, self, None, gc.nogc());
         // This is step 4. or OrdinaryCallBindThis:
         // "Let localEnv be the LexicalEnvironment of calleeContext."
         let local_env = callee_context
             .ecmascript_code
             .as_ref()
             .unwrap()
-            .lexical_environment;
+            .lexical_environment
+            .bind(gc.nogc());
         // 3. Assert: calleeContext is now the running execution context.
         // assert!(core::ptr::eq(agent.running_execution_context(), callee_context));
         // 4. If F.[[IsClassConstructor]] is true, then
@@ -529,7 +530,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             return Err(error);
         }
         // 5. Perform OrdinaryCallBindThis(F, calleeContext, thisArgument).
-        let EnvironmentIndex::Function(local_env) = local_env else {
+        let Environment::Function(local_env) = local_env else {
             panic!("localEnv is not a Function Environment Record");
         };
         ordinary_call_bind_this(agent, self, local_env, this_argument, gc.nogc());
@@ -591,14 +592,15 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
 
         // 4. Let calleeContext be PrepareForOrdinaryCall(F, newTarget).
         let callee_context =
-            prepare_for_ordinary_call(agent, self_fn, Some(new_target.into_object()));
+            prepare_for_ordinary_call(agent, self_fn, Some(new_target.into_object()), gc.nogc());
         // 7. Let constructorEnv be the LexicalEnvironment of calleeContext.
         let constructor_env = callee_context
             .ecmascript_code
             .as_ref()
             .unwrap()
-            .lexical_environment;
-        let EnvironmentIndex::Function(constructor_env) = constructor_env else {
+            .lexical_environment
+            .bind(gc.nogc());
+        let Environment::Function(constructor_env) = constructor_env else {
             panic!("constructorEnv is not a Function Environment Record");
         };
         // 5. Assert: calleeContext is now the running execution context.
@@ -622,6 +624,7 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
             // TODO: Classes.
         }
 
+        let scoped_constructor_env = constructor_env.scope(agent, gc.nogc());
         let scoped_this_argument = this_argument.map(|f| f.scope(agent, gc.nogc()));
 
         // 8. Let result be Completion(OrdinaryCallEvaluateBody(F, argumentsList)).
@@ -661,9 +664,11 @@ impl<'a> InternalMethods<'a> for ECMAScriptFunction<'a> {
         } else {
             // 12. Let thisBinding be ? constructorEnv.GetThisBinding().
             // 13. Assert: thisBinding is an Object.
-            let Ok(this_binding) =
-                Object::try_from(constructor_env.get_this_binding(agent, gc.nogc())?)
-            else {
+            let Ok(this_binding) = Object::try_from(
+                scoped_constructor_env
+                    .get(agent)
+                    .get_this_binding(agent, gc.nogc())?,
+            ) else {
                 unreachable!();
             };
 
@@ -682,9 +687,12 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
     agent: &'a mut Agent,
     f: ECMAScriptFunction,
     new_target: Option<Object>,
+    gc: NoGcScope,
 ) -> &'a ExecutionContext {
+    let f = f.bind(gc);
+    let new_target = new_target.bind(gc);
     let ecmascript_function_object = &agent[f].ecmascript_function;
-    let private_environment = ecmascript_function_object.private_environment;
+    let private_environment = ecmascript_function_object.private_environment.bind(gc);
     let is_strict_mode = ecmascript_function_object.strict;
     let script_or_module = ecmascript_function_object.script_or_module;
     let source_code = ecmascript_function_object.source_code;
@@ -693,16 +701,16 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
     // 4. Let calleeRealm be F.[[Realm]].
     let callee_realm = ecmascript_function_object.realm;
     // 7. Let localEnv be NewFunctionEnvironment(F, newTarget).
-    let local_env = new_function_environment(agent, f, new_target);
+    let local_env = new_function_environment(agent, f, new_target, gc);
     // 2. Let calleeContext be a new ECMAScript code execution context.
     let callee_context = ExecutionContext {
         // 8. Set the LexicalEnvironment of calleeContext to localEnv.
         // 9. Set the VariableEnvironment of calleeContext to localEnv.
         // 10. Set the PrivateEnvironment of calleeContext to F.[[PrivateEnvironment]].
         ecmascript_code: Some(ECMAScriptCodeEvaluationState {
-            lexical_environment: EnvironmentIndex::Function(local_env),
-            variable_environment: EnvironmentIndex::Function(local_env),
-            private_environment,
+            lexical_environment: Environment::Function(local_env.unbind()),
+            variable_environment: Environment::Function(local_env.unbind()),
+            private_environment: private_environment.unbind(),
             is_strict_mode,
             source_code,
         }),
@@ -732,7 +740,7 @@ pub(crate) fn prepare_for_ordinary_call<'a>(
 pub(crate) fn ordinary_call_bind_this(
     agent: &mut Agent,
     f: ECMAScriptFunction,
-    local_env: FunctionEnvironmentIndex,
+    local_env: FunctionEnvironment,
     this_argument: Value,
     gc: NoGcScope,
 ) {
@@ -899,9 +907,9 @@ pub(crate) fn ordinary_function_create<'agent, 'program, 'gc>(
     // 3. Set F.[[Call]] to the definition specified in 10.2.1.
     let ecmascript_function = ECMAScriptFunctionObjectHeapData {
         // 13. Set F.[[Environment]] to env.
-        environment: params.env,
+        environment: params.env.unbind(),
         // 14. Set F.[[PrivateEnvironment]] to privateEnv.
-        private_environment: params.private_env,
+        private_environment: params.private_env.unbind(),
         // 5. Set F.[[FormalParameters]] to ParameterList.
         // SAFETY: The reference to FormalParameters points to ScriptOrModule
         // and is valid until it gets dropped. Our GC keeps ScriptOrModule

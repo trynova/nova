@@ -24,7 +24,7 @@ use crate::{
             keyed_collections::map_objects::map_prototype::canonicalize_keyed_collection_key,
         },
         execution::{
-            Agent, ECMAScriptCodeEvaluationState, EnvironmentIndex, ExecutionContext, JsResult,
+            Agent, ECMAScriptCodeEvaluationState, Environment, ExecutionContext, JsResult,
             RealmIdentifier,
             agent::{ExceptionType, JsError},
             new_class_field_initializer_environment,
@@ -2064,11 +2064,11 @@ pub(crate) fn initialize_instance_elements(
         let outer_env = constructor_data.environment;
         let outer_priv_env = constructor_data.private_environment;
         let source_code = constructor_data.source_code;
-        let decl_env = new_class_field_initializer_environment(agent, f, o, outer_env);
+        let decl_env = new_class_field_initializer_environment(agent, f, o, outer_env, gc.nogc());
         agent.execution_context_stack.push(ExecutionContext {
             ecmascript_code: Some(ECMAScriptCodeEvaluationState {
-                lexical_environment: EnvironmentIndex::Function(decl_env),
-                variable_environment: EnvironmentIndex::Function(decl_env),
+                lexical_environment: Environment::Function(decl_env.unbind()),
+                variable_environment: Environment::Function(decl_env.unbind()),
                 private_environment: outer_priv_env,
                 is_strict_mode: true,
                 source_code,

@@ -5,7 +5,7 @@
 mod intrinsics;
 
 use super::{
-    Agent, ExecutionContext, GlobalEnvironment, JsResult, environments::GlobalEnvironmentIndex,
+    Agent, ExecutionContext, GlobalEnvironmentRecord, JsResult, environments::GlobalEnvironment,
 };
 use crate::engine::context::{Bindable, GcScope, NoGcScope};
 use crate::engine::rootable::Scopable;
@@ -141,7 +141,7 @@ pub struct Realm {
     /// ### \[\[GlobalEnv]]
     ///
     /// The global environment for this realm.
-    pub(crate) global_env: Option<GlobalEnvironmentIndex>,
+    pub(crate) global_env: Option<GlobalEnvironment<'static>>,
 
     /// ### \[\[TemplateMap]]
     ///
@@ -282,6 +282,7 @@ pub(crate) fn set_realm_global_object(
     realm_id: RealmIdentifier,
     global_object: Option<Object>,
     this_value: Option<Object>,
+    gc: NoGcScope,
 ) {
     // 1. If globalObj is undefined, then
     let global_object = global_object.unwrap_or_else(|| {
@@ -305,14 +306,15 @@ pub(crate) fn set_realm_global_object(
     agent[realm_id].global_object = global_object.unbind();
 
     // 5. Let newGlobalEnv be NewGlobalEnvironment(globalObj, thisValue).
-    let new_global_env = GlobalEnvironment::new(agent, global_object, this_value);
+    let new_global_env = GlobalEnvironmentRecord::new(agent, global_object, this_value);
 
     // 6. Set realmRec.[[GlobalEnv]] to newGlobalEnv.
     agent[realm_id].global_env = Some(
         agent
             .heap
             .environments
-            .push_global_environment(new_global_env),
+            .push_global_environment(new_global_env, gc)
+            .unbind(),
     );
 
     // 7. Return UNUSED.
@@ -637,7 +639,13 @@ pub(crate) fn initialize_host_defined_realm(
         create_global_object.map(|create_global_object| create_global_object(agent, gc.reborrow()));
 
     // 9. Perform SetRealmGlobalObject(realm, global, thisValue).
-    set_realm_global_object(agent, realm, global.map(|g| g.get(agent)), this_value);
+    set_realm_global_object(
+        agent,
+        realm,
+        global.map(|g| g.get(agent)),
+        this_value.unbind(),
+        gc.nogc(),
+    );
 
     // 10. Let globalObj be ? SetDefaultGlobalBindings(realm).
     let global_object = set_default_global_bindings(agent, realm, gc.reborrow())

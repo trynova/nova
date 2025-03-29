@@ -68,6 +68,10 @@ use crate::{
             },
             proxy::Proxy,
         },
+        execution::{
+            DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ModuleEnvironment,
+            ObjectEnvironment, PrivateEnvironment,
+        },
         types::{
             ARGUMENTS_DISCRIMINANT, ARRAY_DISCRIMINANT, ARRAY_ITERATOR_DISCRIMINANT,
             ASYNC_FROM_SYNC_ITERATOR_DISCRIMINANT, ASYNC_GENERATOR_DISCRIMINANT,
@@ -122,6 +126,10 @@ mod private {
                 promise_resolving_functions::BuiltinPromiseResolvingFunction,
             },
             proxy::Proxy,
+        },
+        execution::{
+            DeclarativeEnvironment, Environment, FunctionEnvironment, GlobalEnvironment,
+            ModuleEnvironment, ObjectEnvironment, PrivateEnvironment,
         },
         types::{
             BigInt, Function, Number, Numeric, Object, OrdinaryObject, Primitive, PropertyKey,
@@ -183,6 +191,15 @@ mod private {
     impl RootableSealed for WeakRef<'_> {}
     #[cfg(feature = "weak-refs")]
     impl RootableSealed for WeakSet<'_> {}
+
+    // Environments are also rootable
+    impl RootableSealed for DeclarativeEnvironment<'_> {}
+    impl RootableSealed for FunctionEnvironment<'_> {}
+    impl RootableSealed for GlobalEnvironment<'_> {}
+    impl RootableSealed for ModuleEnvironment<'_> {}
+    impl RootableSealed for ObjectEnvironment<'_> {}
+    impl RootableSealed for PrivateEnvironment<'_> {}
+    impl RootableSealed for Environment<'_> {}
 
     /// Marker trait to make RootableSealed not implementable outside of nova_vm.
     pub trait RootableCollectionSealed {}
@@ -345,6 +362,12 @@ pub enum HeapRootData {
     // The order here shouldn't be important at all, feel free to eg. keep
     // these in alphabetical order.
     PromiseReaction(PromiseReaction),
+    DeclarativeEnvironment(DeclarativeEnvironment<'static>),
+    FunctionEnvironment(FunctionEnvironment<'static>),
+    GlobalEnvironment(GlobalEnvironment<'static>),
+    ModuleEnvironment(ModuleEnvironment<'static>),
+    ObjectEnvironment(ObjectEnvironment<'static>),
+    PrivateEnvironment(PrivateEnvironment<'static>),
 }
 
 impl From<Object<'static>> for HeapRootData {
@@ -539,6 +562,24 @@ impl HeapMarkAndSweep for HeapRootData {
             HeapRootData::Module(module) => module.mark_values(queues),
             HeapRootData::EmbedderObject(embedder_object) => embedder_object.mark_values(queues),
             HeapRootData::PromiseReaction(promise_reaction) => promise_reaction.mark_values(queues),
+            HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
+                declarative_environment_index.mark_values(queues)
+            }
+            HeapRootData::FunctionEnvironment(function_environment_index) => {
+                function_environment_index.mark_values(queues)
+            }
+            HeapRootData::GlobalEnvironment(global_environment_index) => {
+                global_environment_index.mark_values(queues)
+            }
+            HeapRootData::ModuleEnvironment(module_environment_index) => {
+                module_environment_index.mark_values(queues)
+            }
+            HeapRootData::ObjectEnvironment(object_environment_index) => {
+                object_environment_index.mark_values(queues)
+            }
+            HeapRootData::PrivateEnvironment(private_environment_index) => {
+                private_environment_index.mark_values(queues)
+            }
         }
     }
 
@@ -635,6 +676,24 @@ impl HeapMarkAndSweep for HeapRootData {
             }
             HeapRootData::PromiseReaction(promise_reaction) => {
                 promise_reaction.sweep_values(compactions)
+            }
+            HeapRootData::DeclarativeEnvironment(declarative_environment_index) => {
+                declarative_environment_index.sweep_values(compactions)
+            }
+            HeapRootData::FunctionEnvironment(function_environment_index) => {
+                function_environment_index.sweep_values(compactions)
+            }
+            HeapRootData::GlobalEnvironment(global_environment_index) => {
+                global_environment_index.sweep_values(compactions)
+            }
+            HeapRootData::ModuleEnvironment(module_environment_index) => {
+                module_environment_index.sweep_values(compactions)
+            }
+            HeapRootData::ObjectEnvironment(object_environment_index) => {
+                object_environment_index.sweep_values(compactions)
+            }
+            HeapRootData::PrivateEnvironment(private_environment_index) => {
+                private_environment_index.sweep_values(compactions)
             }
         }
     }

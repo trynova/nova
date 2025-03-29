@@ -10,13 +10,13 @@
 use ahash::AHashMap;
 
 use super::{
-    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, EnvironmentIndex, ExecutionContext, Realm, RealmIdentifier
+    environments::{get_identifier_reference, try_get_identifier_reference}, initialize_default_realm, initialize_host_defined_realm, Environment, ExecutionContext, PrivateEnvironment, Realm, RealmIdentifier
 };
 use crate::{
     ecmascript::{
         abstract_operations::type_conversion::to_string,
         builtins::{control_abstraction_objects::promise_objects::promise_abstract_operations::promise_jobs::{PromiseReactionJob, PromiseResolveThenableJob}, error::ErrorHeapData, promise::Promise},
-        scripts_and_modules::ScriptOrModule,
+        scripts_and_modules::{source_code::SourceCode, ScriptOrModule},
         types::{Function, IntoValue, Object, Reference, String, Symbol, Value},
     }, engine::{context::{Bindable, GcScope, NoGcScope}, rootable::{HeapRootCollectionData, HeapRootData}, TryResult, Vm}, heap::{heap_gc::heap_gc, CreateHeapData, HeapMarkAndSweep, PrimitiveHeapIndexable}, Heap
 };
@@ -457,6 +457,91 @@ impl Agent {
         self.execution_context_stack.last().unwrap()
     }
 
+    pub(crate) fn current_source_code(&self) -> SourceCode {
+        self.execution_context_stack
+            .last()
+            .unwrap()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .source_code
+    }
+
+    /// Returns the running execution context's LexicalEnvironment.
+    pub(crate) fn current_lexical_environment<'a>(&self, gc: NoGcScope<'a, '_>) -> Environment<'a> {
+        self.execution_context_stack
+            .last()
+            .unwrap()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .lexical_environment
+            .bind(gc)
+    }
+
+    /// Returns the running execution context's VariableEnvironment.
+    pub(crate) fn current_variable_environment<'a>(
+        &self,
+        gc: NoGcScope<'a, '_>,
+    ) -> Environment<'a> {
+        self.execution_context_stack
+            .last()
+            .unwrap()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .variable_environment
+            .bind(gc)
+    }
+
+    /// Returns the running execution context's PrivateEnvironment.
+    pub(crate) fn current_private_environment<'a>(
+        &self,
+        gc: NoGcScope<'a, '_>,
+    ) -> Option<PrivateEnvironment<'a>> {
+        self.execution_context_stack
+            .last()
+            .unwrap()
+            .ecmascript_code
+            .as_ref()
+            .unwrap()
+            .private_environment
+            .bind(gc)
+    }
+
+    /// Sets the running execution context's LexicalEnvironment.
+    pub(crate) fn set_current_lexical_environment(&mut self, env: Environment) {
+        self.execution_context_stack
+            .last_mut()
+            .unwrap()
+            .ecmascript_code
+            .as_mut()
+            .unwrap()
+            .lexical_environment = env.unbind();
+    }
+
+    /// Sets the running execution context's VariableEnvironment.
+    pub(crate) fn set_current_variable_environment(&mut self, env: Environment) {
+        self.execution_context_stack
+            .last_mut()
+            .unwrap()
+            .ecmascript_code
+            .as_mut()
+            .unwrap()
+            .variable_environment = env.unbind();
+    }
+
+    /// Sets the running execution context's PrivateEnvironment.
+    pub(crate) fn set_current_private_environment(&mut self, env: PrivateEnvironment) {
+        self.execution_context_stack
+            .last_mut()
+            .unwrap()
+            .ecmascript_code
+            .as_mut()
+            .unwrap()
+            .private_environment = Some(env.unbind());
+    }
+
     pub(crate) fn running_execution_context_mut(&mut self) -> &mut ExecutionContext {
         self.execution_context_stack.last_mut().unwrap()
     }
@@ -507,19 +592,16 @@ pub(crate) fn get_active_script_or_module(agent: &mut Agent) -> Option<ScriptOrM
 pub(crate) fn try_resolve_binding<'a>(
     agent: &mut Agent,
     name: String<'a>,
-    env: Option<EnvironmentIndex>,
+    env: Option<Environment>,
     gc: NoGcScope<'a, '_>,
 ) -> TryResult<Reference<'a>> {
-    let env = env.unwrap_or_else(|| {
-        // 1. If env is not present or env is undefined, then
-        //    a. Set env to the running execution context's LexicalEnvironment.
-        agent
-            .running_execution_context()
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .lexical_environment
-    });
+    let env = env
+        .unwrap_or_else(|| {
+            // 1. If env is not present or env is undefined, then
+            //    a. Set env to the running execution context's LexicalEnvironment.
+            agent.current_lexical_environment(gc)
+        })
+        .bind(gc);
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
@@ -546,20 +628,17 @@ pub(crate) fn try_resolve_binding<'a>(
 pub(crate) fn resolve_binding<'a, 'b>(
     agent: &mut Agent,
     name: String<'b>,
-    env: Option<EnvironmentIndex>,
+    env: Option<Environment>,
     gc: GcScope<'a, 'b>,
 ) -> JsResult<Reference<'a>> {
     let name = name.bind(gc.nogc());
-    let env = env.unwrap_or_else(|| {
-        // 1. If env is not present or env is undefined, then
-        //    a. Set env to the running execution context's LexicalEnvironment.
-        agent
-            .running_execution_context()
-            .ecmascript_code
-            .as_ref()
-            .unwrap()
-            .lexical_environment
-    });
+    let env = env
+        .unwrap_or_else(|| {
+            // 1. If env is not present or env is undefined, then
+            //    a. Set env to the running execution context's LexicalEnvironment.
+            agent.current_lexical_environment(gc.nogc())
+        })
+        .bind(gc.nogc());
 
     // 2. Assert: env is an Environment Record.
     // Implicit from env's type.
@@ -572,7 +651,7 @@ pub(crate) fn resolve_binding<'a, 'b>(
         .is_strict_mode;
 
     // 4. Return ? GetIdentifierReference(env, name, strict).
-    get_identifier_reference(agent, Some(env), name.unbind(), strict, gc)
+    get_identifier_reference(agent, Some(env.unbind()), name.unbind(), strict, gc)
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Agent, EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier};
+use super::{Agent, Environment, PrivateEnvironment, RealmIdentifier};
 use crate::{
     ecmascript::{
         scripts_and_modules::{ScriptOrModule, source_code::SourceCode},
@@ -25,20 +25,20 @@ pub(crate) struct ECMAScriptCodeEvaluationState {
     ///
     /// Identifies the Environment Record used to resolve identifier references
     /// made by code within this execution context.
-    pub(crate) lexical_environment: EnvironmentIndex,
+    pub(crate) lexical_environment: Environment<'static>,
 
     /// ### VariableEnvironment
     ///
     /// Identifies the Environment Record that holds bindings created by
     /// VariableStatements within this execution context.
-    pub(crate) variable_environment: EnvironmentIndex,
+    pub(crate) variable_environment: Environment<'static>,
 
     /// ### PrivateEnvironment
     ///
     /// Identifies the PrivateEnvironment Record that holds Private Names
     /// created by ClassElements in the nearest containing class. null if there
     /// is no containing class.
-    pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) private_environment: Option<PrivateEnvironment<'static>>,
 
     /// Although the spec does not track this here, we also use
     /// [`ECMAScriptCodeEvaluationState`] to track whether some ECMAScript code

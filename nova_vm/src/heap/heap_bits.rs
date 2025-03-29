@@ -10,7 +10,7 @@ use hashbrown::HashTable;
 use super::indexes::TypedArrayIndex;
 use super::{
     Heap,
-    element_array::{ElementArrayKey, ElementDescriptor, ElementsVector},
+    element_array::ElementDescriptor,
     indexes::{BaseIndex, ElementIndex, GetBaseIndexMut, IntoBaseIndex},
 };
 #[cfg(feature = "date")]
@@ -52,8 +52,8 @@ use crate::ecmascript::{
         proxy::Proxy,
     },
     execution::{
-        DeclarativeEnvironmentIndex, EnvironmentIndex, FunctionEnvironmentIndex,
-        GlobalEnvironmentIndex, ObjectEnvironmentIndex, RealmIdentifier,
+        DeclarativeEnvironment, FunctionEnvironment, GlobalEnvironment, ObjectEnvironment,
+        RealmIdentifier,
     },
     scripts_and_modules::{script::ScriptIdentifier, source_code::SourceCode},
     types::{
@@ -146,7 +146,7 @@ pub(crate) struct WorkQueues {
     pub data_views: Vec<DataView<'static>>,
     #[cfg(feature = "date")]
     pub dates: Vec<Date<'static>>,
-    pub declarative_environments: Vec<DeclarativeEnvironmentIndex>,
+    pub declarative_environments: Vec<DeclarativeEnvironment<'static>>,
     pub e_2_10: Vec<(ElementIndex, u32)>,
     pub e_2_12: Vec<(ElementIndex, u32)>,
     pub e_2_16: Vec<(ElementIndex, u32)>,
@@ -161,14 +161,14 @@ pub(crate) struct WorkQueues {
     pub errors: Vec<Error<'static>>,
     pub executables: Vec<Executable>,
     pub finalization_registrys: Vec<FinalizationRegistry<'static>>,
-    pub function_environments: Vec<FunctionEnvironmentIndex>,
+    pub function_environments: Vec<FunctionEnvironment<'static>>,
     pub generators: Vec<Generator<'static>>,
-    pub global_environments: Vec<GlobalEnvironmentIndex>,
+    pub global_environments: Vec<GlobalEnvironment<'static>>,
     pub maps: Vec<Map<'static>>,
     pub map_iterators: Vec<MapIterator<'static>>,
     pub modules: Vec<Module<'static>>,
     pub numbers: Vec<HeapNumber<'static>>,
-    pub object_environments: Vec<ObjectEnvironmentIndex>,
+    pub object_environments: Vec<ObjectEnvironment<'static>>,
     pub objects: Vec<OrdinaryObject<'static>>,
     pub primitive_objects: Vec<PrimitiveObject<'static>>,
     pub promises: Vec<Promise<'static>>,
@@ -398,29 +398,6 @@ impl WorkQueues {
             weak_refs: Vec::with_capacity(heap.weak_refs.len() / 4),
             #[cfg(feature = "weak-refs")]
             weak_sets: Vec::with_capacity(heap.weak_sets.len() / 4),
-        }
-    }
-
-    pub fn push_elements_vector(&mut self, vec: &ElementsVector) {
-        match vec.cap {
-            ElementArrayKey::Empty => {}
-            ElementArrayKey::E4 => self.e_2_4.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E6 => self.e_2_6.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E8 => self.e_2_8.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E10 => self.e_2_10.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E12 => self.e_2_12.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E16 => self.e_2_16.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E24 => self.e_2_24.push((vec.elements_index, vec.len)),
-            ElementArrayKey::E32 => self.e_2_32.push((vec.elements_index, vec.len)),
-        }
-    }
-
-    pub fn push_environment_index(&mut self, value: EnvironmentIndex) {
-        match value {
-            EnvironmentIndex::Declarative(idx) => self.declarative_environments.push(idx),
-            EnvironmentIndex::Function(idx) => self.function_environments.push(idx),
-            EnvironmentIndex::Global(idx) => self.global_environments.push(idx),
-            EnvironmentIndex::Object(idx) => self.object_environments.push(idx),
         }
     }
 

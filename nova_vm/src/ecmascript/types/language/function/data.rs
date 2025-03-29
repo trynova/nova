@@ -7,7 +7,7 @@ use oxc_span::Span;
 use crate::{
     ecmascript::{
         builtins::{Behaviour, ECMAScriptFunctionObjectHeapData},
-        execution::{EnvironmentIndex, PrivateEnvironmentIndex, RealmIdentifier},
+        execution::{Environment, PrivateEnvironment, RealmIdentifier},
         scripts_and_modules::source_code::SourceCode,
         types::{OrdinaryObject, String, Value},
     },
@@ -70,11 +70,11 @@ pub struct BuiltinConstructorHeapData {
     /// ### \[\[Environment]]
     ///
     /// This is required for class field initializers.
-    pub(crate) environment: EnvironmentIndex,
+    pub(crate) environment: Environment<'static>,
     /// ### \[\[PrivateEnvironment]]
     ///
     /// This is required for class field initializers.
-    pub(crate) private_environment: Option<PrivateEnvironmentIndex>,
+    pub(crate) private_environment: Option<PrivateEnvironment<'static>>,
     ///  \[\[SourceText]]
     pub(crate) source_text: Span,
 

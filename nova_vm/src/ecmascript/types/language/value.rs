@@ -1457,6 +1457,12 @@ impl Rootable for Value<'_> {
                 Some(Self::EmbedderObject(embedder_object))
             }
             HeapRootData::PromiseReaction(_) => None,
+            HeapRootData::DeclarativeEnvironment(_) => None,
+            HeapRootData::FunctionEnvironment(_) => None,
+            HeapRootData::GlobalEnvironment(_) => None,
+            HeapRootData::ModuleEnvironment(_) => None,
+            HeapRootData::ObjectEnvironment(_) => None,
+            HeapRootData::PrivateEnvironment(_) => None,
             // Note: Do not use _ => Err(()) to make sure any added
             // HeapRootData Value variants cause compile errors if not handled.
         }
