@@ -844,6 +844,7 @@ impl TypedArrayPrototype {
         .to_i64()
         .unwrap();
         // 4. Let relativeTarget be ? ToIntegerOrInfinity(target).
+        // SAFETY: target has not been shared.
         let relative_target =
             to_integer_or_infinity(agent, unsafe { target.take(agent) }, gc.reborrow())?;
         // 5. If relativeTarget = -∞, let targetIndex be 0.
@@ -857,6 +858,7 @@ impl TypedArrayPrototype {
             relative_target.into_i64().min(len)
         };
         // 8. Let relativeStart be ? ToIntegerOrInfinity(start).
+        // SAFETY: start has not been shared.
         let relative_start =
             to_integer_or_infinity(agent, unsafe { start.take(agent) }, gc.reborrow())?;
         let start_index = if relative_start.is_neg_infinity() {
