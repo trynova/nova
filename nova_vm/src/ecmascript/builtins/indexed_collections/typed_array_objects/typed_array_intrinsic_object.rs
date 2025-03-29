@@ -891,121 +891,116 @@ impl TypedArrayPrototype {
         };
         // 16. Let count be min(endIndex - startIndex, len - targetIndex).
         let count = (end_index - start_index).min(len - target_index);
+        let gc = gc.into_nogc();
+        let o = scoped_o.get(agent).bind(gc);
         // 17. If count > 0, then
         if count > 0 {
             // a. NOTE: The copying must be performed in a manner that preserves the bit-level encoding of the source data.
             // b. Let buffer be O.[[ViewedArrayBuffer]].
-            let buffer = scoped_o
-                .get(agent)
-                .get_viewed_array_buffer(agent, gc.nogc());
+            let buffer = o.get_viewed_array_buffer(agent, gc);
             // c. Set taRecord to MakeTypedArrayWithBufferWitnessRecord(O, seq-cst).
-            ta_record = make_typed_array_with_buffer_witness_record(
-                agent,
-                scoped_o.get(agent),
-                Ordering::SeqCst,
-                gc.nogc(),
-            );
+            ta_record = make_typed_array_with_buffer_witness_record(agent, o, Ordering::SeqCst, gc);
             // d. If IsTypedArrayOutOfBounds(taRecord) is true, throw a TypeError exception.
-            if match scoped_o.get(agent) {
+            if match o {
                 TypedArray::Int8Array(_) => {
-                    is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<i8>(agent, &ta_record, gc)
                 }
                 TypedArray::Uint8Array(_) => {
-                    is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<u8>(agent, &ta_record, gc)
                 }
                 TypedArray::Uint8ClampedArray(_) => {
-                    is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<U8Clamped>(agent, &ta_record, gc)
                 }
                 TypedArray::Int16Array(_) => {
-                    is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<i16>(agent, &ta_record, gc)
                 }
                 TypedArray::Uint16Array(_) => {
-                    is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<u16>(agent, &ta_record, gc)
                 }
                 TypedArray::Int32Array(_) => {
-                    is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<i32>(agent, &ta_record, gc)
                 }
                 TypedArray::Uint32Array(_) => {
-                    is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<u32>(agent, &ta_record, gc)
                 }
                 TypedArray::BigInt64Array(_) => {
-                    is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<i64>(agent, &ta_record, gc)
                 }
                 TypedArray::BigUint64Array(_) => {
-                    is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<u64>(agent, &ta_record, gc)
                 }
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => {
-                    is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<f16>(agent, &ta_record, gc)
                 }
                 TypedArray::Float32Array(_) => {
-                    is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<f32>(agent, &ta_record, gc)
                 }
                 TypedArray::Float64Array(_) => {
-                    is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc.nogc())
+                    is_typed_array_out_of_bounds::<f64>(agent, &ta_record, gc)
                 }
             } {
                 return Err(agent.throw_exception_with_static_message(
                     ExceptionType::TypeError,
                     "Callback is not callable",
-                    gc.nogc(),
+                    gc,
                 ));
             }
             // e. Set len to TypedArrayLength(taRecord).
             // f. Let elementSize be TypedArrayElementSize(O).
-            let (len, element_size) = match scoped_o.get(agent) {
+            let (len, element_size) = match o {
                 TypedArray::Int8Array(_) => (
-                    typed_array_length::<i8>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<i8>(agent, &ta_record, gc),
                     core::mem::size_of::<i8>(),
                 ),
                 TypedArray::Uint8Array(_) => (
-                    typed_array_length::<u8>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<u8>(agent, &ta_record, gc),
                     core::mem::size_of::<u8>(),
                 ),
                 TypedArray::Uint8ClampedArray(_) => (
-                    typed_array_length::<U8Clamped>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<U8Clamped>(agent, &ta_record, gc),
                     core::mem::size_of::<U8Clamped>(),
                 ),
                 TypedArray::Int16Array(_) => (
-                    typed_array_length::<i16>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<i16>(agent, &ta_record, gc),
                     core::mem::size_of::<i16>(),
                 ),
                 TypedArray::Uint16Array(_) => (
-                    typed_array_length::<u16>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<u16>(agent, &ta_record, gc),
                     core::mem::size_of::<u16>(),
                 ),
                 TypedArray::Int32Array(_) => (
-                    typed_array_length::<i32>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<i32>(agent, &ta_record, gc),
                     core::mem::size_of::<i32>(),
                 ),
                 TypedArray::Uint32Array(_) => (
-                    typed_array_length::<u32>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<u32>(agent, &ta_record, gc),
                     core::mem::size_of::<u32>(),
                 ),
                 TypedArray::BigInt64Array(_) => (
-                    typed_array_length::<i64>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<i64>(agent, &ta_record, gc),
                     core::mem::size_of::<i64>(),
                 ),
                 TypedArray::BigUint64Array(_) => (
-                    typed_array_length::<u64>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<u64>(agent, &ta_record, gc),
                     core::mem::size_of::<u64>(),
                 ),
                 #[cfg(feature = "proposal-float16array")]
                 TypedArray::Float16Array(_) => (
-                    typed_array_length::<f16>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<f16>(agent, &ta_record, gc),
                     core::mem::size_of::<f16>(),
                 ),
                 TypedArray::Float32Array(_) => (
-                    typed_array_length::<f32>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<f32>(agent, &ta_record, gc),
                     core::mem::size_of::<f32>(),
                 ),
                 TypedArray::Float64Array(_) => (
-                    typed_array_length::<f64>(agent, &ta_record, gc.nogc()),
+                    typed_array_length::<f64>(agent, &ta_record, gc),
                     core::mem::size_of::<f64>(),
                 ),
             };
             // g. Let byteOffset be O.[[ByteOffset]].
-            let byte_offset = scoped_o.get(agent).byte_offset(agent).to_i64().unwrap();
+            let byte_offset = o.byte_offset(agent).to_i64().unwrap();
             let element_size = element_size.to_i64().unwrap();
             let len = len.to_i64().unwrap();
             // h. Let bufferByteLimit be (len × elementSize) + byteOffset.
@@ -1045,7 +1040,7 @@ impl TypedArrayPrototype {
                         true,
                         Ordering::Unordered,
                         None,
-                        gc.nogc(),
+                        gc,
                     );
                     //  2. Perform SetValueInBuffer(buffer, toByteIndex, uint8, value, true, unordered).
                     set_value_in_buffer::<u8>(
@@ -1071,7 +1066,6 @@ impl TypedArrayPrototype {
             }
         }
         // 18. Return O.
-        let o = scoped_o.get(agent);
         Ok(o.into_value())
     }
 
